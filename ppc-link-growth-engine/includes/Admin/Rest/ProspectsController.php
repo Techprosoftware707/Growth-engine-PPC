@@ -418,8 +418,9 @@ final class ProspectsController extends Controller {
                 'method'           => $method,
                 'headers'          => $headers,
                 'body_template'    => mb_substr( trim( $template ), 0, 10000 ),
-                'success_path'     => $pathRule( $api['success_path'] ?? '' ),
-                'listing_url_path' => $pathRule( $api['listing_url_path'] ?? '' ),
+                'success_path'      => $pathRule( $api['success_path'] ?? '' ),
+                'listing_url_path'  => $pathRule( $api['listing_url_path'] ?? '' ),
+                'confirmation_path' => $pathRule( $api['confirmation_path'] ?? '' ),
             ],
         ];
     }

@@ -259,7 +259,7 @@ function spawn_cron( int $gmt = 0 ): bool { return true; }
 function wp_get_schedules(): array { return [ 'hourly' => [ 'interval' => 3600, 'display' => 'Hourly' ] ]; }
 function rest_do_request( WP_REST_Request $r ): WP_REST_Response { return new WP_REST_Response( [], 404 ); }
 function rest_ensure_response( mixed $r ): WP_REST_Response { return $r instanceof WP_REST_Response ? $r : new WP_REST_Response( $r ); }
-function register_rest_route( string $ns, string $route, array $args = [], bool $override = false ): bool { $GLOBALS['ppclg_test_routes'][ $ns . $route ] = $args; return true; }
+function register_rest_route( string $ns, string $route, array $args = [], bool $override = false ): bool { $GLOBALS['ppclg_test_routes'][ $ns . $route ][] = $args; return true; }
 function rest_get_server(): object { return (object) []; }
 function add_menu_page( mixed ...$a ): string { return 'ppclg'; }
 function add_submenu_page( mixed ...$a ): string|false { return 'ppclg'; }

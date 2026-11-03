@@ -45,10 +45,15 @@ try {
     $problems[] = 'RestApi::register threw: ' . $e->getMessage();
 }
 $routes = [];
-foreach ( $GLOBALS['ppclg_test_routes'] as $full => $args ) {
+foreach ( $GLOBALS['ppclg_test_routes'] as $full => $registrations ) {
     $route   = preg_replace( '#^ppclg/v1#', '', $full );
     $methods = [];
-    $defs    = isset( $args['callback'] ) ? [ $args ] : $args;
+    $defs    = [];
+    foreach ( $registrations as $args ) {
+        foreach ( isset( $args['callback'] ) ? [ $args ] : $args as $d ) {
+            $defs[] = $d;
+        }
+    }
     foreach ( $defs as $def ) {
         if ( is_array( $def ) && isset( $def['methods'] ) ) {
             foreach ( preg_split( '/[,\s]+/', strtoupper( (string) $def['methods'] ) ) as $m ) {
@@ -80,12 +85,30 @@ foreach ( new RecursiveIteratorIterator( new RecursiveDirectoryIterator( $jsDir 
 }
 echo 'JS API calls found: ' . count( $calls ) . "\n";
 $matchRoute = static function ( string $path, string $method ) use ( $routes ): bool {
-    $path = preg_replace( '/\?.*$/', '', $path ) ?? $path;
-    $path = preg_replace( '/\$\{[^}]+\}/', '123', $path ) ?? $path;
+    $path     = preg_replace( '/\?.*$/', '', $path ) ?? $path;
+    $concrete = preg_replace( '/\$\{[^}]+\}/', '123', $path ) ?? $path;
+    $jsRegex  = '#^' . preg_replace( '/\\\$\\\{[^}]+\\\}/', '[^/]+', preg_quote( $path, '#' ) ) . '/?$#';
     foreach ( $routes as $route => $methods ) {
-        $regex = '#^' . preg_replace( '/\(\?P<\w+>([^)]*)\)/', '$1', $route ) . '/?$#';
-        if ( @preg_match( $regex, $path ) ) {
-            return empty( $methods ) || in_array( $method, $methods, true );
+        $allowed = empty( $methods ) || in_array( $method, $methods, true );
+        // (a) concrete JS path against the route's own regex.
+        if ( @preg_match( '#^' . $route . '/?$#', $concrete ) ) {
+            return $allowed;
+        }
+        // (b) JS wildcard pattern against a sample built from the route (first alternation, 123 for digits).
+        $sample = preg_replace_callback(
+            '/\(\?P<\w+>([^)]*)\)/',
+            static function ( array $m ): string {
+                $inner = $m[1];
+                if ( str_contains( $inner, '|' ) ) {
+                    return (string) explode( '|', trim( $inner, '()' ) )[0];
+                }
+                return str_contains( $inner, 'd' ) ? '123' : 'sample';
+            },
+            $route
+        ) ?? $route;
+        $sample = preg_replace( '/\[[^\]]+\][+*]?/', 'x', $sample ) ?? $sample;
+        if ( preg_match( $jsRegex, $sample ) ) {
+            return $allowed;
         }
     }
     return false;

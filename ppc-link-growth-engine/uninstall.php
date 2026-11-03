@@ -44,23 +44,21 @@ foreach ( $ppclg_tables as $ppclg_table ) {
     $wpdb->query( "DROP TABLE IF EXISTS `{$ppclg_full}`" );
 }
 
-foreach ( [
-    'ppclg_settings',
-    'ppclg_secrets',
-    'ppclg_db_version',
-    'ppclg_activated_at',
-    'ppclg_counters',
-    'ppclg_backup_dir',
-    'ppclg_facts',
-    'ppclg_provider_quota',
-    'ppclg_search_quota',
-    'ppclg_last_tick',
-] as $ppclg_option ) {
-    delete_option( $ppclg_option );
+// Every option the plugin writes uses the ppclg_ prefix (settings, secrets, counters, facts, custom seeds,
+// stage runs/results, schedule interval, digest/import timestamps, provider errors, locks); delete them all.
+// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+$ppclg_option_names = $wpdb->get_col( "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE 'ppclg\\_%'" );
+foreach ( (array) $ppclg_option_names as $ppclg_option ) {
+    delete_option( (string) $ppclg_option );
 }
 
+// Transients (caps sync, schedule check, overview caches, rate limits, activation redirect).
 // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-$wpdb->query( "DELETE FROM {$wpdb->options} WHERE option_name LIKE 'ppclg\\_lock\\_%' OR option_name LIKE '\\_transient\\_ppclg\\_%' OR option_name LIKE '\\_transient\\_timeout\\_ppclg\\_%'" );
+$wpdb->query( "DELETE FROM {$wpdb->options} WHERE option_name LIKE '\\_transient\\_ppclg\\_%' OR option_name LIKE '\\_transient\\_timeout\\_ppclg\\_%' OR option_name LIKE '\\_site\\_transient\\_ppclg\\_%' OR option_name LIKE '\\_site\\_transient\\_timeout\\_ppclg\\_%'" );
+
+// Per-user dismissed admin notices.
+delete_metadata( 'user', 0, 'ppclg_dismissed_notices', '', true );
+wp_cache_flush();
 
 $ppclg_role = get_role( 'administrator' );
 if ( $ppclg_role ) {

@@ -227,7 +227,14 @@ final class OutreachController extends Controller {
         if ( null === $m ) {
             return $this->notFound( __( 'Message', 'ppc-link-growth-engine' ) );
         }
-        return [ 'message' => $this->messageDetail( $m ) ];
+        $detail = $this->messageDetail( $m );
+        return [
+            'message'  => $detail,
+            'prospect' => $detail['prospect'],
+            'contact'  => $detail['contact'],
+            'campaign' => $detail['campaign'],
+            'preview'  => $detail['preview'],
+        ];
     }
 
     /** POST /outreach/messages/{id} {subject, body} @return array<string,mixed>|\WP_Error */

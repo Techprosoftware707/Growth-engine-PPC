@@ -362,7 +362,7 @@ final class SettingsController extends Controller {
             if ( $ints ) {
                 if ( is_numeric( $v ) ) {
                     $i = (int) $v;
-                    if ( 'send_days' === $leaf && ( $i < 0 || $i > 6 ) ) {
+                    if ( 'send_days' === $leaf && ( $i < 0 || $i > 7 ) ) {
                         continue;
                     }
                     $out[] = $i;

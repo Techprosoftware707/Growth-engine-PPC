@@ -1,7 +1,10 @@
 // Logs into a local WordPress install and screenshots every Link Growth admin page.
 // Usage: node tests/integration/screenshot.mjs http://127.0.0.1:8787 admin 'adminpass123!' /output/dir
-import { chromium } from 'playwright';
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
+// Resolve the pre-installed Playwright through CommonJS resolution (honours NODE_PATH).
+const require = createRequire(import.meta.url);
+const { chromium } = require('playwright');
 
 const [base = 'http://127.0.0.1:8787', user = 'admin', pass = 'adminpass123!', out = './screenshots'] = process.argv.slice(2);
 fs.mkdirSync(out, { recursive: true });

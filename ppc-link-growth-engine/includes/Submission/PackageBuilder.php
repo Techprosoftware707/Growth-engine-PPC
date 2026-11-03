@@ -23,7 +23,7 @@ use PPC\LinkGrowth\Support\Url;
 final class PackageBuilder {
 
     /** Category match terms in priority order (first term with any matching option wins). */
-    public const CATEGORY_TERMS = [ 'laboratory', 'scientific', 'biotech', 'life science', 'chemical', 'research', 'science', 'medical supplies', 'industrial supplies', 'business services' ];
+    public const CATEGORY_TERMS = [ 'reagent', 'laboratory supplies', 'scientific supplies', 'laboratory', 'scientific', 'biotech', 'life science', 'chemical', 'research', 'science', 'medical supplies', 'industrial supplies', 'business services' ];
 
     /** Consent boxes that may be ticked (terms / privacy / accuracy) vs. boxes that must never be ticked (newsletters). */
     public const CONSENT_ALLOW = '/\b(terms|conditions|privacy|policy|policies|accura\w*|correct|true|agree\w*|confirm\w*|consent|authori[sz]e\w*|acknowledge\w*|certify|guidelines)\b/i';
@@ -154,28 +154,58 @@ final class PackageBuilder {
         if ( [] === $norm ) {
             return null;
         }
-        foreach ( $terms as $term ) {
-            $t = mb_strtolower( trim( (string) $term ) );
-            if ( '' === $t ) {
-                continue;
-            }
-            foreach ( $norm as $o ) {
-                if ( $o['lt'] === $t || $o['lv'] === $t ) {
-                    return [ 'value' => $o['value'], 'text' => $o['text'] ];
+        $isCategory = $terms === self::CATEGORY_TERMS;
+        // Exact text/value matches (province/country names, codes) win outright, in term order.
+        if ( ! $isCategory ) {
+            foreach ( $terms as $term ) {
+                $t = mb_strtolower( trim( (string) $term ) );
+                if ( '' === $t ) {
+                    continue;
                 }
-            }
-            if ( mb_strlen( $t ) <= 2 ) {
-                continue; // Short codes ("ca", "on") only match exactly.
-            }
-            $stem  = str_ends_with( $t, 'y' ) ? preg_quote( mb_substr( $t, 0, -1 ), '/' ) . '(y|ies)' : preg_quote( $t, '/' );
-            $regex = '/(?<![\p{L}\p{N}])' . $stem . '/u';
-            foreach ( $norm as $o ) {
-                if ( preg_match( $regex, $o['lt'] ) || preg_match( $regex, $o['lv'] ) ) {
-                    return [ 'value' => $o['value'], 'text' => $o['text'] ];
+                foreach ( $norm as $o ) {
+                    if ( $o['lt'] === $t || $o['lv'] === $t ) {
+                        return [ 'value' => $o['value'], 'text' => $o['text'] ];
+                    }
                 }
             }
         }
-        return null;
+        // Otherwise score every option: earlier terms weigh more and, for category lists, options that
+        // describe supplies/reagents beat equipment, devices or services (which a reagent supplier does not sell).
+        $count      = count( $terms );
+        $best       = null;
+        $bestScore  = 0.0;
+        foreach ( $norm as $o ) {
+            $score = 0.0;
+            foreach ( array_values( $terms ) as $i => $term ) {
+                $t = mb_strtolower( trim( (string) $term ) );
+                if ( '' === $t || mb_strlen( $t ) <= 2 ) {
+                    continue; // Short codes ("ca", "on") only match exactly.
+                }
+                $stem  = str_ends_with( $t, 'y' ) ? preg_quote( mb_substr( $t, 0, -1 ), '/' ) . '(y|ies)' : preg_quote( $t, '/' );
+                $regex = '/(?<![\p{L}\p{N}])' . $stem . '/u';
+                if ( $o['lt'] === $t || $o['lv'] === $t ) {
+                    $score += ( $count - $i ) + 20; // exact name match
+                } elseif ( preg_match( $regex, $o['lt'] ) || preg_match( $regex, $o['lv'] ) ) {
+                    $score += $count - $i;
+                }
+            }
+            if ( $score <= 0 ) {
+                continue;
+            }
+            if ( $isCategory ) {
+                $score += preg_match( '/\breagents?\b/u', $o['lt'] ) ? 6 : 0;
+                $score += preg_match( '/\bsuppl(y|ies)\b/u', $o['lt'] ) ? 4 : 0;
+                $score += preg_match( '/\bscientific\b/u', $o['lt'] ) ? 3 : 0;
+                $score += preg_match( '/\b(biotech\w*|life sciences?)\b/u', $o['lt'] ) ? 2 : 0;
+                $score -= preg_match( '/\bequipment\b/u', $o['lt'] ) ? 3 : 0;
+                $score -= preg_match( '/\b(devices?|software|services?|consulting|clinics?|pharmac\w+)\b/u', $o['lt'] ) ? 4 : 0;
+            }
+            if ( $score > $bestScore ) {
+                $bestScore = $score;
+                $best      = [ 'value' => $o['value'], 'text' => $o['text'] ];
+            }
+        }
+        return $best;
     }
 
     /** Names a region code can be matched against (code first). @return string[] */

@@ -336,7 +336,13 @@ final class SubmissionEngine {
      */
     public function approve( int $id, int $userId ): bool {
         $sub = $this->submissions->find( $id );
-        if ( null === $sub || ! in_array( (string) $sub['status'], [ Submissions::STATUS_PENDING_REVIEW, Submissions::STATUS_NEEDS_MANUAL ], true ) ) {
+        if ( null === $sub ) {
+            return false;
+        }
+        if ( in_array( (string) $sub['status'], [ Submissions::STATUS_APPROVED, Submissions::STATUS_QUEUED ], true ) ) {
+            return true; // already approved for automated processing (idempotent)
+        }
+        if ( ! in_array( (string) $sub['status'], [ Submissions::STATUS_PENDING_REVIEW, Submissions::STATUS_NEEDS_MANUAL ], true ) ) {
             return false;
         }
         $prospect = $this->prospects->find( (int) $sub['prospect_id'] );

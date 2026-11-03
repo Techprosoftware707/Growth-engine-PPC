@@ -42,7 +42,7 @@ final class PublicController extends Controller {
         }
         $result = $this->process( $request );
         $html   = $this->c->get( Unsubscribe::class )->renderPage( $result );
-        return $this->raw( $html, 'text/html; charset=utf-8', 200, [ 'Cache-Control' => 'no-store, max-age=0', 'X-Robots-Tag' => 'noindex, nofollow' ] );
+        return $this->raw( $html, 'text/html; charset=utf-8', ! empty( $result['ok'] ) ? 200 : 404, [ 'Cache-Control' => 'no-store, max-age=0', 'X-Robots-Tag' => 'noindex, nofollow' ] );
     }
 
     /** POST /unsubscribe — RFC 8058 one-click (form-encoded) or a confirmation form post. */

@@ -1316,7 +1316,12 @@ export function formField( spec = {} ) {
             for ( const opt of normalizeOptions( options ) ) {
                 input.appendChild( el( 'option', { value: opt.value }, opt.label ) );
             }
-            set = ( v ) => { input.value = v === null || v === undefined ? '' : String( v ); };
+            set = ( v ) => {
+                input.value = v === null || v === undefined ? '' : String( v );
+                if ( input.selectedIndex === -1 && input.options.length > 0 ) {
+                    input.selectedIndex = 0;
+                }
+            };
             get = () => input.value;
             break;
         }
@@ -1824,8 +1829,165 @@ export function tabs( { items = [], active = null, onChange = null, pills = fals
     return api;
 }
 
+// ---------------------------------------------------------------------
+// List view: filter bar + sortable paginated table bound to a fetcher
+// ---------------------------------------------------------------------
+
+/** Normalises a list payload ({items,total,page,per_page,pages} or a bare array). */
+export function normalizeList( data ) {
+    if ( Array.isArray( data ) ) {
+        return { items: data, total: data.length, page: 1, per_page: Math.max( 1, data.length ), pages: 1 };
+    }
+    if ( data && typeof data === 'object' ) {
+        const items = Array.isArray( data.items ) ? data.items : ( Array.isArray( data.data ) ? data.data : [] );
+        const total = Number.isFinite( Number( data.total ) ) ? Number( data.total ) : items.length;
+        const perPage = Number( data.per_page ) > 0 ? Number( data.per_page ) : Math.max( 1, items.length );
+        return {
+            items,
+            total,
+            page: Number( data.page ) > 0 ? Number( data.page ) : 1,
+            per_page: perPage,
+            pages: Number( data.pages ) > 0 ? Number( data.pages ) : Math.max( 1, Math.ceil( total / perPage ) ),
+        };
+    }
+    return { items: [], total: 0, page: 1, per_page: 25, pages: 1 };
+}
+
+/**
+ * @param {{fetch: Function, columns: Array, filters?: Array|null, initial?: object, onRowClick?: Function, sortable?: boolean, defaultSort?: {key: string, dir: string},
+ *          perPage?: number, rowKey?: Function, rowAttrs?: Function, empty?: any, toolbar?: any, expandable?: Function, onLoaded?: Function, dense?: boolean}} spec
+ * fetch(params, state) must resolve with a list payload. Returns { el, reload, state, items, total, setFilters, filterBar }.
+ */
+export function listView( { fetch, columns, filters = null, initial = {}, onRowClick = null, sortable = true, defaultSort = { key: 'id', dir: 'desc' }, perPage = 25, rowKey = null, rowAttrs = null, empty = null, toolbar = null, expandable = null, onLoaded = null, dense = false } ) {
+    const state = {
+        filters: { ...( initial.filters || {} ) },
+        page: Number( initial.page ) || 1,
+        perPage: Number( initial.perPage ) || perPage,
+        orderby: initial.orderby || defaultSort.key,
+        order: initial.order || defaultSort.dir,
+    };
+    const tableHost = el( 'div', { class: 'ppclg-listview-table' } );
+    const pagerHost = el( 'div' );
+    const root = el( 'div', { class: 'ppclg-listview' } );
+    let bar = null;
+    if ( filters ) {
+        bar = filterBar( {
+            fields: filters,
+            values: state.filters,
+            actions: toolbar,
+            onChange: ( values ) => {
+                state.filters = values;
+                state.page = 1;
+                reload();
+            },
+        } );
+        root.appendChild( bar.el );
+    } else if ( toolbar ) {
+        root.appendChild( el( 'div', { class: 'ppclg-row ppclg-row--end', style: { marginBottom: '12px' } }, toolbar ) );
+    }
+    root.appendChild( tableHost );
+    root.appendChild( pagerHost );
+
+    let items = [];
+    let total = 0;
+    let pages = 1;
+    let requestId = 0;
+
+    function renderTable( isLoading ) {
+        replace( tableHost, dataTable( {
+            columns,
+            rows: items,
+            onRowClick,
+            sortable,
+            sort: { key: state.orderby, dir: state.order },
+            onSort: ( key, dir ) => {
+                state.orderby = key;
+                state.order = dir;
+                state.page = 1;
+                reload();
+            },
+            loading: isLoading,
+            empty,
+            rowKey,
+            rowAttrs,
+            expandable,
+            dense,
+        } ) );
+    }
+
+    function renderPager() {
+        replace( pagerHost, total > 0 ? pagination( {
+            page: state.page,
+            pages,
+            total,
+            perPage: state.perPage,
+            onChange: ( p ) => {
+                state.page = p;
+                reload();
+            },
+            onPerPage: ( n ) => {
+                state.perPage = n;
+                state.page = 1;
+                reload();
+            },
+        } ) : null );
+    }
+
+    async function reload() {
+        requestId += 1;
+        const id = requestId;
+        renderTable( true );
+        try {
+            const params = { ...state.filters, page: state.page, per_page: state.perPage, orderby: state.orderby, order: state.order };
+            const result = await fetch( params, state );
+            if ( id !== requestId ) {
+                return;
+            }
+            const list = normalizeList( result );
+            items = list.items;
+            total = list.total;
+            pages = list.pages;
+            if ( list.page > 0 ) {
+                state.page = list.page;
+            }
+            renderTable( false );
+            renderPager();
+            if ( onLoaded ) {
+                onLoaded( { items, total, state } );
+            }
+        } catch ( e ) {
+            if ( id !== requestId ) {
+                return;
+            }
+            replace( tableHost, errorState( { title: 'Could not load data', message: e && e.message ? e.message : '', retry: reload } ) );
+            replace( pagerHost );
+        }
+    }
+
+    return {
+        el: root,
+        reload,
+        state,
+        get items() {
+            return items;
+        },
+        get total() {
+            return total;
+        },
+        setFilters( next ) {
+            state.filters = { ...state.filters, ...next };
+            if ( bar ) {
+                bar.set( next );
+            }
+            state.page = 1;
+            return reload();
+        },
+        filterBar: bar,
+    };
+}
+
 export default {
-    el, svg, append, replace, clear, text, fragment, escapeHtml, icon, nextId, setLocale,
+    el, svg, append, replace, clear, text, fragment, escapeHtml, icon, nextId, setLocale, normalizeList, listView,
     fmtNumber, fmtCompact, fmtPercent, fmtBytes, fmtDate, fmtDuration, parseDate, timeAgo, timeEl, labelize, truncate, debounce, sleep,
     isObject, deepClone, deepEqual, getPath, setPath, STATUS_KIND, kindFor, scoreClass,
     badge, statusBadge, button, iconButton, setBusy, linkButton, extLink, copyButton, spinner, loading, skeletonRows, emptyState, errorState, callout,

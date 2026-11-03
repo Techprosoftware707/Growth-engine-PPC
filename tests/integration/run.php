@@ -50,16 +50,29 @@ use PPC\LinkGrowth\Plugin;
 
 $fixtureLog = getenv( 'PPCLG_FIXTURE_LOG' ) ?: sys_get_temp_dir() . '/ppclg-fixture-submissions.log';
 @unlink( $fixtureLog );
-$mail = [];
-add_filter( 'pre_wp_mail', static function ( $null, array $atts ) use ( &$mail ) {
-    $mail[] = $atts;
+$GLOBALS['itMail'] = [];
+add_filter( 'pre_wp_mail', static function ( $null, array $atts ) {
+    $GLOBALS['itMail'][] = $atts;
     return true;
 }, 10, 2 );
 
 wp_set_current_user( 1 );
 
 IT::step( 'Activation and schema', static function (): void {
+    global $wpdb;
     $plugin = 'ppc-link-growth-engine/ppc-link-growth-engine.php';
+    if ( '0' !== (string) getenv( 'PPCLG_RESET' ) ) {
+        // Start from a clean plugin state: drop plugin tables and options, deactivate.
+        if ( is_plugin_active( $plugin ) ) {
+            deactivate_plugins( $plugin );
+        }
+        foreach ( \PPC\LinkGrowth\Database\Schema::TABLES as $t ) {
+            $wpdb->query( 'DROP TABLE IF EXISTS `' . $wpdb->prefix . 'ppclg_' . $t . '`' ); // phpcs:ignore
+        }
+        $wpdb->query( "DELETE FROM {$wpdb->options} WHERE option_name LIKE 'ppclg\_%' OR option_name LIKE '\_transient\_ppclg\_%' OR option_name LIKE '\_transient\_timeout\_ppclg\_%'" ); // phpcs:ignore
+        wp_cache_flush();
+        IT::check( true, 'plugin state reset' );
+    }
     if ( ! is_plugin_active( $plugin ) ) {
         $r = activate_plugin( $plugin );
         IT::check( null === $r, 'activate_plugin returned no error', is_wp_error( $r ) ? $r->get_error_message() : '' );
@@ -231,9 +244,14 @@ IT::step( 'Backlink monitoring', static function (): void {
     IT::check( $notes >= 1, 'critical notification raised for lost backlink' );
     $due = $monitor->checkDue( \PPC\LinkGrowth\Support\TimeBudget::seconds( 20 ), 10 );
     IT::check( isset( $due['checked'] ), 'checkDue returns stats' );
+    $alerts = array_values( array_filter( $GLOBALS['itMail'], static fn( $m ) => stripos( (string) $m['subject'], 'lost' ) !== false || stripos( (string) $m['subject'], 'backlink' ) !== false ) );
+    IT::check( count( $alerts ) >= 1, 'immediate email alert sent for the lost backlink', wp_json_encode( array_column( $GLOBALS['itMail'], 'subject' ) ) );
+    $GLOBALS['itMail'] = [];
 } );
 
-IT::step( 'Outreach drafting, approval, sending, replies and opt-out', static function () use ( &$mail ): void {
+IT::step( 'Outreach drafting, approval, sending, replies and opt-out', static function (): void {
+    $GLOBALS['itMail'] = [];
+    $mail = &$GLOBALS['itMail'];
     $outreach  = ppclg()->get( \PPC\LinkGrowth\Outreach\OutreachEngine::class );
     $messages  = ppclg()->get( \PPC\LinkGrowth\Repositories\OutreachMessages::class );
     $prospects = ppclg()->get( \PPC\LinkGrowth\Repositories\Prospects::class );
@@ -319,6 +337,24 @@ IT::step( 'REST API', static function (): void {
     IT::check( 200 === $audit->get_status() && ( $audit->get_data()['total'] ?? 0 ) > 0, 'GET /audit' );
     $run = $do( 'POST', '/automation/run', [ 'stage' => 'cleanup' ] );
     IT::check( 200 === $run->get_status(), 'POST /automation/run cleanup', wp_json_encode( $run->get_data() ) );
+    $camps = $do( 'GET', '/outreach/campaigns' );
+    IT::check( 200 === $camps->get_status() && ( $camps->get_data()['total'] ?? 0 ) >= 1, 'GET /outreach/campaigns' );
+    $campId = (int) ( $camps->get_data()['items'][0]['id'] ?? 0 );
+    $pause  = $do( 'POST', '/outreach/campaigns/' . $campId . '/pause' );
+    IT::check( 200 === $pause->get_status(), 'POST /outreach/campaigns/{id}/pause', wp_json_encode( $pause->get_data() ) );
+    $msgs = $do( 'GET', '/outreach/messages', [ 'campaign_id' => $campId ] );
+    IT::check( 200 === $msgs->get_status() && ( $msgs->get_data()['total'] ?? 0 ) >= 1, 'GET /outreach/messages' );
+    $msgId = (int) ( $msgs->get_data()['items'][0]['id'] ?? 0 );
+    $msg   = $do( 'GET', '/outreach/messages/' . $msgId );
+    IT::check( 200 === $msg->get_status() && isset( $msg->get_data()['message']['subject'], $msg->get_data()['contact'] ), 'GET /outreach/messages/{id} envelope' );
+    $subsList = $do( 'GET', '/submissions' );
+    $subId    = (int) ( $subsList->get_data()['items'][0]['id'] ?? 0 );
+    $subOne   = $do( 'GET', '/submissions/' . $subId );
+    IT::check( 200 === $subOne->get_status() && isset( $subOne->get_data()['submission']['payload']['fields'] ), 'GET /submissions/{id} returns full package' );
+    $bl1 = $do( 'GET', '/backlinks/summary' );
+    IT::check( 200 === $bl1->get_status(), 'GET /backlinks/summary' );
+    $notif = $do( 'GET', '/notifications' );
+    IT::check( 200 === $notif->get_status(), 'GET /notifications' );
     $bad = $do( 'POST', '/automation/run', [ 'stage' => 'rm -rf' ] );
     IT::check( $bad->get_status() >= 400, 'unknown stage rejected' );
     wp_set_current_user( 0 );
