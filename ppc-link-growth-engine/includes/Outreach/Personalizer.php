@@ -120,6 +120,7 @@ final class Personalizer {
             'asset_title'          => $assetTitle,
             'asset_url'            => $assetUrl,
             'asset_summary'        => $assetSummary,
+            'asset_kind'           => $this->assetKind( (string) ( $asset['kind'] ?? '' ) ),
             'why_relevant'         => $whyRelevant,
             'broken_url'           => $brokenUrl,
             'broken_anchor'        => $brokenAnchor,
@@ -391,17 +392,43 @@ final class Personalizer {
         $ctx     = mb_strtolower( $matchContext );
         foreach ( (array) ( $asset['topics'] ?? [] ) as $topic ) {
             $topic = trim( (string) $topic );
-            if ( '' !== $topic && Str::countPhrase( $ctx, $topic ) > 0 && ! in_array( $topic, [ 'canada', 'about', 'company', 'info' ], true ) ) {
-                $matched[] = $topic;
+            if ( '' !== $topic && Str::countPhrase( $ctx, $topic ) > 0 && ! in_array( $topic, [ 'canada', 'about', 'company', 'info', 'supplier' ], true ) ) {
+                $display = $this->displayTopic( $topic );
+                if ( ! in_array( $display, array_map( [ $this, 'displayTopic' ], $matched ), true ) ) {
+                    $matched[] = $topic;
+                }
             }
             if ( count( $matched ) >= 2 ) {
                 break;
             }
         }
         if ( ! empty( $matched ) ) {
-            return 'It is a non-commercial explainer on ' . $this->joinNatural( $matched ) . ', which seemed close to what your page covers, and it links to the primary sources it relies on.';
+            return 'It is a non-commercial explainer on ' . $this->joinNatural( array_map( [ $this, 'displayTopic' ], $matched ) ) . ', which seemed close to what your page covers.';
         }
         return 'It is written as a reference for laboratory staff and students rather than as a sales page, which I hope fits the kind of material your page collects.';
+    }
+
+    /** Topic keyword → readable phrase (acronyms upper-cased). */
+    private function displayTopic( string $topic ): string {
+        $map = [
+            'coa'                     => 'certificates of analysis',
+            'certificate of analysis' => 'certificates of analysis',
+            'hplc'                    => 'HPLC testing',
+            'lab practice'            => 'laboratory practice',
+            'freeze-thaw'             => 'freeze-thaw handling',
+        ];
+        $t = mb_strtolower( trim( $topic ) );
+        return $map[ $t ] ?? $t;
+    }
+
+    /** Plain description of what kind of page an asset is, for use inside a sentence. */
+    private function assetKind( string $kind ): string {
+        return match ( $kind ) {
+            'guide'    => 'plain-English guide',
+            'resource' => 'reference page',
+            'home'     => 'website',
+            default    => 'page',
+        };
     }
 
     /**
@@ -494,7 +521,7 @@ final class Personalizer {
             $start = false !== $pos ? max( 0, $pos - (int) ( self::MAX_SNIPPET / 2 ) ) : 0;
             $text  = ( $start > 0 ? '…' : '' ) . trim( mb_substr( $text, $start, self::MAX_SNIPPET ) ) . '…';
         }
-        return str_replace( '"', "'", $text );
+        return rtrim( str_replace( '"', "'", $text ), '. ' );
     }
 
     private function cleanLine( string $text, int $max ): string {

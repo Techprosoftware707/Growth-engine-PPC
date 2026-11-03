@@ -196,10 +196,14 @@ final class OutreachEngine {
 
     public function resumeCampaign( int $id, int $userId ): bool {
         $c = $this->campaigns->find( $id );
-        if ( ! $c || Campaigns::STATUS_PAUSED !== (string) $c['status'] ) {
-            return (bool) ( $c && in_array( (string) $c['status'], [ Campaigns::STATUS_APPROVED, Campaigns::STATUS_SENDING ], true ) );
+        if ( ! $c ) {
+            return false;
         }
-        if ( ! $this->compliance->senderReady()['ok'] ) {
+        $status = (string) $c['status'];
+        if ( in_array( $status, [ Campaigns::STATUS_APPROVED, Campaigns::STATUS_SENDING ], true ) ) {
+            return true; // already active
+        }
+        if ( Campaigns::STATUS_PAUSED !== $status || ! $this->compliance->senderReady()['ok'] ) {
             return false;
         }
         $this->campaigns->setStatus( $id, Campaigns::STATUS_APPROVED );
@@ -304,7 +308,7 @@ final class OutreachEngine {
         $token = Crypto::randomToken( 16 );
         $url   = Unsubscribe::urlFor( $token );
         $ctx   = $this->personalizer->context( $prospect, $opportunity, $contact, $approach, $url );
-        $ctx   = array_merge( $ctx, $this->generatedContent( $prospect, $approach, $ctx ) );
+        $ctx   = array_merge( $ctx, $this->generatedContent( $prospect, $approach, $ctx, (string) $variant['body'] ) );
 
         $subject = $this->cleanSubject( $this->personalizer->render( $variant['subject'], $ctx ) );
         $body    = $this->personalizer->render( $variant['body'], $ctx );
@@ -728,19 +732,21 @@ final class OutreachEngine {
      * @param array<string,string> $ctx
      * @return array<string,string>
      */
-    private function generatedContent( array $prospect, string $approach, array $ctx ): array {
+    private function generatedContent( array $prospect, string $approach, array $ctx, string $variantBody ): array {
         $out    = [];
         $domain = (string) ( $prospect['domain'] ?? '' );
         try {
             if ( 'directory_inclusion' === $approach ) {
                 $out['short_description'] = $this->content->shortDescription( $domain, 200 );
             } elseif ( 'partnership' === $approach ) {
-                $partnerContext           = '' !== (string) ( $ctx['observation'] ?? '' ) ? '' : '';
-                $out['partnership_proposal'] = $this->content->partnershipProposal( $domain, (string) ( $ctx['site_name'] ?? 'your organisation' ), $partnerContext );
+                // The template's {{observation}} already describes the partner, so no extra partner context is injected.
+                $out['partnership_proposal'] = $this->content->partnershipProposal( $domain, (string) ( $ctx['site_name'] ?? 'your organisation' ), '' );
             }
-            foreach ( $out as $text ) {
-                if ( preg_match( '/research use only|research use and|not for human/i', $text ) ) {
-                    $out['research_note'] = ''; // positioning sentence already present; avoid repeating it
+            foreach ( $out as $key => $text ) {
+                // When the chosen variant embeds generated copy that already carries the research-use positioning
+                // sentence, drop the separate {{research_note}} so the email does not say it twice.
+                if ( str_contains( $variantBody, '{{' . $key . '}}' ) && preg_match( '/research use only|research use and|not for human/i', $text ) ) {
+                    $out['research_note'] = '';
                     break;
                 }
             }

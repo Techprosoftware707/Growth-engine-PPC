@@ -179,18 +179,20 @@ final class InboundWebhook {
     private function stripQuoted( string $text ): string {
         $lines = explode( "\n", $text );
         $kept  = [];
-        foreach ( $lines as $line ) {
-            $t = trim( $line );
+        $count = count( $lines );
+        for ( $i = 0; $i < $count; $i++ ) {
+            $t = trim( $lines[ $i ] );
             if ( preg_match( '/^(-{2,}\s*Original Message\s*-{2,}|_{10,}|From:\s.+|On .{3,120} wrote:|Le .{3,120} a écrit\s?:|Am .{3,120} schrieb .+:|>+)/iu', $t ) ) {
                 break;
             }
-            if ( preg_match( '/^On .{3,160}$/i', $t ) && isset( $lines[ array_search( $line, $lines, true ) + 1 ] ) && str_contains( (string) $lines[ array_search( $line, $lines, true ) + 1 ], 'wrote:' ) ) {
+            // "On <date>, <name>" on one line with "wrote:" wrapped onto the next.
+            if ( preg_match( '/^On .{3,160}$/i', $t ) && isset( $lines[ $i + 1 ] ) && str_contains( $lines[ $i + 1 ], 'wrote:' ) ) {
                 break;
             }
             if ( false !== stripos( $t, 'rather not hear from us again' ) || false !== stripos( $t, 'List-Unsubscribe' ) ) {
                 continue;
             }
-            $kept[] = $line;
+            $kept[] = $lines[ $i ];
         }
         return trim( implode( "\n", $kept ) );
     }

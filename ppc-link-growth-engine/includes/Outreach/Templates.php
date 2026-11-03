@@ -52,6 +52,7 @@ final class Templates {
         'asset_title',
         'asset_url',
         'asset_summary',
+        'asset_kind',
         'why_relevant',
         'broken_url',
         'broken_anchor',
@@ -186,7 +187,7 @@ TXT,
 
 {{observation}}
 
-Would you consider one more entry? {{asset_title}} ({{asset_url}}) is a plain-English guide we wrote for laboratory staff and students: {{asset_summary}}
+Would you consider one more entry? {{asset_title}} ({{asset_url}}) is a {{asset_kind}} we maintain for laboratory staff and students: {{asset_summary}}
 
 {{why_relevant}}
 
@@ -231,7 +232,7 @@ TXT,
 
 {{observation}}
 
-I would like to ask whether {{brand}} would be a fit for your directory. {{short_description}}
+I would like to ask whether {{brand}} would be a fit for your directory. In one line: {{short_description}}
 
 Our website is {{home_url}}. If there is a submission form or a set of listing criteria, please point me to it and I will follow it exactly. {{research_note}}
 
@@ -252,9 +253,9 @@ TXT,
 
 {{observation}}
 
-{{partnership_proposal}}
+I am writing from {{brand}}, a Canadian-owned supplier of research peptides and laboratory reagents in {{city}}, to ask whether there is a way for a supplier like us to work with {{site_name}}: a member or supplier listing, or contributing material for your audience.
 
-Concretely, we could contribute a supplier profile, examples of batch-level laboratory documentation, or a short educational piece for your members, whichever is useful. {{research_note}}
+Concretely, we could provide a verified supplier profile, examples of batch-level laboratory documentation, or a short educational piece for your members, whichever is useful. {{research_note}}
 
 Would a brief call or an email exchange make sense? If this is not something {{site_name}} does, a one-line reply saying so is completely fine.
 
@@ -355,7 +356,7 @@ TXT,
 
 {{observation}}
 
-Would {{asset_title}} be useful to the people you teach or support? It is a free, plain-English guide with no sign-up wall that explains the subject without selling anything: {{asset_summary}}
+Would {{asset_title}} be useful to the people you teach or support? It is a free {{asset_kind}} with no sign-up wall that explains the subject without selling anything: {{asset_summary}}
 
 {{asset_url}}
 
@@ -418,7 +419,7 @@ TXT,
 
 {{observation}}
 
-I thought you would want to know, since it is an easy fix. If you are looking for a replacement on the same subject, one option is {{asset_title}}, {{asset_url}}: {{asset_summary}} It is free and non-commercial, though of course any current source that fits is fine.
+I thought you would want to know, since it is an easy fix. If you are looking for a replacement on the same subject, one option is {{asset_title}} ({{asset_url}}). {{asset_summary}} It is free and non-commercial, though of course any current source that fits is fine.
 
 Thanks for maintaining the page.
 
@@ -435,7 +436,7 @@ TXT,
 
 {{observation}}
 
-No action is needed on my account; I just did not want it to sit there unnoticed. If a replacement on the same subject would help, I can suggest {{asset_title}} ({{asset_url}}), a plain-English guide we wrote for laboratory staff: {{asset_summary}}
+No action is needed on my account; I just did not want it to sit there unnoticed. If a replacement on the same subject would help, I can suggest {{asset_title}} ({{asset_url}}), a {{asset_kind}} we maintain for laboratory staff: {{asset_summary}}
 
 Either way, thanks for the page.
 

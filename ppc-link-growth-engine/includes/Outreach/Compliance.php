@@ -248,6 +248,18 @@ final class Compliance {
         return $hour >= $start || $hour < $end; // overnight window
     }
 
+    /**
+     * Whether a body still carries the mandatory footer: the unsubscribe link for this token
+     * and the configured postal address (when one is configured).
+     */
+    public function bodyHasFooter( string $body, string $token ): bool {
+        if ( ! preg_match( '/^[a-f0-9]{32}$/', $token ) || ! $this->bodyHasUnsubscribe( $body, $token ) ) {
+            return false;
+        }
+        $postal = trim( (string) $this->settings->get( 'outreach.postal_address', '' ) );
+        return '' === $postal || $this->containsNormalized( $body, $postal );
+    }
+
     // --- Helpers ------------------------------------------------------------
 
     private function bodyHasUnsubscribe( string $body, string $token ): bool {
