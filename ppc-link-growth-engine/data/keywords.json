@@ -1,0 +1,82 @@
+{
+  "groups": {
+    "core": {
+      "weight": 1.0,
+      "terms": [
+        "peptide", "peptides", "research peptides", "research peptide", "laboratory reagents", "lab reagents", "research reagents",
+        "research chemicals", "laboratory supplies", "lab supplies", "laboratory supplier", "lab supplier", "scientific supplies",
+        "scientific supplier", "analytical testing", "hplc", "mass spectrometry", "certificate of analysis", "coa", "biochemistry",
+        "biotech", "biotechnology", "life sciences", "life science", "molecular biology", "cell culture", "assay", "assays", "in vitro",
+        "lyophilized", "amino acid", "amino acids", "protein research", "peptide synthesis", "research supplies", "reagent", "reagents",
+        "chromatography", "spectrometry", "bioanalytical", "analytical chemistry", "lab equipment", "laboratory equipment",
+        "scientific research", "research laboratory", "research lab", "preclinical research", "drug discovery", "pharmacology research"
+      ]
+    },
+    "adjacent": {
+      "weight": 0.6,
+      "terms": [
+        "laboratory", "laboratories", "lab", "labs", "science", "scientific", "research", "researchers", "university research",
+        "contract research", "cro", "pharmaceutical research", "chemistry", "chemical supplier", "chemicals", "biology",
+        "biomedical", "bioscience", "stem", "science education", "scientific community", "academic research", "graduate research",
+        "research institute", "research institution", "innovation", "medical research", "health research", "clinical research",
+        "lab safety", "lab management", "procurement", "scientific equipment", "lab tools", "microbiology", "genomics", "proteomics"
+      ]
+    },
+    "business": {
+      "weight": 0.35,
+      "terms": [
+        "business directory", "directory", "supplier directory", "suppliers directory", "company directory", "vendor directory",
+        "business listing", "add your business", "add listing", "submit your business", "list your business", "member directory",
+        "members directory", "association", "chamber of commerce", "trade association", "industry association", "professional association",
+        "resources", "useful links", "resource page", "links page", "partners", "sponsors", "exhibitors", "vendors", "suppliers"
+      ]
+    },
+    "canada": {
+      "weight": 0.5,
+      "terms": [
+        "canada", "canadian", "ontario", "toronto", "british columbia", "vancouver", "alberta", "calgary", "edmonton", "quebec",
+        "montreal", "ottawa", "manitoba", "winnipeg", "saskatchewan", "nova scotia", "halifax", "new brunswick", "newfoundland",
+        "gta", "canadian business", "canadian supplier", "made in canada", "canadian owned", "canadian-owned", "cad", "health canada",
+        "nserc", "cihr", "canadian university", "canadian research"
+      ]
+    }
+  },
+  "negative": {
+    "spam": [
+      "casino", "gambling", "poker", "slots", "betting", "sportsbook", "viagra", "cialis", "payday loan", "payday loans",
+      "essay writing", "write my essay", "escort", "escorts", "porn", "xxx", "adult dating", "sex toys", "buy followers",
+      "buy backlinks", "link building service", "guest post service", "sponsored post pricing", "pbn", "private blog network",
+      "seo packages", "cheap seo", "crypto signals", "forex signals", "binary options", "replica watches", "fake id",
+      "cbd gummies", "kratom", "vape wholesale", "weight loss pills", "diet pills", "male enhancement", "hair loss cure"
+    ],
+    "misuse": [
+      "bodybuilding", "bodybuilders", "steroids", "anabolic", "sarms", "peptide therapy", "peptide clinic", "weight loss peptides",
+      "weight loss injections", "buy semaglutide", "buy tirzepatide", "hgh for sale", "growth hormone for sale", "trt clinic",
+      "testosterone replacement", "anti-aging clinic", "longevity clinic", "biohacking stack", "dosing guide", "cycle guide",
+      "pct", "gym supplements", "fat burner", "muscle building", "injectable", "injections for sale", "med spa", "iv therapy"
+    ],
+    "offtopic": [
+      "real estate", "mortgage", "car dealership", "plumbing", "roofing", "wedding", "fashion", "restaurant", "recipes",
+      "travel deals", "hotel booking", "celebrity", "lottery", "astrology", "pet grooming", "landscaping", "law firm", "divorce lawyer"
+    ]
+  },
+  "site_type_hints": {
+    "directory": ["directory", "listings", "business listing", "add your business", "add listing", "submit listing", "find a supplier", "supplier search", "yellow pages", "business search", "companies in"],
+    "association": ["association", "society", "council", "federation", "institute", "chamber of commerce", "board of trade", "network of", "members", "membership"],
+    "publication": ["magazine", "journal", "news", "press", "editorial", "editor", "subscribe", "latest issue", "articles", "newsletter"],
+    "educational": ["university", "college", "faculty", "department of", "course", "students", "campus", "school of", "academic", "lecture"],
+    "resource_page": ["resources", "useful links", "helpful links", "links", "further reading", "recommended", "reference"],
+    "podcast": ["podcast", "episode", "episodes", "listen", "interview", "spotify", "apple podcasts"],
+    "blog": ["blog", "posted by", "read more", "comments", "tags", "categories", "author"],
+    "government": ["government", "ministry", "department", "agency", "regulation", "gc.ca", "gov"],
+    "supplier_directory": ["supplier directory", "vendor directory", "lab suppliers", "laboratory suppliers", "equipment suppliers", "sourcing", "buyer's guide", "buyers guide", "product directory"],
+    "media": ["news", "breaking", "reporter", "journalist", "press release", "newsroom"],
+    "ecommerce": ["add to cart", "checkout", "shop now", "free shipping", "buy now", "product", "sku", "in stock"]
+  },
+  "canadian_signals": {
+    "tlds": [".ca", ".gc.ca", ".on.ca", ".qc.ca", ".bc.ca", ".ab.ca"],
+    "phrases": ["canada", "canadian", "ontario", "toronto", "vancouver", "montreal", "calgary", "ottawa", "edmonton", "winnipeg", "halifax", "quebec", "british columbia", "alberta", "manitoba", "saskatchewan", "nova scotia", "new brunswick", "cad$", "cad "],
+    "postal_regex": "\\b[ABCEGHJ-NPRSTVXY]\\d[ABCEGHJ-NPRSTV-Z][ -]?\\d[ABCEGHJ-NPRSTV-Z]\\d\\b",
+    "phone_area_codes": ["204","226","236","249","250","263","289","306","343","365","367","368","382","403","416","418","431","437","438","450","460","468","474","506","514","519","548","579","581","584","587","604","613","639","647","672","683","705","709","742","753","778","780","782","807","819","825","867","873","879","902","905"]
+  }
+}

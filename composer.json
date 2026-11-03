@@ -1,0 +1,25 @@
+{
+    "name": "purepeptidescanada/ppc-link-growth-engine",
+    "description": "PPC Link Growth Engine — compliance-first backlink discovery, qualification, submission packaging, outreach drafting and backlink monitoring for WordPress.",
+    "type": "project",
+    "license": "GPL-2.0-or-later",
+    "require": {
+        "php": ">=8.1"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^11.0"
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "PPC\\LinkGrowth\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "lint": "bash bin/lint.sh",
+        "test": "bash bin/test.sh",
+        "build": "bash bin/build-zip.sh"
+    },
+    "config": {
+        "sort-packages": true
+    }
+}

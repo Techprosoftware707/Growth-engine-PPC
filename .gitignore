@@ -1,0 +1,7 @@
+/vendor/
+/dist/
+/.phpunit.cache/
+/node_modules/
+/bin/phpunit.phar
+*.log
+.DS_Store

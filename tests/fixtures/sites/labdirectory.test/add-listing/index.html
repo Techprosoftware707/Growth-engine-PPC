@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en-CA">
+<head><meta charset="utf-8"><title>Add your laboratory business | LabDirectory Canada</title><meta name="description" content="Submit a free listing for your Canadian laboratory supply business."></head>
+<body>
+<header><nav><a href="/">Home</a> <a href="/add-listing/">Add your business</a></nav></header>
+<main>
+<h1>Add your laboratory business</h1>
+<p>Complete the form to submit a free listing. Listings are reviewed by our editorial team within five business days.</p>
+<form id="listing-form" method="post" action="/add-listing/submit">
+<input type="hidden" name="form_token" value="tok-7f3a9c">
+<label for="business_name">Business name</label><input type="text" id="business_name" name="business_name" required maxlength="120">
+<label for="website">Website URL</label><input type="url" id="website" name="website" required>
+<label for="email">Contact email</label><input type="email" id="email" name="email" required>
+<label for="phone">Phone</label><input type="tel" id="phone" name="phone">
+<label for="category">Category</label>
+<select id="category" name="category" required>
+<option value="">Choose a category</option>
+<option value="12">Laboratory Equipment</option>
+<option value="18">Scientific Supplies &amp; Reagents</option>
+<option value="21">Biotechnology Services</option>
+<option value="30">Medical Devices</option>
+<option value="44">Industrial Supplies</option>
+</select>
+<label for="description">Business description (max 600 characters)</label><textarea id="description" name="description" required maxlength="600"></textarea>
+<label for="address">Street address</label><input type="text" id="address" name="address">
+<label for="city">City</label><input type="text" id="city" name="city" required>
+<label for="province">Province</label>
+<select id="province" name="province" required><option value="">Select</option><option value="AB">Alberta</option><option value="BC">British Columbia</option><option value="MB">Manitoba</option><option value="NB">New Brunswick</option><option value="NL">Newfoundland and Labrador</option><option value="NS">Nova Scotia</option><option value="ON">Ontario</option><option value="PE">Prince Edward Island</option><option value="QC">Quebec</option><option value="SK">Saskatchewan</option></select>
+<label for="postal_code">Postal code</label><input type="text" id="postal_code" name="postal_code">
+<label><input type="checkbox" name="accuracy" value="1" required> I confirm this information is accurate and I agree to the listing terms.</label>
+<label><input type="checkbox" name="newsletter" value="1"> Subscribe to the supplier newsletter</label>
+<button type="submit">Submit listing</button>
+</form>
+</main>
+<footer><p>LabDirectory Canada · 120 King St W, Toronto, ON M5H 1A1</p></footer>
+</body>
+</html>

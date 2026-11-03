@@ -1,0 +1,123 @@
+{
+  "categories": {
+    "canadian_business_directories": {
+      "opportunity": "directory_listing",
+      "templates": [
+        "canadian business directory add listing {topic}",
+        "{geo} business directory laboratory supplier",
+        "{geo} company directory biotechnology suppliers",
+        "\"add your business\" directory {geo} science",
+        "\"submit listing\" business directory canada laboratory"
+      ]
+    },
+    "scientific_laboratory_directories": {
+      "opportunity": "supplier_listing",
+      "templates": [
+        "laboratory supplier directory {geo}",
+        "{topic} supplier directory",
+        "scientific suppliers directory canada",
+        "lab equipment and supplies directory \"add listing\"",
+        "life science vendor directory {geo}"
+      ]
+    },
+    "research_supplier_directories": {
+      "opportunity": "supplier_listing",
+      "templates": [
+        "research reagents suppliers list {geo}",
+        "biotech supplier database canada",
+        "\"laboratory suppliers\" {geo} list",
+        "peptide supplier directory"
+      ]
+    },
+    "industry_associations": {
+      "opportunity": "membership",
+      "templates": [
+        "{geo} life sciences association member directory",
+        "biotechnology association {geo} members",
+        "{geo} laboratory association supplier members",
+        "chemistry society {geo} corporate members",
+        "{geo} chamber of commerce member directory science"
+      ]
+    },
+    "scientific_publications": {
+      "opportunity": "editorial",
+      "templates": [
+        "{geo} laboratory magazine suppliers",
+        "life science news canada editorial contact",
+        "laboratory industry publication {geo} \"submit news\"",
+        "{topic} magazine canada"
+      ]
+    },
+    "educational_resources": {
+      "opportunity": "educational_contribution",
+      "templates": [
+        "{geo} university biochemistry department resources links",
+        "{topic} educational resources for students",
+        "laboratory techniques teaching resources {geo}",
+        "science education {geo} industry partners",
+        "college laboratory technology program industry links {geo}"
+      ]
+    },
+    "laboratory_resource_pages": {
+      "opportunity": "resource_page",
+      "templates": [
+        "{topic} resources links",
+        "intitle:resources laboratory supplies {geo}",
+        "inurl:resources peptide research",
+        "\"useful links\" laboratory research canada",
+        "inurl:links biochemistry laboratory suppliers"
+      ]
+    },
+    "industry_blogs": {
+      "opportunity": "editorial",
+      "templates": [
+        "{topic} blog canada",
+        "laboratory management blog {geo}",
+        "biotech startup blog {geo}",
+        "science procurement blog laboratory suppliers"
+      ]
+    },
+    "business_networks": {
+      "opportunity": "membership",
+      "templates": [
+        "{geo} business network science technology members",
+        "canadian innovation network life sciences members directory",
+        "{geo} entrepreneur network biotech"
+      ]
+    },
+    "professional_organizations": {
+      "opportunity": "membership",
+      "templates": [
+        "{geo} laboratory professionals organization",
+        "canadian society {topic}",
+        "professional association laboratory technologists {geo} suppliers"
+      ]
+    },
+    "podcasts": {
+      "opportunity": "podcast",
+      "templates": [
+        "{geo} biotech podcast guests",
+        "laboratory science podcast canada interview",
+        "life sciences entrepreneurs podcast {geo}"
+      ]
+    },
+    "media_pr": {
+      "opportunity": "editorial",
+      "templates": [
+        "{geo} business news submit press release science",
+        "canadian biotech news \"submit a story\"",
+        "{geo} startup media coverage life sciences"
+      ]
+    }
+  },
+  "topics": [
+    "research peptides", "laboratory reagents", "laboratory supplies", "research chemicals", "biotechnology",
+    "life sciences", "analytical chemistry", "biochemistry", "molecular biology", "scientific supplies"
+  ],
+  "brand_mention_templates": [
+    "\"{brand}\" -site:{domain}",
+    "\"{domain}\" -site:{domain}",
+    "{brand} review -site:{domain}",
+    "{brand} supplier -site:{domain}"
+  ]
+}
