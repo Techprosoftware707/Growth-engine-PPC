@@ -30,10 +30,14 @@ If a provider is not configured, every place that would use it says so explicitl
 
 ## Automation and limits
 
-- **Master switch** (`automation.enabled`) — off after installation. Manual runs from the Automation Center always work.
-- Per-stage switches: discovery, evaluation, opportunities, packaging, **submissions** (automated form posting; requires explicit per-prospect authorisation as well), **outreach autosend** (only affects scheduled follow-ups; initial messages always need individual approval unless you turn `require_approval` off), monitoring, imports.
+- **Master switch** (`automation.enabled`) — **on by default**: the engine runs the full discover → evaluate → package → submit → verify → monitor cycle on its own schedule. Manual runs from the Automation Center always work.
+- **Submission mode** (`automation.submission_mode`) — how automated form posting is authorised:
+  - `auto` (default): any prospect scoring at or above `min_score_auto_queue` (70) qualifies by itself. The structural gates still decide each case: public listing form, POST, no CAPTCHA, no login, no required upload, robots.txt allows the action URL, every required field mappable, limits not exhausted, no duplicate.
+  - `authorized_only`: each website must additionally be marked "automation allowed" in its prospect drawer (or have a partner API configured).
+  - `manual`: every package goes to the review queue.
+- Per-stage switches: discovery, evaluation, opportunities, packaging, **submissions**, **auto outreach drafts** (`auto_outreach_drafts`, on by default: drafts personalised outreach into evergreen "Auto" campaigns), **outreach autosend** (off by default: when enabled with a complete sender identity, auto-drafted messages are approved and sent without review — emails go out in your name, so this stays an explicit opt-in), monitoring, imports.
 - Daily limits: discovery queries, evaluations, submissions, outreach emails, backlink checks, provider lookups. Weekly limits: discovery queries, submissions, outreach emails.
-- `min_score_keep` (default 50): prospects below it are rejected automatically. `min_score_auto_queue` (default 70): opportunities at or above it are packaged automatically.
+- `min_score_keep` (default 50): prospects below it are rejected automatically. `min_score_auto_queue` (default 70): opportunities at or above it are packaged automatically — and in auto mode this is the quality bar a site must clear before the engine submits to it by itself. Raise it to be pickier, lower it to pursue more moderate sites.
 - `max_execution_seconds` (default 20): the time budget each background tick may use (the live site's PHP limit is 30 s).
 
 ## Discovery

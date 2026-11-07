@@ -236,6 +236,7 @@ final class Pipeline {
             'submit'             => [ 'every' => 0, 'flag' => 'submissions', 'due' => 'submitDue', 'cadence' => 'every tick (when approved submissions are queued)' ],
             'verify_listings'    => [ 'every' => 6 * HOUR_IN_SECONDS, 'flag' => '', 'due' => null, 'cadence' => 'every 6 hours' ],
             'outreach_send'      => [ 'every' => 0, 'flag' => '', 'due' => 'outreachDue', 'cadence' => 'every tick (when approved messages are ready)' ],
+            'auto_outreach'      => [ 'every' => DAY_IN_SECONDS, 'flag' => '', 'due' => null, 'cadence' => 'daily' ],
             'follow_ups'         => [ 'every' => DAY_IN_SECONDS, 'flag' => '', 'due' => null, 'cadence' => 'daily' ],
             'monitor_backlinks'  => [ 'every' => 0, 'flag' => 'monitoring', 'due' => 'monitorDue', 'cadence' => 'every tick (when backlinks are due)' ],
             'import_backlinks'   => [ 'every' => $importDays * DAY_IN_SECONDS, 'flag' => 'imports', 'due' => null, 'cadence' => sprintf( 'every %d days', $importDays ) ],

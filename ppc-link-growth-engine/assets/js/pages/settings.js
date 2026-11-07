@@ -226,8 +226,9 @@ export default async function render( root, ctx ) {
             [ 'evaluation', 'Evaluation', 'Crawl and score prospects.' ],
             [ 'opportunities', 'Opportunity finding', 'Create opportunities and scan for broken links.' ],
             [ 'packaging', 'Packaging', 'Build listing packages for review.' ],
-            [ 'submissions', 'Automated submissions', 'Submit approved packages on explicitly allowed sites. Off by default.' ],
-            [ 'outreach_autosend', 'Outreach autosend', 'Send auto-approved follow-ups without review. Off by default.' ],
+            [ 'submissions', 'Automated submissions', 'Submit packages without a manual click wherever the policy and safety gates allow.' ],
+            [ 'auto_outreach_drafts', 'Auto outreach drafts', 'Draft personalised outreach for qualified editorial prospects into evergreen “Auto” campaigns.' ],
+            [ 'outreach_autosend', 'Outreach autosend', 'Approve and send auto-drafted messages without review (sender identity must be complete). Off by default: emails go out in your name.' ],
             [ 'monitoring', 'Backlink monitoring', 'Re-check backlinks and alert on changes.' ],
             [ 'imports', 'Provider imports', 'Import backlinks and referral sources periodically.' ],
         ];
@@ -237,8 +238,15 @@ export default async function render( root, ctx ) {
             card( { title: 'Stage flags', body: flags.map( ( [ key, label, hint ] ) => bind( `automation.${ key }`, { type: 'toggle', label, hint } ).el ) } ),
             card( { title: 'Daily limits', subtitle: '0 = unlimited', body: grid( limitKeys.map( ( k ) => bind( `automation.daily_limits.${ k }`, { type: 'number', label: labelize( k ), min: 0, default: 0 } ) ), 3 ) } ),
             card( { title: 'Weekly limits', subtitle: '0 = unlimited', body: grid( [ 'discovery_queries', 'submissions', 'outreach_emails' ].map( ( k ) => bind( `automation.weekly_limits.${ k }`, { type: 'number', label: labelize( k ), min: 0, default: 0 } ) ), 3 ) } ),
+            card( { title: 'Submission mode', body: [
+                bind( 'automation.submission_mode', { type: 'select', label: 'Who authorises automated submissions', options: [
+                    { value: 'auto', label: 'Auto — any site scoring at or above the auto-queue threshold (recommended)' },
+                    { value: 'authorized_only', label: 'Authorized only — each site must be marked “automation allowed” by hand' },
+                    { value: 'manual', label: 'Manual — everything goes to the review queue' },
+                ], hint: 'Whatever the mode, the engine only ever posts through public listing forms (POST, no CAPTCHA, no login, no required upload) that robots.txt allows, within the daily limits, and never twice to the same target.' } ).el,
+            ] } ),
             card( { title: 'Thresholds & timing', body: grid( [
-                bind( 'automation.min_score_auto_queue', { type: 'number', label: 'Minimum score to auto-package', min: 0, max: 100, default: 70, hint: 'Opportunities on prospects at or above this score are packaged automatically (still reviewed).' } ),
+                bind( 'automation.min_score_auto_queue', { type: 'number', label: 'Minimum score to auto-package', min: 0, max: 100, default: 70, hint: 'In auto mode this is also the quality bar a site must clear before the engine submits to it by itself.' } ),
                 bind( 'automation.min_score_keep', { type: 'number', label: 'Minimum score to keep', min: 0, max: 100, default: 50, hint: 'Prospects below this are rejected after evaluation.' } ),
                 bind( 'automation.max_execution_seconds', { type: 'number', label: 'Max seconds per tick', min: 5, max: 25, default: 20, hint: 'Keep below the PHP time limit (30 s on this host).' } ),
                 bind( 'automation.tick_interval', { type: 'number', label: 'Tick interval (seconds)', min: 60, step: 60, default: 300 } ),

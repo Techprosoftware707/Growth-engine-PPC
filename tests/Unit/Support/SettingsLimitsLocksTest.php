@@ -14,7 +14,10 @@ final class SettingsLimitsLocksTest extends TestCase {
     public function testSettingsDefaultsAndDotPaths(): void {
         $s = new Settings();
         $this->assertSame( 'purepeptidescanada.test', $s->siteDomain() );
-        $this->assertFalse( $s->get( 'automation.enabled' ) );
+        $this->assertTrue( $s->get( 'automation.enabled' ), 'automation is on by default (auto-grow)' );
+        $this->assertSame( 'auto', $s->get( 'automation.submission_mode' ) );
+        $this->assertTrue( $s->get( 'automation.auto_outreach_drafts' ) );
+        $this->assertFalse( $s->get( 'automation.outreach_autosend' ), 'email autosend stays an explicit opt-in' );
         $this->assertSame( 5, $s->get( 'automation.daily_limits.submissions' ) );
         $s->set( 'automation.daily_limits.submissions', 9 );
         $this->assertSame( 9, $s->get( 'automation.daily_limits.submissions' ) );

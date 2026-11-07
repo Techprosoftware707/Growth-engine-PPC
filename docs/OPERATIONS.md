@@ -8,9 +8,9 @@ Every tick (default every 5 minutes via Action Scheduler) the pipeline enqueues 
 2. **Evaluate** (continuous) — profile, relevance, risk, provider metrics, score. Rejects poor sites, qualifies the rest, finds the submission page and contacts.
 3. **Find opportunities** — one opportunity per qualified prospect at the real submission/contact page; broken links on resource pages.
 4. **Package** (hourly) — complete submission packages for opportunities at or above `min_score_auto_queue`.
-5. **Submit** — processes approved/queued packages whose destination is explicitly authorised; everything else waits in the review queue.
+5. **Submit** — processes queued packages. In the default auto mode a package queues itself when the site scores ≥ the quality threshold and every structural gate passes; in stricter modes it waits for your approval. Whatever cannot be automated safely waits in the review queue.
 6. **Verify listings** (every 6 h) — checks submitted listings; confirmed listings become backlinks and the prospect becomes *acquired*.
-7. **Outreach send** — sends approved messages inside the send window and limits; **Follow-ups** (daily) drafts follow-ups for unanswered messages.
+7. **Auto outreach** (daily) — drafts personalised messages for qualified editorial prospects (resource pages, publications, broken links, unlinked mentions, podcasts, associations) into evergreen "Auto" campaigns; **Outreach send** delivers approved messages inside the send window and limits (with autosend enabled, auto-drafts are approved automatically); **Follow-ups** (daily) drafts follow-ups for unanswered messages.
 8. **Monitor backlinks** — checks due links, records changes, raises notifications; **Import backlinks** (weekly) pulls provider and GA4 referral data.
 9. **Cleanup** (daily) and **Metrics refresh** (weekly).
 
@@ -31,13 +31,17 @@ Every automated action is written to the audit log (Logs → Audit).
 - Check **Automation → Limits** and adjust if the queue is starving or growing too fast.
 - Check the SE Ranking credit balance on the Overview.
 
-## Authorising automated submissions
+## How automated submissions are authorised
 
-Automated form posting is opt-in per destination:
+In the default **auto** mode nothing is required from you: a site that scores at or above the quality threshold and passes every structural gate (public listing form, POST, no CAPTCHA, no login, no required upload, robots.txt allows the action URL, all required fields mappable, limits, no duplicate) is submitted automatically, and everything else lands in the review queue with a prepared package.
 
-1. Open the prospect, confirm the submission page and form look legitimate and that the site's terms allow automated/business submissions.
-2. Toggle **Automation allowed**. For directories that expose an official API, fill in the *Configured API* fields instead (endpoint, method, headers, JSON body template, success path, listing URL path, API key).
-3. Approve the package. The engine re-checks every gate at send time (settings switch, authorisation, no CAPTCHA/login, robots.txt, limits, duplicates, required fields) and records the response.
+You can still steer it per destination:
+
+1. **Boost**: toggle **Automation allowed** on a prospect to authorise it regardless of its score (useful for moderate-scoring sites you trust). For directories that expose an official API, fill in the *Configured API* fields instead (endpoint, method, headers, JSON body template, success path, listing URL path, API key).
+2. **Block**: suppress the prospect (or reject it) and the engine never touches it again.
+3. **Slow down**: switch `automation.submission_mode` to `authorized_only` or `manual` in Settings → Automation, or lower the daily/weekly submission limits.
+
+The engine re-checks every gate at send time and records the request and response.
 
 The engine never solves CAPTCHAs, never logs in, never retries validation failures, and never posts comments, forum messages or profile links.
 

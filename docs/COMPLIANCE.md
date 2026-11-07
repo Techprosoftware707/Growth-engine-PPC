@@ -17,7 +17,7 @@ Outreach targets published business/editorial addresses of organisations that ar
 - **Identification**: sender name, a sending address on the business domain, and the business postal address in every email (required for both CASL and CAN-SPAM).
 - **Unsubscribe**: a working one-click unsubscribe link (also exposed as `List-Unsubscribe` / `List-Unsubscribe-Post` headers) plus "reply with unsubscribe"; opt-outs are honoured immediately and permanently through the suppression list.
 - **No deception**: no fake "RE:" subjects, accurate sender, plain-text messages that say what is being asked.
-- **Restraint**: individual approval of every initial message, at most one follow-up by default, minimum 90 days between contacts to the same website, daily and weekly limits, send windows in the site time zone.
+- **Restraint**: individual approval of every initial message by default (enabling *Outreach autosend* — an explicit, confirmed opt-in — lets auto-drafted messages send without review once the sender identity is complete), at most one follow-up by default, minimum 90 days between contacts to the same website, daily and weekly limits, send windows in the site time zone.
 - **Suppression**: no-reply, support, billing and similar mailboxes are never contacted; suppressed domains/emails are skipped everywhere (discovery, contacts, sending).
 - **Records**: every send, reply, opt-out and suppression is in the audit log.
 

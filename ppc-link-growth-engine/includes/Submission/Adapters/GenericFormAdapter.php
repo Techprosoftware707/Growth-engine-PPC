@@ -2,8 +2,9 @@
 /**
  * Submits a listing through a site's own HTML form by an authorised HTTP POST.
  *
- * Runs only for prospects explicitly marked automation_allowed while the automation master switch
- * is on. It re-fetches the page, re-detects the form, stops (needs_manual) when a CAPTCHA, password
+ * Runs while the automation master switch is on, for prospects the policy authorises (explicitly
+ * allowed, or in "auto" mode scored at or above the auto-queue threshold).
+ * It re-fetches the page, re-detects the form, stops (needs_manual) when a CAPTCHA, password
  * or required upload appears or a required field cannot be mapped, never ticks newsletter boxes,
  * honours robots.txt for the action URL and stores only a redacted, tag-stripped response excerpt.
  *
@@ -145,8 +146,15 @@ final class GenericFormAdapter implements AdapterInterface {
         if ( ! (bool) $this->settings->get( 'automation.submissions', false ) ) {
             return $this->manual( 'Automated submissions are switched off.' );
         }
+        $mode = \PPC\LinkGrowth\Submission\Policy::submissionMode( $this->settings );
         if ( 1 !== (int) ( $prospect['automation_allowed'] ?? 0 ) ) {
-            return $this->manual( 'This prospect is not authorised for automated form submission.' );
+            if ( 'auto' !== $mode ) {
+                return $this->manual( 'This prospect is not authorised for automated form submission.' );
+            }
+            $minScore = (int) $this->settings->get( 'automation.min_score_auto_queue', 70 );
+            if ( ! isset( $prospect['score'] ) || null === $prospect['score'] || (int) $prospect['score'] < $minScore ) {
+                return $this->manual( sprintf( 'Auto mode only submits to sites scoring at least %d.', $minScore ) );
+            }
         }
 
         $summary = is_array( $payload['form'] ?? null ) ? $payload['form'] : [];

@@ -28,6 +28,8 @@ final class Policy {
     public const MODE_AUTO   = 'auto';
     public const MODE_MANUAL = 'manual';
 
+    public const SUBMISSION_MODES = [ 'auto', 'authorized_only', 'manual' ];
+
     private const API_METHODS = [ 'POST', 'PUT', 'PATCH' ];
 
     public function __construct(
@@ -68,9 +70,22 @@ final class Policy {
             $add( 'Automated submissions are switched off (Automation → Submissions).', false );
         }
 
-        // 2. Per-prospect authorization, or a configured partner API.
+        // 2. Authorization. In "auto" mode a high-quality prospect is authorised by itself; the
+        // structural gates below (listing form, no CAPTCHA/login, robots.txt, mappable fields)
+        // still decide whether the destination actually permits an automated submission.
+        $mode = self::submissionMode( $this->settings );
         if ( 1 !== (int) ( $prospect['automation_allowed'] ?? 0 ) && null === $api ) {
-            $add( 'This prospect is not authorised for automated submission (enable "automation allowed" or configure a partner API).', false );
+            if ( 'manual' === $mode ) {
+                $add( 'Submission mode is "manual": every submission is prepared for a person (Settings → Automation).', false );
+            } elseif ( 'authorized_only' === $mode ) {
+                $add( 'This prospect is not authorised for automated submission (enable "automation allowed" or configure a partner API).', false );
+            } else {
+                $minScore = (int) $this->settings->get( 'automation.min_score_auto_queue', 70 );
+                $score    = isset( $prospect['score'] ) && null !== $prospect['score'] ? (int) $prospect['score'] : null;
+                if ( null === $score || $score < $minScore ) {
+                    $add( sprintf( 'Auto mode only submits to sites scoring at least %d (this one: %s); authorise it manually to override.', $minScore, null === $score ? 'not yet scored' : (string) $score ), false );
+                }
+            }
         }
 
         // 3. Target.
@@ -129,6 +144,12 @@ final class Policy {
             'reasons' => $reasons,
             'hard'    => $hard,
         ];
+    }
+
+    /** The configured submission mode, normalised to a known value. */
+    public static function submissionMode( Settings $settings ): string {
+        $mode = strtolower( trim( (string) $settings->get( 'automation.submission_mode', 'auto' ) ) );
+        return in_array( $mode, self::SUBMISSION_MODES, true ) ? $mode : 'auto';
     }
 
     /**

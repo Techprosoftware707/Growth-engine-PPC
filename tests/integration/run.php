@@ -94,7 +94,7 @@ IT::step( 'Configure for the fixture environment', static function (): void {
         'advanced'   => [ 'crawl_delay_seconds' => 0, 'log_level' => 'debug' ],
         'providers'  => [ 'rdap' => [ 'enabled' => false ], 'seranking' => [ 'enabled' => false ] ],
         'discovery'  => [ 'seed_catalog' => false, 'brand_terms' => [ 'Pure Peptides Canada', 'purepeptidescanada.test' ] ],
-        'automation' => [ 'enabled' => true, 'submissions' => false, 'outreach_autosend' => false, 'daily_limits' => [ 'evaluations' => 50, 'submissions' => 5, 'outreach_emails' => 10, 'backlink_checks' => 100, 'discovery_queries' => 10, 'provider_lookups' => 20 ] ],
+        'automation' => [ 'enabled' => true, 'submissions' => true, 'submission_mode' => 'manual', 'auto_outreach_drafts' => true, 'outreach_autosend' => false, 'daily_limits' => [ 'evaluations' => 50, 'submissions' => 5, 'outreach_emails' => 10, 'backlink_checks' => 100, 'discovery_queries' => 10, 'provider_lookups' => 20 ] ],
         'outreach'   => [ 'sender_name' => 'Test Sender', 'sender_email' => 'outreach@purepeptidescanada.test', 'postal_address' => '222 Jarvis St, Toronto, ON M5B 2B8', 'signature' => 'Test Sender, Pure Peptides Canada' ],
         'monitoring' => [ 'notify_email' => 'admin@example.com' ],
     ] );
@@ -188,7 +188,7 @@ IT::step( 'Submission packaging, authorized submission and verification', static
     $sid       = $engine->packageProspect( (int) $lab['id'], 1 );
     IT::check( is_int( $sid ) && $sid > 0, 'package created', var_export( $sid, true ) );
     $sub = $subs->find( (int) $sid );
-    IT::check( in_array( $sub['status'], [ 'needs_manual', 'pending_review' ], true ), 'package queued for human review while automation not authorized', $sub['status'] );
+    IT::check( in_array( $sub['status'], [ 'needs_manual', 'pending_review' ], true ), 'manual mode parks the package for human review', $sub['status'] );
     $fields = array_column( (array) ( $sub['payload']['fields'] ?? [] ), 'value', 'name' );
     IT::check( ( $fields['business_name'] ?? '' ) === 'Pure Peptides Canada', 'business name mapped', wp_json_encode( $fields ) );
     IT::check( ( $fields['website'] ?? '' ) === 'https://purepeptidescanada.test', 'website mapped', (string) ( $fields['website'] ?? '' ) );
@@ -199,12 +199,15 @@ IT::step( 'Submission packaging, authorized submission and verification', static
     IT::check( empty( $sub['payload']['unmapped_required'] ), 'no unmapped required fields', wp_json_encode( $sub['payload']['unmapped_required'] ?? [] ) );
     IT::check( $engine->packageProspect( (int) $lab['id'], 1 ) === $sid, 'duplicate package prevented' );
 
-    // Authorize automation explicitly and process.
-    $prospects->update( (int) $lab['id'], [ 'automation_allowed' => 1 ] );
-    $settings->set( 'automation.submissions', true );
-    $engine->rebuildPackage( (int) $sid, 1 );
-    $approved = $engine->approve( (int) $sid, 1 );
-    IT::check( $approved, 'submission approved for automated processing' );
+    // Switch to full-auto mode: no per-prospect authorization, no human approval.
+    $settings->set( 'automation.submission_mode', 'auto' );
+    $settings->set( 'automation.min_score_auto_queue', 60 );
+    $subs->delete( (int) $sid );
+    $sid = $engine->packageProspect( (int) $lab['id'], 0 );
+    IT::check( is_int( $sid ) && $sid > 0, 'auto mode re-packaged without a user', var_export( $sid, true ) );
+    $sub = $subs->find( (int) $sid );
+    IT::check( 'queued' === $sub['status'], 'auto mode queues the submission by itself (no approval click)', $sub['status'] . ' ' . (string) $sub['last_error'] );
+    IT::check( 0 === (int) ( $lab['automation_allowed'] ?? 0 ), 'prospect was never individually authorized' );
     $r = $engine->processQueue( \PPC\LinkGrowth\Support\TimeBudget::seconds( 25 ), 5 );
     IT::check( ( $r['submitted'] ?? 0 ) === 1, 'form submitted automatically', wp_json_encode( $r ) );
     $sub = $subs->find( (int) $sid );
@@ -215,6 +218,11 @@ IT::step( 'Submission packaging, authorized submission and verification', static
     IT::check( ! str_contains( $log, '"newsletter":"1"' ), 'newsletter checkbox NOT ticked' );
     IT::check( str_contains( $log, '"accuracy":"1"' ), 'accuracy/terms consent ticked' );
     IT::check( str_contains( $log, 'PPCLinkGrowthBot' ), 'honest user agent sent' );
+
+    // Low-quality guard: a rejected/low-score prospect is never auto-submitted.
+    $spam   = $prospects->findByDomain( 'spam.test' );
+    $policy = ppclg()->get( \PPC\LinkGrowth\Submission\Policy::class )->evaluate( $spam, [ 'unmapped_required' => [] ], [ 'kind' => 'listing_submission', 'method' => 'POST', 'fields' => [] ], 'https://spam.test/submit' );
+    IT::check( ! $policy['allowed'], 'auto mode refuses low-quality sites', wp_json_encode( $policy['reasons'] ) );
 
     // Verification via known listing URL.
     $subs->update( (int) $sid, [ 'listing_url' => 'https://labdirectory.test/listing/pure-peptides-canada/', 'next_verify_at' => gmdate( 'Y-m-d H:i:s', time() - 60 ) ] );
@@ -365,6 +373,23 @@ IT::step( 'REST API', static function (): void {
     $inb = $do( 'POST', '/inbound', [ 'from' => 'x@y.test', 'text' => 'hi' ] );
     IT::check( in_array( $inb->get_status(), [ 401, 403 ], true ), 'public inbound without secret rejected', (string) $inb->get_status() );
     wp_set_current_user( 1 );
+} );
+
+IT::step( 'Automatic outreach drafting', static function (): void {
+    $settings = ppclg()->get( \PPC\LinkGrowth\Support\Settings::class );
+    $settings->set( 'automation.min_score_auto_queue', 50 ); // resources.test scored in the 50s
+    $r = ppclg()->get( \PPC\LinkGrowth\Automation\Pipeline::class )->runNow( 'auto_outreach', [ 'manual' => true ], 20 );
+    $res = (array) ( $r['result'] ?? [] );
+    IT::check( ( $res['drafted'] ?? 0 ) >= 1, 'auto outreach drafted at least one message', wp_json_encode( $res ) );
+    $campaigns = ppclg()->get( \PPC\LinkGrowth\Repositories\Campaigns::class );
+    $auto = $campaigns->findOneBy( [ 'approach' => 'educational_contribution' ] );
+    IT::check( null !== $auto && str_starts_with( (string) $auto['name'], 'Auto:' ), 'evergreen campaign created', wp_json_encode( $auto['name'] ?? null ) );
+    $messages = ppclg()->get( \PPC\LinkGrowth\Repositories\OutreachMessages::class );
+    $draft = null !== $auto ? $messages->findOneBy( [ 'campaign_id' => (int) $auto['id'] ] ) : null;
+    IT::check( null !== $draft && 'draft' === $draft['status'], 'auto-drafted message waits for approval while autosend is off', wp_json_encode( $draft['status'] ?? null ) );
+    IT::check( null !== $draft && str_contains( (string) $draft['body'], 'unsubscribe' ), 'auto draft carries the compliance footer' );
+    $again = ppclg()->get( \PPC\LinkGrowth\Automation\Pipeline::class )->runNow( 'auto_outreach', [ 'manual' => true ], 20 );
+    IT::check( ( ( (array) ( $again['result'] ?? [] ) )['drafted'] ?? -1 ) === 0, 'second run drafts nothing new (dedupe)', wp_json_encode( $again['result'] ?? null ) );
 } );
 
 IT::step( 'Scheduler tick, limits and backups', static function (): void {

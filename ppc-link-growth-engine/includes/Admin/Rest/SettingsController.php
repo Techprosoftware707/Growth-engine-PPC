@@ -362,7 +362,7 @@ final class SettingsController extends Controller {
             if ( $ints ) {
                 if ( is_numeric( $v ) ) {
                     $i = (int) $v;
-                    if ( 'send_days' === $leaf && ( $i < 0 || $i > 7 ) ) {
+if ( 'send_days' === $leaf && ( $i < 0 || $i > 7 ) ) {
                         continue;
                     }
                     $out[] = $i;
@@ -398,6 +398,10 @@ final class SettingsController extends Controller {
         }
         $key      = (string) substr( strrchr( '.' . $path, '.' ), 1 );
         $provider = str_starts_with( $path, 'providers.' );
+        if ( 'automation.submission_mode' === $path ) {
+            $mode = strtolower( sanitize_key( (string) $value ) );
+            return in_array( $mode, \PPC\LinkGrowth\Submission\Policy::SUBMISSION_MODES, true ) ? $mode : 'auto';
+        }
         if ( is_bool( $default ) ) {
             if ( is_bool( $value ) ) {
                 return $value;

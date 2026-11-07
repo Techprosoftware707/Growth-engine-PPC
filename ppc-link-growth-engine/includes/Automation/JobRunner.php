@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace PPC\LinkGrowth\Automation;
 
+use PPC\LinkGrowth\Automation\Jobs\AutoOutreachJob;
 use PPC\LinkGrowth\Automation\Jobs\BrokenLinkScanJob;
 use PPC\LinkGrowth\Automation\Jobs\CleanupJob;
 use PPC\LinkGrowth\Automation\Jobs\DiscoverJob;
@@ -59,6 +60,7 @@ final class JobRunner {
         SubmitJob::class,
         VerifyListingsJob::class,
         OutreachSendJob::class,
+        AutoOutreachJob::class,
         FollowUpJob::class,
         MonitorBacklinksJob::class,
         ImportBacklinksJob::class,
