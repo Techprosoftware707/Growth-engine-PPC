@@ -19,9 +19,15 @@ await page.goto(`${base}/wp-login.php`);
 await page.fill('#user_login', user);
 await page.fill('#user_pass', pass);
 await page.click('#wp-submit');
-await page.waitForLoadState('networkidle');
+await page.waitForLoadState('domcontentloaded');
+await page.waitForTimeout(1500);
+// WordPress redirects to its configured home host after login (e.g. localhost vs 127.0.0.1); follow it.
+let origin = base;
+try { const u = new URL(page.url()); if (u.pathname.includes('/wp-admin')) origin = u.origin; } catch (e) {}
+if (!page.url().includes('/wp-admin')) { console.log('LOGIN FAILED: ' + page.url()); await browser.close(); process.exit(1); }
+console.log('Logged in; admin origin ' + origin);
 for (const slug of pages) {
-  await page.goto(`${base}/wp-admin/admin.php?page=${slug}`);
+  await page.goto(`${origin}/wp-admin/admin.php?page=${slug}`, { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('#ppclg-app', { timeout: 15000 }).catch(() => {});
   await page.waitForTimeout(2500);
   await page.screenshot({ path: `${out}/${slug}.png`, fullPage: true });
@@ -29,7 +35,7 @@ for (const slug of pages) {
   console.log(`${slug}: ${text.replace(/\s+/g, ' ').trim().slice(0, 160)}`);
 }
 // Dark theme sample.
-await page.goto(`${base}/wp-admin/admin.php?page=ppclg`);
+await page.goto(`${origin}/wp-admin/admin.php?page=ppclg`, { waitUntil: 'domcontentloaded' });
 await page.waitForTimeout(1500);
 await page.evaluate(() => { const w = document.querySelector('.ppclg-wrap'); if (w) w.setAttribute('data-theme', 'dark'); });
 await page.waitForTimeout(500);

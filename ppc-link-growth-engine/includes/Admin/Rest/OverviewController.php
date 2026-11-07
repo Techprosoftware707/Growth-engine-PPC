@@ -101,7 +101,7 @@ final class OverviewController extends Controller {
             'prospects_approved'     => (int) ( $ps[ Prospects::STATUS_APPROVED ] ?? 0 ),
             'prospects_acquired'     => (int) ( $ps[ Prospects::STATUS_ACQUIRED ] ?? 0 ),
             'prospects_discovered'   => (int) ( $ps[ Prospects::STATUS_DISCOVERED ] ?? 0 ),
-            'submissions_submitted'  => (int) ( $ss[ Submissions::STATUS_SUBMITTED ] ?? 0 ),
+            'submissions_submitted'  => (int) ( $ss[ Submissions::STATUS_SUBMITTED ] ?? 0 ) + (int) ( $ss[ Submissions::STATUS_CONFIRMED ] ?? 0 ),
             'submissions_confirmed'  => (int) ( $ss[ Submissions::STATUS_CONFIRMED ] ?? 0 ),
             'submissions_pending'    => (int) ( $ss[ Submissions::STATUS_PENDING_REVIEW ] ?? 0 ) + (int) ( $ss[ Submissions::STATUS_NEEDS_MANUAL ] ?? 0 ),
             'backlinks_active'       => (int) ( $bs[ Backlinks::STATUS_ACTIVE ] ?? 0 ),

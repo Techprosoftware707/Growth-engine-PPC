@@ -36,7 +36,12 @@ export function niceTicks( max, count = 4 ) {
             break;
         }
     }
-    const top = Math.ceil( max / step ) * step;
+    let top = Math.ceil( max / step ) * step;
+    // Counts are whole numbers: never emit fractional ticks that render as duplicate integer labels.
+    if ( max >= 1 && step < 1 ) {
+        step = 1;
+        top = Math.ceil( max );
+    }
     const ticks = [];
     for ( let v = 0; v <= top + step / 2; v += step ) {
         ticks.push( Number( v.toFixed( 10 ) ) );
@@ -314,8 +319,11 @@ export function lineChart( { series = [], title = '', subtitle = '', height = 24
         const maxLabels = Math.max( 2, Math.floor( plotW / 70 ) );
         const every = Math.max( 1, Math.ceil( n / maxLabels ) );
         xs.forEach( ( x, i ) => {
-            if ( i % every === 0 || i === n - 1 ) {
-                const anchor = i === 0 ? 'start' : ( i === n - 1 ? 'end' : 'middle' );
+            const isLast = i === n - 1;
+            // Drop the regular label that would collide with the always-shown last label.
+            const nearLast = ! isLast && n - 1 - i < Math.max( 1, Math.ceil( every / 2 ) );
+            if ( ( i % every === 0 && ! nearLast ) || isLast ) {
+                const anchor = i === 0 ? 'start' : ( isLast ? 'end' : 'middle' );
                 node.appendChild( label( xPos( i ), padTop + plotH + 16, xFormat( x ), { anchor, muted: true, size: 10 } ) );
             }
         } );
