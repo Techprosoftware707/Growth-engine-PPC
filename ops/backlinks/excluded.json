@@ -1,0 +1,182 @@
+{
+ "generated": "2026-11-07",
+ "note": "Record of rows dropped from opportunities.csv (verifier excludes + researcher tier=exclude rows). Kept per instructions so they are not re-prospected.",
+ "count": 25,
+ "rows": [
+  {
+   "platform": "411.ca",
+   "website": "https://411.ca/",
+   "category": "directory",
+   "source": "ca-directories",
+   "exclude_reason": "verifier exclude: Submission URL is genuinely dead, not bot-blocked: 411.ca/pages/advertise 301s to 411.ca/business-solutions which returns 403 over http and a real 404 over https. business.411.ca returns 200 but serves the consumer homepage ('Canada's Local Search Engine') with no self-serve listing path; the only 'get listed' links on 411.ca and business.411.ca point to solutions.yp.ca/free-listing, which redirects to the identical solutions.yp.ca/free-online-listing page already used by the YellowPages.ca row. No independent 411.ca submission exists anymore - redundant with the YP row (same treatment as Canpages)."
+  },
+  {
+   "platform": "Canadian Company Capabilities (ISED / Government of Canada)",
+   "website": "https://ised-isde.canada.ca/",
+   "category": "directory",
+   "source": "ca-directories",
+   "exclude_reason": "verifier exclude: Decommission re-confirmed: no submission/registration URLs exist (statuses recorded as 0). ised-isde.canada.ca/site/canadian-company-capabilities/en redirects to the generic ISED landing page (/site/ised/), and the legacy app URL ic.gc.ca/app/ccc/srch/cccSrch.do drops the connection entirely (reset, no HTTP response). Do not pursue."
+  },
+  {
+   "platform": "Canpages",
+   "website": "https://www.canpages.ca/",
+   "category": "directory",
+   "source": "ca-directories",
+   "exclude_reason": "verifier exclude: Absorption re-confirmed: no submission/registration URLs exist (statuses 0). canpages.ca 301s straight to https://www.yellowpages.ca/?utm_source=canpages&utm_medium=redirect. No separate listing possible; fully covered by the YellowPages.ca row."
+  },
+  {
+   "platform": "CanadianBusinessDirectory.ca",
+   "website": "http://www.canadianbusinessdirectory.ca/",
+   "category": "directory",
+   "source": "ca-directories",
+   "exclude_reason": "verifier exclude: Abandonment re-confirmed: no submission/registration URLs (statuses 0). Homepage is HTTP-only (200), meta copyright string 'Copyright 2003-2015', contains IE-era javascript:window.external.AddFavorite code, and has zero add/submit/register/signup links. No listing path exists; no value and some stale-neighborhood risk."
+  },
+  {
+   "platform": "Frasers (Fraser's Canadian Trade Directory)",
+   "website": "https://www.frasers.com/",
+   "category": "directory",
+   "source": "industry-directories",
+   "exclude_reason": "verifier exclude: Re-confirmed dead: www.frasers.com fails on HTTP/2 (stream INTERNAL_ERROR, 0 bytes) and returns nothing on HTTP/1.1; www.frasersdirectory.com also returns 0 bytes. No working URL exists to correct to; property appears defunct. (Statuses 0 = no HTTP response; the row also supplied no URLs.)"
+  },
+  {
+   "platform": "LabWrench",
+   "website": "https://www.labwrench.com/",
+   "category": "community",
+   "source": "industry-directories",
+   "exclude_reason": "verifier exclude: Site is alive (homepage 200) but the platform catalogs laboratory equipment models only — a research-peptide/reagent supplier has no eligible products, so a listing attempt would be off-topic. No submission URL exists for this business type (status 0 = no URL supplied). Excluded for ineligibility, not deadness."
+  },
+  {
+   "platform": "IndustryNet",
+   "website": "https://www.industrynet.com/",
+   "category": "directory",
+   "source": "industry-directories",
+   "exclude_reason": "verifier exclude: No URLs supplied (statuses 0); homepage returns 403 Cloudflare bot block from this network so no registration path could be verified. Independent of the block, it is a U.S.-only industrial marketplace and PPC ships only within Canada — fails eligibility and audience fit."
+  },
+  {
+   "platform": "wlw (Wer liefert was / Visable)",
+   "website": "https://www.wlw.de/",
+   "category": "directory",
+   "source": "industry-directories",
+   "exclude_reason": "verifier exclude: URL technically works (same cookie-dependent ory/kratos flow as Europages; resolves 200 with cookies), but the platform targets suppliers serving German-speaking Europe — no audience for a Canada-only shipper, and Europages (same Visable parent) is already in the list. Excluded for ineligibility, not URL health."
+  },
+  {
+   "platform": "Lab Bulletin",
+   "website": "https://www.labbulletin.com/",
+   "category": "media_podcast",
+   "source": "industry-directories",
+   "exclude_reason": "verifier exclude: Platform confirmed dead: labbulletin.com now serves a GoDaddy Website Builder placeholder whose visible text reads 'Lab Bulletin is no longer available' (only a contact form remains; no news site, no company directory). The earlier connection resets were intermittent — the domain responds 200, but the property has shut down. No URL to correct to."
+  },
+  {
+   "platform": "Clutch",
+   "website": "https://clutch.co",
+   "category": "company_profile",
+   "source": "profiles",
+   "exclude_reason": "verifier exclude: Ineligible: Clutch lists professional-services firms only; PPC sells physical research products and fits no Clutch category, so a listing would be rejected or orphaned. (URL itself alive behind a Cloudflare 403 challenge - exclusion is on eligibility, not availability.)"
+  },
+  {
+   "platform": "GoodFirms",
+   "website": "https://www.goodfirms.co",
+   "category": "company_profile",
+   "source": "profiles",
+   "exclude_reason": "verifier exclude: Ineligible: GoodFirms is an IT/marketing services directory; a product e-commerce supplier does not qualify - same eligibility failure as Clutch. (URL alive behind a bot-protection 403; exclusion is on eligibility.)"
+  },
+  {
+   "platform": "SaaSHub",
+   "website": "https://www.saashub.com",
+   "category": "company_profile",
+   "source": "profiles",
+   "exclude_reason": "verifier exclude: Ineligible: SaaSHub is a software/SaaS catalog; submitting a peptide store would be off-topic directory spam. Confirmed ineligible as the brief anticipated. (URL alive behind a bot-protection 403.)"
+  },
+  {
+   "platform": "AlternativeTo",
+   "website": "https://alternativeto.net",
+   "category": "company_profile",
+   "source": "profiles",
+   "exclude_reason": "verifier exclude: Ineligible: AlternativeTo is a software-only catalog; a lab-reagent supplier cannot be listed. (URL alive behind a bot-protection 403; exclusion is on eligibility.)"
+  },
+  {
+   "platform": "Startups in Canada (startupsincanada.com)",
+   "website": "https://www.startupsincanada.com",
+   "category": "company_profile",
+   "source": "profiles",
+   "exclude_reason": "verifier exclude: Confirmed toxic: www.startupsincanada.com now 301-redirects to 1xbet-canada.com (gambling affiliate site), final status 200 on the gambling domain. The directory is dead and the domain is a toxic neighborhood - do not re-suggest. No registration_url was provided (recorded as 0)."
+  },
+  {
+   "platform": "ScienceForums.net",
+   "website": "https://www.scienceforums.net/",
+   "category": "community",
+   "source": "community",
+   "exclude_reason": "verifier exclude: URLs are live (200), but the platform is clearly ineligible for this business: commercial links are banned outright, including signatures and profiles, so there is no compliant way for a vendor to gain a link or branded presence. Row exists only as documentation to keep it out of the pipeline."
+  },
+  {
+   "platform": "Pocket (getpocket.com)",
+   "website": "https://getpocket.com/",
+   "category": "bookmarking",
+   "source": "bookmarking",
+   "exclude_reason": "verifier exclude: No URLs provided (correctly); getpocket.com/home serves a farewell/shut-down notice ('farewell', 'shut down' in page copy). Product no longer accepts users or content; confirmed dead for prospecting."
+  },
+  {
+   "platform": "Paper.li",
+   "website": "https://paper.li/",
+   "category": "bookmarking",
+   "source": "bookmarking",
+   "exclude_reason": "verifier exclude: No URLs provided (correctly); paper.li now serves an unrelated German-language content site (title 'paper.li: Digital informieren - 2026 neues Level erreichen'). Original curation service dead, domain repurposed."
+  },
+  {
+   "platform": "List.ly (Listly)",
+   "website": "https://list.ly/",
+   "category": "bookmarking",
+   "source": "bookmarking",
+   "exclude_reason": "verifier exclude: No URLs provided (correctly); https://list.ly/ homepage title is 'Listly is Shut Down'. Confirmed dead."
+  },
+  {
+   "platform": "start.me",
+   "website": "https://start.me/",
+   "category": "bookmarking",
+   "source": "bookmarking",
+   "exclude_reason": "researcher exclude: Maintained bookmark/start-page tool popular in OSINT circles, but it is niche, discovery is minimal, and the signup flow could not be verified — fails the verification bar relative to its marginal value for a lab supplier. | verifier verdict: keep - 403 is a Cloudflare bot challenge [VERDICT TRUNCATED IN WORKFLOW HANDOFF — reason text cut off here; remainder of the verdict list (resource-edu, media-podcasts, documents categories) was not received. Rows without verdicts are kept as researched per the merge instructions. Note: the start.me opportunity row itself carries tier 'exclude' from the researcher (excluded on marginal value, not only the bot wall), so it remains in the excluded record.]"
+  },
+  {
+   "platform": "ROR - Research Organization Registry",
+   "website": "https://ror.org",
+   "category": "resource_directory",
+   "source": "resource-edu",
+   "exclude_reason": "researcher exclude: NOT eligible: PPC does not appear as an author affiliation in published research, which is ROR's hard criterion; a request would be closed 'out of scope'. Documented so the orchestrator does not retry."
+  },
+  {
+   "platform": "CALA (Canadian Association for Laboratory Accreditation) directory",
+   "website": "https://directory.cala.ca",
+   "category": "association",
+   "source": "resource-edu",
+   "exclude_reason": "researcher exclude: NOT eligible: PPC is a reagent supplier, not an accredited testing laboratory; the brief asked this be verified. No self-service path exists."
+  },
+  {
+   "platform": "OpenCorporates",
+   "website": "https://opencorporates.com",
+   "category": "company_profile",
+   "source": "resource-edu",
+   "exclude_reason": "researcher exclude: Verified per brief: auto-listed only; no action available to PPC beyond ensuring its corporate registration is current. No website link field on free records, so no backlink value."
+  },
+  {
+   "platform": "ChemSpider (Royal Society of Chemistry) data sources",
+   "website": "https://www.chemspider.com",
+   "category": "resource_directory",
+   "source": "resource-edu",
+   "exclude_reason": "researcher exclude: Would be highly relevant (chemistry database vendor listing) but there is currently no self-service submission route to verify, so it fails the brief's self-service requirement. PubChem covers the same need and IS open."
+  },
+  {
+   "platform": "chemeurope.com (LUMITOS) chemistry company directory",
+   "website": "https://www.chemeurope.com",
+   "category": "resource_directory",
+   "source": "resource-edu",
+   "exclude_reason": "researcher exclude: Relevant audience (chemistry/lab industry) but fails the free/self-service bar for this category; could be revisited under a paid-placement budget, hence documented rather than silently dropped."
+  },
+  {
+   "platform": "JournoRequests / ResponseSource",
+   "website": "https://www.responsesource.com/",
+   "category": "media_podcast",
+   "source": "media-podcasts",
+   "exclude_reason": "researcher exclude: NOT relevant: UK-centric paid media-request service while Pure Peptides Canada ships only within Canada; cost and geography both fail the bar. Documented so the JournoRequests line item is closed out."
+  }
+ ]
+}
