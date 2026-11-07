@@ -1,0 +1,524 @@
+{
+  "mode": "mobile",
+  "pass": 2,
+  "startedAt": "2026-11-07T04:45:17.596Z",
+  "journeys": [
+    {
+      "name": "A-age-gate",
+      "steps": [
+        {
+          "name": "home-load",
+          "ok": true,
+          "status": 200,
+          "ms": 5360,
+          "finalUrl": "https://purepeptidescanada.com/",
+          "attempt": 1
+        },
+        {
+          "name": "dismiss",
+          "clicked": true,
+          "before": {
+            "present": true,
+            "visible": true
+          },
+          "after": {
+            "present": true,
+            "visible": false
+          }
+        },
+        {
+          "name": "home-after-dismiss-screenshot",
+          "file": "/tmp/claude-0/-home-user-Growth-engine-PPC/e01ede86-43cd-5f84-9cca-7e7b80d17fc9/scratchpad/audit-run/journeys/p2-mobile-home-gate-dismissed.png"
+        },
+        {
+          "name": "persist-on-shop",
+          "present": true,
+          "visible": false
+        },
+        {
+          "name": "persistence-storage",
+          "cookies": "_ga=GA1.1.2135607609.1794026720; sbjs_migrations=1418474375998%3D1; sbjs_current_add=fd%3D2026-11-07%2004%3A45%3A22%7C%7C%7Cep%3Dhttps%3A%2F%2Fpurepeptidescanada.com%2F%7C%7C%7Crf%3D%28none%29; sbjs_first_add=fd%3D2026-11-07%2004%3A45%3A22%7C%7C%7Cep%3Dhttps%3A%2F%2Fpurepeptidescanada.com%2F%7C%7C%7",
+          "ls": {}
+        }
+      ]
+    },
+    {
+      "name": "B-mobile-hamburger",
+      "steps": [
+        {
+          "name": "burger-candidates",
+          "burger": [
+            {
+              "tag": "BUTTON",
+              "cls": "pp-search-toggle",
+              "aria": "Search products",
+              "id": ""
+            },
+            {
+              "tag": "BUTTON",
+              "cls": "pp-burger",
+              "aria": "Menu",
+              "id": ""
+            }
+          ]
+        },
+        {
+          "name": "hamburger-open",
+          "opened": true,
+          "how": "button[aria-label*=\"menu\" i]"
+        },
+        {
+          "name": "menu-screenshot",
+          "file": "/tmp/claude-0/-home-user-Growth-engine-PPC/e01ede86-43cd-5f84-9cca-7e7b80d17fc9/scratchpad/audit-run/journeys/p2-mobile-mobile-menu-open.png"
+        }
+      ]
+    },
+    {
+      "name": "C-shop-to-checkout",
+      "steps": [
+        {
+          "name": "shop",
+          "ok": true,
+          "status": 200,
+          "ms": 1907,
+          "finalUrl": "https://purepeptidescanada.com/shop/",
+          "attempt": 1
+        },
+        {
+          "name": "category",
+          "ok": true,
+          "status": 200,
+          "ms": 2441,
+          "finalUrl": "https://purepeptidescanada.com/product-category/recovery/",
+          "attempt": 1
+        },
+        {
+          "name": "product",
+          "ok": true,
+          "status": 200,
+          "ms": 2707,
+          "finalUrl": "https://purepeptidescanada.com/product/bpc-157/",
+          "attempt": 1
+        },
+        {
+          "name": "variation-ui",
+          "hasSelect": true,
+          "selVisible": false,
+          "opts": [
+            "10mg (1 vial)",
+            "10mg (box of 10)",
+            "20mg (1 vial)",
+            "20mg (box of 10)",
+            "40mg (1 vial)",
+            "40mg (box of 10)"
+          ],
+          "swatches": [
+            {
+              "sel": "form.variations_form [data-value]",
+              "val": "10mg (1 vial)",
+              "text": "10mg (1 vial)",
+              "visible": true
+            },
+            {
+              "sel": "form.variations_form [data-value]",
+              "val": "10mg (box of 10)",
+              "text": "10mg (box of 10)",
+              "visible": true
+            },
+            {
+              "sel": "form.variations_form [data-value]",
+              "val": "20mg (1 vial)",
+              "text": "20mg (1 vial)",
+              "visible": true
+            },
+            {
+              "sel": "form.variations_form [data-value]",
+              "val": "20mg (box of 10)",
+              "text": "20mg (box of 10)",
+              "visible": true
+            },
+            {
+              "sel": "form.variations_form [data-value]",
+              "val": "40mg (1 vial)",
+              "text": "40mg (1 vial)",
+              "visible": true
+            },
+            {
+              "sel": "form.variations_form [data-value]",
+              "val": "40mg (box of 10)",
+              "text": "40mg (box of 10)",
+              "visible": true
+            }
+          ]
+        },
+        {
+          "name": "variation-chosen",
+          "chosen": {
+            "via": "swatch",
+            "val": "10mg (1 vial)"
+          },
+          "btnState": {
+            "found": true,
+            "disabled": false,
+            "text": "Add to cart",
+            "variationPrice": "$103 Original price was: $103.$93Current price is: $93. CAD"
+          }
+        },
+        {
+          "name": "product-after-select-screenshot",
+          "file": "/tmp/claude-0/-home-user-Growth-engine-PPC/e01ede86-43cd-5f84-9cca-7e7b80d17fc9/scratchpad/audit-run/journeys/p2-mobile-product-selected.png"
+        },
+        {
+          "name": "add-to-cart",
+          "ok": true,
+          "notice": "“BPC-157” has been added to your cart. View cart",
+          "miniCartCount": "1",
+          "url": "https://purepeptidescanada.com/product/bpc-157/"
+        },
+        {
+          "name": "added-screenshot",
+          "file": "/tmp/claude-0/-home-user-Growth-engine-PPC/e01ede86-43cd-5f84-9cca-7e7b80d17fc9/scratchpad/audit-run/journeys/p2-mobile-added-to-cart.png"
+        },
+        {
+          "name": "cart",
+          "ok": true,
+          "status": 200,
+          "ms": 2206,
+          "finalUrl": "https://purepeptidescanada.com/cart/",
+          "attempt": 1,
+          "rows": [
+            "× BPC-157 - 10mg (1 vial) $93 BPC-157 - 10mg (1 vial) quantity $93"
+          ],
+          "empty": false,
+          "total": "Total $118",
+          "checkoutBtnText": "Proceed to checkout"
+        },
+        {
+          "name": "cart-screenshot",
+          "file": "/tmp/claude-0/-home-user-Growth-engine-PPC/e01ede86-43cd-5f84-9cca-7e7b80d17fc9/scratchpad/audit-run/journeys/p2-mobile-cart.png"
+        },
+        {
+          "name": "checkout-render",
+          "checkoutMs": 50892,
+          "via": "click",
+          "addToCartToCheckoutMs": 63312,
+          "cartToCheckoutMs": 57767,
+          "classic": true,
+          "blocks": false,
+          "paymentMethods": [
+            {
+              "id": "payezwithcc",
+              "label": "Credit Card Or Debit Card"
+            },
+            {
+              "id": "betpg_etransfer",
+              "label": "Interac e-Transfer"
+            },
+            {
+              "id": "mycryptocheckout",
+              "label": "Cryptocurrency"
+            }
+          ],
+          "requiredFieldEls": 18,
+          "visibleFields": 27,
+          "notices": [],
+          "expressPay": false,
+          "title": "Checkout — Complete Your Order",
+          "url": "https://purepeptidescanada.com/checkout/"
+        },
+        {
+          "name": "checkout-screenshot",
+          "file": "/tmp/claude-0/-home-user-Growth-engine-PPC/e01ede86-43cd-5f84-9cca-7e7b80d17fc9/scratchpad/audit-run/journeys/p2-mobile-checkout.png"
+        },
+        {
+          "name": "checkout-overflow",
+          "scrollWidth": 390,
+          "innerWidth": 390
+        }
+      ]
+    },
+    {
+      "name": "D-contact-deep",
+      "steps": [
+        {
+          "name": "load",
+          "ok": true,
+          "status": 200,
+          "ms": 3898,
+          "finalUrl": "https://purepeptidescanada.com/contact/",
+          "attempt": 1
+        },
+        {
+          "name": "contact-structure",
+          "formCount": 1,
+          "forms": [
+            {
+              "id": "",
+              "cls": "pp-search-form",
+              "action": "https://purepeptidescanada.com/",
+              "fields": [
+                {
+                  "name": "s",
+                  "type": "search",
+                  "required": false
+                }
+              ]
+            }
+          ],
+          "iframes": [
+            "https://news.google.com/swg/ui/v1/serviceiframe?_=1794026820473&publicationId=publication-id-free"
+          ],
+          "mailtos": [
+            "mailto:hi@purepeptidescanada.com",
+            "mailto:hi@purepeptidescanada.com"
+          ],
+          "chatWidget": false,
+          "requiredMarkers": 0,
+          "bodySnippet": "CONTACT We're here to help. Questions about an order, a certificate of analysis, or a product? We're a Canadian team and we reply fast — and the quickest way to reach us is the live chat right here on the site. FASTEST RESPONSE Chat with us live The best way to reach us is the live chat — just look for the chat bubble in the bottom-right corner of any page. We usually reply within minutes during business hours. Start live chat Mon–Fri · 9:00am – 5:00pm EST Other ways to reach us Email hi@purepeptidescanada.com Great for order help, COAs, and product questions. Hours Monday to Friday 9:00 am – "
+        },
+        {
+          "name": "screenshot",
+          "file": "/tmp/claude-0/-home-user-Growth-engine-PPC/e01ede86-43cd-5f84-9cca-7e7b80d17fc9/scratchpad/audit-run/journeys/p2-mobile-contact.png"
+        }
+      ]
+    },
+    {
+      "name": "E-search-noresults",
+      "steps": [
+        {
+          "name": "load",
+          "ok": true,
+          "status": 200,
+          "ms": 4100,
+          "finalUrl": "https://purepeptidescanada.com/?s=qzxvbnmasdf",
+          "attempt": 1
+        },
+        {
+          "name": "no-results-content",
+          "mainText": "SEARCH Results for \"qzxvbnmasdf\" No results. Browse the catalog instead.",
+          "resultCards": 0
+        },
+        {
+          "name": "load-bpc",
+          "ok": true,
+          "status": 200,
+          "ms": 2524,
+          "finalUrl": "https://purepeptidescanada.com/?s=bpc",
+          "attempt": 1
+        },
+        {
+          "name": "bpc-results",
+          "count": 10,
+          "items": [
+            {
+              "title": "BPC-157",
+              "href": "https://purepeptidescanada.com/product/bpc-157/"
+            },
+            {
+              "title": "BPC-157 Capsules",
+              "href": "https://purepeptidescanada.com/product/bpc-157-capsules/"
+            },
+            {
+              "title": "BPC-157 + TB-500 Blend",
+              "href": "https://purepeptidescanada.com/product/bpc157tb4-blend/"
+            },
+            {
+              "title": "BPC-157 + TB-500 Fragment Blend",
+              "href": "https://purepeptidescanada.com/product/bpc157tb-frag-blend/"
+            },
+            {
+              "title": "GLOW Blend (GHK-Cu + BPC-157 + TB-500)",
+              "href": "https://purepeptidescanada.com/product/glow-blend/"
+            },
+            {
+              "title": "Coremend Blend (TB-500 + KPV + BPC-157)",
+              "href": "https://purepeptidescanada.com/product/coremend-blend/"
+            },
+            {
+              "title": "KLOW Blend",
+              "href": "https://purepeptidescanada.com/product/klow-blend/"
+            },
+            {
+              "title": "BPC-157: Research Guide for Canadian Labs",
+              "href": "https://purepeptidescanada.com/bpc-157-canada/"
+            },
+            {
+              "title": "BPC-157 Safety: What Toxicology, Human Data and Regulators Say",
+              "href": "https://purepeptidescanada.com/bpc-157-safety-research/"
+            },
+            {
+              "title": "BPC-157 vs TB-500: How the Two Repair Peptides Compare",
+              "href": "https://purepeptidescanada.com/bpc-157-vs-tb-500/"
+            }
+          ]
+        },
+        {
+          "name": "bpc-screenshot",
+          "file": "/tmp/claude-0/-home-user-Growth-engine-PPC/e01ede86-43cd-5f84-9cca-7e7b80d17fc9/scratchpad/audit-run/journeys/p2-mobile-search-bpc.png"
+        }
+      ]
+    },
+    {
+      "name": "F-google-embed-attribution",
+      "steps": [
+        {
+          "name": "cart-load",
+          "ok": true,
+          "status": 200,
+          "ms": 2462,
+          "finalUrl": "https://purepeptidescanada.com/cart/",
+          "attempt": 1
+        },
+        {
+          "name": "attribution",
+          "scripts": [
+            "https://www.googletagmanager.com/gtag/js?id=GT-5TGZ3SHZ",
+            "https://purepeptidescanada.com/wp-content/plugins/google-site-kit/dist/assets/js/googlesitekit-events-provider-content-events-90bacb156ab34fa090db.js",
+            "https://purepeptidescanada.com/wp-content/plugins/google-site-kit/dist/assets/js/googlesitekit-events-provider-woocommerce-6578612452b5920ad014.js",
+            "https://purepeptidescanada.com/wp-content/plugins/google-site-kit/dist/assets/js/googlesitekit-events-provider-wpforms-7c53eae50325da8a6935.js",
+            "https://news.google.com/swg/js/v1/publisher.js"
+          ],
+          "iframes": [
+            {
+              "src": "https://news.google.com/swg/ui/v1/serviceiframe?_=1794026835108&publicationId=publication-id-free",
+              "id": "",
+              "cls": ""
+            }
+          ],
+          "inlineMatches": []
+        },
+        {
+          "name": "attribution-home",
+          "ok": true,
+          "status": 200,
+          "ms": 2831,
+          "finalUrl": "https://purepeptidescanada.com/",
+          "attempt": 1,
+          "scripts": [
+            "https://www.googletagmanager.com/gtag/js?id=GT-5TGZ3SHZ",
+            "https://purepeptidescanada.com/wp-content/plugins/google-site-kit/dist/assets/js/googlesitekit-events-provider-content-events-90bacb156ab34fa090db.js",
+            "https://purepeptidescanada.com/wp-content/plugins/google-site-kit/dist/assets/js/googlesitekit-events-provider-woocommerce-6578612452b5920ad014.js",
+            "https://purepeptidescanada.com/wp-content/plugins/google-site-kit/dist/assets/js/googlesitekit-events-provider-wpforms-7c53eae50325da8a6935.js",
+            "https://news.google.com/swg/js/v1/publisher.js"
+          ],
+          "iframes": [
+            "https://news.google.com/swg/ui/v1/serviceiframe?_=1794026843431&publicationId=publication-id-free"
+          ]
+        }
+      ]
+    }
+  ],
+  "consoleErrors": {
+    "Failed to load resource: the server responded with a status of 401 (Unauthorized)": {
+      "count": 2,
+      "pages": [
+        "https://purepeptidescanada.com/checkout/"
+      ],
+      "journeys": [
+        "C-shop-to-checkout"
+      ]
+    }
+  },
+  "pageErrors": {},
+  "failedRequests": {
+    "https://www.gstatic.com/_/mss/boq-subscribewithgoogle/_/js/k=boq-subscribewithgoogle.SubscribewithgoogleClientUi.en_US.Ln8AY4Q-q8E.2018.O/ck=boq-subscribewithgoogle.SubscribewithgoogleClientUi.UayZ6CcOJP4.L.W1.O/am=AAAAAAAN/d=1/exm=W93Wdc,_b,_tp/excm=_b,_tp,serviceiframeview/ed=1/wt=2/ujg=1/rs=ABXTjI4SWgwLm70z3QchcviKNKSd46O5LQ/ee=EVNhjf:pw70Gc;EmZ2Bf:zr1jrb;JsbNhc:Xd8iUd;K5nYTd:ZDZcre;LBgRLc:SdcwHb;Me32dd:MEeYgc;NJ1rfe:qTnoBf;NPKaK:SdcwHb;NSEoX:lazG7b;Pjplud:EEDORb;QGR0gd:Mlhmy;SNUn3:ZwDk9d;ScI": {
+      "count": 14,
+      "pages": [
+        "https://purepeptidescanada.com/",
+        "https://purepeptidescanada.com/shop/",
+        "https://purepeptidescanada.com/product-category/recovery/",
+        "https://purepeptidescanada.com/product/bpc-157/",
+        "https://purepeptidescanada.com/cart/",
+        "https://purepeptidescanada.com/checkout/",
+        "https://purepeptidescanada.com/contact/",
+        "https://purepeptidescanada.com/?s=qzxvbnmasdf",
+        "https://purepeptidescanada.com/?s=bpc"
+      ],
+      "journeys": [
+        "A-age-gate",
+        "B-mobile-hamburger",
+        "C-shop-to-checkout",
+        "D-contact-deep",
+        "E-search-noresults",
+        "F-google-embed-attribution"
+      ],
+      "status": 0,
+      "method": "GET",
+      "failureText": "net::ERR_BLOCKED_BY_ORB"
+    },
+    "https://www.gstatic.com/_/mss/boq-subscribewithgoogle/_/js/k=boq-subscribewithgoogle.SubscribewithgoogleClientUi.en_US.Ln8AY4Q-q8E.2018.O/ck=boq-subscribewithgoogle.SubscribewithgoogleClientUi.UayZ6CcOJP4.L.W1.O/am=AAAAAAAN/d=1/exm=_b,_tp/excm=_b,_tp,serviceiframeview/ed=1/wt=2/ujg=1/rs=ABXTjI4SWgwLm70z3QchcviKNKSd46O5LQ/ee=EVNhjf:pw70Gc;EmZ2Bf:zr1jrb;JsbNhc:Xd8iUd;K5nYTd:ZDZcre;LBgRLc:SdcwHb;Me32dd:MEeYgc;NJ1rfe:qTnoBf;NPKaK:SdcwHb;NSEoX:lazG7b;Pjplud:EEDORb;QGR0gd:Mlhmy;SNUn3:ZwDk9d;ScI3Yc:e7H": {
+      "count": 26,
+      "pages": [
+        "https://purepeptidescanada.com/",
+        "https://purepeptidescanada.com/shop/",
+        "https://purepeptidescanada.com/product-category/recovery/",
+        "https://purepeptidescanada.com/product/bpc-157/",
+        "https://purepeptidescanada.com/cart/",
+        "https://purepeptidescanada.com/checkout/",
+        "https://purepeptidescanada.com/contact/",
+        "https://purepeptidescanada.com/?s=qzxvbnmasdf",
+        "https://purepeptidescanada.com/?s=bpc"
+      ],
+      "journeys": [
+        "A-age-gate",
+        "B-mobile-hamburger",
+        "C-shop-to-checkout",
+        "D-contact-deep",
+        "E-search-noresults",
+        "F-google-embed-attribution"
+      ],
+      "status": 0,
+      "method": "GET",
+      "failureText": "net::ERR_BLOCKED_BY_ORB"
+    },
+    "https://www.gstatic.com/_/mss/boq-payments-consumer/_/js/k=boq-payments-consumer.InstantbuyFrontendBuyflowPayframeUi.en_US.5LhtUclMrcU.2018.O/ck=boq-payments-consumer.InstantbuyFrontendBuyflowPayframeUi.ssqrfyRUpH8.L.W1.O/am=AAAAANA/d=1/exm=_b,_tp/excm=_b,_tp,payframeview/ed=1/wt=2/ujg=1/rs=AMitfri9HgPukg3uZQP7KqB-IPafib5yyA/ee=EmZ2Bf:zr1jrb;JsbNhc:Xd8iUd;K5nYTd:ZDZcre;LBgRLc:XVMNvd;Me32dd:MEeYgc;NJ1rfe:yGfSdd;NPKaK:PVlQOd;NSEoX:lazG7b;Pjplud:EEDORb;QGR0gd:Mlhmy;SNUn3:ZwDk9d;ScI3Yc:e7Hzgb;Uvc8o:": {
+      "count": 9,
+      "pages": [
+        "https://purepeptidescanada.com/checkout/"
+      ],
+      "journeys": [
+        "C-shop-to-checkout",
+        "D-contact-deep"
+      ],
+      "status": 0,
+      "method": "GET",
+      "failureText": "net::ERR_BLOCKED_BY_ORB"
+    },
+    "https://www.gstatic.com/_/mss/boq-payments-consumer/_/js/k=boq-payments-consumer.InstantbuyFrontendBuyflowPayframeUi.en_US.5LhtUclMrcU.2018.O/ck=boq-payments-consumer.InstantbuyFrontendBuyflowPayframeUi.ssqrfyRUpH8.L.W1.O/am=AAAAANA/d=1/exm=FCpbqb,WhJNk,Wt6vjf,_b,_tp,hhhU8,ws9Tlc/excm=_b,_tp,payframeview/ed=1/wt=2/ujg=1/rs=AMitfri9HgPukg3uZQP7KqB-IPafib5yyA/ee=EmZ2Bf:zr1jrb;JsbNhc:Xd8iUd;K5nYTd:ZDZcre;LBgRLc:XVMNvd;Me32dd:MEeYgc;NJ1rfe:yGfSdd;NPKaK:PVlQOd;NSEoX:lazG7b;Pjplud:EEDORb;QGR0gd:Mlhmy;": {
+      "count": 1,
+      "pages": [
+        "https://purepeptidescanada.com/checkout/"
+      ],
+      "journeys": [
+        "C-shop-to-checkout"
+      ],
+      "status": 0,
+      "method": "GET",
+      "failureText": "net::ERR_BLOCKED_BY_ORB"
+    },
+    "https://api.hcaptcha.com/authenticate": {
+      "count": 2,
+      "pages": [
+        "https://purepeptidescanada.com/checkout/"
+      ],
+      "journeys": [
+        "C-shop-to-checkout"
+      ],
+      "status": 401,
+      "method": "POST"
+    },
+    "https://www.gstatic.com/_/mss/boq-payments-consumer/_/js/k=boq-payments-consumer.InstantbuyFrontendBuyflowPayframeUi.en_US.5LhtUclMrcU.2018.O/ck=boq-payments-consumer.InstantbuyFrontendBuyflowPayframeUi.ssqrfyRUpH8.L.W1.O/am=AAAAANA/d=1/exm=_b,_tp,uZmJdd/excm=_b,_tp,payframeview/ed=1/wt=2/ujg=1/rs=AMitfri9HgPukg3uZQP7KqB-IPafib5yyA/ee=EmZ2Bf:zr1jrb;JsbNhc:Xd8iUd;K5nYTd:ZDZcre;LBgRLc:XVMNvd;Me32dd:MEeYgc;NJ1rfe:yGfSdd;NPKaK:PVlQOd;NSEoX:lazG7b;Pjplud:EEDORb;QGR0gd:Mlhmy;SNUn3:ZwDk9d;ScI3Yc:e7Hzgb": {
+      "count": 1,
+      "pages": [
+        "https://purepeptidescanada.com/checkout/"
+      ],
+      "journeys": [
+        "C-shop-to-checkout"
+      ],
+      "status": 0,
+      "method": "GET",
+      "failureText": "net::ERR_BLOCKED_BY_ORB"
+    }
+  },
+  "finishedAt": "2026-11-07T04:47:28.933Z"
+}

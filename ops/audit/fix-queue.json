@@ -1,0 +1,389 @@
+{
+  "generated": "2026-11-07T05:41:00Z",
+  "site": "purepeptidescanada.com",
+  "source": "ops/audit/AUDIT.md",
+  "note": "Ordered by impact. Every fix below is executable via mcp__wp-api__* tools. Risky or decision/infra-dependent items are in manual_review. Do not execute without the workflow's write approval; verify each fix immediately after applying.",
+  "fixes": [
+    {
+      "id": "fix-01",
+      "finding": "H-01",
+      "severity": "high",
+      "action": "Publish a privacy policy page at slug 'privacy-policy', then remove the 'privacy-policy' pattern from Rank Math redirect rule id 1 sources so the footer link resolves",
+      "tool": "wp_create_page + wp_rm_get_redirect + wp_rm_update_redirect",
+      "params_hint": "Prerequisite: owner-approved policy copy (manual-05). wp_create_page{title:'Privacy Policy', slug:'privacy-policy', status:'publish'}; then wp_rm_get_redirect{id:1}, resend sources minus the 'privacy-policy' exact pattern (keep the other 52 bot-probe patterns) via wp_rm_update_redirect{id:1, sources:[...]}. Footer href already targets /privacy-policy — no theme edit needed.",
+      "verify_how": "GET https://purepeptidescanada.com/privacy-policy returns 200 with policy content (no Location header); footer click on any page lands on it; /wholesale-terms/ and /referral-program/ in-content links resolve"
+    },
+    {
+      "id": "fix-02",
+      "finding": "H-05",
+      "severity": "high",
+      "action": "Get /buy-research-peptides-canada/ into the sitemap and submitted for indexing",
+      "tool": "wp_rm_get_post_seo + wp_rm_update_post_seo + wp_ability_rank_math_get_settings",
+      "params_hint": "Read the page's rank_math robots + sitemap exclusion (also check sitemap settings exclude_posts for its page ID). Clear any noindex/exclude flag via wp_rm_update_post_seo{robots:['index']}. Rank Math Instant Indexing/IndexNow already covers 'page' post type.",
+      "verify_how": "Page URL appears in page-sitemap.xml; wp_gsc_inspect_url later shows coverageState progressing from 'unknown to Google'"
+    },
+    {
+      "id": "fix-03",
+      "finding": "M-13",
+      "severity": "medium",
+      "action": "Consolidate 3 duplicate live URL pairs: 301 the duplicate to the canonical and unpublish the duplicate",
+      "tool": "wp_rm_create_redirect + wp_update_page / wp_wc_update_product",
+      "params_hint": "Pairs (canonical <- duplicate): /shipping-across-canada/ <- /shipping-across-canada-2/; /product/cjc-1295-ipamorelin/ <- /product/cjc1295-lpamorelin/ (typo slug); /product/ll-37/ <- /product/ll37/. First confirm via read tools which member is the live/current one (impressions suggest the first of each pair). Set duplicate to draft, then wp_rm_create_redirect{sources:[{pattern:'/<dup>'}], target:'/<canonical>', code:301}.",
+      "verify_how": "curl each duplicate URL -> 301 -> canonical -> 200; GSC impressions consolidate over following weeks"
+    },
+    {
+      "id": "fix-04",
+      "finding": "M-01",
+      "severity": "medium",
+      "action": "Remove the 16 placeholder province/city pages (IDs 160-176) from the sitemap by setting them to draft; keep redirect rule 16",
+      "tool": "wp_update_page",
+      "params_hint": "wp_update_page{page_id:<each of 160-176>, status:'draft'} for the 16 pages whose URLs are the sources of Rank Math redirect rule id 16 (peptides-ontario, -quebec, -british-columbia, -alberta, -manitoba, -saskatchewan, -nova-scotia, -new-brunswick, -vancouver, -calgary, -montreal, -nunavut, -yukon, -northwest-territories, -prince-edward-island, -newfoundland-and-labrador). Verify ID<->slug mapping with wp_list_pages first. Rule 16 keeps the URLs 301ing to /shipping-across-canada/ — no 404 risk.",
+      "verify_how": "page-sitemap.xml no longer lists the 16 URLs (sitemap entry count drops ~45->29); each URL still 301s to /shipping-across-canada/"
+    },
+    {
+      "id": "fix-05",
+      "finding": "M-17",
+      "severity": "medium",
+      "action": "Finish glossary consolidation (already partially done per ops log 04:52Z): create the pending 301 and ensure /peptide-glossary/ is in the sitemap",
+      "tool": "wp_rm_create_redirect + wp_rm_get_post_seo + wp_rm_update_post_seo",
+      "params_hint": "wp_rm_create_redirect{sources:[{pattern:'/research-peptide-glossary-terms/'}], target:'/peptide-glossary/', code:301} — this exact redirect was DENIED by the permission system earlier and needs user approval. Then check /peptide-glossary/ robots/sitemap exclusion and clear it so it appears in page-sitemap.xml.",
+      "verify_how": "curl /research-peptide-glossary-terms/ -> 301 -> /peptide-glossary/ (200); /peptide-glossary/ present in page-sitemap.xml"
+    },
+    {
+      "id": "fix-06",
+      "finding": "M-05",
+      "severity": "medium",
+      "action": "Set product schema name to the post title (%title%) instead of the SEO title so Product.name matches the visible H1",
+      "tool": "wp_ability_rank_math_get_settings + wp_ability_rank_math_set_post_type_seo_settings",
+      "params_hint": "Read current product post-type schema settings first; set the schema/snippet name template for post type 'product' to '%title%'.",
+      "verify_how": "Re-fetch /product/bpc-157/, /product/semaglutide/, /product/glow-blend/: JSON-LD Product.name equals the visible H1 (e.g. 'BPC-157')"
+    },
+    {
+      "id": "fix-07",
+      "finding": "M-02",
+      "severity": "medium",
+      "action": "Fix /my-account/ SEO title from 'Reset Your Password | Pure Peptides Canada' to 'My Account | Pure Peptides Canada'",
+      "tool": "wp_rm_update_post_seo",
+      "params_hint": "Find the My Account page ID via wp_list_pages (slug 'my-account'); wp_rm_update_post_seo{post_id:<id>, title:'My Account | Pure Peptides Canada'}. Page is robots.txt-blocked so this is a UX/tab-title fix.",
+      "verify_how": "curl /my-account/ shows the new <title>"
+    },
+    {
+      "id": "fix-08",
+      "finding": "M-15",
+      "severity": "medium",
+      "action": "Set the missing focus keyword on HGH (post 1143) and focus keywords + meta descriptions on the 10 bad-score products",
+      "tool": "wp_rm_update_post_seo",
+      "params_hint": "Start with HGH (post 1143, keyword=null): focus_keyword e.g. 'hgh canada'. Then Tesofensine, Semax Nasal Spray, 5-Amino-1MQ Capsules, Orforglipron, Selank Nasal Spray, Epithalon Nasal Spray, BPC-157 Capsules, GHK-Cu Facial Toner, GHK-Cu Facial Cleanser, HCG — IDs in data/rank-math-seo-scores.json. Keyword pattern: '<product> canada'. Content expansion stays manual (manual-queue).",
+      "verify_how": "wp_ability_rank_math_get_seo_scores: scores rise out of 'bad' (<=50) band; no product left with empty focus keyword"
+    },
+    {
+      "id": "fix-09",
+      "finding": "M-12",
+      "severity": "medium",
+      "action": "CTR rewrite of /about/ title/meta (1,508 impressions at position 9.1, CTR 1.33%) and title/meta targeting pass over the 16 striking-distance pages",
+      "tool": "wp_rm_update_post_seo",
+      "params_hint": "Striking-distance list in data/gsc-pages-28d.tsv. /about/ first (already page 1). For product/guide pages, align titles with their GSC query (e.g. 'bpc 157 canada' for /product/bpc-157/). Keep titles <=60 chars. Content-depth and internal-link work is a separate manual/Phase-6 task.",
+      "verify_how": "Fetch each page, confirm new <title>/meta; track CTR and position in GSC over 2-4 weeks"
+    },
+    {
+      "id": "fix-10",
+      "finding": "M-07",
+      "severity": "medium",
+      "action": "Remove the invalid FAQPage typing (empty mainEntity) from the Rank Math WebPage node on /faq/, leaving the valid 30-question FAQPage block",
+      "tool": "wp_ability_rank_math_get_post_schema + wp_update_post_meta",
+      "params_hint": "Inspect the FAQ page's per-post schema first; clear the FAQ rich-snippet type on the Rank Math node (rank_math rich_snippet / schema meta key) so WebPage is no longer typed [WebPage,FAQPage] with mainEntity:''.",
+      "verify_how": "Re-fetch /faq/: exactly one FAQPage entity in JSON-LD, with 30 Question items; validate with a schema parser"
+    },
+    {
+      "id": "fix-11",
+      "finding": "M-14",
+      "severity": "medium",
+      "action": "Correct Rank Math monthly report email from hi@peptidescanada.com to hi@purepeptidescanada.com",
+      "tool": "wp_ability_rank_math_set_plugin_preferences",
+      "params_hint": "Confirm the intended address with the owner first (could be an owned sister domain). Field: console_email_send_to. If set_plugin_preferences does not expose it, check wp_list_disabled_tools before falling back to manual.",
+      "verify_how": "wp_ability_rank_math_get_settings shows console_email_send_to='hi@purepeptidescanada.com'"
+    },
+    {
+      "id": "fix-12",
+      "finding": "M-18",
+      "severity": "medium",
+      "action": "Replace 6 dead external citation links with validated live or archive.org equivalents",
+      "tool": "wp_replace_in_post",
+      "params_hint": "Pairs in AUDIT.md M-18 / data/external-dead-links.json. Validate each replacement URL with a fetch (expect 200) before swapping. FDA ANDA peptide guidance moved — search fda.gov for its new URL (used on /hplc-testing-guide/ AND /spectroscopy-vs-spectrometry/). Use web.archive.org snapshots where no live equivalent exists.",
+      "verify_how": "Each edited post's citation href returns 200; re-run the external link check on the 6 source pages"
+    },
+    {
+      "id": "fix-13",
+      "finding": "M-16",
+      "severity": "medium",
+      "action": "De-orphan 3 pages: add internal links to /editorial-standards/, /referral-program/, /peptides-recherche-quebec/",
+      "tool": "wp_replace_in_post + wp_update_page (+ wp_create_menu_item if footer menu chosen)",
+      "params_hint": "/editorial-standards/ from /about/ (natural 'how our articles are made' sentence); /referral-program/ from footer menu or my-account area; /peptides-recherche-quebec/ from the other French page /acheter-peptides-canada/.",
+      "verify_how": "Each target URL appears as an href in the edited pages' rendered HTML; re-run orphan check"
+    },
+    {
+      "id": "fix-14",
+      "finding": "L-14",
+      "severity": "low",
+      "action": "Stop submitting noindexed content types in the XML sitemap: product tags and author archives",
+      "tool": "wp_ability_rank_math_set_sitemap_settings",
+      "params_hint": "{taxonomies:{product_tag:false}, authors_sitemap:false}. (post_tag already consistent.)",
+      "verify_how": "sitemap_index.xml no longer references product-tag/author sitemaps; wp_ability_rank_math_get_settings confirms"
+    },
+    {
+      "id": "fix-15",
+      "finding": "L-03",
+      "severity": "low",
+      "action": "Shorten 4 title tags over 65 chars to <=60",
+      "tool": "wp_rm_update_post_seo",
+      "params_hint": "/what-are-bioregulator-peptides/ (69), /editorial-standards/ (69), /copper-peptides/ (66), /acheter-peptides-canada/ (66). Keep primary keyword leading.",
+      "verify_how": "Re-fetch each page: title length <=60 chars"
+    },
+    {
+      "id": "fix-16",
+      "finding": "L-01",
+      "severity": "low",
+      "action": "Add a term description to the 'education' category so its archive gets a meta description",
+      "tool": "wp_update_category",
+      "params_hint": "Find term ID via wp_list_categories (slug 'education'); set a ~150-char description. Optionally also a Rank Math term title to replace the auto 'Education Archives' pattern.",
+      "verify_how": "curl /category/education/ contains <meta name=\"description\">"
+    },
+    {
+      "id": "fix-17",
+      "finding": "L-19",
+      "severity": "low",
+      "action": "Update the stale product link on /lab-testing/ to the final URL",
+      "tool": "wp_replace_in_post",
+      "params_hint": "Page ID 135, field post_content: search '/product/coremendtb500-kpv-bpc157/' replace '/product/coremend-blend/'.",
+      "verify_how": "Rendered /lab-testing/ href points at /product/coremend-blend/ (no 301 hop)"
+    },
+    {
+      "id": "fix-18",
+      "finding": "L-17",
+      "severity": "low",
+      "action": "Rewrite 17 generic 'Link' anchor texts to descriptive anchors",
+      "tool": "wp_replace_in_post",
+      "params_hint": "8 on /rf-value-thin-layer-chromatography/, 6 on /signal-transduction-explained/, 3 on /liquid-chromatography-explained/. Per-link replacement text derived from target (nobelprize.org, ema.europa.eu, sigmaaldrich.com, usp.org, merckmillipore.com, kyotoprize.org...). Replace '>Link</a>' per-href to avoid collisions.",
+      "verify_how": "Zero anchors with exact text 'Link' remain on the 3 posts"
+    },
+    {
+      "id": "fix-19",
+      "finding": "L-18",
+      "severity": "low",
+      "action": "Add outgoing contextual links from /terms-of-service/ and /shipping-returns/ to /shipping-across-canada/, /faq/, /contact/",
+      "tool": "wp_update_page / wp_replace_in_post",
+      "params_hint": "1-2 natural in-content links per page; then enumerate the 30 no-outgoing-internal-link posts via wp_ability_rank_math_get_link_report{include_posts:true} for the Phase-6 internal-linking pass.",
+      "verify_how": "Content region of both pages contains internal hrefs; Rank Math link report count drops"
+    },
+    {
+      "id": "fix-20",
+      "finding": "L-05",
+      "severity": "low",
+      "action": "Add author + datePublished/dateModified to the Article schema on /peptide-coa-guide/ and /hplc-testing-guide/",
+      "tool": "wp_ability_rank_math_get_post_schema + wp_update_post_meta",
+      "params_hint": "Inspect each page's Rank Math schema; set author and date fields on the Article snippet (blog BlogPosting nodes already have them — mirror that shape).",
+      "verify_how": "Re-fetch both pages: Article node contains author, datePublished, dateModified"
+    },
+    {
+      "id": "fix-21",
+      "finding": "L-06",
+      "severity": "low",
+      "action": "Restore the default Rank Math schema graph (WebPage/Organization/WebSite) on 4 pages that emit only BreadcrumbList",
+      "tool": "wp_ability_rank_math_get_post_schema + wp_update_post_meta",
+      "params_hint": "/lab-testing/, /shipping-returns/, /education/, /buy-research-peptides-canada/ — likely per-post 'Schema: None'; confirm the per-post setting first, then clear it.",
+      "verify_how": "Each page's JSON-LD @graph again contains WebPage (+ Organization/WebSite), matching the rest of the site"
+    },
+    {
+      "id": "fix-22",
+      "finding": "L-10",
+      "severity": "low",
+      "action": "Fix CLS from the customer-reviews flag icons by giving .crw flag imgs fixed dimensions in Additional CSS",
+      "tool": "wp_update_custom_css",
+      "params_hint": "mode:'append'. CSS targeting the customer-reviews-woocommerce flag images (e.g. img[src*='customer-reviews-woocommerce/img/flags']{width:16px;height:12px;display:inline-block}). Adjust selector/size to the widget's rendered size first.",
+      "verify_how": "Re-measure CLS on /product/retatrutide/ and /shop/ (target <0.05, was ~0.098)"
+    },
+    {
+      "id": "fix-23",
+      "finding": "L-16",
+      "severity": "low",
+      "action": "Remove the default /hello-world/ post and 301 it to the blog index",
+      "tool": "wp_delete_post + wp_rm_create_redirect",
+      "params_hint": "Find the post ID via wp_search_posts (slug 'hello-world'); trash (force:false), then wp_rm_create_redirect{sources:[{pattern:'/hello-world/'}], target:'/education/', code:301} (or 410 if preferred). /yunohost/sso/ stays in manual_review (host investigation).",
+      "verify_how": "curl /hello-world/ -> 301 (or 410); post absent from post-sitemap.xml"
+    },
+    {
+      "id": "fix-24",
+      "finding": "I-03",
+      "severity": "info",
+      "action": "Optional: stop the /shop/ page from appearing in two sitemaps (page-sitemap + product-sitemap)",
+      "tool": "wp_ability_rank_math_set_sitemap_settings",
+      "params_hint": "Add the shop page's post ID to exclude_posts (removes it from page-sitemap; the product archive listing remains). Shop page ID likely 194 per SEO-scores data — verify with wp_list_pages.",
+      "verify_how": "/shop/ appears in exactly one child sitemap; total entries 319 -> 318"
+    },
+    {
+      "id": "fix-25",
+      "finding": "M-03",
+      "severity": "medium",
+      "action": "Create a basic contact form (name, email, message — all required) and embed it on the contact page",
+      "tool": "wp_ability_wpforms_create_form + wp_ability_wpforms_add_field + wp_update_page",
+      "params_hint": "Owner should confirm desired fields and the notification address (hi@purepeptidescanada.com) before executing. Embed the form shortcode/block on page ID 156 alongside the existing chat/mailto options.",
+      "verify_how": "/contact/ renders a <form> with 3 required fields; wp_ability_wpforms_get_form_stats shows submissions flowing after a manual test"
+    }
+  ],
+  "manual_review": [
+    {
+      "id": "manual-01",
+      "finding": "H-02",
+      "severity": "high",
+      "action": "Enable HTML edge caching for anonymous visitors: Cloudflare APO (origin already emits cf-edge-cache signal; only the zone-side toggle/subscription is missing) or Cache-Everything with cookie bypass for cart/checkout/login; plus origin page cache; investigate slow uncached PHP render",
+      "why_manual": "Cloudflare dashboard / server config; cache-plugin install is a site-change decision outside safe automation"
+    },
+    {
+      "id": "manual-02",
+      "finding": "H-03",
+      "severity": "high",
+      "action": "Serve WebP/AVIF (Cloudflare Polish lossy+WebP or an image-optimization plugin); recompress the 448KB hero-vial.png to <60KB WebP at its 420px display size; recompress 652KB product PNGs",
+      "why_manual": "Cloudflare dashboard setting; plugin install is a site-change decision"
+    },
+    {
+      "id": "manual-03",
+      "finding": "H-04",
+      "severity": "high",
+      "action": "Enable HSTS (Cloudflare SSL/TLS > Edge Certificates: start max-age=86400, raise to 31536000 + includeSubDomains after verification)",
+      "why_manual": "Edge/server configuration — not reachable via wp-api tools"
+    },
+    {
+      "id": "manual-04",
+      "finding": "H-06",
+      "severity": "high",
+      "action": "Non-brand visibility program: authority building / backlinks (referral sessions currently 3/28d, DA 9), plus content depth on striking-distance pages — coordinates with other workflow phases",
+      "why_manual": "Strategy and off-site work; not a tool-executable fix"
+    },
+    {
+      "id": "manual-05",
+      "finding": "H-01",
+      "severity": "high",
+      "action": "Draft and approve privacy policy copy (PIPEDA-appropriate for an e-commerce store collecting checkout PII) — prerequisite to fix-01",
+      "why_manual": "Legal content requires owner/legal review before publication"
+    },
+    {
+      "id": "manual-06",
+      "finding": "M-04",
+      "severity": "medium",
+      "action": "Locate the source of the served /llms.txt (static webroot file or non-Rank-Math plugin — Rank Math's llms-txt module is disabled yet the file serves 200) and fix its 3 stale references (/blog/what-is-bpc-157 -> /bpc-157-safety-research/ or equivalent; /blog/glp-1-research-peptides-explained -> /glp-1-peptides-research-guide/; /blog/what-are-bioregulator-peptides -> /what-are-bioregulator-peptides/); optionally migrate to the Rank Math module afterwards",
+      "why_manual": "File source unidentified; may be server filesystem (not reachable via wp-api content tools)"
+    },
+    {
+      "id": "manual-07",
+      "finding": "M-06",
+      "severity": "medium",
+      "action": "Identify what injects the second standalone BreadcrumbList JSON-LD block (theme or plugin) on 16 of 19 audited pages, then keep a single breadcrumb source (remove custom block or disable Rank Math breadcrumb JSON-LD)",
+      "why_manual": "Emitter unidentified; likely theme/plugin code (risky class)"
+    },
+    {
+      "id": "manual-08",
+      "finding": "M-08",
+      "severity": "medium",
+      "action": "Add brand {'@type':'Brand','name':'Pure Peptides Canada'} to Product schema via Rank Math's WooCommerce brand setting; first check whether wp_ability_rank_math_set_plugin_preferences or a disabled tool (wp_list_disabled_tools) exposes it",
+      "why_manual": "No verified wp-api settings path for the WooCommerce brand field; one-line dashboard change otherwise"
+    },
+    {
+      "id": "manual-09",
+      "finding": "M-09",
+      "severity": "medium",
+      "action": "Defer the jQuery head stack, dequeue page-specific CSS (checkout/photoswipe) on non-relevant pages, inline critical CSS — via theme functions or an optimization plugin (e.g. Autoptimize)",
+      "why_manual": "Theme/plugin code changes (risky class); plugin install is a site-change decision"
+    },
+    {
+      "id": "manual-10",
+      "finding": "M-10",
+      "severity": "medium",
+      "action": "Remove or scope the Subscribe-with-Google widget (theme footer markup, placeholder publicationId 'publication-id-free') off cart/checkout/my-account; disable Site Kit's Reader Revenue/SwG module; verify the publicationId if the widget is wanted on content pages",
+      "why_manual": "Theme footer markup = theme code (risky class); Site Kit module settings not reachable via available wp-api tools"
+    },
+    {
+      "id": "manual-11",
+      "finding": "L-02",
+      "severity": "low",
+      "action": "Deduplicate the two H1s on /lab-testing/ (theme header H1 vs custom hero h1#ppl-h1) — choose which heading to keep, then demote the other (wp_replace_in_post on page 135 can apply it once decided)",
+      "why_manual": "Needs a human decision on which heading to keep (visual/CSS implications)"
+    },
+    {
+      "id": "manual-12",
+      "finding": "L-04",
+      "severity": "low",
+      "action": "Verify hCaptcha site/secret key configuration in whichever plugin injects it on checkout (2x 401 from api.hcaptcha.com/authenticate on mobile)",
+      "why_manual": "Credentials/plugin configuration — not reachable via wp-api tools"
+    },
+    {
+      "id": "manual-13",
+      "finding": "L-07",
+      "severity": "low",
+      "action": "Emit ISO-8601 review datePublished (T separator) and reference offers.seller as {'@id':'.../#organization'} in the #richSnippet-emitting plugin template",
+      "why_manual": "Plugin template code (risky class)"
+    },
+    {
+      "id": "manual-14",
+      "finding": "L-08",
+      "severity": "low",
+      "action": "Decode HTML entities before JSON-encoding in the schema emitter ('&amp;' appears literally in JSON-LD strings)",
+      "why_manual": "Plugin/template code (risky class); cosmetic"
+    },
+    {
+      "id": "manual-15",
+      "finding": "L-09",
+      "severity": "low",
+      "action": "Decide author entity strategy: enable a real author profile page for 'Jessica' (currently @id 301s to homepage) or attribute articles to the #organization entity for E-E-A-T consistency",
+      "why_manual": "Editorial/structural decision (author archives are deliberately disabled)"
+    },
+    {
+      "id": "manual-16",
+      "finding": "L-11",
+      "severity": "low",
+      "action": "Make the homepage product grid emit loading='lazy' on below-fold thumbnails (custom theme grid likely bypasses wp_get_attachment_image)",
+      "why_manual": "Theme template code (risky class)"
+    },
+    {
+      "id": "manual-17",
+      "finding": "L-12",
+      "severity": "low",
+      "action": "Optional: build a report-only CSP (script-src for Google/Cloudflare origins) at Cloudflare Transform Rules and promote after monitoring",
+      "why_manual": "Edge config; inline-script breakage risk on WordPress"
+    },
+    {
+      "id": "manual-18",
+      "finding": "L-15",
+      "severity": "low",
+      "action": "Apply 5 plugin + 2 theme updates, remove 1 inactive plugin and 2 surplus themes (with backups); investigate the late action_scheduler_run_queue_rucss cron event (WP Rocket RUCSS)",
+      "why_manual": "Plugin/theme code changes — explicitly excluded as risky; needs owner approval + backup window"
+    },
+    {
+      "id": "manual-19",
+      "finding": "L-16",
+      "severity": "low",
+      "action": "Investigate what serves /yunohost/sso/ on this host (collecting GSC impressions; YunoHost SSO path suggests host-level artifact)",
+      "why_manual": "Server/hosting investigation"
+    },
+    {
+      "id": "manual-20",
+      "finding": "I-21",
+      "severity": "info",
+      "action": "Human spot-check 2-3 janoshik COA verification links in a normal browser — all 110 return 403 bot-protection to automated clients and these are the product-trust links",
+      "why_manual": "Requires a real browser session; automated challenge-bypass was correctly not attempted"
+    },
+    {
+      "id": "manual-21",
+      "finding": "I-13",
+      "severity": "info",
+      "action": "Optional: move the age-gate markup after <main> (or inject via JS) so naive first-paragraph extractors read the page's answer, not age-gate copy; optionally persist age-gate acceptance in a long-lived cookie",
+      "why_manual": "Theme-level change (risky class)"
+    },
+    {
+      "id": "manual-22",
+      "finding": "M-11",
+      "severity": "medium",
+      "action": "After manual-01/manual-02 land, validate Core Web Vitals with CrUX/GSC field data (lab shop LCP 3372ms, CLS ~0.10 at the threshold)",
+      "why_manual": "Verification task dependent on infra fixes; no direct action"
+    }
+  ]
+}

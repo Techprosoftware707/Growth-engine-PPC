@@ -1,0 +1,18 @@
+{
+  "cartNavDclMs": 3105,
+  "checkoutNavDclMs": 8726,
+  "checkoutPaymentVisibleMs": 8792,
+  "perf": {
+    "ttfbMs": 4928,
+    "dclMs": 5782,
+    "loadMs": 8626,
+    "transferSize": 37038
+  },
+  "url": "https://purepeptidescanada.com/checkout/",
+  "paymentMethods": [
+    "\n\t\tCredit Card Or Debit Card \t",
+    "\n\t\tInterac e-Transfer \t",
+    "\n\t\tCryptocurrency \t",
+    "Please select a currency *"
+  ]
+}

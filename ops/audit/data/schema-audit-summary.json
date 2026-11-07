@@ -1,0 +1,100 @@
+{
+ "pages_parsed": 19,
+ "jsonld_blocks": 42,
+ "parse_errors": 0,
+ "products_sampled": [
+  "bpc-157",
+  "semaglutide",
+  "glow-blend"
+ ],
+ "review_counts_schema_vs_visible": {
+  "bpc-157": [
+   5,
+   5
+  ],
+  "semaglutide": [
+   3,
+   3
+  ],
+  "glow-blend": [
+   2,
+   2
+  ]
+ },
+ "price_check": {
+  "bpc-157": {
+   "schema_low_high": [
+    93,
+    2050
+   ],
+   "actual_variations": [
+    92.99,
+    2049.99
+   ],
+   "visible": "From $93 CAD"
+  },
+  "semaglutide": {
+   "schema_low_high": [
+    69,
+    1096
+   ],
+   "actual_variations": [
+    68.99,
+    1096.49
+   ],
+   "visible": "From $69 CAD"
+  },
+  "glow-blend": {
+   "schema_low_high": [
+    200,
+    1400
+   ],
+   "actual_variations": [
+    199.99,
+    1399.99
+   ],
+   "visible": "From $200 CAD"
+  }
+ },
+ "robots_ai_crawlers": "no AI-specific rules; GPTBot/ClaudeBot/PerplexityBot/Google-Extended inherit User-agent:* (allowed except wp-admin, cart, checkout, my-account, filter params)",
+ "llms_txt": {
+  "status": 200,
+  "bytes": 3499,
+  "dead_links": [
+   "/blog/what-is-bpc-157 (404)",
+   "/blog/glp-1-research-peptides-explained (404)"
+  ],
+  "redirect_links": [
+   "/blog/what-are-bioregulator-peptides (301)"
+  ]
+ },
+ "llms_full_txt": {
+  "status": 200,
+  "bytes": 49176,
+  "unique_link_targets": 281,
+  "not_in_sitemaps_checked": 5,
+  "broken": 0,
+  "redirects": [
+   "/product/coremendtb500-kpv-bpc157/ -> /product/coremend-blend/ (301)"
+  ],
+  "x_robots_tag": "noindex"
+ },
+ "unresolved_at_id_references": 0,
+ "pages_missing_org_website_graph": [
+  "lab-testing",
+  "shipping-returns",
+  "education",
+  "buy-research-peptides-canada"
+ ],
+ "faqpage_pages_all_visible": [
+  "home",
+  "faq",
+  "education",
+  "buy-rp-canada",
+  "prod-bpc-157",
+  "prod-glow-blend",
+  "blog-what-are-peptides",
+  "blog-glp1-guide",
+  "guide-coa"
+ ]
+}

@@ -1,0 +1,658 @@
+{
+ "about": {
+  "unresolved_ids": [],
+  "breadcrumblists": [
+   {
+    "count": 2,
+    "positions": [
+     "1",
+     "2"
+    ],
+    "sequential": true,
+    "names": [
+     "Home",
+     "About"
+    ]
+   },
+   {
+    "count": 2,
+    "positions": [
+     1,
+     2
+    ],
+    "sequential": true,
+    "names": [
+     "Home",
+     "About"
+    ]
+   }
+  ],
+  "faq": []
+ },
+ "blog-bpc157": {
+  "unresolved_ids": [],
+  "breadcrumblists": [
+   {
+    "count": 1,
+    "positions": [
+     "1"
+    ],
+    "sequential": true,
+    "names": [
+     "Home"
+    ]
+   }
+  ],
+  "faq": []
+ },
+ "blog-glp1-guide": {
+  "unresolved_ids": [],
+  "breadcrumblists": [
+   {
+    "count": 3,
+    "positions": [
+     "1",
+     "2",
+     "3"
+    ],
+    "sequential": true,
+    "names": [
+     "Home",
+     "Metabolic Research",
+     "GLP-1 Peptides Explained: A Research Map from Semaglutide to Retatrutide"
+    ]
+   },
+   {
+    "count": 3,
+    "positions": [
+     1,
+     2,
+     3
+    ],
+    "sequential": true,
+    "names": [
+     "Home",
+     "Blog",
+     "GLP-1 Peptides Explained: A Research Map from Semaglutide to Retatrutide"
+    ]
+   }
+  ],
+  "faq": [
+   {
+    "q_count": 7,
+    "first_qs": [
+     "What are GLP-1 peptides?",
+     "What is the difference between GLP-1, dual and triple agonists?",
+     "Which GLP-1 medicines are approved in Canada?"
+    ]
+   }
+  ],
+  "articles": [
+   {
+    "type": "BlogPosting",
+    "headline": "GLP-1 Peptides in Canada: Semaglutide to Retatrutide Mapped",
+    "author": {
+     "@id": "https://purepeptidescanada.com/author/jessica/",
+     "name": "Jessica"
+    },
+    "datePublished": "2026-10-06T01:30:02+00:00",
+    "dateModified": "2026-10-30T08:03:58+00:00",
+    "publisher": {
+     "@id": "https://purepeptidescanada.com/#organization"
+    },
+    "has_image": true
+   }
+  ]
+ },
+ "blog-glp1": {
+  "unresolved_ids": [],
+  "breadcrumblists": [
+   {
+    "count": 1,
+    "positions": [
+     "1"
+    ],
+    "sequential": true,
+    "names": [
+     "Home"
+    ]
+   }
+  ],
+  "faq": []
+ },
+ "blog-what-are-peptides": {
+  "unresolved_ids": [],
+  "breadcrumblists": [
+   {
+    "count": 3,
+    "positions": [
+     "1",
+     "2",
+     "3"
+    ],
+    "sequential": true,
+    "names": [
+     "Home",
+     "Peptide Basics",
+     "What Are Peptides? A Plain-English Guide"
+    ]
+   },
+   {
+    "count": 3,
+    "positions": [
+     1,
+     2,
+     3
+    ],
+    "sequential": true,
+    "names": [
+     "Home",
+     "Blog",
+     "What Are Peptides? A Plain-English Guide"
+    ]
+   }
+  ],
+  "faq": [
+   {
+    "q_count": 7,
+    "first_qs": [
+     "What is a polypeptide?",
+     "What are peptides?",
+     "What is the difference between peptides and proteins?"
+    ]
+   }
+  ],
+  "articles": [
+   {
+    "type": "BlogPosting",
+    "headline": "What Are Peptides? A Plain-English Science Guide",
+    "author": {
+     "@id": "https://purepeptidescanada.com/author/jessica/",
+     "name": "Jessica"
+    },
+    "datePublished": "2026-10-06T21:55:24+00:00",
+    "dateModified": "2026-10-31T23:35:21+00:00",
+    "publisher": {
+     "@id": "https://purepeptidescanada.com/#organization"
+    },
+    "has_image": true
+   }
+  ]
+ },
+ "buy-rp-canada": {
+  "unresolved_ids": [],
+  "breadcrumblists": [
+   {
+    "count": 2,
+    "positions": [
+     "1",
+     "2"
+    ],
+    "sequential": true,
+    "names": [
+     "Home",
+     "Buy Research Peptides in Canada: How to Order Online in CAD"
+    ]
+   },
+   {
+    "count": 2,
+    "positions": [
+     1,
+     2
+    ],
+    "sequential": true,
+    "names": [
+     "Home",
+     "Buy Research Peptides in Canada: How to Order Online in CAD"
+    ]
+   }
+  ],
+  "faq": [
+   {
+    "q_count": 6,
+    "first_qs": [
+     "How do I buy research peptides in Canada?",
+     "How long does delivery take, and what does shipping cost?",
+     "Are prices in Canadian dollars?"
+    ]
+   }
+  ]
+ },
+ "cat-weight-loss": {
+  "unresolved_ids": [],
+  "breadcrumblists": [
+   {
+    "count": 2,
+    "positions": [
+     "1",
+     "2"
+    ],
+    "sequential": true,
+    "names": [
+     "Home",
+     "Weight Loss &amp; Metabolic"
+    ]
+   }
+  ],
+  "faq": []
+ },
+ "contact": {
+  "unresolved_ids": [],
+  "breadcrumblists": [
+   {
+    "count": 2,
+    "positions": [
+     "1",
+     "2"
+    ],
+    "sequential": true,
+    "names": [
+     "Home",
+     "Contact"
+    ]
+   },
+   {
+    "count": 2,
+    "positions": [
+     1,
+     2
+    ],
+    "sequential": true,
+    "names": [
+     "Home",
+     "Contact"
+    ]
+   }
+  ],
+  "faq": []
+ },
+ "education": {
+  "unresolved_ids": [],
+  "breadcrumblists": [
+   {
+    "count": 2,
+    "positions": [
+     "1",
+     "2"
+    ],
+    "sequential": true,
+    "names": [
+     "Home",
+     "Peptide Research Library"
+    ]
+   },
+   {
+    "count": 2,
+    "positions": [
+     1,
+     2
+    ],
+    "sequential": true,
+    "names": [
+     "Home",
+     "Peptide Research Library"
+    ]
+   }
+  ],
+  "faq": [
+   {
+    "q_count": 5,
+    "first_qs": [
+     "Where should I start if I’m new to research peptides?",
+     "Are these guides medical advice?",
+     "How do I find the lab report for a product?"
+    ]
+   }
+  ]
+ },
+ "faq": {
+  "unresolved_ids": [],
+  "breadcrumblists": [
+   {
+    "count": 2,
+    "positions": [
+     "1",
+     "2"
+    ],
+    "sequential": true,
+    "names": [
+     "Home",
+     "FAQ"
+    ]
+   },
+   {
+    "count": 2,
+    "positions": [
+     1,
+     2
+    ],
+    "sequential": true,
+    "names": [
+     "Home",
+     "FAQ"
+    ]
+   }
+  ],
+  "faq": [
+   {
+    "q_count": 0,
+    "first_qs": []
+   },
+   {
+    "q_count": 30,
+    "first_qs": [
+     "What are research peptides?",
+     "Are research peptides legal to buy in Canada?",
+     "Do you sell semaglutide, tirzepatide or other GLP-1 / weight-loss peptides?"
+    ]
+   }
+  ]
+ },
+ "guide-coa": {
+  "unresolved_ids": [],
+  "breadcrumblists": [
+   {
+    "count": 2,
+    "positions": [
+     "1",
+     "2"
+    ],
+    "sequential": true,
+    "names": [
+     "Home",
+     "COA guide"
+    ]
+   },
+   {
+    "count": 2,
+    "positions": [
+     1,
+     2
+    ],
+    "sequential": true,
+    "names": [
+     "Home",
+     "Peptide COA Guide: How to Read a Certificate of Analysis"
+    ]
+   }
+  ],
+  "faq": [
+   {
+    "q_count": 10,
+    "first_qs": [
+     "What is a peptide COA?",
+     "What should a peptide COA include?",
+     "What is the difference between purity and identity on a COA?"
+    ]
+   }
+  ],
+  "articles": [
+   {
+    "type": "Article",
+    "headline": "Peptide COA Guide: How to Read a Certificate of Analysis",
+    "author": null,
+    "datePublished": null,
+    "dateModified": null,
+    "publisher": {
+     "@id": "https://purepeptidescanada.com/#organization"
+    },
+    "has_image": true
+   }
+  ]
+ },
+ "guide-hplc": {
+  "unresolved_ids": [],
+  "breadcrumblists": [
+   {
+    "count": 2,
+    "positions": [
+     "1",
+     "2"
+    ],
+    "sequential": true,
+    "names": [
+     "Home",
+     "HPLC Testing for Research Peptides: A Plain-English Guide"
+    ]
+   },
+   {
+    "count": 2,
+    "positions": [
+     1,
+     2
+    ],
+    "sequential": true,
+    "names": [
+     "Home",
+     "HPLC Testing for Research Peptides: A Plain-English Guide"
+    ]
+   }
+  ],
+  "faq": [],
+  "articles": [
+   {
+    "type": "Article",
+    "headline": "HPLC Testing for Research Peptides: A Plain-English Guide",
+    "author": null,
+    "datePublished": null,
+    "dateModified": null,
+    "publisher": {
+     "@id": "https://purepeptidescanada.com/#organization"
+    },
+    "has_image": true
+   }
+  ]
+ },
+ "home": {
+  "unresolved_ids": [],
+  "breadcrumblists": [],
+  "faq": [
+   {
+    "q_count": 5,
+    "first_qs": [
+     "Where can I see the lab reports?",
+     "Are these products for human use?",
+     "How fast is shipping within Canada?"
+    ]
+   }
+  ]
+ },
+ "lab-testing": {
+  "unresolved_ids": [],
+  "breadcrumblists": [
+   {
+    "count": 2,
+    "positions": [
+     "1",
+     "2"
+    ],
+    "sequential": true,
+    "names": [
+     "Home",
+     "Lab Testing"
+    ]
+   },
+   {
+    "count": 2,
+    "positions": [
+     1,
+     2
+    ],
+    "sequential": true,
+    "names": [
+     "Home",
+     "Lab Testing and Certificates of Analysis"
+    ]
+   }
+  ],
+  "faq": []
+ },
+ "prod-bpc-157": {
+  "unresolved_ids": [],
+  "breadcrumblists": [
+   {
+    "count": 3,
+    "positions": [
+     "1",
+     "2",
+     "3"
+    ],
+    "sequential": true,
+    "names": [
+     "Home",
+     "Recovery &amp; Repair",
+     "BPC-157"
+    ]
+   },
+   {
+    "count": 3,
+    "positions": [
+     1,
+     2,
+     3
+    ],
+    "sequential": true,
+    "names": [
+     "Home",
+     "Shop",
+     "BPC-157"
+    ]
+   }
+  ],
+  "faq": [
+   {
+    "q_count": 6,
+    "first_qs": [
+     "Where can I buy BPC-157 in Canada?",
+     "Is this BPC-157 third-party tested?",
+     "What is the difference between BPC-157 and TB-500?"
+    ]
+   }
+  ]
+ },
+ "prod-glow-blend": {
+  "unresolved_ids": [],
+  "breadcrumblists": [
+   {
+    "count": 3,
+    "positions": [
+     "1",
+     "2",
+     "3"
+    ],
+    "sequential": true,
+    "names": [
+     "Home",
+     "Peptide Blends",
+     "GLOW Blend (GHK-Cu + BPC-157 + TB-500)"
+    ]
+   },
+   {
+    "count": 3,
+    "positions": [
+     1,
+     2,
+     3
+    ],
+    "sequential": true,
+    "names": [
+     "Home",
+     "Shop",
+     "GLOW Blend (GHK-Cu + BPC-157 + TB-500)"
+    ]
+   }
+  ],
+  "faq": [
+   {
+    "q_count": 6,
+    "first_qs": [
+     "Where can I buy GLOW Blend in Canada?",
+     "What is in GLOW?",
+     "What is the difference between GLOW and KLOW?"
+    ]
+   }
+  ]
+ },
+ "prod-semaglutide": {
+  "unresolved_ids": [],
+  "breadcrumblists": [
+   {
+    "count": 3,
+    "positions": [
+     "1",
+     "2",
+     "3"
+    ],
+    "sequential": true,
+    "names": [
+     "Home",
+     "Weight Loss &amp; Metabolic",
+     "Semaglutide"
+    ]
+   },
+   {
+    "count": 3,
+    "positions": [
+     1,
+     2,
+     3
+    ],
+    "sequential": true,
+    "names": [
+     "Home",
+     "Shop",
+     "Semaglutide"
+    ]
+   }
+  ],
+  "faq": []
+ },
+ "shipping-returns": {
+  "unresolved_ids": [],
+  "breadcrumblists": [
+   {
+    "count": 2,
+    "positions": [
+     "1",
+     "2"
+    ],
+    "sequential": true,
+    "names": [
+     "Home",
+     "Shipping &amp; Returns"
+    ]
+   },
+   {
+    "count": 2,
+    "positions": [
+     1,
+     2
+    ],
+    "sequential": true,
+    "names": [
+     "Home",
+     "Shipping &amp; Returns"
+    ]
+   }
+  ],
+  "faq": []
+ },
+ "shop": {
+  "unresolved_ids": [],
+  "breadcrumblists": [
+   {
+    "count": 2,
+    "positions": [
+     "1",
+     "2"
+    ],
+    "sequential": true,
+    "names": [
+     "Home",
+     "Shop"
+    ]
+   }
+  ],
+  "faq": []
+ }
+}

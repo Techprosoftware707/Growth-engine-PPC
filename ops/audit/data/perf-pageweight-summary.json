@@ -1,0 +1,596 @@
+[
+  {
+    "page": "home",
+    "url": "https://purepeptidescanada.com/",
+    "navOk": true,
+    "navErr": "",
+    "wallClockToSettle_ms": 8956,
+    "requestCount": 86,
+    "totalTransferredBytes": 1768419,
+    "totalTransferredKB": 1727,
+    "bytesByType": {
+      "html": {
+        "kb": 41,
+        "count": 2
+      },
+      "css": {
+        "kb": 76,
+        "count": 12
+      },
+      "js": {
+        "kb": 488,
+        "count": 49
+      },
+      "img": {
+        "kb": 1008,
+        "count": 14
+      },
+      "font": {
+        "kb": 112,
+        "count": 4
+      },
+      "xhr": {
+        "kb": 2,
+        "count": 5
+      }
+    },
+    "largest10": [
+      {
+        "url": "https://purepeptidescanada.com/wp-content/themes/pure-peptides-canada/assets/img/hero-vial.png?v=2.43.0",
+        "type": "image",
+        "contentType": "image/png",
+        "kb": 448.3,
+        "cfCache": "HIT"
+      },
+      {
+        "url": "https://www.googletagmanager.com/gtag/js?id=GT-5TGZ3SHZ",
+        "type": "script",
+        "contentType": "application/javascript; charset=UTF-8",
+        "kb": 176.6,
+        "cfCache": ""
+      },
+      {
+        "url": "https://purepeptidescanada.com/wp-content/uploads/2026/06/PURE-PEPTIDES-CANADA.png",
+        "type": "image",
+        "contentType": "image/png",
+        "kb": 81.5,
+        "cfCache": "HIT"
+      },
+      {
+        "url": "https://www.gstatic.com/_/mss/boq-subscribewithgoogle/_/js/k=boq-subscribewithgoogle.SubscribewithgoogleClientUi.en_US.Ln8AY4Q-q8E.2018.O/am=AAAAAAAN/d=1/excm=_b,_tp,serviceiframev",
+        "type": "script",
+        "contentType": "text/javascript; charset=UTF-8",
+        "kb": 65.8,
+        "cfCache": ""
+      },
+      {
+        "url": "https://purepeptidescanada.com/wp-content/uploads/2026/06/cjc1295-lpamorelin-300x300.png",
+        "type": "image",
+        "contentType": "image/png",
+        "kb": 60.1,
+        "cfCache": "HIT"
+      },
+      {
+        "url": "https://purepeptidescanada.com/wp-content/uploads/2026/06/semaglutide-300x300.png",
+        "type": "image",
+        "contentType": "image/png",
+        "kb": 59.6,
+        "cfCache": "HIT"
+      },
+      {
+        "url": "https://purepeptidescanada.com/wp-content/uploads/2026/06/retatrutide-300x300.png",
+        "type": "image",
+        "contentType": "image/png",
+        "kb": 59.6,
+        "cfCache": "HIT"
+      },
+      {
+        "url": "https://purepeptidescanada.com/wp-content/uploads/2026/06/tb4-tb500-thymosin-beta-300x300.png",
+        "type": "image",
+        "contentType": "image/png",
+        "kb": 59.6,
+        "cfCache": "HIT"
+      },
+      {
+        "url": "https://purepeptidescanada.com/wp-content/uploads/2026/06/tirzepatide-300x300.png",
+        "type": "image",
+        "contentType": "image/png",
+        "kb": 59.5,
+        "cfCache": "HIT"
+      },
+      {
+        "url": "https://purepeptidescanada.com/wp-content/uploads/2026/06/bpc-157-300x300.png",
+        "type": "image",
+        "contentType": "image/png",
+        "kb": 59.2,
+        "cfCache": "HIT"
+      }
+    ],
+    "imagesOver150KB": [
+      {
+        "url": "https://purepeptidescanada.com/wp-content/themes/pure-peptides-canada/assets/img/hero-vial.png?v=2.43.0",
+        "kb": 448.3,
+        "contentType": "image/png"
+      }
+    ],
+    "imageFormats": {
+      "image/png": {
+        "count": 10,
+        "bytes": 1029635
+      },
+      "image/svg+xml": {
+        "count": 4,
+        "bytes": 3041
+      }
+    },
+    "thirdParty": {
+      "fonts.googleapis.com": {
+        "count": 1,
+        "bytes": 840
+      },
+      "static.cloudflareinsights.com": {
+        "count": 1,
+        "bytes": 10277
+      },
+      "fonts.gstatic.com": {
+        "count": 4,
+        "bytes": 114700
+      },
+      "news.google.com": {
+        "count": 2,
+        "bytes": 45448
+      },
+      "www.googletagmanager.com": {
+        "count": 1,
+        "bytes": 180830
+      },
+      "www.gstatic.com": {
+        "count": 6,
+        "bytes": 69306
+      },
+      "www.google-analytics.com": {
+        "count": 1,
+        "bytes": 0
+      },
+      "": {
+        "count": 1,
+        "bytes": 0
+      },
+      "s.w.org": {
+        "count": 2,
+        "bytes": 967
+      }
+    },
+    "vitals": {
+      "lcp_ms": 2076,
+      "lcpElement": "IMG:https://purepeptidescanada.com/wp-content/themes/pure-peptides-canada/assets/img/hero-vial.png?v=2.43.0",
+      "cls": 0.0024,
+      "ttfb_ms": 971,
+      "domContentLoaded_ms": 2682,
+      "loadEvent_ms": 3003
+    },
+    "jsExecSeconds": 0.48,
+    "layoutDurationSeconds": 0.11,
+    "jsHeapMB": 12,
+    "domAudit": {
+      "imgCount": 19,
+      "imgsNoDimCount": 3,
+      "imgsNoDimSample": [
+        "https://s.w.org/images/core/emoji/17.0.2/svg/1f341.svg",
+        "https://s.w.org/images/core/emoji/17.0.2/svg/1f341.svg",
+        "https://s.w.org/images/core/emoji/17.0.2/svg/1f1e8-1f1e6.svg"
+      ],
+      "lazyCount": 3,
+      "eagerCount": 16,
+      "renderBlockingStylesheets": 10,
+      "headSyncScripts": 4,
+      "headSyncScriptSample": [
+        "https://purepeptidescanada.com/wp-includes/js/jquery/jquery.min.js?ver=3.7.1",
+        "https://purepeptidescanada.com/wp-includes/js/jquery/jquery-migrate.min.js?ver=3.4.1",
+        "https://purepeptidescanada.com/wp-content/plugins/woocommerce/assets/js/jquery-blockui/jquery.blockUI.min.js?ver=2.7.0-wc.11.2.1",
+        "https://purepeptidescanada.com/wp-content/plugins/woocommerce/assets/js/js-cookie/js.cookie.min.js?ver=2.1.4-wc.11.2.1"
+      ],
+      "bodySyncScripts": 6,
+      "domNodes": 759
+    }
+  },
+  {
+    "page": "shop",
+    "url": "https://purepeptidescanada.com/shop/",
+    "navOk": true,
+    "navErr": "",
+    "wallClockToSettle_ms": 9461,
+    "requestCount": 86,
+    "totalTransferredBytes": 1513412,
+    "totalTransferredKB": 1478,
+    "bytesByType": {
+      "css": {
+        "kb": 73,
+        "count": 10
+      },
+      "html": {
+        "kb": 38,
+        "count": 2
+      },
+      "js": {
+        "kb": 472,
+        "count": 47
+      },
+      "img": {
+        "kb": 781,
+        "count": 18
+      },
+      "font": {
+        "kb": 112,
+        "count": 4
+      },
+      "xhr": {
+        "kb": 2,
+        "count": 5
+      }
+    },
+    "largest10": [
+      {
+        "url": "https://www.googletagmanager.com/gtag/js?id=GT-5TGZ3SHZ",
+        "type": "script",
+        "contentType": "application/javascript; charset=UTF-8",
+        "kb": 176.6,
+        "cfCache": ""
+      },
+      {
+        "url": "https://purepeptidescanada.com/wp-content/uploads/2026/06/PURE-PEPTIDES-CANADA.png",
+        "type": "image",
+        "contentType": "image/png",
+        "kb": 81.5,
+        "cfCache": "HIT"
+      },
+      {
+        "url": "https://www.gstatic.com/_/mss/boq-subscribewithgoogle/_/js/k=boq-subscribewithgoogle.SubscribewithgoogleClientUi.en_US.Ln8AY4Q-q8E.2018.O/am=AAAAAAAN/d=1/excm=_b,_tp,serviceiframev",
+        "type": "script",
+        "contentType": "text/javascript; charset=UTF-8",
+        "kb": 65.8,
+        "cfCache": ""
+      },
+      {
+        "url": "https://purepeptidescanada.com/wp-content/uploads/2026/06/semaglutide-300x300.png",
+        "type": "image",
+        "contentType": "image/png",
+        "kb": 59.6,
+        "cfCache": "HIT"
+      },
+      {
+        "url": "https://purepeptidescanada.com/wp-content/uploads/2026/06/retatrutide-300x300.png",
+        "type": "image",
+        "contentType": "image/png",
+        "kb": 59.6,
+        "cfCache": "HIT"
+      },
+      {
+        "url": "https://purepeptidescanada.com/wp-content/uploads/2026/06/ara-290-cibinetide-300x300.png",
+        "type": "image",
+        "contentType": "image/png",
+        "kb": 59.5,
+        "cfCache": "HIT"
+      },
+      {
+        "url": "https://purepeptidescanada.com/wp-content/uploads/2026/06/tb500-frag-300x300.png",
+        "type": "image",
+        "contentType": "image/png",
+        "kb": 59.5,
+        "cfCache": "HIT"
+      },
+      {
+        "url": "https://purepeptidescanada.com/wp-content/uploads/2026/06/abaloparatide-1-300x300.png",
+        "type": "image",
+        "contentType": "image/png",
+        "kb": 59.5,
+        "cfCache": "HIT"
+      },
+      {
+        "url": "https://purepeptidescanada.com/wp-content/uploads/2026/06/mots-c-300x300.png",
+        "type": "image",
+        "contentType": "image/png",
+        "kb": 59.3,
+        "cfCache": "HIT"
+      },
+      {
+        "url": "https://purepeptidescanada.com/wp-content/uploads/2026/06/bpc-157-300x300.png",
+        "type": "image",
+        "contentType": "image/png",
+        "kb": 59.2,
+        "cfCache": "HIT"
+      }
+    ],
+    "imagesOver150KB": [],
+    "imageFormats": {
+      "image/png": {
+        "count": 15,
+        "bytes": 797163
+      },
+      "image/svg+xml": {
+        "count": 3,
+        "bytes": 2590
+      }
+    },
+    "thirdParty": {
+      "static.cloudflareinsights.com": {
+        "count": 1,
+        "bytes": 10277
+      },
+      "fonts.googleapis.com": {
+        "count": 1,
+        "bytes": 840
+      },
+      "www.googletagmanager.com": {
+        "count": 1,
+        "bytes": 180884
+      },
+      "news.google.com": {
+        "count": 2,
+        "bytes": 45449
+      },
+      "fonts.gstatic.com": {
+        "count": 4,
+        "bytes": 114700
+      },
+      "www.google-analytics.com": {
+        "count": 1,
+        "bytes": 0
+      },
+      "www.gstatic.com": {
+        "count": 6,
+        "bytes": 69306
+      },
+      "": {
+        "count": 1,
+        "bytes": 0
+      },
+      "s.w.org": {
+        "count": 1,
+        "bytes": 516
+      }
+    },
+    "vitals": {
+      "lcp_ms": 3372,
+      "lcpElement": "IMG:https://purepeptidescanada.com/wp-content/themes/pure-peptides-canada/assets/img/logo-mark.svg",
+      "cls": 0.0997,
+      "ttfb_ms": 2284,
+      "domContentLoaded_ms": 3862,
+      "loadEvent_ms": 4423
+    },
+    "jsExecSeconds": 0.28,
+    "layoutDurationSeconds": 0.06,
+    "jsHeapMB": 13,
+    "domAudit": {
+      "imgCount": 20,
+      "imgsNoDimCount": 1,
+      "imgsNoDimSample": [
+        "https://s.w.org/images/core/emoji/17.0.2/svg/1f1e8-1f1e6.svg"
+      ],
+      "lazyCount": 12,
+      "eagerCount": 8,
+      "renderBlockingStylesheets": 8,
+      "headSyncScripts": 4,
+      "headSyncScriptSample": [
+        "https://purepeptidescanada.com/wp-includes/js/jquery/jquery.min.js?ver=3.7.1",
+        "https://purepeptidescanada.com/wp-includes/js/jquery/jquery-migrate.min.js?ver=3.4.1",
+        "https://purepeptidescanada.com/wp-content/plugins/woocommerce/assets/js/jquery-blockui/jquery.blockUI.min.js?ver=2.7.0-wc.11.2.1",
+        "https://purepeptidescanada.com/wp-content/plugins/woocommerce/assets/js/js-cookie/js.cookie.min.js?ver=2.1.4-wc.11.2.1"
+      ],
+      "bodySyncScripts": 6,
+      "domNodes": 652
+    }
+  },
+  {
+    "page": "product-retatrutide",
+    "url": "https://purepeptidescanada.com/product/retatrutide/",
+    "navOk": true,
+    "navErr": "",
+    "wallClockToSettle_ms": 5951,
+    "requestCount": 62,
+    "totalTransferredBytes": 893975,
+    "totalTransferredKB": 873,
+    "bytesByType": {
+      "html": {
+        "kb": 49,
+        "count": 2
+      },
+      "css": {
+        "kb": 67,
+        "count": 11
+      },
+      "js": {
+        "kb": 450,
+        "count": 34
+      },
+      "img": {
+        "kb": 189,
+        "count": 6
+      },
+      "font": {
+        "kb": 118,
+        "count": 5
+      },
+      "xhr": {
+        "kb": 0,
+        "count": 3
+      },
+      "other": {
+        "kb": 0,
+        "count": 1
+      }
+    },
+    "largest10": [
+      {
+        "url": "https://purepeptidescanada.com/wp-content/uploads/2026/06/retatrutide-600x600.png",
+        "type": "image",
+        "contentType": "image/png",
+        "kb": 186.1,
+        "cfCache": "MISS"
+      },
+      {
+        "url": "https://www.googletagmanager.com/gtag/js?id=GT-5TGZ3SHZ",
+        "type": "script",
+        "contentType": "application/javascript; charset=UTF-8",
+        "kb": 176.6,
+        "cfCache": ""
+      },
+      {
+        "url": "https://www.gstatic.com/_/mss/boq-subscribewithgoogle/_/js/k=boq-subscribewithgoogle.SubscribewithgoogleClientUi.en_US.Ln8AY4Q-q8E.2018.O/am=AAAAAAAN/d=1/excm=_b,_tp,serviceiframev",
+        "type": "script",
+        "contentType": "text/javascript; charset=UTF-8",
+        "kb": 65.8,
+        "cfCache": ""
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/schibstedgrotesk/v7/Jqz55SSPQuCQF3t8uOwiUL-taUTtap9Gayo.woff2",
+        "type": "font",
+        "contentType": "font/woff2",
+        "kb": 45.7,
+        "cfCache": ""
+      },
+      {
+        "url": "https://purepeptidescanada.com/product/retatrutide/",
+        "type": "document",
+        "contentType": "text/html; charset=UTF-8",
+        "kb": 42.4,
+        "cfCache": "DYNAMIC"
+      },
+      {
+        "url": "https://news.google.com/swg/js/v1/publisher.js",
+        "type": "script",
+        "contentType": "text/javascript",
+        "kb": 38,
+        "cfCache": ""
+      },
+      {
+        "url": "https://fonts.gstatic.com/s/hankengrotesk/v12/ieVn2YZDLWuGJpnzaiwFXS9tYtpd59A.woff2",
+        "type": "font",
+        "contentType": "font/woff2",
+        "kb": 33.9,
+        "cfCache": ""
+      },
+      {
+        "url": "https://purepeptidescanada.com/wp-includes/js/jquery/jquery.min.js?ver=3.7.1",
+        "type": "script",
+        "contentType": "application/javascript",
+        "kb": 31.7,
+        "cfCache": "HIT"
+      },
+      {
+        "url": "https://purepeptidescanada.com/wp-content/plugins/customer-reviews-woocommerce/css/frontend.css?ver=5.127.0",
+        "type": "stylesheet",
+        "contentType": "text/css",
+        "kb": 19.9,
+        "cfCache": "HIT"
+      },
+      {
+        "url": "https://purepeptidescanada.com/wp-content/themes/pure-peptides-canada/style.css?ver=2.43.0",
+        "type": "stylesheet",
+        "contentType": "text/css",
+        "kb": 18.9,
+        "cfCache": "HIT"
+      }
+    ],
+    "imagesOver150KB": [
+      {
+        "url": "https://purepeptidescanada.com/wp-content/uploads/2026/06/retatrutide-600x600.png",
+        "kb": 186.1,
+        "contentType": "image/png"
+      }
+    ],
+    "imageFormats": {
+      "image/svg+xml": {
+        "count": 5,
+        "bytes": 3370
+      },
+      "image/png": {
+        "count": 1,
+        "bytes": 190614
+      }
+    },
+    "thirdParty": {
+      "fonts.googleapis.com": {
+        "count": 1,
+        "bytes": 840
+      },
+      "static.cloudflareinsights.com": {
+        "count": 1,
+        "bytes": 10277
+      },
+      "news.google.com": {
+        "count": 2,
+        "bytes": 45487
+      },
+      "www.googletagmanager.com": {
+        "count": 1,
+        "bytes": 180884
+      },
+      "fonts.gstatic.com": {
+        "count": 4,
+        "bytes": 114700
+      },
+      "www.google-analytics.com": {
+        "count": 1,
+        "bytes": 0
+      },
+      "www.gstatic.com": {
+        "count": 5,
+        "bytes": 69306
+      },
+      "csp.withgoogle.com": {
+        "count": 1,
+        "bytes": 0
+      },
+      "": {
+        "count": 1,
+        "bytes": 0
+      },
+      "s.w.org": {
+        "count": 2,
+        "bytes": 843
+      }
+    },
+    "vitals": {
+      "lcp_ms": 2220,
+      "lcpElement": "IMG:https://purepeptidescanada.com/wp-content/uploads/2026/06/retatrutide-600x600.png",
+      "cls": 0.0981,
+      "ttfb_ms": 528,
+      "domContentLoaded_ms": 1850,
+      "loadEvent_ms": 2306
+    },
+    "jsExecSeconds": 0.28,
+    "layoutDurationSeconds": 0.11,
+    "jsHeapMB": 11,
+    "domAudit": {
+      "imgCount": 25,
+      "imgsNoDimCount": 15,
+      "imgsNoDimSample": [
+        "https://purepeptidescanada.com/wp-content/plugins/customer-reviews-woocommerce/img/flags/ca.svg",
+        "https://purepeptidescanada.com/wp-content/plugins/customer-reviews-woocommerce/img/flags/ca.svg",
+        "https://s.w.org/images/core/emoji/17.0.2/svg/1f642.svg",
+        "https://purepeptidescanada.com/wp-content/plugins/customer-reviews-woocommerce/img/flags/ca.svg",
+        "https://purepeptidescanada.com/wp-content/plugins/customer-reviews-woocommerce/img/flags/ca.svg",
+        "https://purepeptidescanada.com/wp-content/plugins/customer-reviews-woocommerce/img/flags/ca.svg",
+        "https://purepeptidescanada.com/wp-content/plugins/customer-reviews-woocommerce/img/flags/ca.svg",
+        "https://purepeptidescanada.com/wp-content/plugins/customer-reviews-woocommerce/img/flags/ca.svg",
+        "https://purepeptidescanada.com/wp-content/plugins/customer-reviews-woocommerce/img/flags/ca.svg",
+        "https://purepeptidescanada.com/wp-content/plugins/customer-reviews-woocommerce/img/flags/ca.svg",
+        "https://purepeptidescanada.com/wp-content/plugins/customer-reviews-woocommerce/img/flags/ca.svg",
+        "https://purepeptidescanada.com/wp-content/plugins/customer-reviews-woocommerce/img/flags/ca.svg"
+      ],
+      "lazyCount": 6,
+      "eagerCount": 19,
+      "renderBlockingStylesheets": 9,
+      "headSyncScripts": 4,
+      "headSyncScriptSample": [
+        "https://purepeptidescanada.com/wp-includes/js/jquery/jquery.min.js?ver=3.7.1",
+        "https://purepeptidescanada.com/wp-includes/js/jquery/jquery-migrate.min.js?ver=3.4.1",
+        "https://purepeptidescanada.com/wp-content/plugins/woocommerce/assets/js/jquery-blockui/jquery.blockUI.min.js?ver=2.7.0-wc.11.2.1",
+        "https://purepeptidescanada.com/wp-content/plugins/woocommerce/assets/js/js-cookie/js.cookie.min.js?ver=2.1.4-wc.11.2.1"
+      ],
+      "bodySyncScripts": 8,
+      "domNodes": 1051
+    }
+  }
+]

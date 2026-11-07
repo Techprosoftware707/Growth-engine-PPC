@@ -1,0 +1,1040 @@
+{
+  "mode": "mobile",
+  "startedAt": "2026-11-07T04:33:47.749Z",
+  "journeys": [
+    {
+      "name": "1-homepage-nav",
+      "steps": [
+        {
+          "name": "homepage-load",
+          "ok": true,
+          "status": 200,
+          "ms": 13823,
+          "finalUrl": "https://purepeptidescanada.com/",
+          "attempt": 1
+        },
+        {
+          "name": "homepage-title",
+          "title": "Buy Research Peptides in Canada | Pure Peptides Canada"
+        },
+        {
+          "name": "homepage-screenshot",
+          "file": "/tmp/claude-0/-home-user-Growth-engine-PPC/e01ede86-43cd-5f84-9cca-7e7b80d17fc9/scratchpad/audit-run/journeys/mobile-home.png"
+        },
+        {
+          "name": "hamburger-open",
+          "opened": false,
+          "usedSel": null
+        },
+        {
+          "name": "hamburger-screenshot",
+          "file": "/tmp/claude-0/-home-user-Growth-engine-PPC/e01ede86-43cd-5f84-9cca-7e7b80d17fc9/scratchpad/audit-run/journeys/mobile-home-menu-open.png"
+        },
+        {
+          "name": "nav-items-found",
+          "count": 24,
+          "items": [
+            {
+              "text": "Shop",
+              "href": "https://purepeptidescanada.com/shop/"
+            },
+            {
+              "text": "How to order",
+              "href": "https://purepeptidescanada.com/buy-research-peptides-canada/"
+            },
+            {
+              "text": "Recovery & Repair",
+              "href": "https://purepeptidescanada.com/product-category/recovery/"
+            },
+            {
+              "text": "Growth & Signaling",
+              "href": "https://purepeptidescanada.com/product-category/growth/"
+            },
+            {
+              "text": "Anti-Aging & Cellular",
+              "href": "https://purepeptidescanada.com/product-category/anti-aging-cellular/"
+            },
+            {
+              "text": "Cognitive & Neuro",
+              "href": "https://purepeptidescanada.com/product-category/cognitive-neuro/"
+            },
+            {
+              "text": "Metabolic Research",
+              "href": "https://purepeptidescanada.com/product-category/weight-loss-metabolic/"
+            },
+            {
+              "text": "Peptide Blends",
+              "href": "https://purepeptidescanada.com/product-category/peptide-blends/"
+            },
+            {
+              "text": "Lab Reports (COAs)",
+              "href": "https://purepeptidescanada.com/lab-testing/"
+            },
+            {
+              "text": "Research Library",
+              "href": "https://purepeptidescanada.com/education/"
+            },
+            {
+              "text": "Learning Centre",
+              "href": "https://purepeptidescanada.com/blog/"
+            },
+            {
+              "text": "Research peptides in Canada",
+              "href": "https://purepeptidescanada.com/research-peptides-canada/"
+            },
+            {
+              "text": "Choosing a supplier",
+              "href": "https://purepeptidescanada.com/best-canadian-peptide-suppliers/"
+            },
+            {
+              "text": "How to read a COA",
+              "href": "https://purepeptidescanada.com/peptide-coa-guide/"
+            },
+            {
+              "text": "HPLC testing explained",
+              "href": "https://purepeptidescanada.com/hplc-testing-guide/"
+            },
+            {
+              "text": "Peptide storage",
+              "href": "https://purepeptidescanada.com/peptide-storage-guide/"
+            },
+            {
+              "text": "BPC-157 guide",
+              "href": "https://purepeptidescanada.com/bpc-157-canada/"
+            },
+            {
+              "text": "TB-500 guide",
+              "href": "https://purepeptidescanada.com/tb-500-canada/"
+            },
+            {
+              "text": "BPC-157 vs TB-500",
+              "href": "https://purepeptidescanada.com/bpc-157-vs-tb-500/"
+            },
+            {
+              "text": "Retatrutide guide",
+              "href": "https://purepeptidescanada.com/retatrutide-canada/"
+            },
+            {
+              "text": "FAQ",
+              "href": "https://purepeptidescanada.com/faq/"
+            },
+            {
+              "text": "Lab Tools",
+              "href": "https://purepeptidescanada.com/lab-tools/"
+            },
+            {
+              "text": "About",
+              "href": "https://purepeptidescanada.com/about/"
+            },
+            {
+              "text": "Contact",
+              "href": "https://purepeptidescanada.com/contact/"
+            }
+          ]
+        },
+        {
+          "name": "nav-visit",
+          "text": "Shop",
+          "href": "https://purepeptidescanada.com/shop/",
+          "ok": true,
+          "status": 200,
+          "ms": 3846,
+          "finalUrl": "https://purepeptidescanada.com/shop/",
+          "attempt": 1,
+          "h1": "Research Peptide Catalog"
+        },
+        {
+          "name": "nav-visit",
+          "text": "How to order",
+          "href": "https://purepeptidescanada.com/buy-research-peptides-canada/",
+          "ok": true,
+          "status": 200,
+          "ms": 2717,
+          "finalUrl": "https://purepeptidescanada.com/buy-research-peptides-canada/",
+          "attempt": 1,
+          "h1": "Buy Research Peptides in Canada: How to Order Online in CAD"
+        },
+        {
+          "name": "nav-visit",
+          "text": "Recovery & Repair",
+          "href": "https://purepeptidescanada.com/product-category/recovery/",
+          "ok": true,
+          "status": 200,
+          "ms": 2977,
+          "finalUrl": "https://purepeptidescanada.com/product-category/recovery/",
+          "attempt": 1,
+          "h1": "Recovery & Repair"
+        },
+        {
+          "name": "nav-visit",
+          "text": "Growth & Signaling",
+          "href": "https://purepeptidescanada.com/product-category/growth/",
+          "ok": true,
+          "status": 200,
+          "ms": 3062,
+          "finalUrl": "https://purepeptidescanada.com/product-category/growth/",
+          "attempt": 1,
+          "h1": "Growth & Signaling"
+        },
+        {
+          "name": "nav-visit",
+          "text": "Anti-Aging & Cellular",
+          "href": "https://purepeptidescanada.com/product-category/anti-aging-cellular/",
+          "ok": true,
+          "status": 200,
+          "ms": 3822,
+          "finalUrl": "https://purepeptidescanada.com/product-category/anti-aging-cellular/",
+          "attempt": 1,
+          "h1": "Anti-Aging & Cellular"
+        },
+        {
+          "name": "nav-visit",
+          "text": "Cognitive & Neuro",
+          "href": "https://purepeptidescanada.com/product-category/cognitive-neuro/",
+          "ok": true,
+          "status": 200,
+          "ms": 3390,
+          "finalUrl": "https://purepeptidescanada.com/product-category/cognitive-neuro/",
+          "attempt": 1,
+          "h1": "Cognitive & Neuro"
+        },
+        {
+          "name": "nav-visit",
+          "text": "Metabolic Research",
+          "href": "https://purepeptidescanada.com/product-category/weight-loss-metabolic/",
+          "ok": true,
+          "status": 200,
+          "ms": 5882,
+          "finalUrl": "https://purepeptidescanada.com/product-category/weight-loss-metabolic/",
+          "attempt": 1,
+          "h1": "Weight Loss & Metabolic"
+        },
+        {
+          "name": "nav-visit",
+          "text": "Peptide Blends",
+          "href": "https://purepeptidescanada.com/product-category/peptide-blends/",
+          "ok": true,
+          "status": 200,
+          "ms": 2511,
+          "finalUrl": "https://purepeptidescanada.com/product-category/peptide-blends/",
+          "attempt": 1,
+          "h1": "Peptide Blends"
+        },
+        {
+          "name": "nav-visit",
+          "text": "Lab Reports (COAs)",
+          "href": "https://purepeptidescanada.com/lab-testing/",
+          "ok": true,
+          "status": 200,
+          "ms": 1250,
+          "finalUrl": "https://purepeptidescanada.com/lab-testing/",
+          "attempt": 1,
+          "h1": "Lab Testing and Certificates of Analysis"
+        },
+        {
+          "name": "nav-visit",
+          "text": "Research Library",
+          "href": "https://purepeptidescanada.com/education/",
+          "ok": true,
+          "status": 200,
+          "ms": 20635,
+          "finalUrl": "https://purepeptidescanada.com/education/",
+          "attempt": 1,
+          "h1": "Peptide Research Library"
+        },
+        {
+          "name": "nav-visit",
+          "text": "Learning Centre",
+          "href": "https://purepeptidescanada.com/blog/",
+          "ok": true,
+          "status": 200,
+          "ms": 2152,
+          "finalUrl": "https://purepeptidescanada.com/blog/",
+          "attempt": 1,
+          "h1": "The research library"
+        },
+        {
+          "name": "nav-visit",
+          "text": "Research peptides in Canada",
+          "href": "https://purepeptidescanada.com/research-peptides-canada/",
+          "ok": true,
+          "status": 200,
+          "ms": 1876,
+          "finalUrl": "https://purepeptidescanada.com/research-peptides-canada/",
+          "attempt": 1,
+          "h1": "Research Peptides in Canada: What They Are and How to Verify Them"
+        },
+        {
+          "name": "nav-visit",
+          "text": "Choosing a supplier",
+          "href": "https://purepeptidescanada.com/best-canadian-peptide-suppliers/",
+          "ok": true,
+          "status": 200,
+          "ms": 2436,
+          "finalUrl": "https://purepeptidescanada.com/best-canadian-peptide-suppliers/",
+          "attempt": 1,
+          "h1": "How to Choose the Best Canadian Peptide Supplier"
+        },
+        {
+          "name": "nav-visit",
+          "text": "How to read a COA",
+          "href": "https://purepeptidescanada.com/peptide-coa-guide/",
+          "ok": true,
+          "status": 200,
+          "ms": 2349,
+          "finalUrl": "https://purepeptidescanada.com/peptide-coa-guide/",
+          "attempt": 1,
+          "h1": "Peptide COA Guide: How to Read a Certificate of Analysis"
+        },
+        {
+          "name": "nav-visit",
+          "text": "HPLC testing explained",
+          "href": "https://purepeptidescanada.com/hplc-testing-guide/",
+          "ok": true,
+          "status": 200,
+          "ms": 2896,
+          "finalUrl": "https://purepeptidescanada.com/hplc-testing-guide/",
+          "attempt": 1,
+          "h1": "HPLC Testing for Research Peptides: A Plain-English Guide"
+        },
+        {
+          "name": "nav-visit",
+          "text": "Peptide storage",
+          "href": "https://purepeptidescanada.com/peptide-storage-guide/",
+          "ok": true,
+          "status": 200,
+          "ms": 1865,
+          "finalUrl": "https://purepeptidescanada.com/peptide-storage-guide/",
+          "attempt": 1,
+          "h1": "Peptide Storage Guide: Handling Research Peptides"
+        },
+        {
+          "name": "nav-visit",
+          "text": "BPC-157 guide",
+          "href": "https://purepeptidescanada.com/bpc-157-canada/",
+          "ok": true,
+          "status": 200,
+          "ms": 2548,
+          "finalUrl": "https://purepeptidescanada.com/bpc-157-canada/",
+          "attempt": 1,
+          "h1": "BPC-157: Research Guide for Canadian Labs"
+        },
+        {
+          "name": "nav-visit",
+          "text": "TB-500 guide",
+          "href": "https://purepeptidescanada.com/tb-500-canada/",
+          "ok": true,
+          "status": 200,
+          "ms": 6091,
+          "finalUrl": "https://purepeptidescanada.com/tb-500-canada/",
+          "attempt": 1,
+          "h1": "TB-500 (Thymosin Beta-4): Research Guide for Canadian Labs"
+        },
+        {
+          "name": "nav-visit",
+          "text": "BPC-157 vs TB-500",
+          "href": "https://purepeptidescanada.com/bpc-157-vs-tb-500/",
+          "ok": true,
+          "status": 200,
+          "ms": 1904,
+          "finalUrl": "https://purepeptidescanada.com/bpc-157-vs-tb-500/",
+          "attempt": 1,
+          "h1": "BPC-157 vs TB-500: How the Two Repair Peptides Compare"
+        },
+        {
+          "name": "nav-visit",
+          "text": "Retatrutide guide",
+          "href": "https://purepeptidescanada.com/retatrutide-canada/",
+          "ok": true,
+          "status": 200,
+          "ms": 1676,
+          "finalUrl": "https://purepeptidescanada.com/retatrutide-canada/",
+          "attempt": 1,
+          "h1": "Retatrutide in Canada: Status, Research Guide & Tirzepatide Comparison"
+        },
+        {
+          "name": "nav-visit",
+          "text": "FAQ",
+          "href": "https://purepeptidescanada.com/faq/",
+          "ok": true,
+          "status": 200,
+          "ms": 3316,
+          "finalUrl": "https://purepeptidescanada.com/faq/",
+          "attempt": 1,
+          "h1": "Frequently asked questions."
+        },
+        {
+          "name": "nav-visit",
+          "text": "Lab Tools",
+          "href": "https://purepeptidescanada.com/lab-tools/",
+          "ok": true,
+          "status": 200,
+          "ms": 2582,
+          "finalUrl": "https://purepeptidescanada.com/lab-tools/",
+          "attempt": 1,
+          "h1": "In-vitro molarity & dilution calculator."
+        },
+        {
+          "name": "nav-visit",
+          "text": "About",
+          "href": "https://purepeptidescanada.com/about/",
+          "ok": true,
+          "status": 200,
+          "ms": 2557,
+          "finalUrl": "https://purepeptidescanada.com/about/",
+          "attempt": 1,
+          "h1": "A Canadian peptide company, since 2023."
+        },
+        {
+          "name": "nav-visit",
+          "text": "Contact",
+          "href": "https://purepeptidescanada.com/contact/",
+          "ok": true,
+          "status": 200,
+          "ms": 9050,
+          "finalUrl": "https://purepeptidescanada.com/contact/",
+          "attempt": 1,
+          "h1": "We're here to help."
+        }
+      ]
+    },
+    {
+      "name": "2-shop-to-checkout",
+      "steps": [
+        {
+          "name": "shop-load",
+          "ok": true,
+          "status": 200,
+          "ms": 3352,
+          "finalUrl": "https://purepeptidescanada.com/shop/",
+          "attempt": 1
+        },
+        {
+          "name": "shop-screenshot",
+          "file": "/tmp/claude-0/-home-user-Growth-engine-PPC/e01ede86-43cd-5f84-9cca-7e7b80d17fc9/scratchpad/audit-run/journeys/mobile-shop.png"
+        },
+        {
+          "name": "category-load",
+          "href": "https://purepeptidescanada.com/product-category/recovery/",
+          "ok": true,
+          "status": 200,
+          "ms": 10015,
+          "finalUrl": "https://purepeptidescanada.com/product-category/recovery/",
+          "attempt": 1
+        },
+        {
+          "name": "category-screenshot",
+          "file": "/tmp/claude-0/-home-user-Growth-engine-PPC/e01ede86-43cd-5f84-9cca-7e7b80d17fc9/scratchpad/audit-run/journeys/mobile-category.png"
+        },
+        {
+          "name": "product-open",
+          "href": "https://purepeptidescanada.com/product/bpc-157/",
+          "ok": true,
+          "status": 200,
+          "ms": 15883,
+          "finalUrl": "https://purepeptidescanada.com/product/bpc-157/",
+          "attempt": 1
+        },
+        {
+          "name": "product-screenshot",
+          "file": "/tmp/claude-0/-home-user-Growth-engine-PPC/e01ede86-43cd-5f84-9cca-7e7b80d17fc9/scratchpad/audit-run/journeys/mobile-product.png"
+        },
+        {
+          "name": "variation-select-fail",
+          "error": "locator.selectOption: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('form.variations_form table.variations select').first()\u001b[22m\n\u001b[2m    - locator resolved to <select class=\"\" id=\"size\" name=\"attribute_size\" data-show_option_none=\"yes\" data-attribute_name=\"attribute_size\">…</select>\u001b[22m\n\u001b[2m  - attempting select option action\u001b[22m\n\u001b[2m    2 × waiting for element to be visible and enabled\u001b[22m\n\u001b[2m      - element is not visible\u001b[22m\n\u001b[2m    - retrying select option action\u001b[22m\n\u001b[2m    - waiting 20ms\u001b[22m\n\u001b[2m    2 × waiting for element to be visible and enabled\u001b[22m\n\u001b[2m      - element is not visible\u001b[22m\n\u001b[2m    - retrying select option action\u001b[22m\n\u001b[2m      - waiting 100ms\u001b[22m\n\u001b[2m    60 × waiting for element to be visible and enabled\u001b[22m\n\u001b[2m       - element is not visible\u001b[22m\n\u001b[2m     - retrying select option action\u001b[22m\n\u001b[2m       - waiting 500ms\u001b[22m\n"
+        },
+        {
+          "name": "variations-selected",
+          "selects": 1
+        },
+        {
+          "name": "add-to-cart-button",
+          "visible": true,
+          "disabled": true
+        },
+        {
+          "name": "cart-load",
+          "ok": true,
+          "status": 200,
+          "ms": 3592,
+          "finalUrl": "https://purepeptidescanada.com/cart/",
+          "attempt": 1,
+          "cartHasItems": {
+            "empty": true,
+            "rows": 0,
+            "bodyHint": ""
+          }
+        },
+        {
+          "name": "cart-screenshot",
+          "file": "/tmp/claude-0/-home-user-Growth-engine-PPC/e01ede86-43cd-5f84-9cca-7e7b80d17fc9/scratchpad/audit-run/journeys/mobile-cart.png"
+        },
+        {
+          "name": "checkout-goto",
+          "ok": true,
+          "status": 200,
+          "ms": 2402,
+          "finalUrl": "https://purepeptidescanada.com/cart/",
+          "attempt": 1
+        },
+        {
+          "name": "checkout-render",
+          "checkoutMs": 2402,
+          "checkoutVia": "goto",
+          "cartToCheckoutTotalMs": 12624,
+          "classicForm": false,
+          "blocksForm": false,
+          "paymentMethodCount": 0,
+          "paymentMethods": [],
+          "fieldCount": 0,
+          "errorNotices": [],
+          "title": "Your Cart | Pure Peptides Canada"
+        },
+        {
+          "name": "checkout-screenshot",
+          "file": "/tmp/claude-0/-home-user-Growth-engine-PPC/e01ede86-43cd-5f84-9cca-7e7b80d17fc9/scratchpad/audit-run/journeys/mobile-checkout.png"
+        }
+      ]
+    },
+    {
+      "name": "3-search",
+      "steps": [
+        {
+          "name": "search-bpc",
+          "ok": true,
+          "status": 200,
+          "ms": 2212,
+          "finalUrl": "https://purepeptidescanada.com/?s=bpc",
+          "attempt": 1,
+          "products": 0,
+          "articles": 10,
+          "noResultsText": null,
+          "title": "bpc - Pure Peptides Canada",
+          "h1": "Results for \"bpc\""
+        },
+        {
+          "name": "search-bpc-screenshot",
+          "file": "/tmp/claude-0/-home-user-Growth-engine-PPC/e01ede86-43cd-5f84-9cca-7e7b80d17fc9/scratchpad/audit-run/journeys/mobile-search-bpc.png"
+        },
+        {
+          "name": "search-qzxvbnmasdf",
+          "ok": true,
+          "status": 200,
+          "ms": 1687,
+          "finalUrl": "https://purepeptidescanada.com/?s=qzxvbnmasdf",
+          "attempt": 1,
+          "products": 0,
+          "articles": 0,
+          "noResultsText": null,
+          "title": "qzxvbnmasdf - Pure Peptides Canada",
+          "h1": "Results for \"qzxvbnmasdf\""
+        },
+        {
+          "name": "search-qzxvbnmasdf-screenshot",
+          "file": "/tmp/claude-0/-home-user-Growth-engine-PPC/e01ede86-43cd-5f84-9cca-7e7b80d17fc9/scratchpad/audit-run/journeys/mobile-search-qzxvbnmasdf.png"
+        }
+      ]
+    },
+    {
+      "name": "4-contact",
+      "steps": [
+        {
+          "name": "contact-load",
+          "url": "https://purepeptidescanada.com/contact/",
+          "ok": true,
+          "status": 200,
+          "ms": 1700,
+          "finalUrl": "https://purepeptidescanada.com/contact/",
+          "attempt": 1
+        },
+        {
+          "name": "contact-form",
+          "formFound": false
+        },
+        {
+          "name": "contact-screenshot",
+          "file": "/tmp/claude-0/-home-user-Growth-engine-PPC/e01ede86-43cd-5f84-9cca-7e7b80d17fc9/scratchpad/audit-run/journeys/mobile-contact.png"
+        }
+      ]
+    },
+    {
+      "name": "5-blog",
+      "steps": [
+        {
+          "name": "blog-index-load",
+          "ok": true,
+          "status": 200,
+          "ms": 2986,
+          "finalUrl": "https://purepeptidescanada.com/blog/",
+          "attempt": 1
+        },
+        {
+          "name": "blog-screenshot",
+          "file": "/tmp/claude-0/-home-user-Growth-engine-PPC/e01ede86-43cd-5f84-9cca-7e7b80d17fc9/scratchpad/audit-run/journeys/mobile-blog-index.png"
+        },
+        {
+          "name": "post-open",
+          "href": "https://purepeptidescanada.com/placebo-controlled-trials-explained/",
+          "ok": true,
+          "status": 200,
+          "ms": 1412,
+          "finalUrl": "https://purepeptidescanada.com/placebo-controlled-trials-explained/",
+          "attempt": 1
+        },
+        {
+          "name": "post-checks",
+          "h1": "What a Placebo-Controlled Trial Can and Cannot Show",
+          "commentsSection": false,
+          "commentForm": false,
+          "shareLinks": 0,
+          "images": 5,
+          "brokenImgs": [],
+          "overflow": 0
+        },
+        {
+          "name": "post-screenshot",
+          "file": "/tmp/claude-0/-home-user-Growth-engine-PPC/e01ede86-43cd-5f84-9cca-7e7b80d17fc9/scratchpad/audit-run/journeys/mobile-blog-post.png"
+        }
+      ]
+    },
+    {
+      "name": "6-footer-links",
+      "steps": [
+        {
+          "name": "home-for-footer",
+          "ok": true,
+          "status": 200,
+          "ms": 4095,
+          "finalUrl": "https://purepeptidescanada.com/",
+          "attempt": 1
+        },
+        {
+          "name": "footer-links-found",
+          "count": 13,
+          "links": [
+            {
+              "text": "All products",
+              "href": "https://purepeptidescanada.com/shop/"
+            },
+            {
+              "text": "How to order",
+              "href": "https://purepeptidescanada.com/buy-research-peptides-canada/"
+            },
+            {
+              "text": "Best sellers",
+              "href": "https://purepeptidescanada.com/shop/?orderby=popularity"
+            },
+            {
+              "text": "Blends & stacks",
+              "href": "https://purepeptidescanada.com/product-category/peptide-blends/"
+            },
+            {
+              "text": "Certificates of analysis",
+              "href": "https://purepeptidescanada.com/lab-testing/"
+            },
+            {
+              "text": "About us",
+              "href": "https://purepeptidescanada.com/about/"
+            },
+            {
+              "text": "Research library",
+              "href": "https://purepeptidescanada.com/education/"
+            },
+            {
+              "text": "Shipping across Canada",
+              "href": "https://purepeptidescanada.com/shipping-across-canada/"
+            },
+            {
+              "text": "Contact",
+              "href": "https://purepeptidescanada.com/contact/"
+            },
+            {
+              "text": "Shipping & returns",
+              "href": "https://purepeptidescanada.com/shipping-returns/"
+            },
+            {
+              "text": "FAQ",
+              "href": "https://purepeptidescanada.com/faq/"
+            },
+            {
+              "text": "Privacy policy",
+              "href": "https://purepeptidescanada.com/privacy-policy"
+            },
+            {
+              "text": "Terms & conditions",
+              "href": "https://purepeptidescanada.com/terms-of-service/"
+            }
+          ]
+        },
+        {
+          "name": "footer-visit",
+          "text": "All products",
+          "href": "https://purepeptidescanada.com/shop/",
+          "internal": true,
+          "ok": true,
+          "status": 200,
+          "ms": 2317,
+          "finalUrl": "https://purepeptidescanada.com/shop/",
+          "attempt": 1
+        },
+        {
+          "name": "footer-visit",
+          "text": "How to order",
+          "href": "https://purepeptidescanada.com/buy-research-peptides-canada/",
+          "internal": true,
+          "ok": true,
+          "status": 200,
+          "ms": 7280,
+          "finalUrl": "https://purepeptidescanada.com/buy-research-peptides-canada/",
+          "attempt": 1
+        },
+        {
+          "name": "footer-visit",
+          "text": "Best sellers",
+          "href": "https://purepeptidescanada.com/shop/?orderby=popularity",
+          "internal": true,
+          "ok": true,
+          "status": 200,
+          "ms": 2171,
+          "finalUrl": "https://purepeptidescanada.com/shop/?orderby=popularity",
+          "attempt": 1
+        },
+        {
+          "name": "footer-visit",
+          "text": "Blends & stacks",
+          "href": "https://purepeptidescanada.com/product-category/peptide-blends/",
+          "internal": true,
+          "ok": true,
+          "status": 200,
+          "ms": 1387,
+          "finalUrl": "https://purepeptidescanada.com/product-category/peptide-blends/",
+          "attempt": 1
+        },
+        {
+          "name": "footer-visit",
+          "text": "Certificates of analysis",
+          "href": "https://purepeptidescanada.com/lab-testing/",
+          "internal": true,
+          "ok": true,
+          "status": 200,
+          "ms": 9182,
+          "finalUrl": "https://purepeptidescanada.com/lab-testing/",
+          "attempt": 1
+        },
+        {
+          "name": "footer-visit",
+          "text": "About us",
+          "href": "https://purepeptidescanada.com/about/",
+          "internal": true,
+          "ok": true,
+          "status": 200,
+          "ms": 11914,
+          "finalUrl": "https://purepeptidescanada.com/about/",
+          "attempt": 1
+        },
+        {
+          "name": "footer-visit",
+          "text": "Research library",
+          "href": "https://purepeptidescanada.com/education/",
+          "internal": true,
+          "ok": true,
+          "status": 200,
+          "ms": 3297,
+          "finalUrl": "https://purepeptidescanada.com/education/",
+          "attempt": 1
+        },
+        {
+          "name": "footer-visit",
+          "text": "Shipping across Canada",
+          "href": "https://purepeptidescanada.com/shipping-across-canada/",
+          "internal": true,
+          "ok": true,
+          "status": 200,
+          "ms": 1762,
+          "finalUrl": "https://purepeptidescanada.com/shipping-across-canada/",
+          "attempt": 1
+        },
+        {
+          "name": "footer-visit",
+          "text": "Contact",
+          "href": "https://purepeptidescanada.com/contact/",
+          "internal": true,
+          "ok": true,
+          "status": 200,
+          "ms": 2336,
+          "finalUrl": "https://purepeptidescanada.com/contact/",
+          "attempt": 1
+        },
+        {
+          "name": "footer-visit",
+          "text": "Shipping & returns",
+          "href": "https://purepeptidescanada.com/shipping-returns/",
+          "internal": true,
+          "ok": true,
+          "status": 200,
+          "ms": 2277,
+          "finalUrl": "https://purepeptidescanada.com/shipping-returns/",
+          "attempt": 1
+        },
+        {
+          "name": "footer-visit",
+          "text": "FAQ",
+          "href": "https://purepeptidescanada.com/faq/",
+          "internal": true,
+          "ok": true,
+          "status": 200,
+          "ms": 2035,
+          "finalUrl": "https://purepeptidescanada.com/faq/",
+          "attempt": 1
+        },
+        {
+          "name": "footer-visit",
+          "text": "Privacy policy",
+          "href": "https://purepeptidescanada.com/privacy-policy",
+          "internal": true,
+          "ok": true,
+          "status": 200,
+          "ms": 5211,
+          "finalUrl": "https://purepeptidescanada.com/",
+          "attempt": 1
+        },
+        {
+          "name": "footer-visit",
+          "text": "Terms & conditions",
+          "href": "https://purepeptidescanada.com/terms-of-service/",
+          "internal": true,
+          "ok": true,
+          "status": 200,
+          "ms": 2083,
+          "finalUrl": "https://purepeptidescanada.com/terms-of-service/",
+          "attempt": 1
+        }
+      ]
+    },
+    {
+      "name": "7-my-account",
+      "steps": [
+        {
+          "name": "my-account",
+          "ok": true,
+          "status": 200,
+          "ms": 2709,
+          "finalUrl": "https://purepeptidescanada.com/my-account/",
+          "attempt": 1,
+          "loginForm": true,
+          "registerForm": false,
+          "usernameField": true,
+          "passwordField": true,
+          "title": "Reset Your Password | Pure Peptides Canada"
+        },
+        {
+          "name": "my-account-screenshot",
+          "file": "/tmp/claude-0/-home-user-Growth-engine-PPC/e01ede86-43cd-5f84-9cca-7e7b80d17fc9/scratchpad/audit-run/journeys/mobile-my-account.png"
+        }
+      ]
+    },
+    {
+      "name": "8-storage-guide",
+      "steps": [
+        {
+          "name": "guide-load",
+          "ok": true,
+          "status": 200,
+          "ms": 951,
+          "finalUrl": "https://purepeptidescanada.com/peptide-storage-guide/",
+          "attempt": 1
+        },
+        {
+          "name": "guide-overflow-check",
+          "scrollWidth": 390,
+          "innerWidth": 390,
+          "horizontalOverflow": false,
+          "offenders": [],
+          "h1": "Peptide Storage Guide: Handling Research Peptides"
+        },
+        {
+          "name": "guide-screenshot",
+          "file": "/tmp/claude-0/-home-user-Growth-engine-PPC/e01ede86-43cd-5f84-9cca-7e7b80d17fc9/scratchpad/audit-run/journeys/mobile-storage-guide.png"
+        }
+      ]
+    },
+    {
+      "name": "9-404-page",
+      "steps": [
+        {
+          "name": "404-load",
+          "ok": true,
+          "status": 404,
+          "ms": 2355,
+          "finalUrl": "https://purepeptidescanada.com/this-page-does-not-exist-xyz-12345/",
+          "attempt": 1,
+          "title": "Page Not Found - Pure Peptides Canada",
+          "h1": "This page wandered off the bench.",
+          "hasSearch": true,
+          "hasHeader": true,
+          "hasFooter": true,
+          "bodySnippet": "Pure PeptidesCanada Please verify your age You must be 18 or older — and of legal age in your province — to enter. All products are sold strictly for laboratory research use only and are not for human or veterinary consumption. I am 18+ — Enter Leave"
+        },
+        {
+          "name": "404-screenshot",
+          "file": "/tmp/claude-0/-home-user-Growth-engine-PPC/e01ede86-43cd-5f84-9cca-7e7b80d17fc9/scratchpad/audit-run/journeys/mobile-404.png"
+        }
+      ]
+    }
+  ],
+  "consoleErrors": {
+    "Framing 'https://news.google.com/' violates the following report-only Content Security Policy directive: \"frame-ancestors 'self'\". The violation has been logged, but no further action has been taken.\n": {
+      "count": 1,
+      "pages": [
+        "https://purepeptidescanada.com/cart/"
+      ],
+      "journeys": [
+        "2-shop-to-checkout"
+      ]
+    },
+    "Failed to load resource: the server responded with a status of 404 (Not Found)": {
+      "count": 1,
+      "pages": [
+        "https://purepeptidescanada.com/this-page-does-not-exist-xyz-12345/"
+      ],
+      "journeys": [
+        "9-404-page"
+      ]
+    }
+  },
+  "pageErrors": {},
+  "failedRequests": {
+    "https://www.gstatic.com/_/mss/boq-subscribewithgoogle/_/js/k=boq-subscribewithgoogle.SubscribewithgoogleClientUi.en_US.Ln8AY4Q-q8E.2018.O/ck=boq-subscribewithgoogle.SubscribewithgoogleClientUi.UayZ6CcOJP4.L.W1.O/am=AAAAAAAN/d=1/exm=_b,_tp/excm=_b,_tp,serviceiframeview/ed=1/wt=2/ujg=1/rs=ABXTjI4SWgwLm70z3QchcviKNKSd46O5LQ/ee=EVNhjf:pw70Gc;EmZ2Bf:zr1jrb;JsbNhc:Xd8iUd;K5nYTd:ZDZcre;LBgRLc:SdcwHb;Me32": {
+      "status": 0,
+      "method": "GET",
+      "failureText": "net::ERR_BLOCKED_BY_ORB",
+      "pages": [
+        "https://purepeptidescanada.com/",
+        "https://purepeptidescanada.com/shop/",
+        "https://purepeptidescanada.com/buy-research-peptides-canada/",
+        "https://purepeptidescanada.com/product-category/recovery/",
+        "https://purepeptidescanada.com/product-category/growth/",
+        "https://purepeptidescanada.com/product-category/anti-aging-cellular/",
+        "https://purepeptidescanada.com/product-category/cognitive-neuro/",
+        "https://purepeptidescanada.com/product-category/weight-loss-metabolic/",
+        "https://purepeptidescanada.com/product-category/peptide-blends/",
+        "https://purepeptidescanada.com/lab-testing/",
+        "https://purepeptidescanada.com/education/",
+        "https://purepeptidescanada.com/blog/",
+        "https://purepeptidescanada.com/research-peptides-canada/",
+        "https://purepeptidescanada.com/best-canadian-peptide-suppliers/",
+        "https://purepeptidescanada.com/peptide-coa-guide/",
+        "https://purepeptidescanada.com/hplc-testing-guide/",
+        "https://purepeptidescanada.com/peptide-storage-guide/",
+        "https://purepeptidescanada.com/bpc-157-canada/",
+        "https://purepeptidescanada.com/tb-500-canada/",
+        "https://purepeptidescanada.com/bpc-157-vs-tb-500/",
+        "https://purepeptidescanada.com/retatrutide-canada/",
+        "https://purepeptidescanada.com/faq/",
+        "https://purepeptidescanada.com/lab-tools/",
+        "https://purepeptidescanada.com/about/",
+        "https://purepeptidescanada.com/contact/",
+        "https://purepeptidescanada.com/product/bpc-157/",
+        "https://purepeptidescanada.com/cart/",
+        "https://purepeptidescanada.com/?s=bpc",
+        "https://purepeptidescanada.com/?s=qzxvbnmasdf",
+        "https://purepeptidescanada.com/placebo-controlled-trials-explained/",
+        "https://purepeptidescanada.com/shop/?orderby=popularity",
+        "https://purepeptidescanada.com/shipping-across-canada/",
+        "https://purepeptidescanada.com/shipping-returns/",
+        "https://purepeptidescanada.com/terms-of-service/",
+        "https://purepeptidescanada.com/my-account/",
+        "https://purepeptidescanada.com/this-page-does-not-exist-xyz-12345/"
+      ],
+      "journeys": [
+        "1-homepage-nav",
+        "2-shop-to-checkout",
+        "3-search",
+        "4-contact",
+        "5-blog",
+        "6-footer-links",
+        "8-storage-guide",
+        "9-404-page"
+      ],
+      "count": 71
+    },
+    "https://www.gstatic.com/_/mss/boq-subscribewithgoogle/_/js/k=boq-subscribewithgoogle.SubscribewithgoogleClientUi.en_US.Ln8AY4Q-q8E.2018.O/ck=boq-subscribewithgoogle.SubscribewithgoogleClientUi.UayZ6CcOJP4.L.W1.O/am=AAAAAAAN/d=1/exm=W93Wdc,_b,_tp/excm=_b,_tp,serviceiframeview/ed=1/wt=2/ujg=1/rs=ABXTjI4SWgwLm70z3QchcviKNKSd46O5LQ/ee=EVNhjf:pw70Gc;EmZ2Bf:zr1jrb;JsbNhc:Xd8iUd;K5nYTd:ZDZcre;LBgRLc:Sdcw": {
+      "status": 0,
+      "method": "GET",
+      "failureText": "net::ERR_BLOCKED_BY_ORB",
+      "pages": [
+        "https://purepeptidescanada.com/",
+        "https://purepeptidescanada.com/shop/",
+        "https://purepeptidescanada.com/buy-research-peptides-canada/",
+        "https://purepeptidescanada.com/product-category/recovery/",
+        "https://purepeptidescanada.com/product-category/growth/",
+        "https://purepeptidescanada.com/product-category/anti-aging-cellular/",
+        "https://purepeptidescanada.com/product-category/cognitive-neuro/",
+        "https://purepeptidescanada.com/product-category/weight-loss-metabolic/",
+        "https://purepeptidescanada.com/product-category/peptide-blends/",
+        "https://purepeptidescanada.com/lab-testing/",
+        "https://purepeptidescanada.com/education/",
+        "https://purepeptidescanada.com/blog/",
+        "https://purepeptidescanada.com/research-peptides-canada/",
+        "https://purepeptidescanada.com/best-canadian-peptide-suppliers/",
+        "https://purepeptidescanada.com/peptide-coa-guide/",
+        "https://purepeptidescanada.com/hplc-testing-guide/",
+        "https://purepeptidescanada.com/peptide-storage-guide/",
+        "https://purepeptidescanada.com/bpc-157-canada/",
+        "https://purepeptidescanada.com/tb-500-canada/",
+        "https://purepeptidescanada.com/bpc-157-vs-tb-500/",
+        "https://purepeptidescanada.com/retatrutide-canada/",
+        "https://purepeptidescanada.com/faq/",
+        "https://purepeptidescanada.com/lab-tools/",
+        "https://purepeptidescanada.com/about/",
+        "https://purepeptidescanada.com/contact/",
+        "https://purepeptidescanada.com/product/bpc-157/",
+        "https://purepeptidescanada.com/cart/",
+        "https://purepeptidescanada.com/?s=bpc",
+        "https://purepeptidescanada.com/?s=qzxvbnmasdf",
+        "https://purepeptidescanada.com/placebo-controlled-trials-explained/",
+        "https://purepeptidescanada.com/shop/?orderby=popularity",
+        "https://purepeptidescanada.com/shipping-across-canada/",
+        "https://purepeptidescanada.com/shipping-returns/",
+        "https://purepeptidescanada.com/terms-of-service/",
+        "https://purepeptidescanada.com/this-page-does-not-exist-xyz-12345/"
+      ],
+      "journeys": [
+        "1-homepage-nav",
+        "2-shop-to-checkout",
+        "3-search",
+        "4-contact",
+        "5-blog",
+        "6-footer-links",
+        "8-storage-guide",
+        "9-404-page"
+      ],
+      "count": 51
+    },
+    "https://csp.withgoogle.com/csp/frame-ancestors/a00d54fdef4a77536baac3725d1409f8": {
+      "status": 0,
+      "method": "POST",
+      "failureText": "net::ERR_BLOCKED_BY_ORB",
+      "pages": [
+        "https://purepeptidescanada.com/cart/"
+      ],
+      "journeys": [
+        "2-shop-to-checkout"
+      ],
+      "count": 1
+    },
+    "https://purepeptidescanada.com/this-page-does-not-exist-xyz-12345/": {
+      "status": 404,
+      "method": "GET",
+      "failureText": null,
+      "pages": [
+        "https://purepeptidescanada.com/peptide-storage-guide/"
+      ],
+      "journeys": [
+        "9-404-page"
+      ],
+      "count": 1
+    }
+  },
+  "finishedAt": "2026-11-07T04:39:42.347Z"
+}

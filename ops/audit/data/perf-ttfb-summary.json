@@ -1,0 +1,38 @@
+{
+ "https://purepeptidescanada.com/": {
+  "runs": 5,
+  "ttfb_median_ms": 2631,
+  "ttfb_min_ms": 1148,
+  "ttfb_max_ms": 5007,
+  "total_median_ms": 2899,
+  "tls_median_ms": 109,
+  "http_version": "2"
+ },
+ "https://purepeptidescanada.com/shop/": {
+  "runs": 5,
+  "ttfb_median_ms": 1189,
+  "ttfb_min_ms": 1084,
+  "ttfb_max_ms": 1705,
+  "total_median_ms": 1461,
+  "tls_median_ms": 118,
+  "http_version": "2"
+ },
+ "https://purepeptidescanada.com/product/retatrutide/": {
+  "runs": 5,
+  "ttfb_median_ms": 1258,
+  "ttfb_min_ms": 1165,
+  "ttfb_max_ms": 2088,
+  "total_median_ms": 1616,
+  "tls_median_ms": 105,
+  "http_version": "2"
+ },
+ "https://purepeptidescanada.com/peptide-storage-guide/": {
+  "runs": 5,
+  "ttfb_median_ms": 1387,
+  "ttfb_min_ms": 903,
+  "ttfb_max_ms": 1676,
+  "total_median_ms": 1667,
+  "tls_median_ms": 83,
+  "http_version": "2"
+ }
+}

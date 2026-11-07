@@ -4,3 +4,4 @@
 2026-11-07 04:42Z ASSET PUBLISHED — /peptide-glossary/ live (55 terms, DefinedTermSet schema, verified HTTP 200)
 2026-11-07 04:44Z NAV LINK ADDED — 'Peptide glossary' under Research Library menu (item 11808); glossary now site-wide linked
 2026-11-07 04:52Z CANNIBALIZATION FIX — old 46-term glossary post (9764, 0 clicks/0 impr 28d) consolidated into /peptide-glossary/ via cross-page canonical; internal links updated on /education/ (3 refs) and post 10100; 301 redirect DENIED by permission system (pending user approval)
+2026-11-07 05:46Z AUDIT COMPLETE — 65 deduped findings (6 high / 18 medium / 19 low / 22 info) from 71 raw across 6 auditors; master audit ops/audit/AUDIT.md, fix queue ops/audit/fix-queue.json (25 automatable / 22 manual_review), raw data ops/audit/data/ (424KB)

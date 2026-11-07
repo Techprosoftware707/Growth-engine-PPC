@@ -1,0 +1,71 @@
+{
+ "confirmed_dead": [
+  {
+   "url": "https://educationexpress.uts.edu.au/pharmacology/drug-receptors-2",
+   "status": "410 (twice)",
+   "sources": [
+    "https://purepeptidescanada.com/what-is-a-receptor/"
+   ]
+  },
+  {
+   "url": "https://www.eppendorf.com/ca-fr/lab-academy/topics-methods-technology/pipetting-dispensing/60-year-anniversary-of-a-pipetting-masterstroke/",
+   "status": "404 (twice)",
+   "sources": [
+    "https://purepeptidescanada.com/micropipette-explained/"
+   ]
+  },
+  {
+   "url": "https://www.fda.gov/regulatory-information/search-fda-guidance-documents/andas-certain-highly-purified-synthetic-peptide-drug-products-refer-listed-drugs-rdna-origin",
+   "status": "404 (twice)",
+   "sources": [
+    "https://purepeptidescanada.com/hplc-testing-guide/",
+    "https://purepeptidescanada.com/spectroscopy-vs-spectrometry/"
+   ]
+  },
+  {
+   "url": "https://zfin.org/action/ontology/term-detail/CHEBI:80171",
+   "status": "SSL error x2 via curl; HTTP 502 in Chromium",
+   "sources": [
+    "https://purepeptidescanada.com/affinity-chromatography-explained/"
+   ]
+  },
+  {
+   "url": "https://doi.org/10.1111/j.1745-7270.2007.00320.x",
+   "status": "conn reset x2 via curl; in Chromium resolves to sciengine.com -> HTTP 502",
+   "sources": [
+    "https://purepeptidescanada.com/spectroscopy-vs-spectrometry/"
+   ]
+  },
+  {
+   "url": "https://pharmacologyeducation.ed.ac.uk/pharmacology/desensitisation-and-tachyphylaxis",
+   "status": "connection failed x3 (curl ProxyError x2, Chromium ERR_TUNNEL_CONNECTION_FAILED)",
+   "sources": [
+    "https://purepeptidescanada.com/receptor-upregulation-downregulation/"
+   ]
+  }
+ ],
+ "false_alarms_verified_ok_in_browser": [
+  {
+   "url": "https://www.canada.ca/... (3 health-canada news URLs)",
+   "note": "curl timeout x2 but 200 in Chromium"
+  },
+  {
+   "url": "https://www.facebook.com/profile.php?id=61592401685940",
+   "note": "400 to curl, 200 in Chromium (Pure Peptides Canada | Toronto ON)"
+  },
+  {
+   "url": "https://www.nibsc.org/...peptide_storage.aspx",
+   "note": "conn reset first try, 200 on retry"
+  },
+  {
+   "url": "https://www.mt.com/...how-to-reverse-pipette.html",
+   "note": "406 HEAD/GET first try, 200 on retry"
+  }
+ ],
+ "unverifiable_bot_protected": {
+  "count": 226,
+  "notes": "220 HTTP 403/429 (93 doi.org->publisher paywalls/bot walls, 86 verify.janoshik.com, 24 janoshik.com, 17 misc), 5 sigmaaldrich.com URLs + 1 b2b.sigmaaldrich.com hang automated clients (timeout x2), euramet.org serves 500 WAF-block page"
+ },
+ "permanent_301_to_other_host": 0,
+ "verified_ok": 210
+}

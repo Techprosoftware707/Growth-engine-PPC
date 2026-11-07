@@ -1,0 +1,17 @@
+{"tool":"wp_ability_rank_math_get_seo_scores","number_of_posts":100,
+"bad_post":[],
+"bad_page":[{"post_id":194,"title":"Shop","keyword":"research peptide catalogue canada","score":45}],
+"bad_product":[
+ {"post_id":9356,"title":"Tesofensine","keyword":"tesofensine canada","score":9},
+ {"post_id":9376,"title":"Semax Nasal Spray","keyword":"semax nasal spray canada","score":9},
+ {"post_id":9359,"title":"5-Amino-1MQ Capsules","keyword":"5-amino-1mq capsules canada","score":10},
+ {"post_id":9357,"title":"Orforglipron","keyword":"orforglipron canada","score":11},
+ {"post_id":1387,"title":"Selank Nasal Spray","keyword":"selank nasal spray canada","score":11},
+ {"post_id":1388,"title":"Epithalon Nasal Spray","keyword":"epithalon nasal spray canada","score":11},
+ {"post_id":9358,"title":"BPC-157 Capsules","keyword":"bpc-157 capsules canada","score":12},
+ {"post_id":10000,"title":"GHK-Cu Facial Toner","keyword":"copper peptide toner canada","score":16},
+ {"post_id":9999,"title":"GHK-Cu Facial Cleanser","keyword":"copper peptide cleanser canada","score":18},
+ {"post_id":1145,"title":"HCG","keyword":"HCG research peptide","score":49}],
+"empty_fk_post":[],
+"empty_fk_page":[{"post_id":195,"title":"Cart","keyword":null,"score":8},{"post_id":196,"title":"Checkout","keyword":null,"score":8}],
+"empty_fk_product":[{"post_id":1143,"title":"HGH","keyword":null,"score":9}]}
