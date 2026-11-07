@@ -1,0 +1,173 @@
+<title>PPC Growth Engagement Report</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Serif:wght@600;700&display=swap">
+<style>
+/* Layout: single-column operations report, 760px measure, status-pill system */
+:root{
+  --bg:#f7f8f7;
+  --panel:#ffffff;
+  --fg:#1b2420;
+  --muted:#5b6b63;
+  --line:#dde4df;
+  --accent:#0f6b5c;
+  --accent-soft:#e3f0ec;
+  --done:#1a7f4b;   --done-bg:#e3f3e9;
+  --pend:#8a6410;   --pend-bg:#f7edd4;
+  --block:#9b3b2e;  --block-bg:#f9e6e1;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --serif:"IBM Plex Serif",Georgia,serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#131917; --panel:#1b2320; --fg:#e6ece8; --muted:#9db0a6; --line:#2e3a34;
+    --accent:#4fc3ab; --accent-soft:#17352e;
+    --done:#5fce93; --done-bg:#15301f;
+    --pend:#e3b85b; --pend-bg:#352b10;
+    --block:#e58a76; --block-bg:#3a1f18;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#131917; --panel:#1b2320; --fg:#e6ece8; --muted:#9db0a6; --line:#2e3a34;
+  --accent:#4fc3ab; --accent-soft:#17352e;
+  --done:#5fce93; --done-bg:#15301f;
+  --pend:#e3b85b; --pend-bg:#352b10;
+  --block:#e58a76; --block-bg:#3a1f18;
+  color-scheme: dark;
+}
+body{
+  background:var(--bg); color:var(--fg); font:16px/1.6 var(--sans); margin:0;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));
+  padding-right:max(16px, env(safe-area-inset-right, 0px));
+  padding-block:0 64px;
+}
+.wrap{max-width:760px; margin:0 auto}
+header.rpt{border-bottom:3px solid var(--accent); padding:40px 0 24px; margin-bottom:32px}
+.eyebrow{font:500 12px/1 var(--mono); letter-spacing:.14em; text-transform:uppercase; color:var(--accent); margin:0 0 14px}
+h1{font:700 clamp(28px,5vw,40px)/1.15 var(--serif); margin:0 0 10px; text-wrap:balance}
+.sub{color:var(--muted); margin:0; font-size:15px}
+.sub code{font:13px var(--mono)}
+h2{font:700 22px/1.25 var(--serif); margin:44px 0 14px; text-wrap:balance}
+h3{font:600 16px/1.3 var(--sans); margin:26px 0 8px}
+p{margin:0 0 14px}
+.lede{font-size:17px}
+a{color:var(--accent)}
+code,.mono{font:13px var(--mono)}
+.kpis{display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin:20px 0 6px}
+.kpi{background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:14px 16px}
+.kpi b{display:block; font:600 26px/1.1 var(--sans); font-variant-numeric:tabular-nums}
+.kpi span{font-size:12.5px; color:var(--muted)}
+.kpi .delta{color:var(--done); font-size:12.5px; font-weight:600}
+table{border-collapse:collapse; width:100%; font-size:14.5px; margin:14px 0}
+.tablewrap{overflow-x:auto}
+th{font:600 12px/1.3 var(--mono); letter-spacing:.06em; text-transform:uppercase; color:var(--muted); text-align:left; padding:8px 12px 6px; border-bottom:2px solid var(--line)}
+td{padding:9px 12px; border-bottom:1px solid var(--line); vertical-align:top}
+td.num{font-variant-numeric:tabular-nums; font-family:var(--mono); font-size:13.5px; white-space:nowrap}
+.pill{display:inline-block; font:600 11px/1 var(--mono); letter-spacing:.05em; padding:5px 9px; border-radius:99px; white-space:nowrap}
+.pill.done{color:var(--done); background:var(--done-bg)}
+.pill.pend{color:var(--pend); background:var(--pend-bg)}
+.pill.block{color:var(--block); background:var(--block-bg)}
+ul{padding-left:22px; margin:0 0 14px}
+li{margin:0 0 7px}
+li::marker{color:var(--accent)}
+.note{background:var(--accent-soft); border-left:3px solid var(--accent); border-radius:0 6px 6px 0; padding:14px 18px; margin:18px 0}
+.note p:last-child{margin:0}
+.phase{display:grid; grid-template-columns:auto 1fr; gap:4px 14px; align-items:baseline; margin:8px 0}
+.phase .pnum{font:600 13px var(--mono); color:var(--accent); white-space:nowrap}
+footer{margin-top:52px; padding-top:18px; border-top:1px solid var(--line); color:var(--muted); font-size:13px}
+@media (max-width:480px){ .kpis{grid-template-columns:1fr 1fr} }
+</style>
+<div class="wrap">
+<header class="rpt">
+  <p class="eyebrow">Engagement report · 2026-11-07</p>
+  <h1>PPC Growth Engagement Report</h1>
+  <p class="sub">purepeptidescanada.com — audit, fixes, linkable assets, backlink program, monitoring. Working files in <code>Techprosoftware707/Growth-engine-PPC</code> → <code>ops/</code>; append-only trail in <code>ops/log/execution-log.md</code>.</p>
+</header>
+
+<p class="lede">All nine phases ran. The site itself is in good shape: every tested journey works, the store is untouched, and the research-use-only framing is consistent. The strategic problem is off-site — <strong>4 referring domains and 3 referral sessions in 28 days</strong>, with non-brand money queries ranked 31–69. So the work fixed everything on-site that was broken (40+ verified fixes), built the schema and linkable-asset foundation, and produced a verified database of 88 legitimate backlink opportunities with a ready-to-run queue. Everything executable without the owner's identity or inbox was executed; nothing was faked, bypassed, or left half-submitted.</p>
+
+<h2>Baseline, 2026-11-07</h2>
+<div class="kpis">
+  <div class="kpi"><b>4</b><span>referring domains (2 dofollow)</span></div>
+  <div class="kpi"><b>3</b><span>referral sessions / 28 days — the KPI to move</span></div>
+  <div class="kpi"><b>9</b><span>SE Ranking domain authority</span></div>
+  <div class="kpi"><b>32.3</b><span>avg GSC position · 827 clicks, ~95% brand</span></div>
+</div>
+<div class="tablewrap"><table>
+  <tr><th>Referring domain</th><th>Links</th><th>Dofollow</th><th>DR</th><th>Nature</th></tr>
+  <tr><td>gotpeptide.ca</td><td class="num">603</td><td class="num">0</td><td class="num">7</td><td>price aggregator, "Product ↗" listings</td></tr>
+  <tr><td>peptelens.ca</td><td class="num">12</td><td class="num">0</td><td class="num">0</td><td>vendor review/evidence pages (new Nov 6)</td></tr>
+  <tr><td>doserly.com</td><td class="num">9</td><td class="num">9</td><td class="num">18</td><td>strongest current links</td></tr>
+  <tr><td>thepeptideco.online</td><td class="num">1</td><td class="num">1</td><td class="num">8</td><td>single link</td></tr>
+</table></div>
+
+<h2>What changed on the live site</h2>
+<p>Every item below was re-verified with a fresh fetch after the change.</p>
+
+<h3>Content &amp; linkable assets</h3>
+<ul>
+  <li><strong>/peptide-glossary/ published</strong> — 55-term research glossary with DefinedTermSet JSON-LD, citations, RUO framing; wired into the Research Library menu and /education/ hub; the old 46-term post canonicalized to it.</li>
+  <li>6 dead external citations repaired across 5 posts (archive.org, PubMed, NLM, EBI ChEBI, pharmacologyeducation.org — each replacement verified 200 first).</li>
+  <li>17 generic "Link" anchors rewritten to descriptive text across 3 posts; stale product link in the reusable COA block repointed.</li>
+  <li>3 orphan pages de-orphaned; the pillar page now links /buy-research-peptides-canada/ from its "short answer" block; Terms and Shipping &amp; Returns gained their first internal links.</li>
+</ul>
+
+<h3>SEO meta &amp; settings</h3>
+<ul>
+  <li>7 titles/descriptions rewritten on GSC evidence (incl. /about/ at position 9.1 with 1,508 impressions); 4 over-long titles shortened; /my-account/ no longer titled "Reset Your Password".</li>
+  <li>16 placeholder province/city pages drafted out of the index — page sitemap 46 → 30, every URL still 301s to /shipping-across-canada/ (zero 404 risk; Toronto kept).</li>
+  <li>All three duplicate URL pairs (incl. the <code>cjc1295-lpamorelin</code> typo slug) now 301 to canonical; Rank Math report email fixed; author/product-tag sitemaps disabled; product descriptions gap-filled.</li>
+</ul>
+
+<h3>Structured data — root cause found</h3>
+<ul>
+  <li>/faq/ emitted an invalid <code>[WebPage, FAQPage]</code> node with an empty mainEntity next to the valid 30-question theme block: stray schema meta removed; exactly one valid FAQPage remains.</li>
+  <li>Pages site-wide default to "no rich snippet", which collapses the whole Rank Math graph to BreadcrumbList. Fixed with per-page Article schema (Organization author, real dates) on /lab-testing/, /education/, /shipping-returns/, /buy-research-peptides-canada/ and the new glossary — all five verified emitting the full Organization/WebSite/WebPage/Article graph.</li>
+  <li>The two testing guides' Article nodes now carry author and publish/modified dates.</li>
+</ul>
+
+<h3>Privacy &amp; UX</h3>
+<ul>
+  <li>PIPEDA privacy policy written and created as <strong>draft page 11886</strong> — publication is an owner decision (the footer link currently 301s to the homepage via a redirect rule that also needs one source removed).</li>
+  <li>Layout-shift fix for the review flag icons via Additional CSS; flags no longer appear in layout-shift traces.</li>
+</ul>
+
+<h2>Re-test after all changes</h2>
+<p>15 pages × desktop (1440×900) and mobile (390×844): <strong>30/30 HTTP 200, zero mobile overflow, zero console errors</strong> (one benign report-only CSP notice from an embedded Google News widget). Full purchase journey: variation select → add to cart → cart shows $93 subtotal → checkout renders with billing form and 3 payment gateways. No payment was submitted; WooCommerce settings untouched throughout.</p>
+
+<h2>Backlink program</h2>
+<div class="kpis">
+  <div class="kpi"><b>88</b><span>verified opportunities (112 researched, 25 excluded with reasons)</span></div>
+  <div class="kpi"><b>15</b><span>tier-1 targets, step-by-step playbook ready</span></div>
+  <div class="kpi"><b>81</b><span>of 88 free on a $0 plan</span></div>
+  <div class="kpi"><b>1</b><span>submitted &amp; accepted today</span></div>
+</div>
+<ul>
+  <li><strong>Database</strong>: <code>ops/backlinks/opportunities.csv</code> — every submission URL visited and HTTP-verified; tiers 1–4; exclusions logged. Competitor backlink sources turned out to be mostly PBN/link-network domains — documented as AVOID rather than copied.</li>
+  <li><strong>Executed now</strong>: secretsearchenginelabs.com URL submission — no account, no CAPTCHA, robots.txt permits, site invites submissions; response confirmed "added to the queue".</li>
+  <li><strong>Queued for the owner</strong> (<code>ops/submissions/PENDING-QUEUE.md</code>): everything needing an account at hi@purepeptidescanada.com, a CAPTCHA, identity verification, or a named human contact — GBP, Canadian Trade Index, PubChem, Thomasnet, Trustpilot, Biotechgate, SciCrunch, Crunchbase, LinkedIn, the HARO-class services, YellowPages and the citation set. ~10 minutes each with the TOP-25 steps; the first pass should yield 15–25 quality listings, which is what moves a 4-refdomain profile.</li>
+  <li><strong>Rules held</strong>: no CAPTCHA bypassed, no identity invented, no email sent, no PBN touched, nothing left half-verified in a reviewer queue.</li>
+</ul>
+
+<h2>Monitoring</h2>
+<p><code>ops/monitoring/</code> holds the live backlink register (all 4 refdomains + the pending submission) and the cadence: weekly submission-outcome checks in month one, monthly SE Ranking diffs, with referral sessions as the headline KPI. The SE Ranking key has 71,659 units and <strong>expires 2026-11-11</strong> — renew before the first monthly pull. The Link Growth Engine plugin built in this repo automates all of this once installed.</p>
+
+<h2>Owner decisions — nothing here was worked around</h2>
+<div class="tablewrap"><table>
+  <tr><th>Item</th><th>Status</th><th>What's needed</th></tr>
+  <tr><td>Install PPC Link Growth Engine plugin (zip built &amp; tested: <code>dist/ppc-link-growth-engine-1.0.0.zip</code>)</td><td><span class="pill block">denied in session</span></td><td>Owner installs via wp-admin → Plugins → Upload</td></tr>
+  <tr><td>Privacy policy (draft page 11886)</td><td><span class="pill pend">awaiting sign-off</span></td><td>Approve copy · remove <code>privacy-policy</code> from redirect rule 1 · publish</td></tr>
+  <tr><td>301 for old glossary URL</td><td><span class="pill block">redirect denied</span></td><td>Canonical already in place; add 301 in Rank Math if desired</td></tr>
+  <tr><td>Contact form on /contact/</td><td><span class="pill block">form abilities disabled</span></td><td>Enable WPForms write abilities or build form manually (name/email/message, notify hi@)</td></tr>
+  <tr><td>Submission queue (15–25 listings, first pass)</td><td><span class="pill pend">ready to run</span></td><td>Work <code>PENDING-QUEUE.md</code> top-down with the TOP-25 playbook</td></tr>
+  <tr><td>Cloudflare APO / HTML edge cache (TTFB 1.1–5s) · WebP/Polish (448KB hero) · HSTS</td><td><span class="pill pend">manual infra</span></td><td>Cloudflare dashboard changes, ~30 min</td></tr>
+  <tr><td>Product schema name (Rank Math free hardcodes it) · age-gate cold-load CLS</td><td><span class="pill pend">theme work</span></td><td>Small theme filter + modal CSS, next dev pass</td></tr>
+</table></div>
+
+<div class="note">
+  <p><strong>The one number to watch:</strong> referral sessions (baseline 3 per 28 days) and referring domains (baseline 4). The on-site foundation is now clean and verified; the queue above is the lever. Re-measure both against <code>ops/reports/baseline-2026-11-07.json</code> after the first submission pass.</p>
+</div>
+
+<footer>Phases 1–9 complete · 40+ live fixes verified by re-fetch · evidence and per-fix log: <code>ops/log/execution-log.md</code> · audit detail: <code>ops/audit/AUDIT.md</code> (65 findings) · research DB: <code>ops/backlinks/</code></footer>
+</div>

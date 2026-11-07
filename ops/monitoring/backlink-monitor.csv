@@ -1,0 +1,6 @@
+first_seen,source_domain,backlinks,dofollow_backlinks,domain_inlink_rank,link_type,status,last_checked,notes
+2026-11-01,gotpeptide.ca,603,0,7,price-aggregator product listings (anchor "Product ↗"),active,2026-11-07,bulk of the 625 baseline backlinks; single domain; nofollow; monitor for loss (its removal halves the raw backlink count overnight)
+2026-11-06,peptelens.ca,12,0,0,vendor review/evidence pages (nofollow),active,2026-11-07,new since baseline week; links review + guides pages to /lab-testing/ /shipping-returns/ /contact/ /about/ /shop/
+2026-09-25,doserly.com,9,9,18,dofollow,active,2026-11-07,strongest current links (only dofollow refdomain with authority)
+2026-08-06,thepeptideco.online,1,1,8,dofollow,active,2026-11-07,single dofollow link
+2026-11-07,secretsearchenginelabs.com,0,0,—,directory submission (add-url),submitted-awaiting-crawl,2026-11-07,submitted via add-url form (see ops/submissions/submitted.csv); check ~2026-11-21 whether indexed with live link

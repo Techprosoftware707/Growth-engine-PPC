@@ -1,0 +1,2 @@
+date_utc,platform,category,submission_url,method,payload,result,evidence,listing_url,next_check
+2026-11-07,secretsearchenginelabs.com,directory,http://www.secretsearchenginelabs.com/add-url.php,GET form (no account; no CAPTCHA; robots.txt permits; site explicitly invites submissions),newurl=https://purepeptidescanada.com/,ACCEPTED — response page: "Your URL https://purepeptidescanada.com/ have been added to the [queue]",scratchpad phase4/ssel-result.html,pending crawl (site indexes queued URLs later),2026-11-21 search site for purepeptidescanada.com
