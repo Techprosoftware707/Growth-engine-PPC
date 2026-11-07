@@ -1,0 +1,74 @@
+{
+  "captured_at": "2026-11-07T04:30:00Z",
+  "sources": {
+    "backlinks": "SE Ranking Data API (backlinks/summary, mode=domain)",
+    "search": "Google Search Console via Site Kit (last 28 days, web)",
+    "note": "No fabricated numbers; every figure below was returned by the named API."
+  },
+  "backlink_profile": {
+    "referring_domains": 4,
+    "dofollow_referring_domains": 2,
+    "total_backlinks": 625,
+    "dofollow_backlinks": 10,
+    "nofollow_backlinks": 615,
+    "domain_inlink_rank": 9,
+    "home_page_backlinks": 0,
+    "edu_gov_backlinks": 0,
+    "pages_with_backlinks": 57,
+    "observation": "Almost all backlinks come from one product-aggregator pattern (anchor 'Product' x546, nofollow). Referring-domain diversity is the key gap."
+  },
+  "google_search_28d": {
+    "clicks": 827,
+    "impressions": 20652,
+    "ctr": 0.04,
+    "avg_position": 32.3
+  },
+  "seranking_organic_ca_oct2026": {
+    "keywords_count": 64,
+    "top21_50": 5,
+    "top51_100": 61,
+    "traffic_sum_estimate": 0
+  },
+  "indexing": {
+    "sitemap_urls_estimate": 317,
+    "sitemaps": [
+      "post 147",
+      "page 45",
+      "product 105",
+      "category 9",
+      "product_cat 11"
+    ]
+  },
+  "ga4_28d_sessions_by_channel": {
+    "organic_search": {
+      "sessions": 1156,
+      "users": 797,
+      "key_events": 19
+    },
+    "direct": {
+      "sessions": 783,
+      "users": 722,
+      "key_events": 2
+    },
+    "ai_assistant": {
+      "sessions": 69,
+      "users": 53,
+      "key_events": 1
+    },
+    "referral": {
+      "sessions": 3,
+      "users": 3,
+      "key_events": 0
+    },
+    "organic_social": {
+      "sessions": 4,
+      "users": 4,
+      "key_events": 0
+    },
+    "unassigned": {
+      "sessions": 5,
+      "users": 4,
+      "key_events": 0
+    }
+  }
+}
