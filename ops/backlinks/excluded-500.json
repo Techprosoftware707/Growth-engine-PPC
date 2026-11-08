@@ -1,0 +1,914 @@
+[
+ {
+  "domain": "businessconnect.apple.com",
+  "platform": "Apple Business Connect",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "dnb.com",
+  "platform": "Dun & Bradstreet D-U-N-S Number",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "openstreetmap.org",
+  "platform": "OpenStreetMap",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "localstar.org",
+  "platform": "LocalStar",
+  "reason": "Excluded: SEO link-network directory. Re-fetched https://www.localstar.org/add-listings (200) and homepage: site is operated by 'WIT Solution', a web-design/SEO company in Ahmedabad; the add-listings page cross-promotes sibling listing sites ('Visit Our Top Business Listing Websites! globalbusinesslisting.org localelinkup.com canlist.ca') and the footer is stuffed with SEO-agency anchor text ('SEO Company Toronto', 'Digital Marketing Agency In Toronto'). Classic instant-approval SEO directory / link-farm network; fails the spam sniff.",
+  "http_status": "200"
+ },
+ {
+  "domain": "bingplaces.com",
+  "platform": "Bing Places for Business",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "businessconnect.apple.com",
+  "platform": "Apple Business Connect",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "bbb.org",
+  "platform": "Better Business Bureau (BBB)",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "dnb.com",
+  "platform": "Dun & Bradstreet (D-U-N-S)",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "alignable.com",
+  "platform": "Alignable",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "openstreetmap.org",
+  "platform": "OpenStreetMap",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "provenexpert.com",
+  "platform": "ProvenExpert",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "find-us-here.com",
+  "platform": "Find-Us-Here",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "canadaone.com",
+  "platform": "CanadaOne",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "shopincanada.com",
+  "platform": "ShopInCanada",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "fyple.ca",
+  "platform": "Fyple Canada",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "showmelocal.com",
+  "platform": "ShowMeLocal",
+  "reason": "Submission URL /addbusiness.aspx returns a genuine 404 (redirects to page-not-found.aspx?aspxerrorpath=/addbusiness.aspx) on fetch and on retry with desktop Chrome UA, while the homepage serves its bot-slider at 200 - so the site is up but the claimed submission path is dead.",
+  "http_status": "404 (after retry; homepage 200 behind bot slider)"
+ },
+ {
+  "domain": "b2bco.com",
+  "platform": "B2BCO",
+  "reason": "Spam sniff failed: homepage/login show off-topic paid placements (e.g. 'weed gummies australia', Melbourne chauffeur, cabin rentals) in the Advertising block, implausible inflated category counts (Management Consulting 226,528 vs Carbon Management 2), contradictory headline stats, 'UnKnown Logo' placeholder listings, and contact only via Telegram/WhatsApp - pattern of an accept-anything SEO directory; excluded on quality-over-count.",
+  "http_status": "200"
+ },
+ {
+  "domain": "trepup.com",
+  "platform": "Trepup",
+  "reason": "Free claim not confirmed: current Trepup is a paid e-commerce SaaS suite (Store/Marketplace/Email/Analytics with 'Try it free' trial links and a Trepup One bundle); the plans-and-pricing page is a JS shell (USD currency vars, no visible free tier) and no permanently free public business profile could be verified - evidence too thin to keep.",
+  "http_status": "200"
+ },
+ {
+  "domain": "localstar.org",
+  "platform": "LocalStar",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "bbb.org",
+  "platform": "Better Business Bureau (BBB Serving Central Ontario) - free Business Profile",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "madeinca.ca",
+  "platform": "Made in CA (madeinca.ca) - Canadian-owned business directory",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "dnb.com",
+  "platform": "Dun & Bradstreet D-U-N-S Number / D&B Business Directory profile",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "bingplaces.com",
+  "platform": "Bing Places for Business",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "businessconnect.apple.com",
+  "platform": "Apple Business Connect (Apple Maps place card)",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "alignable.com",
+  "platform": "Alignable - small business networking profile",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "openstreetmap.org",
+  "platform": "OpenStreetMap - business POI with website tag",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "macraesbluebook.com",
+  "platform": "MacRAE'S Blue Book",
+  "reason": "already present in master ops/backlinks/opportunities.csv",
+  "http_status": "200"
+ },
+ {
+  "domain": "processregister.com",
+  "platform": "ProcessRegister",
+  "reason": "Alias: same operator/platform as chemicalregister.com - identical page template, identical /register/add.asp form, identical $599/$899/$1,299 pricing table, identical footer wording and '(c)1998 - 2026' copyright. One network, one listing opportunity; chemicalregister.com is the more on-category (chemical/reagent) and higher-tier of the two, so this one is excluded.",
+  "http_status": "200"
+ },
+ {
+  "domain": "dnb.com",
+  "platform": "Dun & Bradstreet D-U-N-S / Business Directory",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "bbb.org",
+  "platform": "Better Business Bureau (BBB)",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "supportontariomade.ca",
+  "platform": "Ontario Made (CME)",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "madeinca.ca",
+  "platform": "Made in CA",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "alignable.com",
+  "platform": "Alignable",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "europages.co.uk",
+  "platform": "Europages",
+  "reason": "already present in master ops/backlinks/opportunities.csv",
+  "http_status": "200 (303 Ory registration flow without cookies)"
+ },
+ {
+  "domain": "exporters.sg",
+  "platform": "Exporters.SG",
+  "reason": "Fails the free check. Re-fetched 2026-11-08: /join/join_step1.asp is live (200) but is a 'Trial Membership Application' - the page says 'Sign up your 30 day trial account in a minute'. The $0 tier is a 30-day trial, not a persistent free listing, so a durable backlink/profile is effectively paid-only. Row's own 'free with caveat' understates this; quality over count.",
+  "http_status": "200"
+ },
+ {
+  "domain": "suppliergateway.com",
+  "platform": "SupplierGateway",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "chemicalregister.com",
+  "platform": "Chemical Register",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "macraesbluebook.com",
+  "platform": "MacRAE'S Blue Book",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "exportbureau.com",
+  "platform": "ExportBureau",
+  "reason": "Abandoned/stale platform. /postform.html returns 200 and the form technically exists, but the site shows no sign of life: copyright 2018, not a single 2019-2026 date anywhere in the homepage HTML, category tree frozen in the 2000s (PDAs, MP3/MP4 players), and dated sister-site cross-links (exportid.com, creditfront.com, americafront.com). Listings are 'screened before approval' by staff that show no activity in ~8 years, so a submission will likely never publish. Quality over count: exclude.",
+  "http_status": "200"
+ },
+ {
+  "domain": "scientist.com",
+  "platform": "Scientist.com (supplier marketplace)",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "chemicalregister.com",
+  "platform": "Chemical Register (chemical buyers' guide)",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "scientist.com",
+  "platform": "Scientist.com Supplier Backoffice",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "pharmaoffer.com",
+  "platform": "Pharmaoffer",
+  "reason": "Compliance exclusion (category mismatch). Page is real and free signup confirmed ('Sign up for free - no credit card required'), but the homepage shows the platform is a GMP pharmaceutical API/CDMO sourcing marketplace ('GMP-verified API suppliers', popular APIs Paracetamol/Ibuprofen/Metformin, audience includes compounding & specialty pharmacies). Listing an RUO-only, non-GMP lab-reagent supplier there presents its peptides as human-drug ingredients - exactly the medical/pharmacy category the client must avoid; the researcher's own risk note concedes the mismatch.",
+  "http_status": "200"
+ },
+ {
+  "domain": "biotech-careers.org",
+  "platform": "Biotech-Careers.org (InnovATEBIO employer database)",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "cphi-online.com",
+  "platform": "CPHI Online (Informa Markets pharma marketplace)",
+  "reason": "Compliance exclusion (category mismatch), same reasoning as pharmaoffer: CPHI (Convention on Pharmaceutical Ingredients, Informa) is a pharma-ingredients B2B marketplace where listing implies supply of ingredients for human-drug manufacture - wrong category for an RUO reagent supplier. Secondary: entire site is behind a Cloudflare/Informa bot wall (403 re-confirmed on /register), so the free Basic tier and registration flow were never verified first-hand, only via search snippets.",
+  "http_status": "403 (Cloudflare bot wall, re-confirmed)"
+ },
+ {
+  "domain": "chemicalregister.com",
+  "platform": "Chemical Register",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "chemblink.com",
+  "platform": "chemBlink",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "emolecules.com",
+  "platform": "eMolecules",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "scientist.com",
+  "platform": "Scientist.com",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "lookchem.com",
+  "platform": "LookChem",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "guidechem.com",
+  "platform": "Guidechem",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "molport.com",
+  "platform": "MolPort",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "citeab.com",
+  "platform": "CiteAb",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "antibodies-online.com",
+  "platform": "antibodies-online",
+  "reason": "Submission path is not real as claimed. The submission_url (/supplier-managed-access) returns 200, but the page is a buyer-side premium feature: it tells shoppers how to get customer-service approval to search the catalog by Supplier Product IDs ('Get yourself approved for this premium feature... contact our customer service'). There is no supplier application form, no 'become a supplier' flow, and no supplier onboarding information on the page; the row's 'no fixed costs' free claim rests on off-site company statements and could not be verified. The platform itself is legitimate RUO reagent commerce, but with no verifiable free submission path the row fails the quality bar \u2014 exclude.",
+  "http_status": "200"
+ },
+ {
+  "domain": "chemicalregister.com",
+  "platform": "ChemicalRegister",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "protocols.io",
+  "platform": "protocols.io",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "zenodo.org",
+  "platform": "Zenodo",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "osf.io",
+  "platform": "OSF (Open Science Framework)",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "figshare.com",
+  "platform": "figshare",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "data.mendeley.com",
+  "platform": "Mendeley Data",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "dataverse.harvard.edu",
+  "platform": "Harvard Dataverse",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "labroots.com",
+  "platform": "LabRoots",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "scientist.com",
+  "platform": "Scientist.com",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "dnb.com",
+  "platform": "Dun & Bradstreet (free D-U-N-S Number)",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "theorg.com",
+  "platform": "The Org (public org chart / company profile)",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "ventureradar.com",
+  "platform": "VentureRadar (Submit a Company)",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "startupblink.com",
+  "platform": "StartupBlink (Global Startup Ecosystem Map)",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "europages.co.uk",
+  "platform": "Europages (free standard supplier profile)",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "smartcustomer.com",
+  "platform": "Sitejabber / SmartCustomer",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "provenexpert.com",
+  "platform": "ProvenExpert",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "bbb.org",
+  "platform": "Better Business Bureau (BBB)",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "judge.me",
+  "platform": "Judge.me Reviews Site",
+  "reason": "Excluded: platform discontinued WooCommerce. The required plugin (judgeme-product-reviews-woocommerce) was closed on wordpress.org as of 2025-08-13 ('Author Request', closure permanent) and Judge.me ended WooCommerce support in late 2025; the Reviews Site help article is written for Shopify stores only. Client runs WooCommerce, so the submission path (install plugin, collect 10+ reviews, enable listing) is not achievable. Help-article URL itself still loads (HTTP 200) but the path is dead for this client.",
+  "http_status": "200 (submission_url loads, but required WooCommerce plugin is closed)"
+ },
+ {
+  "domain": "reviews.birdeye.com",
+  "platform": "Birdeye free business profiles",
+  "reason": "Excluded: no actionable submission path. Directory loads (HTTP 200) and claiming is free, but the only documented path is 'Claim your free profile' for an EXISTING listing \u2014 the page offers no way to add a business that is not listed, and no profile for Pure Peptides Canada exists (site:reviews.birdeye.com search returns nothing). Directory is auto-generated local-consumer listings (dental, restaurants); an online-only reagent supplier has nothing to claim. Researcher's own risk note conceded the creation path is unclear; quality-over-count says drop it.",
+  "http_status": "200"
+ },
+ {
+  "domain": "alignable.com",
+  "platform": "Alignable",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "business.nextdoor.com",
+  "platform": "Nextdoor Business",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "zenodo.org",
+  "platform": "Zenodo",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "figshare.com",
+  "platform": "Figshare",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "osf.io",
+  "platform": "OSF (Open Science Framework)",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "protocols.io",
+  "platform": "protocols.io",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "data.mendeley.com",
+  "platform": "Mendeley Data",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "alignable.com",
+  "platform": "Alignable",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "webnewswire.com",
+  "platform": "WebNewswire",
+  "reason": "Spam/content-farm signals: homepage carries machine-spun rewrites of real news ('Samsung has actually revealed that it's collaborate'), generic 'Correspondent/Editor' bylines, duplicated categories, anonymous operator, and monetization via Sponsored Posts/PRO subscriptions. The free form is live, but the platform is a low-quality content farm, not a legitimate editorial outlet - excluded on quality.",
+  "http_status": "200"
+ },
+ {
+  "domain": "marketpressrelease.com",
+  "platform": "MarketPressRelease",
+  "reason": "Free plan exists but yields no backlink: pricing page confirms clickable/keyword hyperlinks, website embedding and URL hyperlinking are paid add-ons ($19/credit or $120 company account) - the site literally sells hyperlinks as SEO features. As a backlink opportunity the free path is paid-only (unlinked text mention at best), so excluded.",
+  "http_status": "200"
+ },
+ {
+  "domain": "abnewswire.com",
+  "platform": "ABNewswire",
+  "reason": "No free press-release distribution exists: pricing page re-verified cheapest single release at $80 (USA/Canada outreach $110+); the only free item is a company newsroom/profile page, with link treatment unknown. The row is in the press-release slice and its distribution path is paid-only, so excluded per the free check.",
+  "http_status": "200"
+ },
+ {
+  "domain": "chromforum.org",
+  "platform": "Chromatography Forum",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "labwrench.com",
+  "platform": "LabWrench",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "labroots.com",
+  "platform": "LabRoots",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "protocols.io",
+  "platform": "protocols.io",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "osf.io",
+  "platform": "OSF (Open Science Framework)",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "researchhub.com",
+  "platform": "ResearchHub",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "peeref.com",
+  "platform": "Peeref",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "lemmy.world",
+  "platform": "Lemmy.world",
+  "reason": "Alias: same federated Lemmy platform/network as lemmy.ca (profiles and posts federate across instances, identical nofollow bio-link value); keeping the better-fitting lemmy.ca (tier 3, Canadian) and excluding this duplicate. Page itself is real (200, application signup confirmed via API).",
+  "http_status": "200"
+ },
+ {
+  "domain": "mastodon.social",
+  "platform": "Mastodon.social",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "bsky.app",
+  "platform": "Bluesky",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "alignable.com",
+  "platform": "Alignable",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "sessionize.com",
+  "platform": "Sessionize",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "speakerhub.com",
+  "platform": "SpeakerHub",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "vimeo.com",
+  "platform": "Vimeo",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "archive.org",
+  "platform": "Internet Archive",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "flickr.com",
+  "platform": "Flickr",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "pixabay.com",
+  "platform": "Pixabay",
+  "reason": "Alias: same-network sibling of Pexels \u2014 both operated by Canva (acquired May 2019) offering a near-identical opportunity (free stock-media contributor profile with website link). Page itself is live (403 bot wall to curl; register page loads via WebFetch), but per alias rule only the better one is kept (Pexels).",
+  "http_status": "403 to curl (bot wall); page loads via WebFetch"
+ },
+ {
+  "domain": "speakerdeck.com",
+  "platform": "Speaker Deck",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "slides.com",
+  "platform": "Slides.com",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "noti.st",
+  "platform": "Notist",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "figshare.com",
+  "platform": "Figshare",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "zenodo.org",
+  "platform": "Zenodo",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "osf.io",
+  "platform": "OSF (Open Science Framework)",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "jobbank.gc.ca",
+  "platform": "Job Bank Canada (Government of Canada)",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "simplyhired.ca",
+  "platform": "SimplyHired",
+  "reason": "Alias/by-product of Indeed: SimplyHired's own brand-facts materials confirm the only posting path is a free Indeed employer account \u2014 jobs are posted on Indeed and syndicated to SimplyHired. ca.indeed.com is already in the database, so there is no independent submission action on this domain (the row itself admits this). Site also 403-bot-walls all verification (post-jobs page and homepage, retried).",
+  "http_status": "403 (post-jobs and homepage, after retry)"
+ },
+ {
+  "domain": "ca.jooble.org",
+  "platform": "Jooble",
+  "reason": "Dead submission path: ca.jooble.org/employer/jobposting returned HTTP 500 on four independent attempts (two UAs, HTTP/1.1 and HTTP/2, curl and WebFetch); homepage and jooble.org/employer return 403. A persistent 500 is a broken endpoint, not a bot wall. Additionally, Jooble's own help center says the Free plan is not available in every country and Canadian availability was never confirmed. Evidence too thin to confirm a real, free Canadian submission path \u2014 excluded per quality-over-count.",
+  "http_status": "500 (submission URL, 4 attempts); 403 (homepage)"
+ },
+ {
+  "domain": "jobrxiv.org",
+  "platform": "jobRxiv",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "theorg.com",
+  "platform": "The Org",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "comparably.com",
+  "platform": "Comparably",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "careerbeacon.com",
+  "platform": "CareerBeacon",
+  "reason": "Fails the free check for general use: CareerBeacon's own Latest Updates page confirms free posting applies ONLY to student/recent-grad/summer/internship/co-op roles; standard job postings are paid (~C$375+ per third-party pricing). The platform is real (long-standing Canadian job board) but 403-bot-walls all on-page verification, and the free path is contingent on a hiring scenario the client may not have \u2014 the row itself says 'skip unless a genuine student/co-op opening exists'. Excluded per quality-over-count; student-hiring need is already covered by free platforms (Outcome Campus Connect, Handshake, Riipen).",
+  "http_status": "403 (post-a-job page and homepage, after retry)"
+ },
+ {
+  "domain": "ror.org",
+  "platform": "Research Organization Registry (ROR)",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "theorg.com",
+  "platform": "The Org",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "ventureradar.com",
+  "platform": "VentureRadar",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "zotero.org",
+  "platform": "Zotero (public groups)",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "curateit.com",
+  "platform": "CurateIt",
+  "reason": "Parked domain. www.curateit.com and /signup now serve a 114-byte JS redirect to /lander, which is a GoDaddy parking lander (window._trfd.push({ap:'parking'}), img1.wsimg.com/parking-lander assets). The product site is gone; no real submission path. Exclude (dead/parked).",
+  "http_status": "200 (parking lander, not the product)"
+ },
+ {
+  "domain": "dnb.com",
+  "platform": "Dun & Bradstreet (D-U-N-S Number / D&B business directory)",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "macraesbluebook.com",
+  "platform": "MacRae's Blue Book",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "chemicalregister.com",
+  "platform": "Chemical Register",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "go4worldbusiness.com",
+  "platform": "go4WorldBusiness",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "tradekey.com",
+  "platform": "TradeKey",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "guidechem.com",
+  "platform": "Guidechem",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "bbb.org",
+  "platform": "Better Business Bureau (BBB)",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "owler.com",
+  "platform": "Owler (by Meltwater)",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "provenexpert.com",
+  "platform": "ProvenExpert",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "smartcustomer.com",
+  "platform": "SmartCustomer (formerly Sitejabber)",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "scientist.com",
+  "platform": "Scientist.com supplier network",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "supportontariomade.ca",
+  "platform": "Ontario Made (CME)",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "madeinca.ca",
+  "platform": "Made in CA",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "shopincanada.com",
+  "platform": "ShopInCanada",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "macraesbluebook.com",
+  "platform": "MacRAE'S Blue Book",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "chemicalregister.com",
+  "platform": "Chemical Register",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "scientist.com",
+  "platform": "Scientist.com supplier network",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "bbb.org",
+  "platform": "Better Business Bureau (BBB)",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "dnb.com",
+  "platform": "Dun & Bradstreet D-U-N-S",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "alignable.com",
+  "platform": "Alignable",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "businessconnect.apple.com",
+  "platform": "Apple Business Connect",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "protocols.io",
+  "platform": "protocols.io",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "zenodo.org",
+  "platform": "Zenodo",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "figshare.com",
+  "platform": "figshare",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "osf.io",
+  "platform": "OSF (Open Science Framework)",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "researchhub.com",
+  "platform": "ResearchHub",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "slideshare.net",
+  "platform": "SlideShare",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "openpr.com",
+  "platform": "openPR",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "pr.com",
+  "platform": "PR.com",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "provenexpert.com",
+  "platform": "ProvenExpert",
+  "reason": "no verdict for this row (dropped during verification as cross-slice duplicate or unverifiable)",
+  "http_status": null
+ },
+ {
+  "domain": "bingplaces.com",
+  "platform": "Bing Places for Business",
+  "reason": "duplicate of the same platform kept from slice ca-citations-1 (bing.com); collapsed in final merge",
+  "http_status": "200"
+ },
+ {
+  "domain": "data-axle.com",
+  "platform": "Data Axle Local Listings (Express Update)",
+  "reason": "duplicate of the same platform kept from slice maps-data (local-listings.data-axle.com); collapsed in final merge",
+  "http_status": "200"
+ },
+ {
+  "domain": "business.nextdoor.com",
+  "platform": "Nextdoor Business (Canada)",
+  "reason": "duplicate of the same platform kept from slice ca-citations-1 (nextdoor.com); collapsed in final merge",
+  "http_status": "200"
+ }
+]
