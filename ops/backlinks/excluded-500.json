@@ -320,7 +320,7 @@
  {
   "domain": "antibodies-online.com",
   "platform": "antibodies-online",
-  "reason": "Submission path is not real as claimed. The submission_url (/supplier-managed-access) returns 200, but the page is a buyer-side premium feature: it tells shoppers how to get customer-service approval to search the catalog by Supplier Product IDs ('Get yourself approved for this premium feature... contact our customer service'). There is no supplier application form, no 'become a supplier' flow, and no supplier onboarding information on the page; the row's 'no fixed costs' free claim rests on off-site company statements and could not be verified. The platform itself is legitimate RUO reagent commerce, but with no verifiable free submission path the row fails the quality bar \u2014 exclude.",
+  "reason": "Submission path is not real as claimed. The submission_url (/supplier-managed-access) returns 200, but the page is a buyer-side premium feature: it tells shoppers how to get customer-service approval to search the catalog by Supplier Product IDs ('Get yourself approved for this premium feature... contact our customer service'). There is no supplier application form, no 'become a supplier' flow, and no supplier onboarding information on the page; the row's 'no fixed costs' free claim rests on off-site company statements and could not be verified. The platform itself is legitimate RUO reagent commerce, but with no verifiable free submission path the row fails the quality bar — exclude.",
   "http_status": "200"
  },
  {
@@ -434,7 +434,7 @@
  {
   "domain": "reviews.birdeye.com",
   "platform": "Birdeye free business profiles",
-  "reason": "Excluded: no actionable submission path. Directory loads (HTTP 200) and claiming is free, but the only documented path is 'Claim your free profile' for an EXISTING listing \u2014 the page offers no way to add a business that is not listed, and no profile for Pure Peptides Canada exists (site:reviews.birdeye.com search returns nothing). Directory is auto-generated local-consumer listings (dental, restaurants); an online-only reagent supplier has nothing to claim. Researcher's own risk note conceded the creation path is unclear; quality-over-count says drop it.",
+  "reason": "Excluded: no actionable submission path. Directory loads (HTTP 200) and claiming is free, but the only documented path is 'Claim your free profile' for an EXISTING listing — the page offers no way to add a business that is not listed, and no profile for Pure Peptides Canada exists (site:reviews.birdeye.com search returns nothing). Directory is auto-generated local-consumer listings (dental, restaurants); an online-only reagent supplier has nothing to claim. Researcher's own risk note conceded the creation path is unclear; quality-over-count says drop it.",
   "http_status": "200"
  },
  {
@@ -602,7 +602,7 @@
  {
   "domain": "pixabay.com",
   "platform": "Pixabay",
-  "reason": "Alias: same-network sibling of Pexels \u2014 both operated by Canva (acquired May 2019) offering a near-identical opportunity (free stock-media contributor profile with website link). Page itself is live (403 bot wall to curl; register page loads via WebFetch), but per alias rule only the better one is kept (Pexels).",
+  "reason": "Alias: same-network sibling of Pexels — both operated by Canva (acquired May 2019) offering a near-identical opportunity (free stock-media contributor profile with website link). Page itself is live (403 bot wall to curl; register page loads via WebFetch), but per alias rule only the better one is kept (Pexels).",
   "http_status": "403 to curl (bot wall); page loads via WebFetch"
  },
  {
@@ -650,13 +650,13 @@
  {
   "domain": "simplyhired.ca",
   "platform": "SimplyHired",
-  "reason": "Alias/by-product of Indeed: SimplyHired's own brand-facts materials confirm the only posting path is a free Indeed employer account \u2014 jobs are posted on Indeed and syndicated to SimplyHired. ca.indeed.com is already in the database, so there is no independent submission action on this domain (the row itself admits this). Site also 403-bot-walls all verification (post-jobs page and homepage, retried).",
+  "reason": "Alias/by-product of Indeed: SimplyHired's own brand-facts materials confirm the only posting path is a free Indeed employer account — jobs are posted on Indeed and syndicated to SimplyHired. ca.indeed.com is already in the database, so there is no independent submission action on this domain (the row itself admits this). Site also 403-bot-walls all verification (post-jobs page and homepage, retried).",
   "http_status": "403 (post-jobs and homepage, after retry)"
  },
  {
   "domain": "ca.jooble.org",
   "platform": "Jooble",
-  "reason": "Dead submission path: ca.jooble.org/employer/jobposting returned HTTP 500 on four independent attempts (two UAs, HTTP/1.1 and HTTP/2, curl and WebFetch); homepage and jooble.org/employer return 403. A persistent 500 is a broken endpoint, not a bot wall. Additionally, Jooble's own help center says the Free plan is not available in every country and Canadian availability was never confirmed. Evidence too thin to confirm a real, free Canadian submission path \u2014 excluded per quality-over-count.",
+  "reason": "Dead submission path: ca.jooble.org/employer/jobposting returned HTTP 500 on four independent attempts (two UAs, HTTP/1.1 and HTTP/2, curl and WebFetch); homepage and jooble.org/employer return 403. A persistent 500 is a broken endpoint, not a bot wall. Additionally, Jooble's own help center says the Free plan is not available in every country and Canadian availability was never confirmed. Evidence too thin to confirm a real, free Canadian submission path — excluded per quality-over-count.",
   "http_status": "500 (submission URL, 4 attempts); 403 (homepage)"
  },
  {
@@ -680,7 +680,7 @@
  {
   "domain": "careerbeacon.com",
   "platform": "CareerBeacon",
-  "reason": "Fails the free check for general use: CareerBeacon's own Latest Updates page confirms free posting applies ONLY to student/recent-grad/summer/internship/co-op roles; standard job postings are paid (~C$375+ per third-party pricing). The platform is real (long-standing Canadian job board) but 403-bot-walls all on-page verification, and the free path is contingent on a hiring scenario the client may not have \u2014 the row itself says 'skip unless a genuine student/co-op opening exists'. Excluded per quality-over-count; student-hiring need is already covered by free platforms (Outcome Campus Connect, Handshake, Riipen).",
+  "reason": "Fails the free check for general use: CareerBeacon's own Latest Updates page confirms free posting applies ONLY to student/recent-grad/summer/internship/co-op roles; standard job postings are paid (~C$375+ per third-party pricing). The platform is real (long-standing Canadian job board) but 403-bot-walls all on-page verification, and the free path is contingent on a hiring scenario the client may not have — the row itself says 'skip unless a genuine student/co-op opening exists'. Excluded per quality-over-count; student-hiring need is already covered by free platforms (Outcome Campus Connect, Handshake, Riipen).",
   "http_status": "403 (post-a-job page and homepage, after retry)"
  },
  {
@@ -909,6 +909,420 @@
   "domain": "business.nextdoor.com",
   "platform": "Nextdoor Business (Canada)",
   "reason": "duplicate of the same platform kept from slice ca-citations-1 (nextdoor.com); collapsed in final merge",
+  "http_status": "200"
+ },
+ {
+  "domain": "anyflip.com",
+  "platform": "AnyFlip (free plan)",
+  "reason": "wave-2 verdict (w2-audio-visual): Same-network alias. AnyFlip's terms of service say it is 'a subsidiary site of Wonder Idea Technology Limited', the same operator as FlipHTML5 and PubHTML5. Only FlipHTML5 is kept for this network.",
+  "http_status": "403 (Cloudflare 'Just a moment...' on curl, after retry; WebFetch 403)"
+ },
+ {
+  "domain": "pubhtml5.com",
+  "platform": "PubHTML5 (free plan)",
+  "reason": "wave-2 verdict (w2-audio-visual): Same-network alias. PubHTML5's terms describe it as a subsidiary site of Wonder Idea Technology Limited (footer: Wonder Idea Technology Co., Ltd.), the same operator as FlipHTML5 and AnyFlip. Only FlipHTML5 is kept for this network.",
+  "http_status": "403 (Cloudflare 'Attention Required' on curl, after retry; WebFetch 403)"
+ },
+ {
+  "domain": "3d.nih.gov",
+  "platform": "NIH 3D (free account - submit bioscience 3D models)",
+  "reason": "wave-2 verdict (w2-audio-visual): Exclude. /submit returned 200 ('Registration is free and open to everyone'), but the backlink case is thin and against policy. The /faqs page (200) says: 'All content must be relevant to biomedical science. We reserve the right to remove links to commercial websites that aren't directly relevant to the uploaded content. Inappropriate or irrelevant content is moderated and may result in account removal.' Quick Submit only re-wraps public AFDB/PDB/PubChem IDs, so a vendor upload would be promotional reuse. The research found no outbound link field on entries. It is also a biomedical (NIH) platform, which is a compliance-sensitive fit for a peptide vendor.",
+  "http_status": "200"
+ },
+ {
+  "domain": "globalsources.com",
+  "platform": "Global Sources",
+  "reason": "wave-2 verdict (w2-b2b-wholesale-2): Thin evidence. www, m. and /site/app/ returned 429 (Retry-After 300) on every curl and WebFetch attempt, so no signup form was ever seen. The submission_url is only the homepage. The only free-listing evidence is a nav label ('Join as a Free Supplier') and legacy 2000s help pages. The legacy free-listing page (sellproducts.globalsources.com/HELP/GSLIST.HTM) returns 200 with an empty body. Eligibility for a Canadian, non-Asian distributor is unconfirmed on a platform built around Asian manufacturers. Re-research in a real browser before considering it.",
+  "http_status": "429"
+ },
+ {
+  "domain": "exporthub.com",
+  "platform": "ExportHub",
+  "reason": "wave-2 verdict (w2-b2b-wholesale-2): Same-network alias of tradewheel.com: CB Insights lists Noman Javed as ExportHub founder/CEO, and a 2019 press release names him CEO of Tradewheel. Only tradewheel.com is kept. /signup.html also returned 403 with a Cloudflare challenge twice. Its free tier is the weaker of the two (5 products, 1 inquiry a day).",
+  "http_status": "403"
+ },
+ {
+  "domain": "eworldtrade.com",
+  "platform": "eWorldTrade",
+  "reason": "wave-2 verdict (w2-b2b-wholesale-2): Content was never seen. www /register/ and member.eworldtrade.com returned 202 with an empty AWS WAF challenge (x-amzn-waf-action: challenge) on both attempts, and WebFetch was blocked too. Reputation is poor: ComplaintsBoard 'fraudulent and elaborate scam' thread alleging fake buyer profiles and fake leads, plus refund refusals. It is likely the same Pakistan-run portal style and group as Tradewheel/ExportHub (a 'Noman' from Pakistan represented it at CBEC 2017; unconfirmed). The research row itself rates it medium-high risk and lowest priority.",
+  "http_status": "202"
+ },
+ {
+  "domain": "ecplaza.net",
+  "platform": "ECPlaza",
+  "reason": "wave-2 verdict (w2-b2b-wholesale-2): Unreachable after retry. HTTPS to www, en. and a supplier mini-site failed with 'Connection reset by peer' (twice each). HTTP returned 503 'upstream connect error ... connection timeout', and WebFetch returned 503. The signup URL was never identified (homepage only), and the free tier is inferred only from 'Free member' labels on indexed mini-sites. Thin evidence.",
+  "http_status": "000/503"
+ },
+ {
+  "domain": "mastodon.world",
+  "platform": "mastodon.world (general Mastodon server)",
+  "reason": "wave-2 verdict (w2-crowd-knowledge): Same-network duplicate (Mastodon/fediverse). mstdn.ca is kept as the best instance for a Canadian brand, and mastodon.social and mstdn.science are already in the database. This is a generic instance with manual-review signup (reason required) and nofollow profile links. Another brand account adds no distinct value, and parallel multi-instance brand accounts read as spam. The research row itself says it is only worth it if not on mstdn.ca.",
+  "http_status": "200 (/auth/sign_up: 'Accept rules / Your details / Confirm email / Our review'; /api/v2/instance 200: approval_required=true, reason_required=true)"
+ },
+ {
+  "domain": "hackster.io",
+  "platform": "Hackster.io (Avnet hardware community)",
+  "reason": "wave-2 verdict (w2-crowd-knowledge): Real and free, but the backlink case conflicts with its policy. The live /terms bans content that is 'unwanted commercial Content designed to drive traffic to third party internet sites or boost the search engine rankings of third party sites', which is the purpose of this row. Profile and website links are nofollow (rel=\"noopener nofollow noreferrer\" on hackster.io/arduino per the research row). The client has no hardware project, so there is no SEO value and there is ToS risk. hackaday.io is kept for the maker slot.",
+  "http_status": "200 (/projects/new redirects to /users/sign_in; /users/sign_up 200 'Create an account'; /terms 200)"
+ },
+ {
+  "domain": "keyoxide.org",
+  "platform": "Keyoxide (open-source decentralized identity profile)",
+  "reason": "wave-2 verdict (w2-crowd-knowledge): Not a backlink opportunity. keyoxide.org/robots.txt disallows every path except the homepage, so profile pages (keyoxide.org/<id>) cannot be crawled and pass no link or citation value. The submission_url is also wrong: the docs say 'The website you see on keyoxide.org ... won't let you create a profile'; creation happens on asp.keyoxide.org. At best an identity/trust badge, with nothing for the database.",
+  "http_status": "200 (homepage; robots.txt 200: 'User-agent: * / Allow: /$ / Disallow: /'; asp.keyoxide.org 200; docs 200)"
+ },
+ {
+  "domain": "openhub.net",
+  "platform": "Black Duck Open Hub (open-source project & organization directory)",
+  "reason": "wave-2 verdict (w2-crowd-knowledge): Thin evidence and derivative. No openhub.net page could be read, and no current first-party source confirms that new-account signup is open. Search evidence shows a platform in maintenance mode: forums frozen since 2020, user reports of stalled imports, and an API SSL error in 2026. It can only list a project after a genuine Codeberg/SourceForge repo exists, and it would just mirror that repo. Low value; excluded.",
+  "http_status": "403 Cloudflare 'Just a moment...' on /, /accounts/new and www.openhub.net/accounts/new (Chrome UA after retry, curl UA, WebFetch); Wayback API 429"
+ },
+ {
+  "domain": "trustmary.com",
+  "platform": "Trustmary (free Solo plan + public company review page)",
+  "reason": "wave-2 verdict (w2-ecommerce-trust): Paid-only for the asset that matters. The submission page itself, /trustmary-review-page/ (200 on 2026-11-10), says 'The review page is included in any paid Trustmary subscription'. Trustmary help content says free Solo users get a review-page link, but Google indexes the page only once the business URL is added, and claiming that URL requires a paid plan. A free Solo account gets no indexed public review page. Exclude as paid-only.",
+  "http_status": "200"
+ },
+ {
+  "domain": "dealspotr.com",
+  "platform": "Dealspotr (claim merchant/brand page)",
+  "reason": "wave-2 verdict (w2-ecommerce-trust): Thin evidence plus a compliance conflict. Nothing first-party could be read. The only 'free claim' statement is a Dealspotr article dated February 2018, and the claim flow needs a merchant page that may not exist for this store. The platform is a consumer coupon and influencer-promotion marketplace. Paid influencer promotions of research peptides to shoppers invite human-use and efficacy claims, which conflict with the client's RUO-only positioning, and the site's taxonomy includes Health & Wellness. Exclude.",
+  "http_status": "403 (Cloudflare 'Attention Required' on /article/marketplace-merchant-help and the homepage, still 403 on retry; WebFetch also 403)"
+ },
+ {
+  "domain": "couponfollow.com",
+  "platform": "CouponFollow (submit a store promo code)",
+  "reason": "wave-2 verdict (w2-ecommerce-trust): The /submit-code form is live (200: Website, Coupon code, Describe the offer, Expiration date) and free. It is a consumer coupon-sharing form, not a merchant listing. No evidence that it creates a store page for an untracked store: /site/peptidesciences.com returned 404, so no peptide-vendor pages exist. The submitter cannot control the category, and the site taxonomy puts health products under 'Health & Beauty', which breaks the client's no-health-category rule. Consumer discount marketing also conflicts with RUO-only. Merchant links on store pages are rel=nofollow. Exclude.",
+  "http_status": "200"
+ },
+ {
+  "domain": "urlfiltering.paloaltonetworks.com",
+  "platform": "Palo Alto Networks URL Filtering - Test A Site (recategorization request)",
+  "reason": "wave-2 verdict (w2-ecommerce-trust): No free path for a non-customer. /single_cr/ returned 200 with 'Login Required: Starting March 15, 2026, login is required for all URL category change requests.' The login is an Okta SSO whose widget config has registration:false. Palo Alto LIVEcommunity answers say a support account needs a purchased product (serial or auth code). The research row also could not confirm self-registration. The lookup alone is not a submission. The client could only recategorize through a Palo Alto customer, such as a university IT team. Exclude on thin evidence of a free submission.",
+  "http_status": "200 (/query/ and /single_cr/)"
+ },
+ {
+  "domain": "netskope.com",
+  "platform": "Netskope URL Lookup (recategorization request)",
+  "reason": "wave-2 verdict (w2-ecommerce-trust): Customer-only, so no free public path. The /url-lookup page (200 on 2026-11-10) says 'The URL Lookup is only available for Netskope customers. Please use a Netskope steering method to access this service.' The Netskope docs (report-miscategorization, 200) describe recategorization only inside the Netskope UI (Skope IT > URL Lookup) or through that same customer-only tool. A non-customer cannot submit. Exclude.",
+  "http_status": "200"
+ },
+ {
+  "domain": "supplier.eunasolutions.com",
+  "platform": "Euna Supplier Network (formerly Bonfire) - vendor account",
+  "reason": "wave-2 verdict (w2-gov-procurement): Same-network alias. The platform is real and free ('Free forever. No credit card required'; Pro from $60 USD/yr is optional). But this generic Euna Supplier Network account is the same Euna/Bonfire vendor account used by the agency-specific rows kept here: oecm.bonfirehub.ca (oecm.ca) and cnl.bonfirehub.ca (cnl.ca). OECM states the generic ESN account alone does not give access to its opportunities. Keep the agency rows, which carry the real buyer relationship, and drop this umbrella row. It has no public profile or link (Gov Radar is visible only to contracting officers).",
+  "http_status": "200 (supplier.eunasolutions.com, 160KB); 200 (vendor.bonfirehub.com/sign-up, React shell)"
+ },
+ {
+  "domain": "merx.com",
+  "platform": "MERX (SOVRA) - Canadian tenders supplier account",
+  "reason": "wave-2 verdict (w2-gov-procurement): Effectively paid for the stated use. The live pricing page says BASIC Free covers only solicitations from about 29 listed agencies that 'have paid for your access' (e.g. Bank of Canada, Gov of NL, Manitoba, University of Winnipeg). The University of Toronto, the row's main reason, is not on that list. UofT does post UTSG/UTM/UTSC solicitations on MERX (procurement.utoronto.ca), so reaching them needs Local $50-199/mo, Regional $100-299/mo or National $167-499/mo. CNL, another named buyer, now registers suppliers through Euna. No public profile or link.",
+  "http_status": "200 (/public/user-registration, title 'MERX : Supplier Registration'); 200 (/public/pricing); 200 (/uoft)"
+ },
+ {
+  "domain": "bidsandtenders.com",
+  "platform": "bids&tenders - municipal/territorial vendor accounts (York Region, Yukon, Peel, Mississauga, Halifax, etc.)",
+  "reason": "wave-2 verdict (w2-gov-procurement): The row's free claim is outdated. York's live Create Account page: 'A free account lets you browse opportunities and get bid alerts. When you're ready to register as a plan taker or ready to submit to a bid opportunity, you can pick a subscription plan... or select Pay-Per-Bid'. The plans page lists Local $549/yr and Pro $1999/yr; only 'agencies that are currently free to access' stay free (Yukon still says 'no cost... to participate'). So participation is paid at the row's named buyers, and the row itself rates relevance low (municipal/territorial). No profile or link. York Region is covered free by the separate york.ca low-dollar-value form.",
+  "http_status": "200 (york.bidsandtenders.ca Vendor/Create); 200 (yukon.bidsandtenders.ca); 200 (bidsandtenders.com/suppliers-plans/)"
+ },
+ {
+  "domain": "biddingo.com",
+  "platform": "Biddingo - public-sector e-tendering supplier account",
+  "reason": "wave-2 verdict (w2-gov-procurement): Thin evidence, and the free path cannot be verified. Every route serves an empty SPA shell. The main JS bundle shows paid subscription states ('Local', 'Agency', 'ExpiredUser', 'isNeedUpgrade', api-payment.biddingo.com) but no free-tier wording. Third-party listings say pricing is by quote. The row marks free 'partial... unverified' and leans on an outdated Saskatoon page (Saskatoon now uses bids&tenders). UofT, the stated reason, takes all submissions through Bonfire per procurement.utoronto.ca, so Biddingo adds nothing for it.",
+  "http_status": "200 (/register, /uoft, /pricing, / all return the same 60,257-byte Angular shell with no readable content)"
+ },
+ {
+  "domain": "tradecommissioner.gc.ca",
+  "platform": "Trade Commissioner Service (Global Affairs Canada) - MyTCS Canadian company registration",
+  "reason": "wave-2 verdict (w2-gov-procurement): Real and free (Global Affairs Canada), but not a listing, citation or buyer-facing supplier record of any kind. MyTCS only unlocks 'educational guides and tools, funding resources, events'. The row itself says no public profile and no link. Eligibility depends on export readiness, and exporting research peptides raises customs and controlled-substance compliance questions TCS would screen. Nothing reaches the database's purpose, so excluded as thin value. Use it as a separate advisory step if the business starts exporting.",
+  "http_status": "curl 000 (timeout x2 to /en/mytcs-registration/canadian-company.html); WebFetch 200 (page live, modified 2026-10-19)"
+ },
+ {
+  "domain": "ec.europa.eu",
+  "platform": "EU Funding & Tenders Portal - Participant Register (PIC)",
+  "reason": "wave-2 verdict (w2-gov-procurement): Real and free: the official EC wiki says registering in the Participant Register 'is free of charge'. But it creates only a PIC entity record, with no website link or profile content. No realistic use: a Toronto RUO reagent e-commerce reseller is not a Horizon Europe consortium partner and will not bid EU-institution tenders. The row itself calls it 'Marginal fit'. Excluded as zero-value for this client. It is not an alias of euraxess.ec.europa.eu, which is already in the database.",
+  "http_status": "200 (funding-tenders participant-register, SPA shell with no readable content)"
+ },
+ {
+  "domain": "eu-startups.com",
+  "platform": "EU-Startups Database",
+  "reason": "wave-2 verdict (w2-intl-directories-2): Exclude: /directory/ is behind a Cloudflare challenge on curl and WebFetch (2026-11-10). The database is a European-startup database, so a Toronto-HQ company with no EU presence is ineligible. The free-listing claim comes only from a third-party SEO link-building site (ideaproof.io).",
+  "http_status": "403 (Cloudflare challenge)"
+ },
+ {
+  "domain": "esources.co.uk",
+  "platform": "eSources",
+  "reason": "wave-2 verdict (w2-intl-directories-2): Exclude: Cloudflare challenge on homepage and /register/ via curl and WebFetch (2026-11-10). Third-party sources confirm only a free basic (buyer-side) membership versus premium. No evidence that supplier, especially international supplier, listing is free. It is a UK retail-wholesale sourcing directory, a weak fit for RUO reagents. Thin evidence.",
+  "http_status": "403 (Cloudflare challenge)"
+ },
+ {
+  "domain": "freeindex.co.uk",
+  "platform": "FreeIndex",
+  "reason": "wave-2 verdict (w2-intl-directories-2): Exclude: the free listing is real ('completely FREE unless you upgrade'), but signup.htm requires a 'UK Business Postcode' and states 'You must enter a full valid UK address for your business.' A Toronto-only business cannot complete it without a fabricated UK address.",
+  "http_status": "200 via WebFetch; 403 anti-bot to curl"
+ },
+ {
+  "domain": "yell.com",
+  "platform": "Yell (Yell Business free profile)",
+  "reason": "wave-2 verdict (w2-intl-directories-2): Exclude: the free Yell Business profile exists (business.yell.com 200), but Yell's help docs limit free listings to businesses in UK regions (excluding Isle of Man and Channel Islands). The yell.com/free-listing/ form returned a Cloudflare 403. The client is UK-ineligible.",
+  "http_status": "200 (business.yell.com); 403 (yell.com/free-listing)"
+ },
+ {
+  "domain": "businessmagnet.co.uk",
+  "platform": "Businessmagnet",
+  "reason": "wave-2 verdict (w2-intl-directories-2): Exclude: the free registration form is live, but the address step validates a UK postcode ('That doesn't look like a UK postcode') and the site checks against '150,000+ UK listings'. A Toronto-only business cannot complete it without a fake UK address.",
+  "http_status": "200"
+ },
+ {
+  "domain": "approvedbusiness.co.uk",
+  "platform": "Approved Business",
+  "reason": "wave-2 verdict (w2-intl-directories-2): Exclude: the Free package carries a 12-month contract and no website link. 'Website backlink' is listed only on the paid Featured tier and up, so the link is paid-only. The site is also UK-business oriented.",
+  "http_status": "200"
+ },
+ {
+  "domain": "uksmallbusinessdirectory.co.uk",
+  "platform": "UK Small Business Directory",
+  "reason": "wave-2 verdict (w2-intl-directories-2): Exclude: the live page says 'we are no longer accepting free listings for the forseeable future' and that free listings are invite-only. It pushes paid Bronze/Silver/Gold upgrades (GBP 30-75/yr). Effectively paid-only and UK-based-only.",
+  "http_status": "200"
+ },
+ {
+  "domain": "bizify.co.uk",
+  "platform": "Bizify",
+  "reason": "wave-2 verdict (w2-intl-directories-2): Exclude: the Bizify FAQ states 'Any registered business, based in the UK, can sign up for a free business listing.' The client is ineligible. The add-new-company URL redirects to login. The directory is run by a UK SEO agency ('Part of the Outrank Ecosystem').",
+  "http_status": "200 (add-new-company -> login redirect)"
+ },
+ {
+  "domain": "enterprisenation.com",
+  "platform": "Enterprise Nation",
+  "reason": "wave-2 verdict (w2-intl-directories-2): Exclude: free account signup is live and Canada is selectable as a region. However, search evidence shows public profiles and marketplace listings are an adviser-membership feature (about GBP 20/month), and nothing shows a free member gets a public page with a clickable link. No free backlink is evidenced.",
+  "http_status": "200"
+ },
+ {
+  "domain": "aussieweb.com.au",
+  "platform": "AussieWeb Local Search",
+  "reason": "wave-2 verdict (w2-intl-directories-2): Exclude: the free form is live ('This is a free service'), but State (ACT/NSW/NT/QLD/SA/TAS/VIC/WA only) and PostCode are required, validated fields, with phone/business verification. Australian address is mandatory, so a Toronto-only business is ineligible.",
+  "http_status": "200"
+ },
+ {
+  "domain": "truelocal.com.au",
+  "platform": "TrueLocal",
+  "reason": "wave-2 verdict (w2-intl-directories-2): Exclude: TrueLocal calls itself a 'Local Business Directory for Australian Businesses'. The free-listing signup runs through Thryv Australia's my.yellow.com.au as a JavaScript-only app (one free listing per business/address, acceptance at Thryv's discretion). It needs an Australian business location, which the Toronto-only client cannot provide.",
+  "http_status": "200 (JS-only app shell)"
+ },
+ {
+  "domain": "startlocal.com.au",
+  "platform": "StartLocal",
+  "reason": "wave-2 verdict (w2-intl-directories-2): Exclude: add_business.html returns a Cloudflare 403 on curl and WebFetch. It is an Australian local directory requiring an Australian location. Third-party sources conflict on whether self-serve adding still exists (Localsearch's blog says there is no add/edit path). Thin evidence and ineligible.",
+  "http_status": "403 (Cloudflare challenge)"
+ },
+ {
+  "domain": "localsearch.com.au",
+  "platform": "Localsearch",
+  "reason": "wave-2 verdict (w2-intl-directories-2): Exclude: create-profile serves a JavaScript bot challenge (HTTP 202). Localsearch is an Australian local directory whose free profile is for Australian businesses (it upsells AU digital marketing). A Toronto-only business is ineligible without a fabricated AU address.",
+  "http_status": "202 (JS bot challenge)"
+ },
+ {
+  "domain": "wordofmouth.com.au",
+  "platform": "Word of Mouth",
+  "reason": "wave-2 verdict (w2-intl-directories-2): Exclude: /users/new_with_business returns a Cloudflare 403 on curl and WebFetch. WOMO is an Australian local review directory and listings need an Australian business location. The client is ineligible and current terms could not be verified.",
+  "http_status": "403 (Cloudflare challenge)"
+ },
+ {
+  "domain": "pitchwall.co",
+  "platform": "PitchWall",
+  "reason": "wave-2 verdict (w2-intl-directories-2): Exclude: the free Launch plan exists (30-day wait, dofollow), but the site now brands itself 'Discover New AI Products Every Day' and the feed is all AI/SaaS tools. An RUO lab-reagent store is out of scope and unlikely to be published. Pricing is built around selling 'Do-follow backlink (DR 70)' launches, and it runs a sponsor ad for 'protect your paid backlinks'.",
+  "http_status": "200"
+ },
+ {
+  "domain": "startupbase.io",
+  "platform": "StartupBase",
+  "reason": "wave-2 verdict (w2-intl-directories-2): Exclude: the free-forever plan requires a 'StartupBase badge required on your site', which is a reciprocal-link condition. Paid plans ($39+) sell a 'Permanent DR 75+ dofollow backlink'. Link-exchange or paid-link model, tech-product audience.",
+  "http_status": "200"
+ },
+ {
+  "domain": "uneed.best",
+  "platform": "Uneed",
+  "reason": "wave-2 verdict (w2-intl-directories-2): Exclude: tool/SaaS launchpad. The free 'Join the line' path is at least 50 days out and needs 'an upvote score of 10 to stay published, 20 for the do-follow backlink'. The guaranteed dofollow costs $39.99, and the site sells an 'Auto-Submit to 100+ directories ... quality backlinks' package ($249). An RUO reagent store is a poor fit.",
+  "http_status": "200"
+ },
+ {
+  "domain": "fazier.com",
+  "platform": "Fazier",
+  "reason": "wave-2 verdict (w2-intl-directories-2): Exclude: the free Basic tier states 'A backlink to our site is required (on your homepage or footer)', which is a reciprocal link. Paid tiers sell a 'Guaranteed high-authority backlink (DR 83+)', and the operator sells a '100+ Directories Submission Service'. Link-scheme profile.",
+  "http_status": "200"
+ },
+ {
+  "domain": "startupinspire.com",
+  "platform": "StartupInspire",
+  "reason": "wave-2 verdict (w2-intl-directories-2): Exclude: the listed submission_url /submit is dead; the server answers 302 -> /404, confirmed twice. The real route (startup/create) is login-gated in an Angular SPA. The free plan is one startup with manual review, and EUR 9+ paid plans publish instantly. Tech-startup gallery, poor fit. Research evidence for this row was wrong.",
+  "http_status": "302 -> /404"
+ },
+ {
+  "domain": "startupbuffer.com",
+  "platform": "Startup Buffer",
+  "reason": "wave-2 verdict (w2-intl-directories-2): Exclude: Cloudflare challenge on curl and WebFetch (2026-11-10). No 2026 activity found in search. Free-submission evidence is an old Product Hunt comment and undated roundups. The researcher rated it the weakest row. Thin evidence on liveness and terms.",
+  "http_status": "403 (Cloudflare challenge)"
+ },
+ {
+  "domain": "milled.com",
+  "platform": "Milled (email newsletter archive/search)",
+  "reason": "wave-2 verdict (w2-newsletters-rss): Thin evidence. Milled is a real e-commerce email archive, but /for-brands returned Cloudflare 403 to both curl and WebFetch, and Wayback was unreachable. I could not verify that the brand path is free or that brand pages link out. Milled also scrapes emails without any submission, so there is no real submission venue, and it would publicly and permanently archive a peptide vendor's promotional emails, which is a compliance liability.",
+  "http_status": "403 (Cloudflare 'Just a moment...')"
+ },
+ {
+  "domain": "buttondown.com",
+  "platform": "Buttondown",
+  "reason": "wave-2 verdict (w2-newsletters-rss): Signup /register re-fetched 200 and is free, but the official AUP (buttondown.com/legal/acceptable-use-policy, 200) forbids 'SEO backlinking, and link farms... content that is designed to manipulate search engine rankings', and it explicitly lists newsletters 'Selling suspicious, dangerous, or low-quality products (e.g. counterfeit goods, weapons, pharmaceuticals, etc.)'. A peptide vendor newsletter made for a link breaks both rules, so the account is at high risk of termination. Profile links are nofollow anyway.",
+  "http_status": "200"
+ },
+ {
+  "domain": "stackletter.com",
+  "platform": "StackLetter",
+  "reason": "wave-2 verdict (w2-newsletters-rss): Spam neighbourhood. /submit is 200 (no-account public form posting to /add), but the listings include 'satta-dpboss-matka' (gambling spam), SEO and AI-content tools posing as newsletters (kholaseo, kholaseh-article-flow, the-seo-pulse) and adult 'lustfully'. That points to a low-curation directory used as a backlink dump. Tiny site with low value.",
+  "http_status": "200"
+ },
+ {
+  "domain": "reallygoodemails.com",
+  "platform": "Really Good Emails",
+  "reason": "wave-2 verdict (w2-newsletters-rss): The platform is real and the submit guide re-fetched 200 (free account, upload to the public feed), but it yields no backlink. A featured email page I checked (/emails/alessi-delight-collection-launch, 200) has no outbound link to the brand site; the brand name links to the internal /search/emails/<Brand>. Inclusion is also an editorial decision. No link opportunity.",
+  "http_status": "200"
+ },
+ {
+  "domain": "bloglovin.com",
+  "platform": "Bloglovin' (claim your blog)",
+  "reason": "wave-2 verdict (w2-newsletters-rss): Thin evidence. The site returns a Cloudflare 403 to curl and WebFetch, and Wayback was unreachable from here. The claim-your-blog flow is only documented in third-party guides from 2014-2019, with nothing current. The platform is in decline and lifestyle-focused, with known syndication and canonical-URL problems ('bloglovin is stealing posts'). The submission path is unverified and the value is marginal.",
+  "http_status": "403 (Cloudflare 'Attention Required')"
+ },
+ {
+  "domain": "eportal.nspa.nato.int",
+  "platform": "NATO NSPA NCAGE Request Tool (CAGE/NCAGE code registry)",
+  "reason": "wave-2 verdict (w2-open-registries): Not a standalone opportunity: it is only a prerequisite step for SAM.gov, so keep the SAM.gov row instead. No link and no profile. The row's 'free online request via NSPA tool' claim is doubtful for a Canadian entity: research-w2-gov-procurement.json says Canadian NCAGE requests go via CCC/DND. The portal was also unavailable (503) at verification. Duplicate of the NCAGE row in research-w2-gov-procurement.json.",
+  "http_status": "503 (NSPA planned-maintenance page on CageTool/home and eportal root; same after one retry)"
+ },
+ {
+  "domain": "sustainabilitymap.org",
+  "platform": "ITC Sustainability Map (UN International Trade Centre business network)",
+  "reason": "wave-2 verdict (w2-open-registries): Thin evidence. The platform is real (UN ITC) and a /create_company route exists in the app bundle. But the signup/account host cannot be verified, the bundle shows no website-link field on company profiles, and the row itself marks link handling 'unknown'. Poor fit: it is a sustainability-standards and supply-chain network for agri/textile producers and buyers. ITC approval is doubtful for a peptide reagent reseller with no sustainability certifications.",
+  "http_status": "200 (/network and / serve only a JS SPA shell titled 'Sustainability Map'); account.sustainabilitymap.org unreachable (proxy CONNECT 502)"
+ },
+ {
+  "domain": "anghami.com",
+  "platform": "Anghami for Podcasters",
+  "reason": "wave-2 verdict (w2-podcast-apps): 2026-11-10: www.anghami.com/addpodcast, /podcasters and play.anghami.com all HTTP 406 with an empty body, same on retry. podcasters.anghami.com is unreachable (502 CONNECT failure). Anghami is a real company, but the row's submission URL /addpodcast cannot be confirmed: the Blubrry manual only links anghami.com/podcasters, and the Hubhopper guide is undated and secondhand. Fees are only inferred as 'none documented'. The research row itself says there is no clickable or crawlable link (in-app pages only). Evidence for a real, free submission path is too thin, so exclude.",
+  "http_status": "406"
+ },
+ {
+  "domain": "conferenceindex.org",
+  "platform": "Conference Index (international conference/event listing directory)",
+  "reason": "wave-2 verdict (w2-science-societies): Exclude. /add-event and the homepage returned 403 behind a Cloudflare managed challenge ('Just a moment...') on two curl tries with a Chrome UA and on one WebFetch. The free submission was never confirmed first-hand; it rests only on a third-party forum mention. The bigger problem is the platform itself. Wikipedia's WASET article says WASET 'also appears to operate the website Conference Index, which claims to be a database of international conferences' and that the site lists only WASET's own events. WASET is a widely documented predatory conference operator (Beall's list; Times Higher Education, 2017). Association with a predatory conference network is a bad neighbourhood and a reputational risk for the client.",
+  "http_status": "403"
+ },
+ {
+  "domain": "peerpush.com",
+  "platform": "PeerPush",
+  "reason": "wave-2 verdict (w2-tools-directories): Spam signals: sells 30/60/100-directory submission packages (from $149), the sponsor slot advertises 'StartupSubmit - Get 250+ High-Authority Backlinks', and there is a 'Backlink Building' category holding off-topic local businesses (a roofing contractor in Cuenca). The free tier is only a queue behind paid users. This is a link-building marketplace, not a curated directory.",
+  "http_status": "200"
+ },
+ {
+  "domain": "resource.fyi",
+  "platform": "Resource.fyi",
+  "reason": "wave-2 verdict (w2-tools-directories): Sells links: a dofollow link is offered only on Premium ($49 one-time), and $5 Express buys instant review/approval. Free tier = 7-day review with no dofollow. Pay-for-dofollow plus instant approval matches the exclusion criteria. Software-only audience, weak fit.",
+  "http_status": "200 (redirects to /login)"
+ },
+ {
+  "domain": "openhunts.com",
+  "platform": "OpenHunts",
+  "reason": "wave-2 verdict (w2-tools-directories): Free path is impractical or reciprocal: Free Launch has a ~60-week queue unless you embed their badge (link exchange). Dofollow only for top-3 or paid ($9.90 'no badge required'). The footer cross-links a network of launch directories (Nick Launches, ToolFio, Open Launch, Twelve Tools, Startup Fame, MagicBox.tools, Fazier), which is a link-network signal.",
+  "http_status": "200 (redirects to sign-in)"
+ },
+ {
+  "domain": "tinylaunch.com",
+  "platform": "TinyLaunch",
+  "reason": "wave-2 verdict (w2-tools-directories): Sells links: Premium $39 is marketed as a 'Guaranteed high authority backlink', and the homepage headline is 'Get a Badge & 72+ DR Backlink'. Free Standard gets a backlink only for top-3, and only if you embed a reciprocal dofollow badge. A link-scheme directory.",
+  "http_status": "200"
+ },
+ {
+  "domain": "launchboard.dev",
+  "platform": "LaunchBoard",
+  "reason": "wave-2 verdict (w2-tools-directories): Sells links: Single Launch $19 / Launch Pack $39 are sold as 'Permanent dofollow backlink (DR50+)' with AI-generated launch pages. The free tier requires a badge embed on your site (reciprocal link), and the site nav includes a 'Backlinks' section. A link-scheme directory.",
+  "http_status": "200"
+ },
+ {
+  "domain": "huzzler.so",
+  "platform": "Huzzler",
+  "reason": "wave-2 verdict (w2-tools-directories): Explicit reciprocal link scheme: the FAQ says the free plan works because 'you link to us and we link back' (badge checked daily). Free listings carry a noindex tag and are left out of alternatives pages. Indexing and the 'DR 70+ dofollow backlink' are sold via Launch Boost $29. Zero free SEO value and a link-exchange requirement.",
+  "http_status": "200"
+ },
+ {
+  "domain": "launchigniter.com",
+  "platform": "LaunchIgniter",
+  "reason": "wave-2 verdict (w2-tools-directories): Free launch requires displaying the LaunchIgniter badge (reciprocal link). Dofollow only for top-3, and Basic $12 sells a 'guaranteed backlink launch'. The nav advertises 'Link Exchange' and a 'Directory Submission Service' and cross-links sister sites, which are link-network signals.",
+  "http_status": "200"
+ },
+ {
+  "domain": "promoteproject.com",
+  "platform": "Promote Project",
+  "reason": "wave-2 verdict (w2-tools-directories): /submit-startup is a login wall, and no free listing terms are stated anywhere (thin evidence). The homepage is an open UGC article dump (IMARC market-report press releases, generic SEO filler such as 'Your Web Designer Stopped Answering Your Emails'), a typical guest-post/link-dump pattern.",
+  "http_status": "200 (redirects to /login)"
+ },
+ {
+  "domain": "slant.co",
+  "platform": "Slant",
+  "reason": "wave-2 verdict (w2-tools-directories): Submission path unverifiable: slant.co and /help are Cloudflare-blocked (403 'Sorry, you have been blocked') to curl and WebFetch. AlternativeTo reports Slant announced it is winding down active functionality to read-only to focus on its successor Vetted. Thin evidence the add-option path still exists, so exclude.",
+  "http_status": "403 (Cloudflare block)"
+ },
+ {
+  "domain": "alternative.me",
+  "platform": "Alternative.me",
+  "reason": "wave-2 verdict (w2-tools-directories): Dormant directory: the newest 'Recently Added Software' entries (SMBImg, Tykr, Billed) are all dated Oct 2022, about 4 years with no additions, and the site has shifted to crypto. Moderation of new submissions is effectively dead. Outbound product links are rel=nofollow.",
+  "http_status": "200"
+ },
+ {
+  "domain": "killerstartups.com",
+  "platform": "KillerStartups",
+  "reason": "wave-2 verdict (w2-tools-directories): /submit-startup is a 'join our community' funnel with no stated free publication (it historically sold expedited reviews). The homepage is now generic finance/stock/consumer-deal news ('Walmart offering smartwatch for just $22', 'Online Trading', tariff news) rather than startup reviews, a repurposed legacy domain. Thin evidence of a free, legit path.",
+  "http_status": "200"
+ },
+ {
+  "domain": "edshelf.com",
+  "platform": "edshelf",
+  "reason": "wave-2 verdict (w2-tools-directories): K-12 educator directory: the add-tool form's learner-age field is ages 5-18, a poor and compliance-inappropriate audience for a peptide reagent supplier. Also stale/unstable: (c) 2024 footer, newest dates in source 2023, homepage returned 525 on first fetch, and recent 'reviews' are vendor self-promotion (e.g. PDF Reader Pro reviewing itself).",
+  "http_status": "200 (add-tool); homepage 525 then 200 on retry"
+ },
+ {
+  "domain": "geogebra.org",
+  "platform": "GeoGebra",
+  "reason": "wave-2 verdict (w2-tools-directories): ToS conflict: GeoGebra ToS says 'Any use of GeoGebra for a commercial purpose is subject to and requires a special licence', and its House Rules prohibit disseminating 'unsolicited or unauthorised advertising, promotional materials'. Publishing applets to promote a commercial supplier is not free without a licence. The audience also skews to minors (signup offers parental consent). Exclude.",
+  "http_status": "200 on retry (first attempt timed out)"
+ },
+ {
+  "domain": "bizpages.org",
+  "platform": "BizPages global business list",
+  "reason": "wave-2 verdict (w2-us-citations): Spam/link-selling profile and the free tier gives no real link. The paid_listing page says Basic is 'Minimal starter listing... No SEO or promotion features' with only a 'Robot-proof link to website'; an 'SEO-friendly link' needs paid Pro (19 Promo/yr or 149 lifetime). Site sells 'Blog Links, Profile Links, Directory Links' and hosts a 'list of guest posting websites'. Homepage features a casino review and guest-post-service listings.",
+  "http_status": "200 (register.cgi 27KB, /en/paid_listing 35KB, homepage 87KB)"
+ },
+ {
+  "domain": "powershow.com",
+  "platform": "PowerShow.com (presentation sharing)",
+  "reason": "wave-2 verdict (w2-webinars-speaking): Spam sniff fail: curl 403 Cloudflare; WebFetch shows free upload ('It's FREE!') but homepage listings are placeholders, and the UGC neighborhood is saturated with online-pharmacy, no-prescription Adderall and 'research chemicals' spam decks (site search). Toxic/compliance-risky neighborhood for a peptide supplier.",
+  "http_status": "403"
+ },
+ {
+  "domain": "meetup.com",
+  "platform": "Meetup (Meetup Starter free organizer plan)",
+  "reason": "wave-2 verdict (w2-webinars-speaking): /start/ 200 but redirects to login. Organizing is a paid subscription; the only $0 route is a promotional 'Meetup Starter' for first-time organizers that requires billing details at checkout, caps 10 attendees and 2 in-person events/month, and puts online events on paid plans only (help article updated 2026-10-23). Not a clean free path; card-on-file risk.",
+  "http_status": "200"
+ },
+ {
+  "domain": "livewebinar.com",
+  "platform": "LiveWebinar (free webinar plan)",
+  "reason": "wave-2 verdict (w2-webinars-speaking): Signup 200 and Free plan real (5 attendees, 30 min), but no backlink surface: webinar rooms (app.livewebinar.com/xxx-xxx-xxx) are blocked by robots.txt (Disallow: /*-*-*), and the app sitemap lists only pricing/auth pages. No public indexable organizer page - thin evidence.",
+  "http_status": "200"
+ },
+ {
+  "domain": "myownconference.com",
+  "platform": "MyOwnConference (Starter free webinar plan)",
+  "reason": "wave-2 verdict (w2-webinars-speaking): Signup 200 and Starter EUR 0 plan real (5 attendees), but webinar/registration rooms live on go.mywebinar.com, whose robots.txt is 'Disallow: /' (root returns 530). No public, indexable page on the platform carries an organizer link - not a backlink opportunity.",
   "http_status": "200"
  }
 ]
