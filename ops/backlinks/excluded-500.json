@@ -1324,5 +1324,167 @@
   "platform": "MyOwnConference (Starter free webinar plan)",
   "reason": "wave-2 verdict (w2-webinars-speaking): Signup 200 and Starter EUR 0 plan real (5 attendees), but webinar/registration rooms live on go.mywebinar.com, whose robots.txt is 'Disallow: /' (root returns 530). No public, indexable page on the platform carries an organizer link - not a backlink opportunity.",
   "http_status": "200"
+ },
+ {
+  "domain": "profiles.wordpress.org",
+  "platform": "WordPress.org user profile (prerequisite account for Showcase)",
+  "reason": "wave-3 verdict (w3-startup-launch): Same-network alias of wordpress.org: the same WP.org account as the Showcase row, which is kept as the better option (followed link). The submission_url https://profiles.wordpress.org/ 302-redirects to wordpress.org and is not a submission path. The profile Website link (/matt/ example) is only an internal nofollow redirect (profiles.wordpress.org/website-redirect/...). The Website field can still be filled in as part of the Showcase account setup.",
+  "http_status": "200 (redirects to wordpress.org)"
+ },
+ {
+  "domain": "gust.com",
+  "platform": "Gust (startup company profile)",
+  "reason": "wave-3 verdict (w3-startup-launch): No public link. gust.com/users/sign_up returned 403 Cloudflare 'Just a moment...' on two tries, and an example profile could not be opened. Gust's official help article (gust.helpscoutdocs.com/article/211, 200) says published profiles show only a 'limited view' and that 'contact information... kept private'. There is no proof a clickable website link is shown to logged-out visitors. The research row itself marks the rel attribute unknown and publicly_accessible no. Thin evidence.",
+  "http_status": "403"
+ },
+ {
+  "domain": "bearblog.dev",
+  "platform": "Bear Blog (bearblog.dev)",
+  "reason": "wave-3 verdict (w3-content-syndication): Real platform, but it does not fit this use. First-party docs.bearblog.dev/code-of-conduct (200) says: 'Don't publish spam or marketing material. Bear isn't a content distribution channel... This may result in your account being suspended.' A supplier's syndicated or backlink content goes against that. Free blogs are also noindexed until a manual review: sample free post runarcn.bearblog.dev/6-months-of-my-site-and-bearblog/ 200 carries <meta name=\"robots\" content=\"noindex\">. Discovery-feed visibility is upgrade-only (docs 'not-seeing-your-post'). Excluded: the platform's policy bans marketing content and free blogs are not indexed.",
+  "http_status": "403 (Cloudflare 'Just a moment...' on /signup/, still 403 on retry); homepage 200"
+ },
+ {
+  "domain": "write.as",
+  "platform": "Write.as (free blog)",
+  "reason": "wave-3 verdict (w3-content-syndication): /start 200 and the platform is real, but it rejects this use. First-party write.as/guidelines (200), under 'Don't use Write.as for this': 'Building backlinks. This isn't a free place for building backlinks. Don't publish pure SEO articles...'. write.as/pricing (200) lists 'Do-follow links' as not included on Free, and free blogs are self-promoted/unlisted only. So the free tier gives only nofollow links, and the stated purpose breaks the guidelines (account-removal risk). Excluded.",
+  "http_status": "200"
+ },
+ {
+  "domain": "sites.google.com",
+  "platform": "Google Sites (sites.google.com)",
+  "reason": "wave-3 verdict (w3-content-syndication): The /new path is real and free, but it gives no direct link. On the example public site sites.google.com/view/hope-lab/lab-protocols (200), all 3 outbound anchors are rewritten to https://www.google.com/url?q=...&sa=D&sntz=1&usg=..., and none has a direct href to the target domain. So the client domain never appears as an href. It is also the same google.com root network as entries already in the database or rejected (business.google.com, support.google.com, scholar.google.com), so it adds no new referring domain. Excluded: no direct link, and an alias of a network already covered.",
+  "http_status": "200 (/new redirects to Google sign-in)"
+ },
+ {
+  "domain": "differ.blog",
+  "platform": "Differ (differ.blog)",
+  "reason": "wave-3 verdict (w3-content-syndication): /new-story 200 and the FAQ says accounts are free, but it fails the spam sniff because it sells links. differ.blog/promote (200): 'To place a sponsored article... visit our dedicated platform dotdotPR... Place orders for sponsored content on Differ... Discover other websites available for promotion' (a paid guest-post marketplace across the network). Free users' links are all rel=\"noopener noreferrer nofollow ugc\" (profile @sunil website link, and every in-story link on /p/tech-newsletters-you-should-subscribe-to-48c69c). A sponsor banner on that same post (obsurfable.com) has no nofollow or sponsored attribute. The research row's 'dofollow' claim is wrong. Its own note also flags a promotional neighbourhood (app-dev cost guides, ICO, watches). Excluded: paid link placement plus a nofollow-only free tier.",
+  "http_status": "200"
+ },
+ {
+  "domain": "proteopedia.org",
+  "platform": "Proteopedia (3D encyclopedia of proteins and molecules)",
+  "reason": "wave-3 verdict (w3-academic-identity): Thin evidence, so excluded. Every URL (the request-account page, the User:Emartz example and the homepage) returned 202 with x-amzn-waf-action: challenge on both tries, so I could not confirm the request form works or that the example user page shows a public homepage link. The rel attribute is unknown (MediaWiki defaults to nofollow). The research notes the Openfox migration request form is buggy. Accounts need a real full name plus institutional affiliation, are approved by hand, and are aimed at the scientific/educational community; commercial-vendor eligibility is unaddressed. The platform is real (Weizmann), but the link-bearing path is unverified.",
+  "http_status": "202"
+ },
+ {
+  "domain": "openreview.net",
+  "platform": "OpenReview profile",
+  "reason": "wave-3 verdict (w3-academic-identity): Thin evidence and poor fit, so excluded. /signup returned 200. But every profile page redirects (307) to /challenge, and the public API returned 403 ChallengeRequiredError, so I could not confirm a public link or its rel. The docs (200) say a company or department homepage 'is not a valid homepage'. Activation is moderated, and public-email signups can take up to 2 weeks. The audience is ML/AI conferences, so relevance for an RUO peptide supplier is low.",
+  "http_status": "200"
+ },
+ {
+  "domain": "directory.llmstxt.cloud",
+  "platform": "llms.txt directory (llmstxt.cloud)",
+  "reason": "wave-3 verdict (w3-ai-geo-surfaces): The platform sells links. The /submit form (200) offers 'Fast track $29 one-time - Fast listing (within 48 hours) - Do-follow backlink' against 'Standard Free - Standard review (1-3 months) - Nofollow link'. It also sells sponsorships and 'Get featured' slots. A directory that sells dofollow backlinks fails the spam check. The free tier is nofollow only, behind a 1-3 month waitlist.",
+  "http_status": "200"
+ },
+ {
+  "domain": "llmstxt.site",
+  "platform": "llmstxt.site",
+  "reason": "wave-3 verdict (w3-ai-geo-surfaces): The directory is dormant and has a link-farm profile. The /submit form (200) posts through a Next.js server action, but the homepage data shows the newest entry (id 1710, 'Hotel in Santa Barbara') was created on 2025-11-18. No entries have been added in about 12 months, so submissions are not being processed. The whole directory is a single 2.6 MB page with about 4,093 outbound links, none nofollow, including casino sites (casinos-jackpot.net, casinosbroker.com), loans and vape entries. The research row could not show freshness either.",
+  "http_status": "200"
+ },
+ {
+  "domain": "ai-visibility.org.uk",
+  "platform": "AI Visibility Directory (AI Discovery Files registry)",
+  "reason": "wave-3 verdict (w3-ai-geo-surfaces): Reciprocal link scheme on an agency-run directory. The FAQ says a full listing gets 'a dofollow backlink... (sometimes called link juice)' only if you add 'AI Visibility specification attribution' to your own files. That is a link exchange. A basic listing is only a nofollow card. The top full profiles are the operator's own brands (365i, 365i Web Design, BSolve IT, McNeece Web Design, ai-visibility itself), and the footer carries a sitewide commercial link to mailbox-mcp.com. The directory has 251 sites and promotes its own unofficial file 'standard'. /submit/ redirects to the login page (200).",
+  "http_status": "200 (/submit/ redirects to /auth/login.php)"
+ },
+ {
+  "domain": "llmstxtdirectory.org",
+  "platform": "llms.txt Directory (llmstxtdirectory.org)",
+  "reason": "wave-3 verdict (w3-ai-geo-surfaces): The directory is dormant and tiny. /directory?getlisted=true (200) and the submit modal POST to /api/submissions exist (GET returns 405). However, the embedded created_at data shows only 5 user-submitted listings ever (GhostShorts 2026-01-22, Greetwell, 'LifePath Meds' 2026-02-25, Discord Developer Docs, Agoragentic 2026-03-13). The other 80+ entries are seeded, there have been no new listings in about 8 months, the sitemap has 3 URLs with lastmod 2026-01-28, and there are no per-listing pages. There is little evidence that submissions are reviewed or published.",
+  "http_status": "200"
+ },
+ {
+  "domain": "datasetsearch.research.google.com",
+  "platform": "Google Dataset Search",
+  "reason": "wave-3 verdict (w3-ai-geo-surfaces): Not a backlink opportunity and there is no submission path. The submission_url is a Google developer docs page (200) about adding Dataset JSON-LD to your own site, which is on-site schema work. The 'link' only appears on a dynamic JS search-results page (/search?query=..., 200). For example, the nugenialogics.com result is an <a> inside the results app, not a static, crawlable referring page, and the domain has no robots.txt (404). This is a search-index listing, like appearing in Google Search, not a link-bearing profile. Move it to the on-site SEO/AEO task list instead of the backlink database.",
+  "http_status": "200 (docs page; search results page 200)"
+ },
+ {
+  "domain": "podfriend.com",
+  "platform": "Podfriend",
+  "reason": "wave-3 verdict (w3-podcast-3): no public link: /search and /sign-in return 200, but the example /podcast/no-agenda-show (200) does not render the podcast website as an <a> (it appears only in JSON-LD sameAs). The only outbound anchor is a nofollow podcast:funding donation link, so no website link is visible to logged-out visitors.",
+  "http_status": "200"
+ },
+ {
+  "domain": "dolthub.com",
+  "platform": "DoltHub (public versioned databases)",
+  "reason": "wave-3 verdict (w3-dataviz-data): No public link. www.dolthub.com/signin is 200 and public databases are free, but the row's link mechanism (the org 'url' field) is never shown. GraphQL returns url 'https://onefact.org' for the third-party org onefact. When www.dolthub.com/organizations/onefact is rendered headless, the profile card shows only the name, 'Last active', bio, database count and location. onefact.org does not appear anywhere in the DOM. The profile-card JS (chunk 2906) renders only the name, pic, bio and location fields. README markdown links in a database are possible in principle but were not verified. Evidence is thin, the site is client-rendered, and the audience is niche, so I excluded it.",
+  "http_status": "200"
+ },
+ {
+  "domain": "discuss.streamlit.io",
+  "platform": "Streamlit Community Forum (Show the Community)",
+  "reason": "wave-3 verdict (w3-dataviz-data): Same-network alias. /signup is 200 and the profile website link is real: /u/andfanilo, rendered headless, shows <a href=\"https://andfanilo.com/\" rel=\"noopener nofollow ugc\">. However, it sits on the same streamlit.io root (Snowflake/Streamlit) as share.streamlit.io, which is kept as the better row: no nofollow on its profile website link, plus app hosting on streamlit.app. This forum adds no new referring domain and its link is nofollow ugc, so I kept only the best one.",
+  "http_status": "200"
+ },
+ {
+  "domain": "sr.ht",
+  "platform": "SourceHut (sr.ht)",
+  "reason": "wave-3 verdict (w3-dev-platforms): Paid for project hosting. The register page says 'Projects hosted on sourcehut are expected to pay for their account' and sends maintainers to 'Sign up with payment'. sourcehut.org/pricing: 'All users who host projects... are expected to pay' (from $4/mo). Free accounts are only for contributors, and git.sr.ht hosting is free only as an 'Optional' alpha exception. A brand profile on a free contributor account would go against the platform's stated norms, so there is no legitimate free link path.",
+  "http_status": "200 (meta.sr.ht/register)"
+ },
+ {
+  "domain": "rpubs.com",
+  "platform": "RPubs (Posit/RStudio)",
+  "reason": "wave-3 verdict (w3-docs-slides-3): Exclude: the platform is being retired. On 2026-11-10 the rpubs.com homepage (200) shows the banner 'RPubs will retire in June 2027. Your existing documents will stay accessible through December 31, 2031 and Connect Cloud is the recommended home for new publishing'. Also, the document body is not on rpubs.com: the example rpubs.com/AndreT/1475138 (200) is only an iframe wrapper with no outbound links in its own HTML; the content and links live on rstudio-pubs-static.s3.amazonaws.com. The author page rpubs.com/AndreT has no website link. A new link would be short-lived and would not sit on the rpubs.com domain, so this is a weak tier-4 opportunity.",
+  "http_status": "200 (submission and getting-started pages work; platform retiring June 2027)"
+ },
+ {
+  "domain": "zoominfo.com",
+  "platform": "ZoomInfo company profile (Claim Company Profile)",
+  "reason": "wave-3 verdict (w3-entity-brand-profiles): No public link confirmed and the evidence is thin. The claim URL privacyrequest.zoominfo.com/company/verify -> 403 PerimeterX 'Access to this page has been denied' on 2 tries (the trust-center page that links to it -> 200). Every public /c/ company profile tried returned 429/403 (Cloudflare) to both curl and WebFetch, so no clickable website link on a profile could be confirmed for logged-out visitors. The researcher also marked publicly_accessible=no and link_clickable=unverified. ZoomInfo is a real platform, but the public-link check failed. Re-check by hand in a real browser before adding.",
+  "http_status": "403"
+ },
+ {
+  "domain": "refind.com",
+  "platform": "Refind (refind.com) - link curation and saves",
+  "reason": "wave-3 verdict (w3-curation-3): no public link. /signin 200 and the example /links/150488147 is 200 (index,follow, outbound rel=noopener), but there is no reliable way for a user to make a public link page. The user profile (/dominik) is noindex,follow, has no website field and its server HTML has no outbound links (saves load through JS). /links/<id> pages are created only for algorithmically surfaced links: neighbouring IDs I probed mostly 404 (4 of 6), and the existing ones are 'More like:' news pages. The researcher also says it is not guaranteed. Thin evidence.",
+  "http_status": "200"
+ },
+ {
+  "domain": "tildes.net",
+  "platform": "Tildes (tildes.net) - invite-only link/discussion community (~science)",
+  "reason": "wave-3 verdict (w3-curation-3): No open submission path: /register 200 says 'Registration is currently invite-only. You must have a valid invite code'. /~science/new_topic redirects to /login. Research mode cannot request invites. The platform is legitimate and link topics are plain <a href> on /~science (200 logged out), but the code of conduct says self-promotion must not be 'the primary reason that you post'. robots.txt blocks SEO/marketing crawlers (AhrefsBot, dotbot, etc.), so the link cannot be tracked or measured. The gate plus anti-promo norms make this unusable for a brand link.",
+  "http_status": "200"
+ },
+ {
+  "domain": "lobste.rs",
+  "platform": "Lobsters (lobste.rs) - invite-only computing link aggregator",
+  "reason": "wave-3 verdict (w3-curation-3): No open submission path: invitation required. /stories/new redirects to /login. /about 200 confirms 'New users (first 70 days) are not allowed to submit self-promo' and self-promo must stay under a quarter of activity. Scope is computing only, so peptide/lab-reagent content is off-topic. The only link is the profile Homepage, rel=\"me ugc\" (seen on /~pushcx), which needs real participation in a computing community. Exclude: gated, off-topic, nofollow.",
+  "http_status": "200"
+ },
+ {
+  "domain": "makertube.net",
+  "platform": "MakerTube (PeerTube instance for makers/DIY)",
+  "reason": "wave-3 verdict (w3-video-3): Off-scope for the client. /signup is 200 and config shows signup allowed with approval and 2 GiB free (more storage is a paid subscription). Channels link out (awalterschulze.org, calculavalorhoy.com), and robots blocks only AI bots. But the admin's account-request rules say 'MakerTube is not for everyone but a home for makers, musicians, artists and DIY content creators... We don't have the resources to accommodate everyone' and require a meaningful description of the planned content. An RUO peptide lab-reagent supplier channel is outside that mission: an honest request would likely be refused, and a disguised one would misrepresent the account. Thin realistic path, so exclude.",
+  "http_status": "200"
+ },
+ {
+  "domain": "learninglab.si.edu",
+  "platform": "Smithsonian Learning Lab (public collections)",
+  "reason": "wave-3 verdict (w3-education-oer): Thin evidence: the Cloudflare challenge blocks every page except robots.txt and sitemap. Neither the free path nor a public clickable external link on a collection could be verified, and collections centre on Smithsonian assets (weak fit).",
+  "http_status": "403 (Cloudflare cf-mitigated: challenge, retried curl + WebFetch)"
+ },
+ {
+  "domain": "edtechbooks.org",
+  "platform": "EdTech Books (open textbook publishing platform)",
+  "reason": "wave-3 verdict (w3-education-oer): Thin evidence: every page is behind a Cloudflare challenge (home, /about, a book path, sitemap). The free publishing terms, review rules and public link display could not be verified; research row was itself an unverified manual-check lead.",
+  "http_status": "403 (Cloudflare cf-mitigated: challenge, retried curl + WebFetch)"
+ },
+ {
+  "domain": "wikieducator.org",
+  "platform": "WikiEducator (OER Foundation wiki)",
+  "reason": "wave-3 verdict (w3-education-oer): Legit and active (edits dated Nov 2026, no spam flood), but RequestAccount states 'Accounts on WikiEducator are reserved for Educators who are committed to developing OER' and asks for legitimate reasons. A supplier would not qualify without misrepresenting its purpose. External links are rel=nofollow. No realistic submission path for PPC.",
+  "http_status": "200"
+ },
+ {
+  "domain": "clarity.fm",
+  "platform": "Clarity.fm (on-demand expert advice profile)",
+  "reason": "wave-3 verdict (w3-expert-founder-profiles): The submission path does not work. /become-an-expert returns 200, but its only application route is 'Apply with LinkedIn' (/authenticate?provider=linkedin, which redirects 302 to /auth/linkedin). /auth/linkedin returned HTTP 500 'Application Error - We're sorry, an error occurred and this page could not be served' on GET, on a retry with session cookies, and on POST. /auth/twitter also returns 500. The page offers no email signup. Existing expert profiles do show ugc nofollow links (danmartell, /pricing, jasonnazar), but they are old 2012-era accounts and the platform looks unmaintained. No working way for a new expert to sign up could be verified.",
+  "http_status": "200 (become-an-expert); 500 on /auth/linkedin apply step"
  }
 ]
