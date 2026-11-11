@@ -1,6 +1,6 @@
-# TOP 50 BACKLINK OPPORTUNITIES (combined waves 1-3) - Pure Peptides Canada
+# TOP 50 BACKLINK OPPORTUNITIES (combined waves 1-4) - Pure Peptides Canada
 
-Date: 2026-11-10. Ranked from ops/backlinks/opportunities-500.csv (446 link-bearing rows: 239 wave-1 + 114 wave-2 + 93 wave-3; tiers 1:121 / 2:314 / 3:2 / 4:9). 5 wave-3 rows made the top 50. Non-link visibility/trust items (43 rows: government supplier registries, URL-categorization forms, statutory records) are in ops/backlinks/visibility-trust.csv. Nothing here is in the master opportunities.csv.
+Date: 2026-11-10. Ranked from ops/backlinks/opportunities-500.csv (461 link-bearing rows: 239 wave-1 + 114 wave-2 + 93 wave-3 + 15 wave-4; tiers 1:126 / 2:322 / 3:3 / 4:10). 2 wave-4 rows made the top 50 (4 wave-3 rows remain in it). Non-link visibility/trust items (43 rows: government supplier registries, URL-categorization forms, statutory records) are in ops/backlinks/visibility-trust.csv. Nothing here is in the master opportunities.csv.
 
 ## Standard kit (use on EVERY submission)
 
@@ -15,9 +15,9 @@ Date: 2026-11-10. Ranked from ops/backlinks/opportunities-500.csv (446 link-bear
 
 ## How this list was ranked
 
-- Tiers: wave-1/2 rows keep the tiers calibrated in wave 2. Wave-3 rows were tiered on the same scale: **T1** = authority >= 60 and strategic (scientific/lab/chemical/research platform, Canadian, maps/data aggregator, company-intelligence database, AI/GEO discovery surface); **T2** = authority >= 40; **T3** = authority 15-39 or empty-authority scientific/Canadian; **T4** = authority < 15 or empty-authority generic surface.
-- Score = authority, minus 30 per tier step, plus bonuses for scientific, Canadian and data/company/AI-discovery platforms; penalties for no public link, login-only visibility, low relevance, a generic social instance, or a free path that needs assets PPC may not have yet (original preprints, open tenders, a real software package, founder publications). Submission URLs are the verifier-confirmed URLs from the CSV.
-- **Suggested order:** do the core citations first (Apple, Bing, OSM, Data Axle, BBB, D-U-N-S). Then publish one open dataset/protocol (Zenodo, figshare, protocols.io, IEEE DataPort) so that the research-profile platforms (Scholar, Semantic Scholar, ROR, Kudos, FAIRsharing) have outputs to point to.
+- Tiers: wave-1/2 rows keep the tiers calibrated in wave 2. Wave-3 and wave-4 rows were tiered on the same scale: **T1** = authority >= 60 and strategic (scientific/lab/chemical/research platform, Canadian, maps/data aggregator, company-intelligence database, AI/GEO discovery surface); **T2** = authority >= 40; **T3** = authority 15-39 or empty-authority scientific/Canadian; **T4** = authority < 15 or empty-authority generic surface.
+- Score = authority, minus 30 per tier step, plus bonuses for scientific, Canadian and data/company/AI-discovery platforms; penalties for no public link, login-only visibility, low relevance, a generic social instance, a link that only renders via JavaScript or needs real volunteer-computing work behind it, or a free path that needs assets PPC may not have yet (original preprints, open tenders, a real software package, founder publications, a public science event). Submission URLs are the verifier-confirmed URLs from the CSV.
+- **Suggested order:** do the core citations first (Apple, Bing, OSM, Data Axle, BBB, D-U-N-S). Then publish one open dataset/protocol (Zenodo, figshare, protocols.io, IEEE DataPort) so that the research-profile platforms (Scholar, Semantic Scholar, ROR, Kudos, FAIRsharing) have outputs to point to. Create volunteer-computing teams (World Community Grid, Folding@home) only once a machine is actually contributing work.
 
 ## Ranked list
 
@@ -118,7 +118,7 @@ Date: 2026-11-10. Ranked from ops/backlinks/opportunities-500.csv (446 link-bear
 - Commercial requests can be declined and links are typically nofollow, so lead with genuine protocols (reconstitution, storage, QC).
 
 ### 17. Springer Nature Research Communities (authority 90)
-- Tier 1 | scientific | wave 3 (new)
+- Tier 1 | scientific | wave 3
 - Submit at: https://communities.springernature.com/users/sign_up
 - Create a free Springer Nature ID for a real founder or staff scientist (not a brand account) and fill the 'Online Elsewhere' panel: Website https://purepeptidescanada.com, ORCID, LinkedIn.
 - Post only in research channels (chemistry/biotech, never Health & Clinical), disclose the affiliation, and keep posts educational (e.g. reading HPLC/MS data on a COA). The profile link is nofollow.
@@ -154,7 +154,7 @@ Date: 2026-11-10. Ranked from ops/backlinks/opportunities-500.csv (446 link-bear
 - Curators want a research-output footprint, so file this after Zenodo/figshare items list the company as affiliation.
 
 ### 23. The Node (The Company of Biologists community blog) (authority 89)
-- Tier 1 | scientific | wave 3 (new)
+- Tier 1 | scientific | wave 3
 - Submit at: https://thenode.biologists.com/wp-login.php?action=register
 - Register at the submission URL, then ask the Node staff for permission to write (posting is staff-gated).
 - Publish one neutral, genuinely useful how-to (e.g. how to read HPLC/MS COAs for research reagents) with a single in-body link to the COA guide; no sales copy. In-body links are dofollow.
@@ -219,110 +219,129 @@ Date: 2026-11-10. Ranked from ops/backlinks/opportunities-500.csv (446 link-bear
 - Open a free 'Open Research' account and publish public, DOI-bearing protocols (peptide reconstitution, storage, QC verification).
 - The materials section may cite PPC product pages; keep every protocol in-vitro/analytical, RUO only.
 
-### 34. ProvenExpert (authority 91)
+### 34. World Community Grid (Krembil Research Institute / UHN, Toronto) - team page (authority 84)
+- Tier 1 | scientific, Canadian | wave 4 (new)
+- Submit at: https://www.worldcommunitygrid.org/ms/team/viewCreateTeam.do
+- Create a free World Community Grid member account, log in and create a team at the submission URL: type Company, country Canada, a factual RUO description and Team Home Page https://purepeptidescanada.com.
+- Attach at least one real machine and keep it crunching under the team (an empty team looks link-only). Research grid run by Krembil/UHN in Toronto; the team-page link is dofollow and server-rendered.
+
+### 35. ProvenExpert (authority 91)
 - Tier 1 | major review platform | wave 1
 - Submit at: https://www.provenexpert.com/en-us/register/
 - Register free with email, build the company profile with the exact standard NAP and website, category laboratory supplies.
 - Collect only genuine B2B/customer reviews about service and fulfilment, with no efficacy or human-use claims.
 
-### 35. The Org (authority 87)
+### 36. The Org (authority 87)
 - Tier 1 | company-intelligence | wave 1
 - Submit at: https://theorg.com/signup
 - Sign up free and create the public company page and org chart with https://purepeptidescanada.com.
 - Add only real people who have consented; factual titles.
 
-### 36. Toronto.com Events Calendar (Torstar, via CitySpark) (authority 87)
+### 37. Toronto.com Events Calendar (Torstar, via CitySpark) (authority 87)
 - Tier 1 | Canadian directory | wave 2
 - Submit at: https://hub.cityspark.com/event/submission/Toronto
 - Create a free CitySpark account at the submission URL and add a genuine Toronto event (title, URL, venue/date, 7:5 image of at least 700 px).
 - At the promotion step tick 'No thanks, I want a free basic listing'. Review takes about 2 h; CitySpark syndicates to sister calendars, so submit once.
 
-### 37. ChamberofCommerce.com business directory (incl. Canadian directory) (authority 90)
+### 38. ChamberofCommerce.com business directory (incl. Canadian directory) (authority 90)
 - Tier 1 | Canadian directory | wave 2
 - Submit at: https://www.chamberofcommerce.com/members/add-business
 - Sign up, then use Add Business with the exact standard NAP, website and one laboratory-supplies category (a Canada portal exists).
 - The free path is unconfirmed behind a bot wall: abort if only paid plans appear at signup.
 
-### 38. REVIEWS.io (authority 90)
+### 39. REVIEWS.io (authority 90)
 - Tier 1 | major review platform | wave 1
 - Submit at: https://www.reviews.io/front/pricingplans
 - Create a merchant account and choose the Free plan (25 review invitations a month); the company review page is created for the domain.
 - Confirm the plan stays free on direct signup; invite only genuine customers, with no claims in replies.
 
-### 39. Sitejabber (SmartCustomer) (authority 90)
+### 40. Sitejabber (SmartCustomer) (authority 90)
 - Tier 1 | major review platform | wave 1
 - Submit at: https://www.sitejabber.com/business
 - Claim the free business profile for purepeptidescanada.com through the business portal (email/domain verification).
 - It is a public review surface: respond factually, never with health claims. This is the same company as SmartCustomer, so keep the NAP identical on both.
 
-### 40. Tracxn (List Your Startup) (authority 88)
+### 41. Folding@home - team page (stats.foldingathome.org) (authority 88)
+- Tier 1 | scientific | wave 4 (new)
+- Submit at: https://app.foldingathome.org/ (Web Control > Settings > Teams > New Team); legacy team form also live at https://apps.foldingathome.org/team
+- Create a free Folding@home account in Web Control (Settings > Teams > New Team, or the legacy form at apps.foldingathome.org/team) with team name 'Pure Peptides Canada' and URL https://purepeptidescanada.com.
+- Fold real work units under the team number. The Team Website link (dofollow) renders only via JavaScript on stats.foldingathome.org, so crawl value is below the root authority.
+
+### 42. Tracxn (List Your Startup) (authority 88)
 - Tier 1 | company-intelligence | wave 1
 - Submit at: https://tracxn.com/listyourstartup
 - Fill the List-Your-Startup form (company name, website, business email); a Tracxn analyst curates the profile.
 - An existing profile can be claimed with a free account; use factual RUO descriptors.
 
-### 41. Monster (Monster+ Free) (authority 86)
+### 43. Monster (Monster+ Free) (authority 86)
 - Tier 1 | Canadian directory | wave 1
 - Submit at: https://hiring.monster.com/pricing-3/monsterplusfree/
 - Create a free Monster+ Free employer account (no card): 1 posting per 30 days, up to 3 applicants, company name and logo shown.
 - Post only a real vacancy; postings expire, so re-post when hiring.
 
-### 42. Open Supply Hub (authority 86)
+### 44. Open Supply Hub (authority 86)
 - Tier 1 | maps/data aggregator | wave 1
 - Submit at: https://opensupplyhub.org/auth/register
 - Register free, add the Toronto location via Add Data (name, address, sector), then claim the facility to show website and description.
 - The claim is staff-verified and needs proof of affiliation; use the identical address string.
 
-### 43. FAIRsharing (authority 84)
+### 45. FAIRsharing (authority 84)
 - Tier 1 | scientific | wave 1
 - Submit at: https://fairsharing.org/new/
 - Create a free account and a record at /new/ only once PPC maintains a genuine public data resource (e.g. an open COA/batch-results database).
 - Curators reject plain catalogues, so describe the data resource, not the shop.
 
-### 44. Logo.dev brand page (Request a brand update) (authority 85)
-- Tier 1 | company-intelligence | wave 3 (new)
+### 46. Logo.dev brand page (Request a brand update) (authority 85)
+- Tier 1 | company-intelligence | wave 3
 - Submit at: https://www.logo.dev/update
 - The purepeptidescanada.com brand page already exists; submit the no-login 'Request a brand update' form with the website, hi@purepeptidescanada.com and the official logo (SVG/PNG), brand name and colors.
 - Add only the official social links so CRMs and AI apps that read Logo.dev show identical brand data. The value is data accuracy; the SEO value is low.
 
-### 45. BibSonomy (authority 83)
+### 47. BibSonomy (authority 83)
 - Tier 1 | scientific | wave 1
 - Submit at: https://www.bibsonomy.org/register
 - Register a free account (passes a proof-of-work anti-bot page) and post public publication entries and bookmarks with tags.
 - Add https://purepeptidescanada.com to the profile; curate genuine peptide-chemistry literature.
 
-### 46. Destination Toronto Events Calendar (authority 83)
+### 48. Destination Toronto Events Calendar (authority 83)
 - Tier 1 | Canadian directory | wave 1
 - Submit at: https://www.destinationtoronto.com/events/submit/
 - Create an account and submit a real Toronto-area public event that meets the published Calendar Policy.
 - No purely commercial pitches; staff re-review after edits.
 
-### 47. Guidechem (authority 83)
+### 49. Guidechem (authority 83)
 - Tier 1 | scientific | wave 1
 - Submit at: https://enmy.guidechem.com/member/join.jsp
 - Create a free account, then the supplier profile and product/CAS listings with the exact standard NAP and website.
 - Strict RUO wording on every listing; never pharmaceutical or health categories.
 
-### 48. IEEE DataPort (Standard dataset) (authority 83)
-- Tier 1 | scientific | wave 3 (new)
+### 50. IEEE DataPort (Standard dataset) (authority 83)
+- Tier 1 | scientific | wave 3
 - Submit at: https://ieee-dataport.org/submit-dataset
 - Register a free IEEE account and choose 'Submit a Standard Dataset' (free, with a DOI). Do NOT pick the $1,950 Open Access upload.
 - Upload a genuine analytical dataset (e.g. compiled third-party COA purity/identity results) with Pure Peptides Canada as author affiliation and https://purepeptidescanada.com in the description. Strictly scientific; editors review it.
 
-### 49. Semantic Scholar author page (Ai2) (authority 94)
-- Tier 1 | scientific, AI/GEO discovery surface | wave 3 (new)
-- Submit at: https://www.semanticscholar.org/faq/claim-author-instructions
-- Only if the founder already authors at least one indexed paper: open that author page, click 'Claim Author Page' and verify (faster from an email that appears in the papers).
-- After approval, add affiliation 'Pure Peptides Canada', ORCID and homepage https://purepeptidescanada.com (desktop only). A company cannot claim a page, so skip this if there are no publications.
+## Wave-4 additions just outside the top 50
 
-### 50. ScienceOpen (authority 88)
-- Tier 1 | scientific | wave 1
-- Submit at: https://www.scienceopen.com/register
-- Register free (ORCID-integrated) in a browser, since the page bot-walls scripts, and complete the researcher profile with affiliation and website.
-- Post posters/preprints only if they are genuine; RUO scope.
+- lepetitjournal.com - L'annuaire expat (Toronto and Montreal editions) (T1, authority 87): https://lepetitjournal.com/ajout-adresse - French 'Creer une adresse' form (Localite Toronto, Services or Shopping, French RUO copy); followed link, but the directory is near-dormant (newest listings 2021-22) and moderated.
+- Science Literacy Week (Canadian Association of Science Centres) (T1, authority 63): https://www.scienceliteracy.ca/stay-informed/ - Stay-informed sign-up (organization type Other, Ontario), then CASC emails the event form. Needs a genuine, non-promotional public science-literacy event or resource (e.g. a free COA/HPLC literacy session); followed organizer link.
+- GPUGRID (Universitat Pompeu Fabra) - BOINC team page (T1, authority 63): https://www.gpugrid.net/gpugrid/team_create_form.php - Create the account via BOINC Manager (web sign-up disabled), then a Company team whose Web site field carries the URL (plain followed link). Needs an NVIDIA GPU; work supply is thin.
+- Overblog (Webedia) - French-language blog platform (T2, authority 95): https://www.over-blog.com/creation - Free French blog on PPC's own *.over-blog.com subdomain for genuine FR educational content (glossary, COA/HPLC guides) linking /acheter-peptides-canada/ and /peptides-recherche-quebec/; keep it maintained, never thin posts.
+- Fonts In Use (typography-in-use archive, Web format) (T2, authority 89): https://fontsinuse.com/my/uses/create - Add a Web-format Use documenting the site's typography (Schibsted Grotesk, Hanken Grotesk, Space Mono); staff moderation (~14 days); typography write-up only, no promotion; followed link.
+- Footer (footer.design - curated website-footer gallery) (T2, authority 69): https://www.footer.design/submit - Submit the live site (the footer carries the RUO disclaimer and payment badges); curated; followed visit and designer-credit links on a permanent page.
+- SiDock@home - BOINC team page (T2, authority 48): https://sidock.si/sidock/team_create_form.php - Sign up with the published invitation code Crunch_4Science (or via BOINC Manager) and create a team with the website URL (plain followed link); crunch real docking work.
+- Shop Local CANADA (T2, authority 55): https://shoplocalcanada.myflodesk.com/submit-your-business - Free Flodesk application; nofollow shop button; curated lifestyle directory, so rejection is likely. Never Skincare or Sports & Wellness; decline paid advertising.
+- SiteSee (curated web design gallery, 'shop' tag) (T2, authority 62): https://sitesee.co/ (header 'Submit' button opens the submission modal; /submit itself is 404) - Header Submit modal (URL + email) on the free editorial path ('shop' tag); followed link; never take the sponsored slot.
+- Navbar Gallery (navigation-design gallery, sponsored by Mobbin) (T2, authority 59): https://www.navbar.gallery/ (header 'Submit' button opens the 'Submit your favourite navbar' modal form) - Submit modal: Website Link, Navbar Type and 'Your Social' = the site URL (the per-entry page credits the submitter); followed link on the homepage grid.
+- OGimage.gallery (hand-picked Open Graph social cards, 'Stores' category) (T2, authority 53): https://www.ogimage.gallery/submit - Submit the URL; judged on the custom 1200px og:image; followed link on the Stores grid page.
+- The Generall Store (T3, authority 18): https://thegenerall.store/list-a-shop/ - Tick the Canadian-independent confirmation; Suggested Category 'Laboratory & Research Supplies' (never Health & Fitness, Wellness or Skincare); RUO blurb; followed website button.
+- TryCanadian.ca (T4, authority 6): https://trycanadian.ca/submit - Anonymous form framed as a Canadian alternative to a named US lab-supply vendor; Business Services or Shopping (never Personal Care); evidence URL showing Canadian control; nofollow.
+- Not added in wave 4: Monero directories (Monerica, Moneroist) until XMR acceptance is shown publicly on the site (Moneroist also failed the spam sniff); Webdesign-Inspiration (crawler-hidden JS button, no backlink); and every product-feed/shopping surface screened (Google/Microsoft Merchant Center, Pinterest catalog, ShopSavvy, ChatGPT Shopping, Kijiji and others prohibit the category; the rest are paid, not Canadian or not link-bearing). See excluded-500.json.
+- Displaced from the top 50 by the two wave-4 entries: Semantic Scholar author page (Ai2) (T1, authority 94, now #51): https://www.semanticscholar.org/faq/claim-author-instructions; ScienceOpen (T1, authority 88, now #52): https://www.scienceopen.com/register. Both stay worth doing (ScienceOpen: free ORCID-integrated researcher profile; Semantic Scholar: only with founder publications).
 
 ## Wave-3 additions just outside the top 50
 
+- Semantic Scholar author page (Ai2) (T1, authority 94): https://www.semanticscholar.org/faq/claim-author-instructions - Only if the founder already authors an indexed paper: claim the author page, then add affiliation, ORCID and homepage. A company cannot claim a page.
 - CRAN (Comprehensive R Archive Network) (T1, authority 93): https://xmpalantir.wu.ac.at/cransubmit/ - Needs a genuine R package (e.g. the peptide MW/molarity calculators) that passes R CMD check --as-cran; DESCRIPTION URL field carries the site link (followed).
 - Grokipedia (T1, authority 87): https://grokipedia.com/suggest - Citation-edit route only: 'Suggest edit' on an existing article such as /page/Peptide citing the COA guide or glossary. Never request a brand article.
 - Galaxy Tool Shed (T1, authority 95): https://toolshed.g2.bx.psu.edu/register - Needs a real Galaxy tool wrapper (XML + planemo) for one calculator; homepage_url shows the site link (JS-rendered).

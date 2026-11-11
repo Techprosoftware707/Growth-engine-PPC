@@ -1486,5 +1486,197 @@
   "platform": "Clarity.fm (on-demand expert advice profile)",
   "reason": "wave-3 verdict (w3-expert-founder-profiles): The submission path does not work. /become-an-expert returns 200, but its only application route is 'Apply with LinkedIn' (/authenticate?provider=linkedin, which redirects 302 to /auth/linkedin). /auth/linkedin returned HTTP 500 'Application Error - We're sorry, an error occurred and this page could not be served' on GET, on a retry with session cookies, and on POST. /auth/twitter also returns 500. The page offers no email signup. Existing expert profiles do show ugc nofollow links (danmartell, /pricing, jasonnazar), but they are old 2012-era accounts and the platform looks unmaintained. No working way for a new expert to sign up could be verified.",
   "http_status": "200 (become-an-expert); 500 on /auth/linkedin apply step"
+ },
+ {
+  "domain": "webdesign-inspiration.com",
+  "platform": "Webdesign-Inspiration.com (editor-reviewed gallery, ecommerce + science categories)",
+  "reason": "wave-4 verdict (w4-platform-showcases): No public link. Re-fetched 2026-11-11. /submit is HTTP 200 and free, with editor review, so the platform is real. But the example listing /web-design/algolia-com (HTTP 200) links to the featured site only through <button type=\"button\" class=\"btn c-btn-wdi btn-lg w-100 dc\" data-blank data-l=\"aHR0cHM6Ly93d3cuYWxnb2xpYS5jb20vZGV2ZWxvcGVycy8=\">, a base64 URL that /assets/js/wdi.js decodes with window.atob. That file's comment reads: 'Liens masqués aux robots : ... <button class=\"dc\" data-l=\"base64\">'. The page has no <a href> to the featured site. The only external anchors are WDI's own social profiles and the-web-makers.com. This is deliberately hidden from crawlers, so it is not a backlink.",
+  "http_status": "200"
+ },
+ {
+  "domain": "monerica.com",
+  "platform": "Monerica (Monero Economy Directory)",
+  "reason": "wave-4 verdict (w4-crypto-merchants): Not eligible yet: the client does not show Monero acceptance. The platform itself is real, free and links out: submit form app.monerica.com/submit returns 200 with no account or captcha; paid sponsorship is optional and only for Verified listings older than 180 days; example listing /site/ward-s-ace-and-country-store returns 200 with a clickable <a href=https://wardsace.com/currencies/ rel=nofollow noopener> plus rel=sponsored visit links; getmonero.org links to it. But the submission guidelines say: 'ALL LINKS MUST CLEARLY SHOW THEY ACCEPT MONERO — NOT JUST \"CRYPTO\"! If a visitor cannot clearly see on your site that they can pay, donate, or otherwise use Monero, your submission will be rejected.' and 'Monero acceptance must be verifiable without creating an account.' purepeptidescanada.com says only 'cryptocurrency' (FAQ) and a 'CRYPTO' badge (footer). Monero/XMR appears nowhere on /, /faq/ or /shipping-returns/, and a site search for 'monero' finds nothing. The WooCommerce gateway shows only 'MyCryptoCheckout / Cryptocurrency' and does not list coins. Revisit only if XMR is enabled in MyCryptoCheckout and a public page says 'We accept Monero (XMR)'. If submitted then, use Businesses > General Stores or Miscellaneous, not Health or Medical.",
+  "http_status": "200"
+ },
+ {
+  "domain": "moneroist.com",
+  "platform": "Moneroist (Monero ecosystem directory)",
+  "reason": "wave-4 verdict (w4-crypto-merchants): Not eligible, plus quality red flags. Eligibility: it is a Monero-ecosystem directory, and its Businesses category is 'Shops, services, and merchants worldwide that accept XMR'. The client shows only 'Cryptocurrency'/'CRYPTO', with no XMR on any public page. The link and free claims hold up: /submit returns 302 to /login (200), /register is 200, the FAQ says 'Submitting a listing is completely free', and example /listing/01esim returns 200 with <a href=https://01esim.com/ rel=nofollow noopener noreferrer>. Spam sniff fails: (1) the 'Donate XMR' address in the footer has 93 characters, so it is not a valid Monero address (standard ones have 95); it looks like a placeholder or fabricated string; (2) it claims to be 'open source', but its GitHub link goes to monero-project/monero, not its own code; (3) the changelog stops at v1.2.0 from June 2024 and the footer says (c) 2024; (4) the Businesses list carries SEO-agency and link-seeker entries (Bird Marketing UAE, UK and USA as three near-duplicates, and Backlynk, an 'automates website submissions to 200+ online directories' service, added 2026-10-13), which suggests it sits on automated directory-submission lists; (5) the neighbourhood is mostly no-KYC exchanges and swaps (239 of 635), the only site-wide sponsor is 'Anonymous No KYC Crypto Exchange', and the swap page uses referral links. The low value (nofollow, small) does not justify the reputational risk for an RUO brand.",
+  "http_status": "302 (/submit -> /login 200)"
+ },
+ {
+  "domain": "merchants.google.com",
+  "platform": "Google Merchant Center (free listings / Shopping)",
+  "reason": "wave-4 product-listing screen (w4-product-listing, checked 2026-11-10): EXCLUDED - prohibits. Healthcare & medicines policy bans unapproved substances 'regardless of any claims of legality', including 'substances with similar chemical composition' and 'Products that have been subject to any government or regulatory action or warning'. It also bans 'Offering prescription drugs without a prescription' and defers to LegitScript, which classes RUO-labelled peptides as unapproved drugs. Peptides like semaglutide, tirzepatide and retatrutide (Rx or unapproved analogues) and BPC-157 (FDA regulatory action) fall under this. Listings also show only on dynamic google.com shopping surfaces, not as a static backlink. Evidence: https://support.google.com/merchants/answer/6150151?hl=en (HTTP 200) and https://support.google.com/merchants/answer/6165956 (HTTP 200)",
+  "http_status": "200"
+ },
+ {
+  "domain": "ads.microsoft.com",
+  "platform": "Microsoft (Bing) Merchant Center free listings / Copilot Merchant Program",
+  "reason": "wave-4 product-listing screen (w4-product-listing, checked 2026-11-10): EXCLUDED - prohibits/restricted, and surface already in DB. Listings render on bing.com, which is already in excluded-domains-v4.json. Under the Restricted Pharmacy & Healthcare policy, prescription-drug offers are disapproved without NABP/LegitScript pharmacy certification. Supplements with restricted ingredients (SARMs, DMAA, etc.) are disallowed. The official policy page is a JS-only app and no text could be extracted. Evidence: https://about.ads.microsoft.com/en-ca/policies/disallowed-content/drugs-and-related-paraphernalia (301 to help.ads.microsoft.com, JS-rendered). Disapproval codes 14/109/8180 and 271/375/376/8388 documented at https://www.godatafeed.com/disapproval/microsoft-pharmacy-policy (HTTP 200)",
+  "http_status": "301/200"
+ },
+ {
+  "domain": "pinterest.com",
+  "platform": "Pinterest catalog / product Pins",
+  "reason": "wave-4 product-listing screen (w4-product-listing, checked 2026-11-10): EXCLUDED - prohibits, and already in DB. Merchant Guidelines prohibit 'Drugs and drug-related products including any CBD and Hemp seed oil products'. Prescription drugs and pharma are allowed only 'with prior permission' as restricted healthcare ads. pinterest.com and business.pinterest.com are already in the exclusion list. Evidence: https://policy.pinterest.com/en/merchant-guidelines (HTTP 200) and https://policy.pinterest.com/en/advertising-guidelines (HTTP 200)",
+  "http_status": "200"
+ },
+ {
+  "domain": "shopsavvy.com",
+  "platform": "ShopSavvy free product feed",
+  "reason": "wave-4 product-listing screen (w4-product-listing, checked 2026-11-10): EXCLUDED - prohibits. The share-feed page says 'What we don't list: ... Drugs, cannabis, CBD and drug paraphernalia. If most of a catalog is in them, we can't carry the store.' The feed also needs a GTIN or MPN for every item. Evidence: https://shopsavvy.com/for-retailers/share-feed (HTTP 200) and https://shopsavvy.com/for-retailers (HTTP 200)",
+  "http_status": "200"
+ },
+ {
+  "domain": "chatgpt.com",
+  "platform": "ChatGPT Shopping merchant feed (OpenAI)",
+  "reason": "wave-4 product-listing screen (w4-product-listing, checked 2026-11-10): EXCLUDED - prohibits; no static public listing. OpenAI commerce docs: 'Prohibited products include ... harmful or dangerous materials, weapons, prescription-only medications, unlicensed financial products, legally restricted goods'. Shopping is live only for US users, entry is via waitlist application, and results are generated answers rather than a static, crawlable listing page. Evidence: https://chatgpt.com/merchants/ (HTTP 200) and https://developers.openai.com/commerce/llms-full.txt (HTTP 200, line 193)",
+  "http_status": "200"
+ },
+ {
+  "domain": "perplexity.ai",
+  "platform": "Perplexity Merchant Program",
+  "reason": "wave-4 product-listing screen (w4-product-listing, checked 2026-11-10): EXCLUDED - not verifiable / not link-bearing. /merchants redirects to a sign-in wall. Third-party guides describe a requirement to sell and ship to the US. No public prohibited-products list was found, and product cards are dynamic AI answers, not a static public listing. Evidence: https://www.perplexity.ai/merchants (200, redirected to /gen/computer/ecommerce/signin)",
+  "http_status": "200"
+ },
+ {
+  "domain": "klarna.com",
+  "platform": "Klarna Search & Compare / PriceRunner",
+  "reason": "wave-4 product-listing screen (w4-product-listing, checked 2026-11-10): EXCLUDED - not available in Canada. https://www.klarna.com/ca/shopping/ returns 404 while /us/shopping/ returns 200, so there is no Canadian surface. PriceRunner covers UK, SE and DK only. Klarna's prohibited list includes 'Substances designed to mimic illegal drugs' and restricts prescription pharmacies. Evidence: https://www.klarna.com/ca/shopping/ (HTTP 404) and https://docs.klarna.com/acquirer/nuvei/resources/legal-and-compliance/policies-and-term-of-service/prohibited-and-restricted-businesses/ (HTTP 200)",
+  "http_status": "404/200"
+ },
+ {
+  "domain": "shopmania.com",
+  "platform": "ShopMania",
+  "reason": "wave-4 product-listing screen (w4-product-listing, checked 2026-11-10): EXCLUDED - paid (CPC). Partner page: 'Pay only for Performance ... you pay only when you receive a potential buyer'. There is no Canadian site. Terms also bar 'controlled substances; illegal drugs'. Evidence: https://partner.shopmania.com/ (HTTP 200) and https://www.shopmania.com/info/terms (HTTP 200)",
+  "http_status": "200"
+ },
+ {
+  "domain": "spendabit.co",
+  "platform": "Spendabit (Bitcoin product search engine)",
+  "reason": "wave-4 product-listing screen (w4-product-listing, checked 2026-11-10): EXCLUDED - free plan requires a reciprocal backlink (link exchange); otherwise paid. The changelog says the 'Free Plan' branch of the Onboarding Wizard will 'just ask for any-old back-link'; paid plans use top-up invoicing. Product links are rel=nofollow redirects under /product/, which robots.txt disallows. The merchant list includes XSS-test spam entries dated Oct 2026. A peptide search returns 0 results. Evidence: https://spendabit.co/changes (HTTP 200), https://spendabit.co/onboard/ (HTTP 200), https://spendabit.co/merchants (HTTP 200), https://spendabit.co/robots.txt",
+  "http_status": "200"
+ },
+ {
+  "domain": "shopbot.ca",
+  "platform": "Shopbot.ca",
+  "reason": "wave-4 product-listing screen (w4-product-listing, checked 2026-11-10): DROPPED - unverifiable. Cloudflare 403 to all requests. Third-party sources describe plan-based product caps. Neither the free path, the prohibited-products policy nor a public merchant link could be confirmed, and no signup URL was found. Evidence: https://www.shopbot.ca/ (HTTP 403, Cloudflare)",
+  "http_status": "403"
+ },
+ {
+  "domain": "kijiji.ca",
+  "platform": "Kijiji",
+  "reason": "wave-4 product-listing screen (w4-product-listing, checked 2026-11-10): EXCLUDED - prohibits. Prohibited content covers unauthorized health products lacking a Health Canada DIN/NPN, prescription-only substances and steroids. Evidence: https://help.kijiji.ca/basics/prohibited-content",
+  "http_status": null
+ },
+ {
+  "domain": "buybeaver.ca",
+  "platform": "Buy Beaver (Canadian product app)",
+  "reason": "wave-4 product-listing screen (w4-product-listing, checked 2026-11-10): DROPPED - no public link. The brand portal is '100% free', but the web front end is a search shell with no public brand or product pages carrying a website link (app-only). Evidence: https://portal.buybeaver.ca/ (HTTP 200) and https://www.buybeaver.ca/search (HTTP 200)",
+  "http_status": "200"
+ },
+ {
+  "domain": "shoppa.ca",
+  "platform": "Shoppa.ca",
+  "reason": "wave-4 product-listing screen (w4-product-listing, checked 2026-11-10): DROPPED - marketplace, no outbound link. Sales happen on Shoppa's own Shopify cart. Vendor collection pages and the brand directory carry no link to merchant websites. Evidence: https://shoppa.ca/pages/brand-directory (HTTP 200) and https://shoppa.ca/collections/floem (HTTP 200)",
+  "http_status": "200"
+ },
+ {
+  "domain": "chemexper.com",
+  "platform": "ChemExper Chemical Directory",
+  "reason": "wave-4 product-listing screen (w4-product-listing, checked 2026-11-10): EXCLUDED - paid. Catalog import fee from $253/year (under 1,000 products). Evidence: https://www.chemexper.com/services/prices.shtml (HTTP 200)",
+  "http_status": "200"
+ },
+ {
+  "domain": "chembuyersguide.com",
+  "platform": "ChemBuyersGuide.com",
+  "reason": "wave-4 product-listing screen (w4-product-listing, checked 2026-11-10): EXCLUDED - paid. Listing and enhancement options are paid ($25 per product top placement, $495/year banner, etc.). Evidence: https://www.chembuyersguide.com/ (HTTP 200)",
+  "http_status": "200"
+ },
+ {
+  "domain": "knowde.com",
+  "platform": "Knowde",
+  "reason": "wave-4 product-listing screen (w4-product-listing, checked 2026-11-10): EXCLUDED - paid. Supplier storefronts require a setup fee plus an annual subscription arranged through sales. Evidence: https://www.knowde.com/suppliers/features/your-storefront and press coverage",
+  "http_status": null
+ },
+ {
+  "domain": "finnrick.com",
+  "platform": "Finnrick (peptide testing database)",
+  "reason": "wave-4 product-listing screen (w4-product-listing, checked 2026-11-10): EXCLUDED - no free self-serve path; human-use safety framing. Vendor profiles are created from public or Finnrick-purchased test samples, or through the paid partner 'Launch' and testing credits. There is no free vendor submission. The 'safety rating' framing targets human users, which conflicts with RUO compliance. Evidence: https://www.finnrick.com/company (HTTP 200), https://www.finnrick.com/legal/partner-service-terms (HTTP 200); example vendor page https://www.finnrick.com/vendors/peptide-sciences links out via /out?u= redirect",
+  "http_status": "200"
+ },
+ {
+  "domain": "peptideprotocolwiki.com",
+  "platform": "Peptide vendor 'comparison' / coupon / review sites",
+  "reason": "wave-4 product-listing screen (w4-product-listing, checked 2026-11-10): EXCLUDED - affiliate/link-farm neighbourhood, human-dosing framing. Affiliate-commission rankings, 'dosing protocols' (health framing) and spun SEO pages. Evidence: WebSearch results reviewed 2026-11-10",
+  "http_status": null
+ },
+ {
+  "domain": "peptidestack.io",
+  "platform": "Peptide vendor 'comparison' / coupon / review sites",
+  "reason": "wave-4 product-listing screen (w4-product-listing, checked 2026-11-10): EXCLUDED - affiliate/link-farm neighbourhood, human-dosing framing. Affiliate-commission rankings, 'dosing protocols' (health framing) and spun SEO pages. Evidence: WebSearch results reviewed 2026-11-10",
+  "http_status": null
+ },
+ {
+  "domain": "*.pages.dev",
+  "platform": "Peptide vendor 'comparison' / coupon / review sites",
+  "reason": "wave-4 product-listing screen (w4-product-listing, checked 2026-11-10): EXCLUDED - affiliate/link-farm neighbourhood, human-dosing framing. Affiliate-commission rankings, 'dosing protocols' (health framing) and spun SEO pages. Evidence: WebSearch results reviewed 2026-11-10",
+  "http_status": null
+ },
+ {
+  "domain": "stonevillenc.org",
+  "platform": "Peptide vendor 'comparison' / coupon / review sites",
+  "reason": "wave-4 product-listing screen (w4-product-listing, checked 2026-11-10): EXCLUDED - affiliate/link-farm neighbourhood, human-dosing framing. Affiliate-commission rankings, 'dosing protocols' (health framing) and spun SEO pages. Evidence: WebSearch results reviewed 2026-11-10",
+  "http_status": null
+ },
+ {
+  "domain": "locoshop.com",
+  "platform": "Locoshop",
+  "reason": "wave-4 product-listing screen (w4-product-listing, checked 2026-11-10): DROPPED - dead/parked. The domain serves a parked /lander redirect; the .ca domain does not resolve. Evidence: https://www.locoshop.com/ (200, parked lander)",
+  "http_status": "200"
+ },
+ {
+  "domain": "shoplocalnow.ca",
+  "platform": "Shop Local Now",
+  "reason": "wave-4 product-listing screen (w4-product-listing, checked 2026-11-10): DROPPED - unverifiable. Pricing, plans and business profiles are JS-loaded ('Loading plans...'). The free tier and a public website link could not be confirmed. It also has a 'Health & Medical' top category. Evidence: https://shoplocalnow.ca/pricing (HTTP 200, no plan data in HTML)",
+  "http_status": "200"
+ },
+ {
+  "domain": "bioz.com",
+  "platform": "Bioz / Technology Networks Supplier Hub",
+  "reason": "wave-4 product-listing screen (w4-product-listing, checked 2026-11-10): EXCLUDED - paid / sales-contact only. Vendor tools are offered through sales contact; there is no free listing path. Evidence: https://www.bioz.com/ (HTTP 200) and https://www.technologynetworks.com/proteomics/supplier-hub (HTTP 200)",
+  "http_status": "200"
+ },
+ {
+  "domain": "technologynetworks.com",
+  "platform": "Bioz / Technology Networks Supplier Hub",
+  "reason": "wave-4 product-listing screen (w4-product-listing, checked 2026-11-10): EXCLUDED - paid / sales-contact only. Vendor tools are offered through sales contact; there is no free listing path. Evidence: https://www.bioz.com/ (HTTP 200) and https://www.technologynetworks.com/proteomics/supplier-hub (HTTP 200)",
+  "http_status": "200"
+ },
+ {
+  "domain": "shopzilla.com",
+  "platform": "Connexity (Shopzilla/Bizrate/PriceGrabber), Idealo, Kelkoo, PriceSpy",
+  "reason": "wave-4 product-listing screen (w4-product-listing, checked 2026-11-10): EXCLUDED - CPC-paid and/or no Canadian market. All are CPC comparison engines (Connexity, Idealo, Kelkoo) or serve non-Canadian markets only (PriceSpy: UK/NZ/Nordics). The pages were bot-challenged (202/403) and not examined further. Evidence: HTTP 202 (Connexity sites), 403 (idealo.co.uk, kelkoo), 200 (pricespy.co.uk)",
+  "http_status": "202"
+ },
+ {
+  "domain": "idealo.co.uk",
+  "platform": "Connexity (Shopzilla/Bizrate/PriceGrabber), Idealo, Kelkoo, PriceSpy",
+  "reason": "wave-4 product-listing screen (w4-product-listing, checked 2026-11-10): EXCLUDED - CPC-paid and/or no Canadian market. All are CPC comparison engines (Connexity, Idealo, Kelkoo) or serve non-Canadian markets only (PriceSpy: UK/NZ/Nordics). The pages were bot-challenged (202/403) and not examined further. Evidence: HTTP 202 (Connexity sites), 403 (idealo.co.uk, kelkoo), 200 (pricespy.co.uk)",
+  "http_status": "403"
+ },
+ {
+  "domain": "kelkoo.com",
+  "platform": "Connexity (Shopzilla/Bizrate/PriceGrabber), Idealo, Kelkoo, PriceSpy",
+  "reason": "wave-4 product-listing screen (w4-product-listing, checked 2026-11-10): EXCLUDED - CPC-paid and/or no Canadian market. All are CPC comparison engines (Connexity, Idealo, Kelkoo) or serve non-Canadian markets only (PriceSpy: UK/NZ/Nordics). The pages were bot-challenged (202/403) and not examined further. Evidence: HTTP 202 (Connexity sites), 403 (idealo.co.uk, kelkoo), 200 (pricespy.co.uk)",
+  "http_status": "403"
+ },
+ {
+  "domain": "pricespy.co.uk",
+  "platform": "Connexity (Shopzilla/Bizrate/PriceGrabber), Idealo, Kelkoo, PriceSpy",
+  "reason": "wave-4 product-listing screen (w4-product-listing, checked 2026-11-10): EXCLUDED - CPC-paid and/or no Canadian market. All are CPC comparison engines (Connexity, Idealo, Kelkoo) or serve non-Canadian markets only (PriceSpy: UK/NZ/Nordics). The pages were bot-challenged (202/403) and not examined further. Evidence: HTTP 202 (Connexity sites), 403 (idealo.co.uk, kelkoo), 200 (pricespy.co.uk)",
+  "http_status": "200"
  }
 ]
