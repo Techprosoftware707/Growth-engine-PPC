@@ -1,6 +1,12 @@
 # TOP 50 BACKLINK OPPORTUNITIES (combined waves 1-5) - Pure Peptides Canada
 
-Date: 2026-11-11. Ranked from ops/backlinks/opportunities-500.csv (525 link-bearing rows: 239 wave-1 + 114 wave-2 + 93 wave-3 + 15 wave-4 + 64 wave-5; tiers 1:150 / 2:357 / 3:7 / 4:11). 7 wave-5 rows made the top 50 (2 wave-4 and 2 wave-3 rows remain in it). Non-link visibility/trust items (43 rows: government supplier registries, URL-categorization forms, statutory records) are in ops/backlinks/visibility-trust.csv. Nothing here is in the master opportunities.csv.
+Date: 2026-11-11. Ranked from ops/backlinks/opportunities-500.csv (507 link-bearing rows: 239 wave-1 + 113 wave-2 + 93 wave-3 + 15 wave-4 + 47 wave-5; tiers 1:142 / 2:348 / 3:7 / 4:10. An independent two-lens audit removed 15 of the 64 wave-5 rows, and 3 rows whose free path could not be verified (ChamberofCommerce.com, Infobel, SiteInspire) are held out of the count). 7 wave-5 rows made the top 50 (2 wave-4 and 2 wave-3 rows remain in it). Non-link visibility/trust items (43 rows: government supplier registries, URL-categorization forms, statutory records) are in ops/backlinks/visibility-trust.csv. Nothing here is in the master opportunities.csv.
+
+## STOP — storefront consistency gate (added 2026-11-11, applies to every row)
+
+Every listing, profile and pitch in this file describes the business as a research-use-only lab-reagent supplier. On 2026-11-11 the live store did not present that way: /shop/ lists the product categories Weight Loss & Metabolic, Anti-Aging & Cellular, Pigmentation & Tanning, Cognitive & Neuro, Recovery, Growth, Peptide Skincare, Nasal Sprays and Capsules, sells syringes (30 G needle) and bacteriostatic water, and carries product tags such as buy-semaglutide-canada. Health Canada advisory RA-81874 (2026-04-09) names BPC-157, CJC-1295, DSIP, Epitalon, GHK-Cu, HCG, Ipamorelin, KPV, Melanotan I/II, MOTS-C, SS-31, TB-500 and retatrutide, and states that 'For Research Use Only' labelling 'does not make these products legal'.
+
+Submitting the RUO description below while the store presents consumer-use categories would misrepresent the business, and platforms that review listings (Apple, Bing, BBB, D-U-N-S, university librarians, editors) can see the store. Before ANY submission or outreach: the owner decides, with Canadian regulatory counsel, how the store will present itself, and the description used here must match the live store on the day of submission. This is an owner/legal decision; nothing on the store was changed during this engagement.
 
 ## Standard kit (use on EVERY submission)
 
@@ -285,46 +291,45 @@ Date: 2026-11-11. Ranked from ops/backlinks/opportunities-500.csv (525 link-bear
 - Create a free CitySpark account at the submission URL and add a genuine Toronto event (title, URL, venue/date, 7:5 image of at least 700 px).
 - At the promotion step tick 'No thanks, I want a free basic listing'. Review takes about 2 h; CitySpark syndicates to sister calendars, so submit once.
 
-### 45. ChamberofCommerce.com business directory (incl. Canadian directory) (authority 90)
-- Tier 1 | Canadian directory | wave 2
-- Submit at: https://www.chamberofcommerce.com/members/add-business
-- Sign up, then use Add Business with the exact standard NAP, website and one laboratory-supplies category (a Canada portal exists).
-- The free path is unconfirmed behind a bot wall: abort if only paid plans appear at signup.
-
-### 46. REVIEWS.io (authority 90)
+### 45. REVIEWS.io (authority 90)
 - Tier 1 | major review platform | wave 1
 - Submit at: https://www.reviews.io/front/pricingplans
 - Create a merchant account and choose the Free plan (25 review invitations a month); the company review page is created for the domain.
 - Confirm the plan stays free on direct signup; invite only genuine customers, with no claims in replies.
 
-### 47. Sitejabber (SmartCustomer) (authority 90)
+### 46. Sitejabber (SmartCustomer) (authority 90)
 - Tier 1 | major review platform | wave 1
 - Submit at: https://www.sitejabber.com/business
 - Claim the free business profile for purepeptidescanada.com through the business portal (email/domain verification).
 - It is a public review surface: respond factually, never with health claims. This is the same company as SmartCustomer, so keep the NAP identical on both.
 
-### 48. Folding@home - team page (stats.foldingathome.org) (authority 88)
+### 47. Folding@home - team page (stats.foldingathome.org) (authority 88)
 - Tier 1 | scientific | wave 4
 - Submit at: https://app.foldingathome.org/ (Web Control > Settings > Teams > New Team); legacy team form also live at https://apps.foldingathome.org/team
 - Create a free Folding@home account in Web Control (Settings > Teams > New Team, or the legacy form at apps.foldingathome.org/team) with team name 'Pure Peptides Canada' and URL https://purepeptidescanada.com.
 - Fold real work units under the team number. The Team Website link (dofollow) renders only via JavaScript on stats.foldingathome.org, so crawl value is below the root authority.
 
-### 49. Tracxn (List Your Startup) (authority 88)
+### 48. Tracxn (List Your Startup) (authority 88)
 - Tier 1 | company-intelligence | wave 1
 - Submit at: https://tracxn.com/listyourstartup
 - Fill the List-Your-Startup form (company name, website, business email); a Tracxn analyst curates the profile.
 - An existing profile can be claimed with a free account; use factual RUO descriptors.
 
-### 50. Monster (Monster+ Free) (authority 86)
+### 49. Monster (Monster+ Free) (authority 86)
 - Tier 1 | Canadian directory | wave 1
 - Submit at: https://hiring.monster.com/pricing-3/monsterplusfree/
 - Create a free Monster+ Free employer account (no card): 1 posting per 30 days, up to 3 applicants, company name and logo shown.
 - Post only a real vacancy; postings expire, so re-post when hiring.
 
+### 50. Open Supply Hub (authority 86)
+- Tier 1 | maps/data aggregator | wave 1
+- Submit at: https://opensupplyhub.org/auth/register
+- Free account, add the real operating location (name, address, sector) via Add Data, then claim the facility (staff-verified) so its OS ID page shows the website and description.
+- List only a physical site the business genuinely operates; the link attribute is unverified.
+
 ## Wave-5 additions just outside the top 50
 
 - GEN (Genetic Engineering & Biotechnology News) — New Products / news desk (T1, authority 89): https://www.genengnews.com/editorial-guidelines/ - New Products email (savannah.wiegel@sagepub.com) only when there is a genuinely new RUO product or QC service; followed company link.
-- McMaster W Booth School of Engineering Practice and Technology: Community Engagement program ('Share an innovation challenge') (T1, authority 90): https://www.eng.mcmaster.ca/sept/practice/community-engagement/ - Email the W Booth community engagement coordinators with a real engineering challenge (cold-chain packaging, QC process study); free; followed partner link card, usually after a completed project.
 - R&D World (contributed articles from working experts) (T1, authority 86): mailto:jrocktorcivia@wtwhmedia.com,brian.buntz@wtwhmedia.com - Contributed article by a named PPC scientist on analytical QC; one link allowed in the author bio (confirm with the editors).
 - Memorial University CREAIT Network - Mass Spectrometry Links (Chemical Analysis Research and Training) (T1, authority 89): https://www.mun.ca/creait/chemical-analysis-research-and-training/ms-contact-and-location/ - Email the CREAIT coordinator (stefana.egli@mun.ca) suggesting the HPLC/LC-MS guide for the MS Resources list (plain links); page stale since Nov 2023.
 - The Rockefeller University Proteomics Resource Center — 'Useful links' (T1, authority 88): https://www.rockefeller.edu/proteomics/contact/ - Email the Proteomics Resource Center suggesting the HPLC/COA guide for its 'Useful links' page (about 90 mostly followed links); internal-facing, no suggestion invitation.
@@ -332,16 +337,12 @@ Date: 2026-11-11. Ranked from ops/backlinks/opportunities-500.csv (525 link-bear
 - CanadianSME Small Business Magazine (interviews / Entrepreneur Spotlight) (T1, authority 75): https://canadiansme.ca/contact/#contact-form - Free 'Submit a Story' form or amanda@canadiansme.ca; editorial Canadian SME feature with a followed company link; never the sponsored route.
 - Polish Peptide Community (Univ. of Gdańsk Faculty of Chemistry) — 'Peptide Tools' useful-links page (T1, authority 75): https://www.ppc.univ.gda.pl/contactus.php - Contact form (600 characters, English letters only) or ppc@ug.edu.pl; suggest the peptide calculator or COA guide for the Peptide Tools page (plain links).
 - ILPI Safety Data Sheet Resource - 'Where to Find SDS on the Internet' (Chemical Manufacturers and Suppliers table) (T1, authority 81): https://www.ilpi.com/contact.html - Publish a public GHS/WHMIS SDS library page first, then email msds@ilpi.com for the suppliers table (followed links).
-- Avogadro Discussion (molecular editor community, Discourse) (T1, authority 76): https://discuss.avogadro.cc/my/preferences/profile - Forum profile website (nofollow ugc, noindex, TL1+); genuine molecular-editor questions only.
-- Galaxy Community Help (Discourse) (T1, authority 85): https://help.galaxyproject.org/my/preferences/profile - Forum profile website (nofollow ugc, noindex, TL1+); answer only genuine proteomics/workflow questions.
 - AZoLifeSciences Supplier Directory (AZoNetwork) (T1, authority 73): https://www.azolifesciences.com/contact?inquiry=Editorial - Editorial contact form for a free basic supplier-directory entry; rel=sponsored link; confirm no charge.
-- Infobel (Kapitol SA) - Canada business directory (T1, authority 82): https://www.infobel.com/en/canada - Bot-walled: confirm a free add-company path and a clickable link on a logged-out Canada listing in a browser first; lab-supply category only.
 - Analytical Sciences Digital Library (ASDL) Weblink Collection, sponsored by the ACS Division of Analytical Chemistry (T1, authority 71): https://collection.asdlib.org/ (the 'Contribute and Collaborate! ... Contact Us!' button is mailto:tspudic@siue.edu, the managing editor contact shown on the page) - Email the ASDL managing editor (tspudic@siue.edu) proposing the HPLC and COA guides for peer-reviewed annotation; followed links; slow cadence.
-- Growjo (fastest-growing company data and rankings) (T1, authority 80): https://growjo.com/add-your-company - Bot-walled: confirm a clickable website link on a live company page first, then claim with a company-domain email; modelled data.
-- openmolecules.org Forum (DataWarrior cheminformatics) (T1, authority 66): https://openmolecules.org/forum/index.php?t=register& - DataWarrior forum homepage field (nofollow); genuine cheminformatics questions only.
-- The other 41 wave-5 rows are lower-scoring T2-T4 surfaces (see the w5-* rows in the CSV): founder/expert publications and podcasts (10: Smashing Magazine, freeCodeCamp, CMSWire, Quality Digest, Practical Ecommerce, IdeaMensch, eCommerce MasterPlan and others), 3D-model platforms (8: Fab, CGTrader, GrabCAD, MyMiniFactory, Pinshape, Thangs, Superhive, Blender Artists) for educational molecule models, web-design galleries (6: SiteInspire, Lapa Ninja, Orpetron, lowwwcarbon, Landing.Gallery, CTA.gallery), security-disclosure directories (3: disclose.io, FireBounty, Bug Bounty Directory; all need a published vulnerability-disclosure policy first), plus OneLook, Wikiversity, P2PU, Maven, Global Startup Awards, TechStacks, CompanyListing.ca, CapSource and the stale or low-authority resource pages (CSMS, Chemistry Education Division, Multi-Dimensional Separations, Yale MCDB lab guide).
+- The other wave-5 rows are lower-scoring T2-T4 surfaces (see the w5-* rows in the CSV; every one carries a CONDITIONAL note from the 2026-11-11 audit): founder/expert publications and podcasts (Smashing Magazine, freeCodeCamp, CMSWire, Quality Digest, Practical Ecommerce, IdeaMensch, Inspirery, We Are Founders, eCommerce MasterPlan, Honest Ecommerce), 3D-model platforms (Fab, CGTrader, GrabCAD, Pinshape, Thangs; one original educational molecule model per platform, use at most two), web-design galleries (Orpetron, CTA.gallery; only once the 18+ age gate no longer covers the first screen), security-disclosure directories (disclose.io, FireBounty; only after a real vulnerability-disclosure policy and /.well-known/security.txt exist; today security.txt returns 404), plus OneLook, P2PU, Maven, TechStacks, CompanyListing.ca, CapSource, Stack Overflow (profile, genuine WooCommerce answers only) and the stale or low-authority resource pages (CSMS, Chemistry Education Division, Multi-Dimensional Separations, Yale MCDB lab guide).
+- Removed by the independent wave-5 audit (2026-11-11; reasons in excluded-500.json): McMaster W Booth, Galaxy Community Help, Biostars, Growjo, Avogadro Discussion, openmolecules.org, Wikiversity, MyMiniFactory, Blender Artists, Lapa Ninja, Superhive, Global Startup Awards, lowwwcarbon, Landing.Gallery, Bug Bounty Directory. Grounds: noindex/nofollow profile pages with no genuine reason to participate (forum profile-link pattern), unverifiable behind bot walls, off-topic and low value, or a precondition the business cannot honestly meet.
 - Not added in wave 5: ensun (no public link), BioPortfolio (no public link, health platform), Scientist Live (no free self-serve path), Science Rendezvous (partner directory frozen since 2022), Encyclo (scraper aggregator), four more Stack Exchange sites (same-network aliases of the kept Stack Overflow row), Cloudflare Community and Cults3D (bot-walled, no verifiable link), Open Bug Bounty (bot-walled, risk flag), the Bugcrowd list (mirror of disclose.io), Vulnerability Laboratory (dormant list), the RBC Canadian Women Entrepreneur Awards (eligibility not shown, nominations closed), Open Culture (no vendor precedent), Stepik (noindex profiles, ToS conflict), ecomm.gallery (dormant), Supahero (dead submit form), Informed Perspectives and Diverse Sources (identity-restricted expert databases), and all eight shipping/packaging/payroll supplier-story programs (customer-only or no intake). See excluded-500.json.
-- Displaced from the top 50 by the 7 wave-5 entries: Open Supply Hub (T1, authority 86, now #51); FAIRsharing (T1, authority 84, now #52); Logo.dev brand page (Request a brand update) (T1, authority 85, now #54); BibSonomy (T1, authority 83, now #55); Destination Toronto Events Calendar (T1, authority 83, now #56); Guidechem (T1, authority 83, now #57); IEEE DataPort (Standard dataset) (T1, authority 83, now #58). They remain worth doing; see their rows in the CSV.
+- Displaced from the top 50 by the 7 wave-5 entries (Open Supply Hub returned at #50 after ChamberofCommerce.com was held): FAIRsharing (T1, authority 84, now #52); Logo.dev brand page (Request a brand update) (T1, authority 85, now #54); BibSonomy (T1, authority 83, now #55); Destination Toronto Events Calendar (T1, authority 83, now #56); Guidechem (T1, authority 83, now #57); IEEE DataPort (Standard dataset) (T1, authority 83, now #58). They remain worth doing; see their rows in the CSV.
 
 ## Wave-4 additions just outside the top 50
 

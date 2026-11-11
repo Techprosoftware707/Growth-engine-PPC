@@ -73,6 +73,8 @@ li{margin:0 0 7px}
 li::marker{color:var(--accent)}
 .note{background:var(--accent-soft); border-left:3px solid var(--accent); border-radius:0 6px 6px 0; padding:14px 18px; margin:18px 0}
 .note p:last-child{margin:0}
+.note.warn{background:var(--block-bg); border-left-color:var(--block)}
+.note.warn strong{color:var(--block)}
 .phase{display:grid; grid-template-columns:auto 1fr; gap:4px 14px; align-items:baseline; margin:8px 0}
 .phase .pnum{font:600 13px var(--mono); color:var(--accent); white-space:nowrap}
 footer{margin-top:52px; padding-top:18px; border-top:1px solid var(--line); color:var(--muted); font-size:13px}
@@ -80,12 +82,16 @@ footer{margin-top:52px; padding-top:18px; border-top:1px solid var(--line); colo
 </style>
 <div class="wrap">
 <header class="rpt">
-  <p class="eyebrow">Engagement report · 2026-11-07</p>
+  <p class="eyebrow">Engagement report · 2026-11-07 · updated 2026-11-11</p>
   <h1>PPC Growth Engagement Report</h1>
   <p class="sub">purepeptidescanada.com — audit, fixes, linkable assets, backlink program, monitoring. Working files in <code>Techprosoftware707/Growth-engine-PPC</code> → <code>ops/</code>; append-only trail in <code>ops/log/execution-log.md</code>.</p>
 </header>
 
-<p class="lede">All nine phases ran. The site itself is in good shape: every tested journey works, the store is untouched, and the research-use-only framing is consistent. The strategic problem is off-site — <strong>4 referring domains and 3 referral sessions in 28 days</strong>, with non-brand money queries ranked 31–69. So the work fixed everything on-site that was broken (40+ verified fixes), built the schema and linkable-asset foundation, and produced a verified database of 88 legitimate backlink opportunities with a ready-to-run queue. Everything executable without the owner's identity or inbox was executed; nothing was faked, bypassed, or left half-submitted.</p>
+<p class="lede">All nine phases ran. The site itself is in good shape: every tested journey works and the store is untouched. The strategic problem is off-site — <strong>4 referring domains and 3 referral sessions in 28 days</strong>, with non-brand money queries ranked 31–69. So the work fixed everything on-site that was broken (40+ verified fixes), built the schema and linkable-asset foundation, and produced verified databases of <strong>88 + 507 legitimate, free backlink opportunities</strong> with a ready-to-run queue. Everything executable without the owner's identity or inbox was executed; nothing was faked, bypassed, or left half-submitted.</p>
+
+<div class="note warn">
+  <p><strong>Correction, 2026-11-11 — read before any submission.</strong> The first version of this report said the research-use-only framing is consistent. That is true of the disclaimers and meta text (318/318 pages) but not of the store's own category structure: <code>/shop/</code> sells under Weight Loss &amp; Metabolic, Anti-Aging &amp; Cellular, Pigmentation &amp; Tanning, Peptide Skincare, Nasal Sprays and Capsules, plus syringes and bacteriostatic water. Every listing in both databases uses an RUO lab-reagent description, so the store presentation has to be settled first. <a href="#storefront">Details below.</a></p>
+</div>
 
 <h2>Baseline, 2026-11-07</h2>
 <div class="kpis">
@@ -150,12 +156,40 @@ footer{margin-top:52px; padding-top:18px; border-top:1px solid var(--line); colo
   <li><strong>Rules held</strong>: no CAPTCHA bypassed, no identity invented, no email sent, no PBN touched, nothing left half-verified in a reviewer queue.</li>
 </ul>
 
+<h2>Backlink expansion — 507 more</h2>
+<p>A second database, built 2026-11-08 → 11, of verified opportunities that do not overlap the original 88 or each other (deduplicated on the host that carries the link).</p>
+<div class="kpis">
+  <div class="kpi"><b>507</b><span>new free, link-bearing opportunities</span></div>
+  <div class="kpi"><b>87</b><span>median SE Ranking authority (501 scored)</span></div>
+  <div class="kpi"><b>338</b><span>rows at authority 80 or higher</span></div>
+  <div class="kpi"><b>0</b><span>dead URLs on the 2026-11-11 re-test</span></div>
+</div>
+<div class="tablewrap"><table>
+  <tr><th>Tier</th><th>Rows</th><th>Meaning</th></tr>
+  <tr><td>T1</td><td class="num">142</td><td>authority ≥60 and strategic: scientific, Canadian, maps/data, company intelligence, AI discovery, university pages</td></tr>
+  <tr><td>T2</td><td class="num">348</td><td>authority ≥40</td></tr>
+  <tr><td>T3</td><td class="num">7</td><td>authority 15–39, or unscored scientific/Canadian</td></tr>
+  <tr><td>T4</td><td class="num">10</td><td>authority under 15, or unscored generic</td></tr>
+</table></div>
+<ul>
+  <li><strong>How each row was verified</strong>: submission URL fetched; free path confirmed; an existing public listing checked for a clickable website link; an adversarial verifier re-checked each wave before merge. The final wave got a second, independent two-lens audit that removed 15 of its 64 rows. Three rows whose free path could not be confirmed (ChamberofCommerce.com, Infobel, SiteInspire) are held out of the count.</li>
+  <li><strong>Re-test</strong>: all 461 earlier submission URLs re-fetched on 2026-11-11 — 381 HTTP 200, 74 bot-wall responses from known platforms, 6 normal sign-in/method codes, none dead.</li>
+  <li><strong>Caveats</strong>: 112 links are confirmed dofollow, 91 nofollow/ugc/sponsored, and 304 can't be determined until the listing exists. 32 rows are outreach-class, where a curator or editor must accept and each contact needs owner approval first. About 60 rows carry an explicit precondition (a real dataset, a vulnerability-disclosure policy, a genuine expert author). Clusters such as 3D-model platforms, design galleries and podcasts are substitutable: use one or two, each with a unique asset, and never mass-post.</li>
+  <li><strong>Files</strong>: <code>ops/backlinks/opportunities-500.csv</code> (the 507) · <code>TOP-NEW-50.md</code> (ranked playbook + standard kit) · <code>visibility-trust.csv</code> (43 non-link trust items such as government supplier registries) · <code>excluded-500.json</code> (327 rejections with reasons).</li>
+</ul>
+
+<h2 id="storefront">Storefront consistency</h2>
+<p>On 2026-11-11 the live <code>/shop/</code> listed product categories Weight Loss &amp; Metabolic, Anti-Aging &amp; Cellular, Pigmentation &amp; Tanning, Cognitive &amp; Neuro, Recovery, Growth, Peptide Skincare, Nasal Sprays and Capsules. It also sold syringes (30 G needle) and bacteriostatic water, and carried tags such as <code>buy-semaglutide-canada</code>.</p>
+<p>Health Canada advisory <strong>RA-81874 (2026-04-09)</strong> names BPC-157, CJC-1295, DSIP, Epitalon, GHK-Cu, HCG, Ipamorelin, KPV, Melanotan I/II, MOTS-C, SS-31, TB-500 and retatrutide, and says "For Research Use Only" labelling "does not make these products legal". A Gowling WLG analysis (Sept 2026) reports a June 2026 Québec Superior Court permanent injunction against a Canadian online peptide retailer.</p>
+<p>Every listing and pitch in both databases describes the business as a research-use-only lab-reagent supplier, and reviewing platforms can see the store. Submitting that description while the store presents consumer-use categories would misrepresent the business. <strong>Gate:</strong> the owner settles the store's presentation with Canadian regulatory counsel, and the description must match the live store on the day of each submission. The gate is written into <code>TOP-NEW-50.md</code> and <code>PENDING-QUEUE.md</code>. Nothing on the store was changed.</p>
+
 <h2>Monitoring</h2>
-<p><code>ops/monitoring/</code> holds the live backlink register (all 4 refdomains + the pending submission) and the cadence: weekly submission-outcome checks in month one, monthly SE Ranking diffs, with referral sessions as the headline KPI. The SE Ranking key has 71,659 units and <strong>expires 2026-11-11</strong> — renew before the first monthly pull. The Link Growth Engine plugin built in this repo automates all of this once installed.</p>
+<p><code>ops/monitoring/</code> holds the live backlink register (all 4 refdomains + the pending submission) and the cadence: weekly submission-outcome checks in month one, monthly SE Ranking diffs, with referral sessions as the headline KPI. The SE Ranking account has read "expired" since 2026-11-11 06:24 UTC (65,105 units left). The authority endpoint still answered at 19:40 UTC, but <strong>renew the key before the first monthly pull</strong>. The Link Growth Engine plugin built in this repo automates all of this once installed.</p>
 
 <h2>Owner decisions — nothing here was worked around</h2>
 <div class="tablewrap"><table>
   <tr><th>Item</th><th>Status</th><th>What's needed</th></tr>
+  <tr><td><strong>Storefront consistency</strong>: consumer-use categories, dosage forms and injection accessories vs. the RUO description used in every listing</td><td><span class="pill block">gates all submissions</span></td><td>Owner + Canadian regulatory counsel decide the store's presentation; the listing copy must match it</td></tr>
   <tr><td>Install PPC Link Growth Engine plugin (zip built &amp; tested: <code>dist/ppc-link-growth-engine-1.0.0.zip</code>)</td><td><span class="pill block">denied in session</span></td><td>Owner installs via wp-admin → Plugins → Upload</td></tr>
   <tr><td>Privacy policy (draft page 11886)</td><td><span class="pill pend">awaiting sign-off</span></td><td>Approve copy · remove <code>privacy-policy</code> from redirect rule 1 · publish</td></tr>
   <tr><td>301 for old glossary URL</td><td><span class="pill block">redirect denied</span></td><td>Canonical already in place; add 301 in Rank Math if desired</td></tr>
@@ -169,5 +203,5 @@ footer{margin-top:52px; padding-top:18px; border-top:1px solid var(--line); colo
   <p><strong>The one number to watch:</strong> referral sessions (baseline 3 per 28 days) and referring domains (baseline 4). The on-site foundation is now clean and verified; the queue above is the lever. Re-measure both against <code>ops/reports/baseline-2026-11-07.json</code> after the first submission pass.</p>
 </div>
 
-<footer>Phases 1–9 complete · 40+ live fixes verified by re-fetch · evidence and per-fix log: <code>ops/log/execution-log.md</code> · audit detail: <code>ops/audit/AUDIT.md</code> (65 findings) · research DB: <code>ops/backlinks/</code></footer>
+<footer>Phases 1–9 complete · 40+ live fixes verified by re-fetch · backlink expansion: 507 verified rows (2026-11-11) · evidence and per-fix log: <code>ops/log/execution-log.md</code> · audit detail: <code>ops/audit/AUDIT.md</code> (65 findings) · research DBs: <code>ops/backlinks/</code></footer>
 </div>

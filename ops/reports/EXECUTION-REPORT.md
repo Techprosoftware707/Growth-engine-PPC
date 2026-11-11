@@ -5,7 +5,9 @@ Full audit: `ops/audit/AUDIT.md` (65 findings) · Append-only log: `ops/log/exec
 
 ## Executive summary
 
-The engagement ran all nine phases. The site itself is healthy — every tested journey works, performance problems are infrastructure-level, and compliance framing (research-use-only) is consistent. The strategic gap is off-site: **4 referring domains and 3 referral sessions in 28 days** against rankings of position 31–69 for non-brand money queries. The work therefore split into (a) fixing everything on-site that was broken or suboptimal — 40+ audit fixes executed and verified live, (b) building the linkable-asset and schema foundation AI/search engines reward, and (c) producing a verified, deduplicated database of 88 legitimate backlink opportunities with a ready-to-run submission queue — of which everything that could be done without the owner's identity/inbox was done.
+> **Update 2026-11-11.** (1) Backlink expansion complete: **507 additional verified, free, link-bearing opportunities** beyond the original 88 (see "Backlink expansion" below). (2) **Correction:** the first version of this report said the research-use-only framing is consistent. That holds for the disclaimers and meta text (318/318 pages) but **not for the store's own category structure** — see "Storefront consistency" below. This gates every submission in both databases.
+
+The engagement ran all nine phases. The site itself is healthy — every tested journey works and performance problems are infrastructure-level. Research-use-only disclaimers appear on every page, but the store taxonomy contradicts them (see the 2026-11-11 correction). The strategic gap is off-site: **4 referring domains and 3 referral sessions in 28 days** against rankings of position 31–69 for non-brand money queries. The work therefore split into (a) fixing everything on-site that was broken or suboptimal — 40+ audit fixes executed and verified live, (b) building the linkable-asset and schema foundation AI/search engines reward, and (c) producing a verified, deduplicated database of 88 legitimate backlink opportunities with a ready-to-run submission queue — of which everything that could be done without the owner's identity/inbox was done.
 
 ## Baseline (2026-11-07, for before/after comparison)
 
@@ -54,12 +56,30 @@ The engagement ran all nine phases. The site itself is healthy — every tested 
 - **Executed now**: secretsearchenginelabs.com URL submission — accepted ("added to the queue"), logged in `ops/submissions/submitted.csv`.
 - **Queued for owner** (`ops/submissions/PENDING-QUEUE.md`): everything requiring an account at hi@purepeptidescanada.com, a CAPTCHA, identity verification, or a named human contact — GBP, CTI, PubChem, Thomasnet, Trustpilot, Biotechgate, SciCrunch, Crunchbase, LinkedIn, the HARO-class source services, YellowPages and the citation set. Each is ~10 minutes with the TOP-25 steps. Per the engagement rules, no CAPTCHAs were bypassed, no identities invented, no emails sent.
 
+## Backlink expansion — 507 more verified opportunities (2026-11-08 → 2026-11-11)
+
+- **Database**: `ops/backlinks/opportunities-500.csv` — **507 new link-bearing rows**, none overlapping the original 88 or each other (deduped on the host that carries the link). 21 columns: the original 19 plus real SE Ranking `authority` and `source` slice.
+- **Method**: five research waves across ~100 platform-type slices; every row had its submission URL fetched, its free path confirmed, and an existing public listing checked for a clickable website link; an adversarial verifier re-checked each wave before merge. Wave 5 then got a second, independent two-lens audit (evidence + quality/compliance) that removed 15 of its 64 rows; 3 more rows whose free path could not be confirmed (ChamberofCommerce.com, Infobel, SiteInspire) are held out of the count.
+- **Quality**: authority scored on 501/507 rows — median **87**, 338 rows ≥80, 449 ≥60. Tiers: 142 T1 · 348 T2 · 7 T3 · 10 T4. Link attribute: 112 confirmed dofollow, 91 nofollow/ugc/sponsored, 304 not determinable before the listing exists.
+- **Liveness re-test (2026-11-11)**: all 461 pre-wave-5 submission URLs re-fetched — 381 HTTP 200, 74 bot-wall responses (403/429/202) from known platforms, 6 normal auth/method codes, **0 dead**.
+- **Honest caveats**: 32 rows are outreach-class (a curator/editor must accept; each contact needs owner approval first); 45 wave-5 rows and 16 earlier rows carry explicit preconditions (e.g. a real dataset, a vulnerability-disclosure policy, a genuine expert author, a real capstone project); several clusters (3D-model platforms, design galleries, podcasts) are substitutable — use one or two per cluster with unique assets, never mass-post.
+- **Also delivered**: `visibility-trust.csv` (43 non-link trust items: government supplier registries, web-filter categorization, campus employer portals), `excluded-500.json` (327 rejections with reasons), `TOP-NEW-50.md` (ranked playbook with the standard kit).
+
+## Storefront consistency — read before any submission (2026-11-11)
+
+On 2026-11-11 the live `/shop/` listed product categories **Weight Loss & Metabolic, Anti-Aging & Cellular, Pigmentation & Tanning, Cognitive & Neuro, Recovery, Growth, Peptide Skincare, Nasal Sprays and Capsules**, sold syringes (30 G needle) and bacteriostatic water, and carried tags such as `buy-semaglutide-canada`. Health Canada advisory **RA-81874 (2026-04-09)** names BPC-157, CJC-1295, DSIP, Epitalon, GHK-Cu, HCG, Ipamorelin, KPV, Melanotan I/II, MOTS-C, SS-31, TB-500 and retatrutide and states that "For Research Use Only" labelling "does not make these products legal"; Gowling WLG (Sept 2026) reports a June 2026 Québec Superior Court permanent injunction against a Canadian online peptide retailer.
+
+Every listing and pitch in both databases describes the business as a research-use-only lab-reagent supplier. Submitting that description while the store presents consumer-use categories would misrepresent the business, and reviewing platforms can see the store. **Gate:** the owner decides, with Canadian regulatory counsel, how the store presents itself, and the description must match the live store on the day of each submission. The gate is written into `TOP-NEW-50.md` and `PENDING-QUEUE.md`. Nothing on the store was changed.
+
+(Separately re-checked: the WP Live Hype activity feed shows only verified real purchases; its synthetic items are promo/"featured"/shipping notices, not invented purchases.)
+
 ## Monitoring (Phase 7)
 
-`ops/monitoring/backlink-monitor.csv` (all 4 refdomains + pending SSEL row) and `MONITORING.md` (weekly/monthly cadence, KPIs — referral sessions is the headline KPI, alert conditions). SE Ranking balance: 71,659 units; **the API key expires 2026-11-11 — renew it before the first monthly pull**.
+`ops/monitoring/backlink-monitor.csv` (all 4 refdomains + pending SSEL row) and `MONITORING.md` (weekly/monthly cadence, KPIs — referral sessions is the headline KPI, alert conditions). **SE Ranking**: the account status reads "expired" since 2026-11-11 06:24 UTC (65,105 units left); the authority endpoint still answered on 2026-11-11 19:40 UTC, but **renew the key before the first monthly pull**.
 
 ## Blocked / owner decisions (nothing here was worked around)
 
+0. **Storefront consistency (gates all submissions)** — decide with Canadian regulatory counsel how the store presents itself (category names, consumer dosage forms, injection accessories) so the RUO description used in every listing is accurate. See "Storefront consistency" above.
 1. **PPC Link Growth Engine plugin install** on the live site — both install routes denied by the session permission system. Zip is built and tested: `dist/ppc-link-growth-engine-1.0.0.zip` (sha256 90d8dd76…1302dd). It automates discovery→scoring→submissions→monitoring once installed.
 2. **Privacy policy publication** — draft page 11886 needs owner/legal sign-off, then: remove `privacy-policy` from Rank Math redirect rule 1 sources and publish.
 3. **301 redirect for the old glossary URL** — redirect creation was denied; canonical tag is in place as the fallback.

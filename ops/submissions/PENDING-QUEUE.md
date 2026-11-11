@@ -2,6 +2,8 @@
 
 Date: 2026-11-07. Companion to `ops/backlinks/TOP-25.md` (full step-by-step per item) and `ops/submissions/profile-pack.md` (ready-to-paste descriptions). Every item below was URL-verified; none requires payment on the free tier.
 
+> **STOP — storefront consistency gate (added 2026-11-11).** Every item below uses the research-use-only description. On 2026-11-11 the live /shop/ showed consumer-use categories (Weight Loss & Metabolic, Anti-Aging & Cellular, Pigmentation & Tanning, Peptide Skincare, Nasal Sprays, Capsules) plus syringes and bacteriostatic water, and Health Canada advisory RA-81874 (2026-04-09) says RUO labelling does not make the named peptides legal. Submitting the RUO description while the store presents this way would misrepresent the business. Resolve the store presentation with Canadian regulatory counsel first, and make sure the description matches the live store on the day you submit. Details: `ops/backlinks/TOP-NEW-50.md` (gate section).
+
 **Why these are queued, not done:** each needs at least one of (a) an account created with `hi@purepeptidescanada.com` and its email-verification link clicked, (b) a CAPTCHA solved in a browser, (c) a real person's name as the accountable contact, or (d) identity/phone verification. The agent executed everything that had none of those gates (see `submitted.csv` — 1 item), and per the engagement rules did not bypass CAPTCHAs, invent identities, or leave half-verified listings in reviewer queues.
 
 ## How to work the queue

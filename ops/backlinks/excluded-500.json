@@ -1852,5 +1852,113 @@
   "platform": "Wagepoint — Customer stories (Canadian payroll)",
   "reason": "wave-5 verdict (w5b-ops-supplier-stories): Exclude: the link depends on a paid service with no free tier, and eligibility is not shown. Not on the exclusion list. Re-fetched 2026-11-11: /contact-us/ 200 (HubSpot form). The customer-story category (WP REST, category 207) is active: 14 posts, newest 2026-10-01. The public links are real: /resources/customer-story/the-tech-stack-behind-capture-bookkeepings-90-referral-driven-growth/ (2026-07-30, index,follow) links <a href=\"https://www.capturebookkeepinginc.com/\"> with no rel, and /resources/customer-story/case-study-walk-the-store/ (2022-08-11) links https://walkthestore.ca/ with no rel. /pricing/ 200 shows only paid plans ('Lite $20 /mo Plus $4 per employee/contractor', Core $40/mo, Plus $80/mo) and a free trial. There is no free plan, so the feature needs PPC to pay to run payroll on Wagepoint, and nothing on file shows it does. The 2026 features are mostly accounting and bookkeeping partners plus clinics (Naturopathie Integrative Clinic, Roncy Dental).",
   "http_status": "200"
+ },
+ {
+  "domain": "eng.mcmaster.ca",
+  "platform": "McMaster W Booth School of Engineering Practice and Technology: Community Engagement program ('Share an innovation challenge')",
+  "reason": "wave-5 independent audit 2026-11-11: The platform is legitimate: free projects, and the advisors-community-partners page has 52 no-rel partner link cards with meta robots 'index, follow'. It is unfit for this client. On May 7, 2026 McMaster published an analysis by Prof. Stuart Phillips (https://news.mcmaster.ca/analysis-the-peptide-problem-hype-is-outrunning-the-evidence/) saying RUO labels 'do not make these products legal for human use' and criticizing vendor-run purity testing. The suggested engineering challenges (cold-chain shipping packaging, QC sample tracking) would directly serve distribution of products named in Health",
+  "http_status": "200 (community-engagement); 200 (advisors-community-partners)"
+ },
+ {
+  "domain": "help.galaxyproject.org",
+  "platform": "Galaxy Community Help (Discourse)",
+  "reason": "wave-5 independent audit 2026-11-11: Low value and off-topic. Profile pages return X-Robots-Tag: noindex (re-confirmed 2026-11-11 on /u/hexylena/summary), and the website field is nofollow ugc below TL3 and hidden below TL1, so it passes no SEO value. The forum is for help with the Galaxy bioinformatics workflow platform. A peptide e-commerce supplier has no genuine reason to take part, so creating an account and posting to unlock a profile link is the profile-link or comment-spam pattern the client forbids. Revisit only if a staff member genuinely uses Galaxy, and then for community reasons, not as a link opportunity.",
+  "http_status": "200 (home, signup, about.json, profile JSON/HTML); 302 on /my/preferences/profile (login required)"
+ },
+ {
+  "domain": "biostars.org",
+  "platform": "Biostars (bioinformatics Q&A)",
+  "reason": "wave-5 independent audit 2026-11-11: Low value, low relevance and unverifiable. Biostars is legitimate, but every page returns a Cloudflare 403 challenge (re-confirmed 2026-11-11), so no live profile render can be verified. Per the biostar-central source, the only link surface is free text in About, rel=nofollow, and it is hidden until the account has an upvoted post. Getting there requires answering bioinformatics questions, which a peptide e-commerce supplier is not positioned to do genuinely, so doing it for a profile link is the forum profile-spam pattern the client forbids. Biostars and Galaxy Help (idx 12) form a cluster of",
+  "http_status": "403 (Cloudflare challenge on biostars.org); 200 robots.txt; 200 biostar-central source; 200 Bioconductor same-software example"
+ },
+ {
+  "domain": "growjo.com",
+  "platform": "Growjo (fastest-growing company data and rankings)",
+  "reason": "wave-5 independent audit 2026-11-11: Auto-generated database of modelled company data. Third-party sources disagree by orders of magnitude even on Growjo's own revenue and headcount, and the CEO also runs the B2B lead-data firm Lead411, so this is a lead-generation data aggregator, not an editorial or audience platform. Nobody could confirm that a listing carries a clickable website link (bot wall), so it fails the user's 'verified' bar. Its topical relevance to an RUO reagent supplier is nil and its SEO value is low (probably nofollow). The form asks for headcount, funding and growth figures, an inaccuracy risk with no benefit.",
+  "http_status": "403 (Cloudflare challenge on all growjo.com pages tried)"
+ },
+ {
+  "domain": "discuss.avogadro.cc",
+  "platform": "Avogadro Discussion (molecular editor community, Discourse)",
+  "reason": "wave-5 independent audit 2026-11-11: This is not a usable backlink. I confirmed that /u/<user>/summary sends 'x-robots-tag: noindex'. The website field is missing from the server-rendered HTML (drawn by JavaScript and hidden from anonymous visitors below TL1), and it carries nofollow ugc. The forum is legitimate but small (1,669 users, 27 posts in 7 days). A reagent e-commerce seller has no genuine reason to use a molecular-editor support forum, so an account opened for the profile field is profile-link building, which is close to the user's ban on spam and account farming. Same cluster as the science-software community profiles ",
+  "http_status": "302 (submission_url -> /login-preferences 200); profile JSON 200; summary 200 with x-robots-tag: noindex"
+ },
+ {
+  "domain": "openmolecules.org",
+  "platform": "openmolecules.org Forum (DataWarrior cheminformatics)",
+  "reason": "wave-5 independent audit 2026-11-11: Profile-link opportunity only: the 'Homepage' field is rel=nofollow on a small forum (~777 users). Its member list shows dozens of bot signups a day (~30 'unconfirmed user' accounts with 0 posts on 10 and 11 November 2026), so its profiles are an active spam target, and a commercial homepage account would follow the same pattern. The business has no real DataWarrior/cheminformatics workflow to justify 'genuine participation', and the value is near zero. Same cluster as rows 12, 15, 18 and 24 (science-software community profiles).",
+  "http_status": "200 (register -> pre_reg 200, index 200, profile 200)"
+ },
+ {
+  "domain": "en.wikiversity.org",
+  "platform": "Wikiversity (English): external-link suggestion on the Portal:Analytical chemistry talk page, with COI disclosed",
+  "reason": "wave-5 independent audit 2026-11-11: Low value and high self-promotion risk. (1) Wikiversity:External_links is only a proposal, not adopted policy, and it says 'Advocacy and marketing are not permitted'. (2) Portal_talk:Analytical_chemistry is dormant: the last substantive edit was in Aug 2013 and the only later change was a page move in Mar 2016, so a disclosed suggestion would almost certainly go unanswered. In practice it would become a self-inserted COI link to a vendor's shop-hosted guide, which is likely to be reverted and could get the domain blacklisted. (3) MediaWiki external links are nofollow, so there is no SEO value.",
+  "http_status": "200"
+ },
+ {
+  "domain": "myminifactory.com",
+  "platform": "MyMiniFactory",
+  "reason": "wave-5 independent audit 2026-11-11: Lowest-value member of the 3D-model cluster. Cloudflare 403 on every page, so the profile link's existence and rel cannot be verified, which fails the user's 'verified' bar. The audience is mostly tabletop/RPG miniatures (very low relevance). Uploads go to an Object Approval Team whose checklist asks 'Does it have a photo of the finished print?', so the business would need to physically print models just for a profile link. If the cluster is pursued, GrabCAD and Pinshape cover it.",
+  "http_status": "403 (Cloudflare bot wall on myminifactory.com); 200 (creator help page)"
+ },
+ {
+  "domain": "blenderartists.org",
+  "platform": "Blender Artists Community (Resources section)",
+  "reason": "wave-5 independent audit 2026-11-11: A legitimate, active Blender forum, but it adds almost nothing for an RUO reagent supplier. (1) The only link is the profile website field. It is rendered by JS, shown only from trust level 1, and Discourse marks it nofollow ugc below TL3. The row itself rates SEO value as low. (2) The FAQ defines self-promotion as including 'a link to your ... website in a reply' and caps it at 'one self-promotion post a week'. So any on-topic link use is rationed self-promotion, not an earned link. (3) The audience is 3D artists. The 'molecule' threads are about rendering technique, not research reagents, so",
+  "http_status": "200"
+ },
+ {
+  "domain": "lapa.ninja",
+  "platform": "Lapa Ninja",
+  "reason": "wave-5 independent audit 2026-11-11: Fails the user's 'verified' bar outright. Every path, including the homepage, returned Cloudflare 403 again on 2026-11-11, so the free tier, acceptance criteria, outbound link and rel are all unknown. Third-party listings disagree on whether it is free or paid (Postmake 'Paid'; Toolradar paid plans from $29/mo), and its About page says 'Not every submission is accepted'. Even if free, it is a landing-page design-inspiration gallery dominated by SaaS/startup pages. A WooCommerce reagent store behind a full-screen 18+ age-gate overlay is neither a fit nor showcase-grade evidence, and the topic h",
+  "http_status": "403"
+ },
+ {
+  "domain": "superhivemarket.com",
+  "platform": "Superhive (formerly Blender Market)",
+  "reason": "wave-5 independent audit 2026-11-11: A legitimate Blender add-on/asset marketplace, but low value and off-topic for this client. Verified today: the creator website link is <a rel=\"noopener noreferrer nofollow\" href=\"https://cgcookie.com\">, so it passes no equity and gives referral/brand value only, to 3D artists who do not buy lab reagents. Cost and obligations are disproportionate. Per the support article, a creator 'must add a working payout method before you submit your first product for review', 'must offer a reasonable level of support for your products', and staff review the first product. Superhive's own approval tips ask",
+  "http_status": "200"
+ },
+ {
+  "domain": "globalstartupawards.com",
+  "platform": "Global Startup Awards (North America region, Edition 12)",
+  "reason": "wave-5 independent audit 2026-11-11: A real, free competition (formerly Nordic Startup Awards), but this is not a link opportunity for this business. (1) Speculative: a link exists only if the company wins a regional or global category. The FAQ and competition pages promise winners only an announcement 'on our website and social media channels', and no North America ceremony post exists yet. (2) Misrepresentation risk in the row's own instructions. On /categories, 'D2C Brand Infrastructure' sits under 'Best AI-First Startup'. Picking it would present a reagent reseller as a D2C infrastructure/AI company, which it is not. (3) GSA ",
+  "http_status": "200"
+ },
+ {
+  "domain": "lowwwcarbon.com",
+  "platform": "lowwwcarbon (low-carbon website showcase)",
+  "reason": "wave-5 independent audit 2026-11-11: A legitimate, curated sustainability showcase, but it is both irrelevant and low-value for this client. (1) Listings are nofollow (rel='noopener nofollow' per the verified showcase). The audience is sustainable-web designers, not lab buyers, so it gives no equity and no meaningful referral or trust value. (2) Eligibility is doubtful. The criteria page (amended 4 Nov 2026) asks for 'a real commitment to being low-carbon'. It says 'we generally do not accept websites that appear to be wholly created with AI tools', and featured sites are retested monthly and silently removed if they fail. The cl",
+  "http_status": "200"
+ },
+ {
+  "domain": "landing.gallery",
+  "platform": "Landing.Gallery",
+  "reason": "wave-5 independent audit 2026-11-11: Irrelevant and low-value. The submit page itself says approved sites are published 'with a nofollow link' and claims only '5K+ people visit Landing Gallery every month'. Verified: https://www.landing.gallery/websites/cofactr links <a href=\"https://www.cofactr.com/?utm_source=landing.gallery\" rel=\"noopener noreferrer nofollow\">. The audience is 'designers, founders, and makers' browsing landing-page inspiration, so the row's 'medium' relevance is overstated for an RUO reagent supplier. The entries are automated screenshots ('Screenshots by ScreenshotOne'), so the 18+ age-gate modal would likely",
+  "http_status": "200"
+ },
+ {
+  "domain": "bugbountydirectory.com",
+  "platform": "Bug Bounty Directory (independent bug bounty and responsible disclosure program directory)",
+  "reason": "wave-5 independent audit 2026-11-11: Irrelevant AND low value. (1) The topic is unrelated to lab reagents, and authority is 12. (2) It is a one-person hobby directory with weak curation: the homepage shows many programs duplicated two or three times (Bluescape, Wordfence, Qminder and others). (3) It carries a 'Your Brand Here' ad slot plus 'Featured on Wired Business / Twelve Tools' launch-directory badge exchanges in the footer. (4) The precondition is unmet: purepeptidescanada.com/.well-known/security.txt returns 404 and there is no VDP. A small e-commerce shop that publishes a VDP only to earn a DA-12 link invites researcher t",
+  "http_status": "200"
+ },
+ {
+  "domain": "chamberofcommerce.com",
+  "platform": "ChamberofCommerce.com business directory (incl. Canadian directory)",
+  "reason": "HELD 2026-11-11 (not counted): free path not verifiable - disputed — current roundups (Practical Ecommerce, Small Biz Trends) say basic listing is free with premium from $179/yr; an older LocalSearchForum thread claims free listings were discontinued. MUST be confirmed manually. Re-check in a real browser; restore only if a free listing with a public link is confirmed.",
+  "http_status": "403 bot wall"
+ },
+ {
+  "domain": "infobel.com",
+  "platform": "Infobel (Kapitol SA) - Canada business directory",
+  "reason": "HELD 2026-11-11 (not counted): free path not verifiable - unverified. Infobel has historically offered a free basic listing with paid upgrades, but this could not be confirmed on 2026-11-11.. Re-check in a real browser; restore only if a free listing with a public link is confirmed.",
+  "http_status": "403 bot wall"
+ },
+ {
+  "domain": "siteinspire.com",
+  "platform": "SiteInspire",
+  "reason": "HELD 2026-11-11 (not counted): free path not verifiable - unverified (bot-walled). Re-check in a real browser; restore only if a free listing with a public link is confirmed.",
+  "http_status": "403 bot wall"
  }
 ]
