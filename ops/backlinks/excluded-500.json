@@ -1678,5 +1678,179 @@
   "platform": "Connexity (Shopzilla/Bizrate/PriceGrabber), Idealo, Kelkoo, PriceSpy",
   "reason": "wave-4 product-listing screen (w4-product-listing, checked 2026-11-10): EXCLUDED - CPC-paid and/or no Canadian market. All are CPC comparison engines (Connexity, Idealo, Kelkoo) or serve non-Canadian markets only (PriceSpy: UK/NZ/Nordics). The pages were bot-challenged (202/403) and not examined further. Evidence: HTTP 202 (Connexity sites), 403 (idealo.co.uk, kelkoo), 200 (pricespy.co.uk)",
   "http_status": "200"
+ },
+ {
+  "domain": "ensun.io",
+  "platform": "ensun (AI-based B2B supplier search engine)",
+  "reason": "wave-5 verdict (w5-company-intel-2): no public link. Not on the exclusion list, real (ensun GmbH) and free to claim. The help article (200) confirms app.ensun.io/provider/claim, and the claim URL returns 200 but only as an SPA shell. Public ensun.io/company/* profiles returned 429 (Vercel Security Checkpoint) on the first try and the retry, so no anchor could be seen. ensun's own profile-preview code ('what your company profile looks like in the ensun search') never renders the company website as an <a href>. It only uses a JS button, onClick: window.open(`${websiteUrl.target}?utm_source=ensun.io&utm_medium=supplier_search...`), plus a plain-text FAQ line 'The official website of {{ companyName }} is {{ websiteLink }}'. I found no href built from websiteUrl anywhere in the bundle. Only the LinkedIn/Facebook/Twitter icons are real anchors (rel:\"nofollow\"). So no crawlable website link was confirmed, and the evidence points to a JS-only click-out.",
+  "http_status": "200 app.ensun.io/provider/claim (SPA shell); 429 ensun.io/company/* public profile (Vercel checkpoint, after retry)"
+ },
+ {
+  "domain": "sciencerendezvous.ca",
+  "platform": "Science Rendezvous - partner directory (national science festival, registered charity)",
+  "reason": "wave-5 verdict (w5-ca-life-sciences): EXCLUDE: no public link. The form and pages are live (become-a-partner 200, /partners/ 200), but the claimed link mechanism is defunct. The /partners/ directory is labelled 'Partners (HIDDEN)' in the site menu. wp-sitemap-posts-partners-1.xml lists 285 partner entries and the newest lastmod is 2022-04-12: 81 from 2017, 188 from 2018, and only 7 in 2022. Nothing has been added in 4.5 years, and entries still carry stale names (Ryerson University, UOIT). The 2026 event-site pages (e.g., U of T St. George) do not list partners with website links. A newly accepted partner would therefore not get a clickable listing. Secondary issues: the 'partner' track requires physically staffing a free STEAM installation at a festival site on event day ('Do you or your organization have an installation/demonstration/activity/show you want to bring to Science Rendezvous?'), which is an event commitment, not a link opportunity. The family/youth audience is also a poor reputational fit for an RUO peptide brand.",
+  "http_status": "200 (become-a-partner); 200 /partners/ (frozen, last entry 2022-04-12)"
+ },
+ {
+  "domain": "bioinformatics.stackexchange.com",
+  "platform": "Bioinformatics Stack Exchange",
+  "reason": "wave-5 verdict (w5-science-community-profiles): Same-network alias. The platform is real and the render rule checks out: /users/178 (1 rep) shows 'hmartinez.me' as plain text with no anchor; /users/4984/tora (11 rep) shows <a href=\"https://tobiasrausch.com/\" rel=\"nofollow me noreferrer\">; /users/73/gringer (16,019 rep) shows <a href=\"http://www.gringene.org\" rel=\"me noreferrer\">. But it is a stackexchange.com subdomain on the same SE network account, and it shares the network-wide profile website field with chemistry.stackexchange.com and biology.stackexchange.com, which are already in the database. It adds no new root domain. Keep the best one only: Chemistry SE is already listed, and stackoverflow.com is kept as the distinct root domain. If the owner wants a third stackexchange.com community anyway, this is the most peptide-relevant of the four in this batch.",
+  "http_status": "302 (/users/edit/current redirects to /users/login); example profiles 200"
+ },
+ {
+  "domain": "mattermodeling.stackexchange.com",
+  "platform": "Matter Modeling Stack Exchange",
+  "reason": "wave-5 verdict (w5-science-community-profiles): Same-network alias. It is real: /users/206/andrew-rosen (200) renders <a href=\"https://rosen.cbe.princeton.edu/\" rel=\"me noreferrer\">. But it is a stackexchange.com subdomain that shares the SE network profile and website field with chemistry/biology.stackexchange.com, which are already in the database. No new root domain, so keep the best one only. It is also the highest-effort of the set, since specialist computational-chemistry answers are needed to pass about 10 rep.",
+  "http_status": "302 (/users/edit/current redirects to /users/login); example profile 200"
+ },
+ {
+  "domain": "wordpress.stackexchange.com",
+  "platform": "WordPress Development Stack Exchange",
+  "reason": "wave-5 verdict (w5-science-community-profiles): Same-network alias. It is real: /users/263/boldfish (200, 11 rep) renders <a href=\"http://www.boldfish.co.uk\" rel=\"nofollow me noreferrer\">. But it is a stackexchange.com subdomain that shares the SE network profile and website field with chemistry/biology.stackexchange.com, which are already in the database. No new root domain, so keep the best one only. It is also off-topic for a peptide supplier, and the row notes that WooCommerce/Rank Math questions are often off-topic there.",
+  "http_status": "302 (/users/edit/current redirects to /users/login); example profile 200"
+ },
+ {
+  "domain": "webmasters.stackexchange.com",
+  "platform": "Webmasters Stack Exchange",
+  "reason": "wave-5 verdict (w5-science-community-profiles): Same-network alias. It is real: /users/3164/ionut-ciucanu (200, 11 rep) renders <a href=\"http://ciucanu.com\" rel=\"nofollow me noreferrer\">. But it is a stackexchange.com subdomain that shares the SE network profile and website field with chemistry/biology.stackexchange.com, which are already in the database. No new root domain, so keep the best one only. The topic (SEO/site ops) is unrelated to the business, and link-building talk there is moderated as spam.",
+  "http_status": "302 (/users/edit/current redirects to /users/login); example profile 200"
+ },
+ {
+  "domain": "community.cloudflare.com",
+  "platform": "Cloudflare Community (Discourse)",
+  "reason": "wave-5 verdict (w5-science-community-profiles): No public link (unverified). The platform is real, but no logged-out Cloudflare Community profile, JSON or robots.txt could be fetched to confirm a clickable website link. The research row itself says it is 'unverified whether this instance hides profiles from the public or lets SSO override the website field'. Discourse instances behind DiscourseConnect SSO can lock the website field, and Discourse can hide user profiles from the public. Even if it works, it would be TL1+, nofollow ugc and on a noindex profile page. Also the same operator as radar.cloudflare.com, which is already in the database. Re-research only if a logged-out profile showing a website link can be verified in a real browser.",
+  "http_status": "403 (Cloudflare managed challenge, cf-mitigated: challenge, on /, /my/preferences/profile, /signup, /u/sdayman.json and robots.txt, still 403 on retry; WebFetch also 403)"
+ },
+ {
+  "domain": "bioportfolio.com",
+  "platform": "BioPortfolio — Life Science Directory (company profiles)",
+  "reason": "wave-5 verdict (w5-biotech-company-dirs): EXCLUDE: no public link plus health/medical platform. (1) No public link verifiable for logged-out visitors: /companies renders only 'Loading organizations' (WebFetch: no company names, no outbound links). Profiles are client-side only, and sitemap.xml (pages, topics, blog, calculators) lists no /companies/:slug profiles, so no live example profile could be cited. The bundle shows profile links would be rel=\"noopener noreferrer nofollow\". (2) Compliance: the site describes itself as a 'biotechnology, pharmaceutical, life-science and health knowledge portal'. Its meta keywords include 'health news… medical calculators… health article writer', and its sitemap includes /drugs, /drug-safety, /medical-disclaimer and topics such as mental-health, obstetrics, dermatology and endocrinology. That makes it a health/medical portal. (3) Its 'banned-business' screening and a $99 skip-review upsell on a 2026 relaunch of an old domain add risk. A peptide seller is likely to be refused.",
+  "http_status": "200 (SPA shell; returns 200 for any path, so status proves nothing)"
+ },
+ {
+  "domain": "scientistlive.com",
+  "platform": "Scientist Live — Supplier Directory (Setform)",
+  "reason": "wave-5 verdict (w5-biotech-company-dirs): EXCLUDE: no confirmed free self-serve path. Not on the exclusion list. /add-listing/ says 'You need to be logged in to view the content of this page. You can login/sign up Here', and 'Here' links to /dashboard/. Fetched via WebFetch, /dashboard/ shows only a login form with password recovery and NO account registration option. /registration/ returns 404, and wp-login.php?action=register returns 403. /pricing-plans/ returns 404, and no listing price, plan or free statement exists anywhere public. The directory is a real Setform (UK lab-industry publication) Directorist install. It has public clickable links (e.g. /directory/sino-biological/ 'Website' → https://www.sinobiological.com/), but only about 36 listings over 3 pages, all established vendors (BMG Labtech, Bronkhorst, Erlab, Avantes, PCO…). That pattern suggests advertiser-created entries, not open free submissions. An outside business cannot create an account, and the free status is unverifiable, so this fails the free and accessible check.",
+  "http_status": "200 (/add-listing/ 200 login-gated); 403 bot wall to curl on /suppliers/, /directory/*, /dashboard/ (WebFetch OK)"
+ },
+ {
+  "domain": "encyclo.co.uk",
+  "platform": "Encyclo.co.uk: glossary/definition aggregator ('Add a word list')",
+  "reason": "wave-5 verdict (w5-reference-asset-repos): Spam sniff: auto-generated scraper/aggregator pages, and intake is effectively dormant. Not on the exclusion list. All pages returned 200 on 2026-11-11. The info page describes the model: 'Encyclo provides the first lines of the definition as well as allowing you to discover more by accessing the original source', with '4,244,353 definitions indexed' and all advertising outsourced to Next Day Media. /meaning-of-peptide is machine-assembled: verbatim excerpts from crosswordclues.com, britannica, cancer.gov, chemicalglossary.net and combichemistry.com, each followed by 'Found on <url>', plus repeated cross-promotion links to the sister crossword site. A submitted glossary would be republished as copied snippets on ad pages. I scanned all 38 pages of /sources.php (2,704 dated sources). The newest dates cluster in 2021, and only one source was added since then: 'Alcohol Scotland - Alcohol Abuse Terms', dated 24/08/2025, in Health and Medicine. In the Sciences category the newest is 25/10/2021. The 'send it to info@dirkslot.com' mechanism exists, but there is almost no sign that it is processed.",
+  "http_status": "200 (home, info.php, meaning-of-peptide, cat/Sciences, sources.php pages 0-37)"
+ },
+ {
+  "domain": "informedperspectives.org",
+  "platform": "Informed Perspectives (formerly Informed Opinions) - Database of Experts",
+  "reason": "wave-5 verdict (w5b-journalist-queries): Ineligible (identity-restricted, individual-only expert database). Platform is real (submission_url informedopinionsnpc.my.site.com Expert Portal 200; join page 200; free; example profile ?id=001fK00000INrGbQAL really shows <a href=\"https://www.ackahlaw.com\" target=\"_blank\">, robots index,follow). But it lists people, not businesses, and only women and gender-diverse people. Rule quoted from the site: home page 'Help elevate the voices of women and gender-diverse people ... Women and Gender-Diverse People: Amplify your voice'; mission page 'Informed Perspectives amplifies the voices of women and gender-diverse people'. Pure Peptides Canada cannot list itself, and nothing on file shows a qualifying team member with media-quotable expertise. Using a diversity charity's source database to get a link is misuse. Alias informedopinions.org 301s here; not in the exclusion file.",
+  "http_status": "200"
+ },
+ {
+  "domain": "diversesources.org",
+  "platform": "Diverse Sources - science, health & environment experts database for journalists",
+  "reason": "wave-5 verdict (w5b-journalist-queries): Ineligible plus a compliance flag. Site and form are live (/join 200 'All information will be public'; example profile /sources/592/sheila-addison/ 200 with <a href=\"http://www.drsheilaaddison.com\">, free). But it lists individuals only, gated on underrepresented status. Rule quoted from /about: 'a searchable database of underrepresented experts in the areas of science, health and the environment. Anyone who considers themselves underrepresented and is willing to respond to journalists on deadline is encouraged to join'. The business cannot qualify as itself, and nothing on file shows a qualifying individual expert. The platform is also explicitly health-scoped (title 'Science, Health and Environment experts'), and it is a small volunteer BETA site where a link play would go against its purpose. Not in the exclusion file.",
+  "http_status": "200"
+ },
+ {
+  "domain": "ecomm.gallery",
+  "platform": "ecomm.gallery (The Ecomm Gallery)",
+  "reason": "wave-5 verdict (w5b-design-galleries): Exclude - dormant gallery, effectively dead for submissions. /submit is 200 with a live POST form (email, url, csrf), but the gallery has not added a site in years. The newest of about 235 listings, #235 'Ashley & Co' (content/1-sites/235-ashley-co/), has a screenshot Last-Modified of 11 Jun 2020. Older ones date to 2015, and the sidebar ends at Tens / Merchant Home / Merchery / Ashley & Co. The server runs PHP 5.6.40 (end of life). The '(c) 2026' footer is just the current year. Listing pages do carry a dofollow 'Visit Site' link (shop.ashleyandco.co), but no curation in 6+ years means a suggestion will almost certainly never be processed. It is also not on the exclusion list.",
+  "http_status": "200"
+ },
+ {
+  "domain": "supahero.io",
+  "platform": "Supahero (hero-section library, now part of screensdesign)",
+  "reason": "wave-5 verdict (w5b-design-galleries): Exclude - the submission mechanism is dead. /submit returns 200 and shows 'Submit a hero section', but <form class=\"mt-10 space-y-4\"> has no action, no method and no handler. The RSC payload renders it as a plain server 'form' with only className and children: no server-action reference and no client component. No JS chunk on the page references website_url. Submitting it just GETs /submit?website_url=... and nothing reaches the operator. The site is now 'part of screensdesign', and the only contact is an obfuscated email that decodes to alex@screensdesign.com. Listings do link out (/hero/adaline has 'Visit' href=https://www.adaline.ai/ rel=noopener noreferrer), but the claimed free form route does not work, and relevance is low (hero-section library, not e-commerce).",
+  "http_status": "200"
+ },
+ {
+  "domain": "bugcrowd.com",
+  "platform": "Bugcrowd Bug Bounty List (community list syndicated from disclose.io diodb)",
+  "reason": "wave-5 verdict (w5b-security-disclosure): Same-network alias. Excluded; keep directory.disclose.io instead. Not on exclusion list. The page is live and says 'See something out of date? Make a pull request via disclose.io'. Its data is /wp-content/themes/bugcrowd/assets/js/program-list.json, a mirror of diodb's program-list.json (first record '.nz Registry' is the same in both), so there is no separate submission: it inherits from the same diodb PR. It is also the weaker link of the two. Links are rendered client-side by React from JSON, so they are not in the HTML, and the page script sets relAttr = isBugcrowd ? undefined : \"nofollow noopener noreferrer\", so every non-Bugcrowd policy link is nofollow. Rule 7: keep only the best alias (directory.disclose.io: server-rendered, no nofollow). Any listing here comes free with the diodb PR.",
+  "http_status": "200 (bug-bounty-list 200; program-list.json 200, 2,425 entries, Last-Modified Tue, 10 Nov 2026 21:18:42 GMT)"
+ },
+ {
+  "domain": "openbugbounty.org",
+  "platform": "Open Bug Bounty: free VDP / bug bounty program for website owners",
+  "reason": "wave-5 verdict (w5b-security-disclosure): No public link (unverifiable) plus a risk flag. Not on exclusion list. The platform is real, but every URL is behind a Cloudflare bot wall for curl (desktop Chrome UA, retried) and for WebFetch. No program page or example listing could be opened to confirm a clickable link to the owner's domain for logged-out visitors. The research row itself marks link_clickable and link_attribute 'unverified' and seo_value 'low-unknown', and says to drop it if no clickable domain link is found. Rule 3 requires a confirmed public link, so it is excluded. Separately, this is not a listing or directory: it is a crowd vulnerability-reporting platform that publishes researcher reports against the listed domain after the disclosure window. For a payment-taking store, a program here mainly adds public attack-surface exposure rather than a link. It can be revisited only after a manual logged-out browser check confirms that program pages link to the domain.",
+  "http_status": "403 (Cloudflare managed challenge 'Just a moment...' on www/, /bugbounty-list/ and apex, after retry; WebFetch 403; web.archive.org snapshot unreachable through proxy: connection reset, then 403)"
+ },
+ {
+  "domain": "vulnerability-lab.com",
+  "platform": "Vulnerability Laboratory: Public Bug Bounty, Acknowledgement and Reward Programs List",
+  "reason": "wave-5 verdict (w5b-security-disclosure): Dormant list: the contribution mechanism shows no sign of being actioned (rule 6, 'contact/suggestion mechanism is real'). Not on exclusion list. The page is live, free and link-bearing: 565 target=_blank links, 0 nofollow, e.g. <a href=\"https://www.bundeswehr.de/security.txt\" target=\"_blank\">Bundeswehr. The contribution line is real: 'Feel free to send us new updates, feedback and contribute to the public bug bounty-, security acknowledgment- or reward- programs list' (research[A|T]vulnerability-lab.com). But the list is frozen. The <title> still reads 'List of Bug Bounty Programs 2020 International 537+ Official', and the stats show 538 public programs, about one addition since 2020. 'Last 15 - New Public and Silent Security Programs' is still Bundeswehr, Dominos Pizza, Yum, Taco Bell, Pizza Hut and KFC, which are circa-2020/21 VDPs. The 'Last Update' cell equals the server date (2026-11-11), so it is generated, not a real edit date. The newest dated content on the homepage is 2023-07-25. An email request would very likely go unanswered and yield no link; it is not worth owner outreach effort.",
+  "http_status": "200 (list page 200; home 200)"
+ },
+ {
+  "domain": "womenofinfluence.ca",
+  "platform": "RBC Canadian Women Entrepreneur Awards (Women of Influence)",
+  "reason": "wave-5 verdict (w5b-business-awards): Exclude: eligibility not met or not shown, the link is not a standard outcome, and nominations are closed. (1) Eligibility: this is the RBC Canadian Women Entrepreneur Awards, so the nominee must be a woman entrepreneur. canadianwomenawards.ca/dates/process-and-eligibility/ (200) also says 'The business must have been profitable in the last fiscal year', 'The nominee must currently own shares in the company' and 'The nominee must hold the most senior executive title'. Nothing shows that Pure Peptides Canada has a woman founder-owner or was profitable last year, and the research row itself says 'the founder's eligibility is not known'. (2) The link is up to the editors, not part of the award. I checked all 25 'meet-...' finalist articles from 2025-09-11 on womenofinfluence.ca (WP REST API). Only 5 link to a company website (nuezacres.ca, akmlaw.ca, helloeverist.com, drjoycluett.com, vccounselling.com). The other 20, e.g. /meet-paige-cey-...-ones-to-watch-finalist/ and /meet-rasha-katabi-...-momentum-finalist/, have no outbound company link. The recipient pages on canadianwomenawards.ca (e.g. /recipient/alexa-suter/) have none either. (3) Timing: /about/awards-categories/ (200) says 'Nominations for the 2026 RBC Canadian Women Entrepreneur Awards are now closed'. The 2027 cycle has not opened, so there is nothing to submit to now. Even if the owner were eligible, the path is juried, finalists only, and gives about a 20% chance of a link. The platform itself is legitimate, free and not health-related. It could be revisited in Jan 2027 only if the owner confirms a woman founder-owner and profitability.",
+  "http_status": "200 (canadianwomenawards.ca/dates/ and /dates/process-and-eligibility/ 200; womenofinfluence.ca/rbc-cwea/ 301 -> canadianwomenawards.ca/ 200; Nuez Acres finalist article 200)"
+ },
+ {
+  "domain": "cults3d.com",
+  "platform": "Cults3D",
+  "reason": "wave-5 verdict (w5b-3d-molecular-models): Exclude: no public link. The platform is real, but every fetch on 2026-11-11 was blocked: https://cults3d.com/en and the cited profile /en/users/DadGotTools/3d-models returned 403 to WebFetch, as did /en/users/TrueLayerDesign/. Not bypassed. I could not open any logged-out Cults3D profile or listing that shows a clickable external website link. Unlike MyMiniFactory, there is no first-party evidence of a profile website field: web searches found no Cults3D help or settings documentation. The research row itself marks free, link_clickable and link_attribute as 'unverified'. Fails step 3 (no public clickable link confirmed). Re-queue only if a logged-out profile in a real browser shows a website link.",
+  "http_status": "403"
+ },
+ {
+  "domain": "openculture.com",
+  "platform": "Open Culture - Free Online Courses list (Suggest a Link)",
+  "reason": "wave-5 verdict (w5b-course-marketplaces): Eligibility/no precedent. Contact form is real (/contact 200, title 'Contact Us. Suggest a Link.', contact-form-7 form). But the target list /freeonlinecourses (200) is titled '1,700 Free Online Courses from Top Universities' and its intro says 'Take online courses from the world's top universities for free. Below, you'll find 1,700 courses from Yale, MIT, Harvard, Oxford and more.' Every link in the Chemistry section is academic (NPTEL, MIT OCW, Yale OYC, UCI, Cambridge, Coursera physical chemistry, CMU OLI). There is no company or vendor-produced resource. The one independent entry cited (reasonio.teachable.com, Epictetus) is an individual philosopher's course, not a commercial supplier. A Toronto RUO reagent supplier's HPLC or COA guide falls outside the stated university-course scope.",
+  "http_status": "200 (contact and freeonlinecourses)"
+ },
+ {
+  "domain": "stepik.org",
+  "platform": "Stepik - free course author profile",
+  "reason": "wave-5 verdict (w5b-course-marketplaces): No usable public link, and a ToS conflict. /teach 200 (JS shell only). Author profiles carry <meta name=\"robots\" content=\"noindex, follow\"/>; verified on /users/651763 (the cited example), /users/1418671791 and /users/1197230854. Server HTML has the website only inside JSON-LD 'sameAs' (not a clickable anchor). The clickable website link is rendered only client-side, and the bio link is rel=\"noopener noreferrer nofollow\". The user agreement (welcome.stepik.org/ru/terms) clause 5.11 says 'Пользователь обязуется не размещать на Сайте информацию рекламного характера' ('the User undertakes not to post advertising information on the Site'). The operator is ООО «Цифровые образовательные решения», 'registered under the legislation of the Russian Federation', St Petersburg, and the agreement is governed by Russian law. That is a reputational and jurisdiction risk for a Canadian brand.",
+  "http_status": "200 (teach, registration, profiles; profile pages noindex)"
+ },
+ {
+  "domain": "chitchats.com",
+  "platform": "Chit Chats — client success stories (blog) and /reviews 'share your story'",
+  "reason": "wave-5 verdict (w5b-ops-supplier-stories): Exclude: eligibility not shown, and the link-bearing format is dormant. Not on the exclusion list. Re-fetched 2026-11-11: /contact 200 (general 'Send us a message' support plus 'Business inquiries ... Email us'). /reviews 200 says 'Want to share your story with us? Get in touch.' (href=/contact), but that page holds client video testimonials with NO website links. Written, link-bearing client stories: blog WP REST (chitchats.com/blog/wp-json) search 'success story' returns client-success-story posts dated 2019-03-27 to 2019-10-10 plus one on 2022-10-20 (49 Dzine), and none since, while the blog posts in-house content weekly (newest 2026-11-11). The old links are real: /blog/client-success-story-polar-feet (index,follow) has <a href=\"https://www.polarfeet.ca/\"> with no rel, and the 49dzine post links http://49dzine.com/ with rel=\"noreferrer noopener\". The social@chitchats.com 'be considered for an upcoming spotlight' invitation appears only in /blog/support-local (2021-03-30). Eligibility: features are for Chit Chats shipping clients, and nothing on file shows PPC is one. PPC's verified facts say it ships by 'Canada Post Xpresspost', yet Chit Chats /canadian-shipping (200) offers only 'Chit Chats Select' and 'Chit Chats Canada Tracked' and never mentions Xpresspost or Canada Post. Also, /prohibited-items (200, U.S. customs list) bars 'Chemicals, hazardous materials or combustibles' and 'Dietary supplements (vitamins, minerals, herbs, amino acids etc)'.",
+  "http_status": "200"
+ },
+ {
+  "domain": "packola.com",
+  "platform": "Packola — Customer Stories blog (#PackolaCommunity)",
+  "reason": "wave-5 verdict (w5b-ops-supplier-stories): Exclude: eligibility not shown. This is customer-only and needs a paid custom-box order. Not on the exclusion list. Re-fetched 2026-11-11: /blogs/customer-stories 200 (28 story links). The submission is mailto:packcommunity@packola.com, which is real: /blogs/customer-stories/cypress-straws-by-jimmy-clements (200) says 'Got a story to tell? Share your story with the #PackolaCommunity! Email us at packcommunity@packola.com'. The public link is real: /blogs/customer-stories/fun-and-functional-product-boxes-from-innovative-small-businesses (200, no robots meta) links https://others.coffee/collections/coffee, https://www.kitevisionvet.com/ and https://www.trolder.com/ with no rel. Freshness: the pages show no dates. In sitemap.xml the newest real customer stories have lastmod 2024-01-23 (the-brewer-s-lab) and 2024-07-02 (coffee-subscription-boxes). A 2026-10-08 lastmod batch covers COVID-era posts such as learn-from-home and turn-virtual-events, so it is a re-save, not new stories. Stories are themed round-ups, including 'Subscribe to a Box of Self-Care' (personal-care boxes), which is a wellness-grouping risk. Eligibility: you must be a Packola customer (a Van Nuys, CA printer), and nothing on file shows PPC has ordered from Packola. Ordering boxes just to qualify would make this a paid placement.",
+  "http_status": "200"
+ },
+ {
+  "domain": "noissue.co",
+  "platform": "noissue — Imprint brand stories ('<Brand> x noissue')",
+  "reason": "wave-5 verdict (w5b-ops-supplier-stories): Exclude: eligibility not shown, and there is no feature-intake mechanism. Not on the exclusion list. Re-fetched 2026-11-11: /imprint/category/brand-stories/ 200 is active (publishedAt up to 2026-11-06). The public link is confirmed in the Next.js payload of /imprint/leons-bagels-x-noissue/ (200): {\"href\":\"https://www.leonsbagels.com/\",\"target\":\"_blank\",\"rel\":\"$undefined\"}, anchor 'Leon's Bagels' (followed). No robots meta. The submission route mailto:support@noissue.co is in the page source, but it is the customer-support inbox, not a story channel. There is no 'be featured' form, and help.noissue.co/hc/en-us/requests/new returned 403 to the researcher (Zendesk bot wall). Features are picked editorially and lean to food and coffee brands (Leon's Bagels, Ozone Coffee, Acme Cups). Eligibility: you must be a noissue packaging customer, and nothing on file shows PPC is one.",
+  "http_status": "200"
+ },
+ {
+  "domain": "moo.com",
+  "platform": "MOO — Case Studies (MOO blog, Canada edition)",
+  "reason": "wave-5 verdict (w5b-ops-supplier-stories): Exclude: eligibility not shown, and there is no case-study intake. Not on the exclusion list. Re-fetched 2026-11-11: /ca/partner 200. Its only open route is 'More ways to partner — Have another idea? We'd love to hear from you! Get in touch', linking /ca/business-printing-services/business-form-page, which is a business-printing sales form. The rest of the page is the affiliate program ('Earn commission for each referred order'). /blog/ca/category/case-studies 200 lists 12 case studies dated 2025-04-25 to 2026-09-25, so it is active. The links are real: /blog/ca/case-studies/stickers-with-purpose (published 2026-08-10, index,follow) links https://www.agnesartshop.com/portraits-with-purpose with rel=noreferrer noopener. moo-x-the-lead-summit-when-the-event-comes-home-with-you (2026-09-25) links https://summit.the-lead.co/ with no rel, and moo-x-wymm (2026-02-18) links https://www.shesayswhosyourmomma.com/. The case studies are MOO-led collaborations (events, galas, TED gifting, PR boxes), not an open customer program. Eligibility: you must be a MOO print customer, and nothing on file shows PPC is one.",
+  "http_status": "200"
+ },
+ {
+  "domain": "easyship.com",
+  "platform": "Easyship — Customer Case Studies",
+  "reason": "wave-5 verdict (w5b-ops-supplier-stories): Exclude: eligibility not shown. Not on the exclusion list. Re-fetched 2026-11-11: /contact 200 has no form, only 'CONTACT SALES', 'VIEW PRESS' and 'Let's Partner ... CONTACT PARTNERSHIPS', so there is no case-study submission route. /case-studies 200 lists only 9 studies (deskpurrch, game-start-studio, ifndautoparts, limbic-media, menace-pickleball, mojito-studios, natix-network, pico-pico, sellerchamp), and sitemap.xml gives /case-studies a lastmod of 2026-04-08. The public link is real: /case-studies/deskpurrch (200) links <a href=\"https://deskpurrch.com/\"> with no rel. Its only noindex is a JS rule for '_page=' URLs. Each study carries an Industry tag (e.g. 'Industry Hobby'). Easyship has a free plan, but the feature is an interview-style case study the vendor picks. Eligibility: you must be an Easyship shipping customer. Nothing on file shows PPC ships through Easyship; its verified facts say it ships by Canada Post Xpresspost from inside Canada.",
+  "http_status": "200"
+ },
+ {
+  "domain": "ecoenclose.com",
+  "platform": "EcoEnclose — Sustainable Packaging Case Studies",
+  "reason": "wave-5 verdict (w5b-ops-supplier-stories): Exclude: eligibility not shown. Not on the exclusion list. Re-fetched 2026-11-11: www.ecoenclose.com/partnerships-contact-us 200 redirects to ecoenclose.com/partnerships-contact-us. It is a general contact page ('Have a question, concern or comment? Fill out our form and we'll get back to you shortly', phone 888-445-6575) with no case-study intake. /case-study 200 lists 16 case studies (Fjallraven, Scentbird, American Dairy Association, Ridwell, MERSEA, NoSo, Rocky Mountain Oils...). They are undated and the detail pages are missing from the pages sitemap. The public links are real: /case-study/bedrock-sandals links https://bedrocksandals.com/ with no rel, /case-study/mersea links https://mersea.com/ with no rel, and /case-study/ridwell links https://www.ridwell.com/mail-in with no rel. Selection is editorial and leans to large or eco-led brands. Eligibility: you must be an EcoEnclose packaging customer (Louisville, CO), and nothing on file shows PPC is one.",
+  "http_status": "200"
+ },
+ {
+  "domain": "arka.com",
+  "platform": "Arka — Customer Feature posts (Arka blog)",
+  "reason": "wave-5 verdict (w5b-ops-supplier-stories): Exclude: eligibility not shown, a weak link precedent and supplement-content overlap. Not on the exclusion list. Re-fetched 2026-11-11: /pages/contact-us 200 is a general contact page with no feature intake. /blogs/news 200. The example /blogs/news/customer-feature-beau-ties (200) links <a href=\"https://www.beautiesltd.com/\" rel=\"nofollow\">. The other customer post, /blogs/news/elims-arka-packaging (200), has NO outbound link to the featured brand at all. So the link is nofollow at best and not always given. The same blog targets supplement brands: /blogs/news/supplement-brands-us-manufacturing (200) links sourcify.com for 'FDA cGMP standards' (nofollow), so any PPC feature risks supplement framing. Eligibility: you must be an Arka custom-packaging customer, and nothing on file shows PPC is one.",
+  "http_status": "200"
+ },
+ {
+  "domain": "wagepoint.com",
+  "platform": "Wagepoint — Customer stories (Canadian payroll)",
+  "reason": "wave-5 verdict (w5b-ops-supplier-stories): Exclude: the link depends on a paid service with no free tier, and eligibility is not shown. Not on the exclusion list. Re-fetched 2026-11-11: /contact-us/ 200 (HubSpot form). The customer-story category (WP REST, category 207) is active: 14 posts, newest 2026-10-01. The public links are real: /resources/customer-story/the-tech-stack-behind-capture-bookkeepings-90-referral-driven-growth/ (2026-07-30, index,follow) links <a href=\"https://www.capturebookkeepinginc.com/\"> with no rel, and /resources/customer-story/case-study-walk-the-store/ (2022-08-11) links https://walkthestore.ca/ with no rel. /pricing/ 200 shows only paid plans ('Lite $20 /mo Plus $4 per employee/contractor', Core $40/mo, Plus $80/mo) and a free trial. There is no free plan, so the feature needs PPC to pay to run payroll on Wagepoint, and nothing on file shows it does. The 2026 features are mostly accounting and bookkeeping partners plus clinics (Naturopathie Integrative Clinic, Roncy Dental).",
+  "http_status": "200"
  }
 ]
