@@ -41,6 +41,9 @@ final class Serper extends AbstractSearch {
         $this->consume();
         $r = $this->client->api( 'POST', 'https://google.serper.dev/search', [ 'X-API-KEY' => $this->secrets->get( 'serper_api_key' ), 'Accept' => 'application/json' ], $body );
         if ( ! $r->ok() ) {
+            if ( $this->rejectedCredentials( $r ) ) {
+                $this->refund();
+            }
             return $this->fail( 'Serper error: ' . ( $r->error ?: 'HTTP ' . $r->status ) );
         }
         $this->ok();

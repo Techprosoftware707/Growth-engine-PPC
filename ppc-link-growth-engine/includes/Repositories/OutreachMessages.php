@@ -22,6 +22,9 @@ final class OutreachMessages extends Repository {
     public const STATUS_CLOSED    = 'closed';
     public const STATUS_REJECTED  = 'rejected';
 
+    /** Transient claim while one run hands the email to wp_mail() (OutreachEngine::deliver()). */
+    public const STATUS_SENDING   = 'sending';
+
     protected string $table = 'outreach_messages';
 
     protected array $sortable = [ 'id', 'status', 'approach', 'sequence', 'created_at', 'sent_at', 'replied_at', 'scheduled_at', 'campaign_id', 'prospect_id' ];

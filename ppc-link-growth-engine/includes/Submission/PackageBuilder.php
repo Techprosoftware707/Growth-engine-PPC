@@ -485,6 +485,22 @@ final class PackageBuilder {
     }
 
     /**
+     * What the broken-link probe actually found, worded so the message never overstates it:
+     * BrokenLinkFinder records details.failure as not_found|gone|dns|refused. Older opportunities
+     * without the key fall back to the most cautious wording.
+     *
+     * @param array<string,mixed> $details
+     */
+    public static function brokenLinkProblem( array $details ): string {
+        return match ( (string) ( $details['failure'] ?? '' ) ) {
+            'dns'       => 'no longer resolves',
+            'not_found' => 'returns a 404 (not found) error',
+            'gone'      => 'returns a 410 (gone) error',
+            default     => 'appears unreachable',
+        };
+    }
+
+    /**
      * Plain-text request used for "message" fields and contact-form routes. Built from verified facts only.
      *
      * @param array<string,mixed>                                                             $destination
@@ -504,7 +520,7 @@ final class PackageBuilder {
                 break;
             case 'broken_link' === $oppType && null !== $asset:
                 $broken = (string) ( $details['broken_url'] ?? '' );
-                $ask    = sprintf( 'While reading %s we noticed a link that no longer resolves%s. If useful, "%s" (%s) covers the same topic: %s', $destName, '' !== $broken ? ' (' . $broken . ')' : '', $asset['title'], $asset['url'], $asset['summary'] );
+                $ask    = sprintf( 'While reading %s we noticed a link that %s%s. If useful, "%s" (%s) covers the same topic: %s', $destName, self::brokenLinkProblem( $details ), '' !== $broken ? ' (' . $broken . ')' : '', $asset['title'], $asset['url'], $asset['summary'] );
                 break;
             case in_array( $oppType, [ 'partnership', 'membership' ], true ):
                 $ask = (string) ( $content['partnership_proposal'] ?? sprintf( 'We are interested in a listing or membership with %s for %s (%s).', $destName, $brand, $site ) );

@@ -64,11 +64,17 @@ final class Backlinks extends Repository {
         return [ $id, true ];
     }
 
-    /** @return array<int,array<string,mixed>> */
+    /**
+     * Rows whose next check date has passed, in any status: this includes "unverified" rows parked for the
+     * 30-day robots.txt re-check. A NULL next_check_at means monitoring has stopped for that row; every insert
+     * path (upsert(), the importers, manual adds) sets a date, so only stopped rows are NULL.
+     *
+     * @return array<int,array<string,mixed>>
+     */
     public function dueForCheck( int $limit ): array {
-        $sql = "SELECT * FROM {$this->table()} WHERE (next_check_at IS NULL OR next_check_at <= %s) AND status <> %s ORDER BY next_check_at ASC, id ASC LIMIT %d";
+        $sql = "SELECT * FROM {$this->table()} WHERE next_check_at IS NOT NULL AND next_check_at <= %s ORDER BY next_check_at ASC, id ASC LIMIT %d";
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-        $rows = $this->db()->get_results( $this->db()->prepare( $sql, self::now(), self::STATUS_UNVERIFIED, $limit ), ARRAY_A );
+        $rows = $this->db()->get_results( $this->db()->prepare( $sql, self::now(), $limit ), ARRAY_A );
         return array_map( [ $this, 'hydrate' ], $rows ?: [] );
     }
 

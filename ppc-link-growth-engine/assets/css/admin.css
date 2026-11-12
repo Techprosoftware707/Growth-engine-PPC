@@ -140,6 +140,11 @@
     box-sizing: border-box;
 }
 
+/* The hidden attribute always hides, even on elements whose own rule sets display (flex, grid, ...). */
+.ppclg-wrap [hidden] {
+    display: none !important;
+}
+
 .ppclg-wrap a {
     color: var(--ppclg-blue);
     text-decoration: none;

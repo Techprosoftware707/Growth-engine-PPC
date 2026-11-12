@@ -206,7 +206,9 @@ export default async function render( root, ctx ) {
                     ? callout( 'danger', 'Claims filter', el( 'ul', { class: 'ppclg-violations' }, violations.map( ( v ) => el( 'li', {}, icon( 'alert', 14 ), isObject( v ) ? `${ v.message || labelize( v.rule || 'claim' ) }: “${ v.match || '' }”` : String( v ) ) ) ) )
                     : callout( 'success', null, 'No unverified claims found. The copy stays within the research-use-only positioning.' ) );
                 if ( ! quiet ) {
-                    toast( violations.length ? `${ violations.length } claim issue(s) found — edit the text before approving.` : 'Content saved and claims check passed.', violations.length ? 'warning' : 'success' );
+                    // held: the edit took an approved/queued submission out of the automated queue.
+                    const held = Boolean( res && res.held ) ? ' The submission was moved back to review; approve it again once the text is fixed.' : '';
+                    toast( violations.length ? `${ violations.length } claim issue(s) found — edit the text before approving.${ held }` : 'Content saved and claims check passed.', violations.length ? 'warning' : 'success' );
                 }
                 return violations;
             };
@@ -269,7 +271,9 @@ export default async function render( root, ctx ) {
                     }
                     const res = await api.post( `/submissions/${ s.id }/approve`, {} );
                     const ok = res === true || ( isObject( res ) && ( res.ok === true || res.approved === true ) );
-                    toast( ok ? 'Approved and queued for automated submission.' : 'Approved for manual handling — automated submission is not permitted for this target. Submit it by hand and use “Mark submitted”.', ok ? 'success' : 'info', { timeout: 7000 } );
+                    // A refused approval keeps the package manual; the server explains why (policy reasons, claims check…).
+                    const serverText = isObject( res ) && typeof res.message === 'string' ? res.message.trim() : '';
+                    toast( serverText || ( ok ? 'Approved and queued for automated submission.' : 'Not approved for automated submission; the package stays manual. Submit it by hand and use “Mark submitted”.' ), ok ? 'success' : 'warning', { timeout: 7000 } );
                     await refresh();
                 } } ) );
             }
@@ -286,7 +290,7 @@ export default async function render( root, ctx ) {
             if ( [ 'failed', 'rejected' ].includes( s.status ) ) {
                 actions.push( button( 'Retry', { iconName: 'refresh', onClick: async () => {
                     // A refused retry (policy no longer allows it) answers ok: false with the reason.
-                    reportAction( await api.post( `/submissions/${ s.id }/retry`, {} ), 'Submission re-queued for review.' );
+                    reportAction( await api.post( `/submissions/${ s.id }/retry`, {} ), 'Submission queued again for automatic sending.' );
                     await refresh();
                 } } ) );
             }

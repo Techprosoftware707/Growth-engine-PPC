@@ -22,20 +22,25 @@ final class RobotsTxt {
      */
     private const RETRY_STATUSES = [ 408, 429 ];
 
-    /** @var array<string,array{status:int,rules:array<string,array<int,array{allow:bool,path:string}>>,delay:?float,error?:?string}> */
+    /** @var array<string,array{status:int,rules:array<string,array<int,array{allow:bool,path:string}>>,delay:?float,error?:?string,shortened?:bool}> */
     private array $memory = [];
 
     public function __construct( private Logger $logger ) {}
 
     /**
      * Whether our bot may fetch $url. Unavailable robots.txt (network error, 5xx, 429, 408) means "disallow for now".
+     *
+     * $shortened says $fetcher waits less than the normal robots.txt timeout (a caller short of time). If that
+     * request times out, the failure is kept for this request only, never in the shared cache: a full-length
+     * fetch may still succeed, so other callers are not blocked for an hour, and a later full-length call
+     * fetches robots.txt again.
      */
-    public function isAllowed( string $url, callable $fetcher ): bool {
+    public function isAllowed( string $url, callable $fetcher, bool $shortened = false ): bool {
         $host = Url::host( $url );
         if ( '' === $host ) {
             return false;
         }
-        $data = $this->load( $url, $fetcher );
+        $data = $this->load( $url, $fetcher, $shortened );
         if ( self::unavailable( $data['status'] ) ) {
             return false;
         }
@@ -57,11 +62,24 @@ final class RobotsTxt {
     }
 
     /**
+     * The Crawl-delay of $url's host when its robots.txt is already loaded (in this request or the transient
+     * cache), without fetching anything; null when robots.txt is not loaded yet or sets no Crawl-delay.
+     */
+    public function knownCrawlDelay( string $url ): ?float {
+        if ( '' === Url::host( $url ) ) {
+            return null;
+        }
+        $data  = $this->cached( self::originKey( $url ) );
+        $delay = null === $data ? null : ( $data['delay'] ?? null );
+        return null === $delay ? null : (float) $delay;
+    }
+
+    /**
      * The transport error (DNS failure, connection refused, timeout...) that stopped robots.txt for $url's host
      * from being fetched, or null when the server answered (whatever the status).
      */
-    public function fetchError( string $url, callable $fetcher ): ?string {
-        $data  = $this->load( $url, $fetcher );
+    public function fetchError( string $url, callable $fetcher, bool $shortened = false ): ?string {
+        $data  = $this->load( $url, $fetcher, $shortened );
         $error = $data['error'] ?? null;
         return is_string( $error ) && '' !== $error ? $error : null;
     }
@@ -109,21 +127,16 @@ final class RobotsTxt {
     }
 
     /**
-     * @return array{status:int,rules:array<string,array<int,array{allow:bool,path:string}>>,delay:?float,error?:?string}
+     * @return array{status:int,rules:array<string,array<int,array{allow:bool,path:string}>>,delay:?float,error?:?string,shortened?:bool}
      */
-    private function load( string $url, callable $fetcher ): array {
-        $host   = Url::host( $url );
-        $scheme = (string) ( wp_parse_url( $url, PHP_URL_SCHEME ) ?: 'https' );
-        $key    = $scheme . '://' . $host;
-        if ( isset( $this->memory[ $key ] ) ) {
-            return $this->memory[ $key ];
-        }
-        $tkey   = 'ppclg_robots_' . md5( $key );
-        $cached = get_transient( $tkey );
-        if ( is_array( $cached ) && isset( $cached['status'], $cached['rules'] ) ) {
-            $this->memory[ $key ] = $cached;
+    private function load( string $url, callable $fetcher, bool $shortened = false ): array {
+        $key    = self::originKey( $url );
+        $cached = $this->cached( $key );
+        // A timeout from a shortened fetch is reused by other shortened fetches only.
+        if ( null !== $cached && ( $shortened || empty( $cached['shortened'] ) ) ) {
             return $cached;
         }
+        $tkey = 'ppclg_robots_' . md5( $key );
         /** @var Response $resp */
         $resp = $fetcher( $key . '/robots.txt' );
         $data = [ 'status' => $resp->status, 'rules' => [], 'delay' => null, 'error' => null ];
@@ -135,6 +148,11 @@ final class RobotsTxt {
             $data['rules'] = $parsed['rules'];
             $data['delay'] = $parsed['delay'];
         }
+        if ( $shortened && null !== $data['error'] && preg_match( '/timed?\s?out|timeout/i', $data['error'] ) ) {
+            $data['shortened']    = true;
+            $this->memory[ $key ] = $data;
+            return $data;
+        }
         $ttl = DAY_IN_SECONDS;
         if ( self::unavailable( $data['status'] ) ) {
             // Re-check within the hour, but never before the host's Retry-After (capped at a day).
@@ -143,6 +161,29 @@ final class RobotsTxt {
         set_transient( $tkey, $data, $ttl );
         $this->memory[ $key ] = $data;
         return $data;
+    }
+
+    /** "scheme://host" of $url: the key robots.txt data is cached under. */
+    private static function originKey( string $url ): string {
+        $scheme = (string) ( wp_parse_url( $url, PHP_URL_SCHEME ) ?: 'https' );
+        return $scheme . '://' . Url::host( $url );
+    }
+
+    /**
+     * robots.txt data already loaded for the origin $key (memory, then the transient cache), or null.
+     *
+     * @return array{status:int,rules:array<string,array<int,array{allow:bool,path:string}>>,delay:?float,error?:?string,shortened?:bool}|null
+     */
+    private function cached( string $key ): ?array {
+        if ( isset( $this->memory[ $key ] ) ) {
+            return $this->memory[ $key ];
+        }
+        $cached = get_transient( 'ppclg_robots_' . md5( $key ) );
+        if ( is_array( $cached ) && isset( $cached['status'], $cached['rules'] ) ) {
+            $this->memory[ $key ] = $cached;
+            return $cached;
+        }
+        return null;
     }
 
     /** Seconds from a Retry-After header (delta-seconds or HTTP-date); 0 when absent or unparseable. */

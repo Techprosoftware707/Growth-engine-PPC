@@ -136,7 +136,7 @@ final class SubmissionsController extends Controller {
                 break;
             case 'reject':
                 $ok      = $engine->reject( $id, $user, $this->str( $request, 'reason', '', 1000 ) );
-                $message = $ok ? __( 'Submission rejected.', 'ppc-link-growth-engine' ) : __( 'This submission cannot be rejected (already confirmed).', 'ppc-link-growth-engine' );
+                $message = $ok ? __( 'Submission rejected.', 'ppc-link-growth-engine' ) : ( $this->inFlightNow( $id, $sub ) ? self::inFlightMessage() : __( 'This submission cannot be rejected (already confirmed).', 'ppc-link-growth-engine' ) );
                 break;
             case 'retry':
                 $ok      = $engine->retry( $id, $user );
@@ -144,7 +144,7 @@ final class SubmissionsController extends Controller {
                 break;
             case 'rebuild':
                 $ok      = $engine->rebuildPackage( $id, $user );
-                $message = $ok ? __( 'Package rebuilt from a fresh crawl.', 'ppc-link-growth-engine' ) : __( 'The package could not be rebuilt (submitted or confirmed submissions are locked).', 'ppc-link-growth-engine' );
+                $message = $ok ? __( 'Package rebuilt from a fresh crawl.', 'ppc-link-growth-engine' ) : ( $this->inFlightNow( $id, $sub ) ? self::inFlightMessage() : __( 'The package could not be rebuilt (submitted or confirmed submissions are locked).', 'ppc-link-growth-engine' ) );
                 if ( $ok ) {
                     // A freshly generated package must pass the claims check before it can stay queued.
                     $rebuilt = $repo->find( $id );
@@ -159,7 +159,7 @@ final class SubmissionsController extends Controller {
                     $listing = 'https://' . ltrim( $listing, '/' );
                 }
                 $ok      = $engine->markSubmittedManually( $id, $user, $listing, $this->str( $request, 'confirmation_ref', '', 190 ), $this->text( $request, 'note', '', 2000 ) );
-                $message = $ok ? __( 'Marked as submitted; verification starts on the next run.', 'ppc-link-growth-engine' ) : __( 'This submission is already confirmed.', 'ppc-link-growth-engine' );
+                $message = $ok ? __( 'Marked as submitted; verification starts on the next run.', 'ppc-link-growth-engine' ) : ( $this->inFlightNow( $id, $sub ) ? self::inFlightMessage() : __( 'This submission is already confirmed.', 'ppc-link-growth-engine' ) );
                 break;
         }
 
@@ -186,6 +186,11 @@ final class SubmissionsController extends Controller {
         }
         if ( in_array( (string) $sub['status'], [ Submissions::STATUS_SUBMITTED, Submissions::STATUS_CONFIRMED ], true ) ) {
             return $this->fail( 'ppclg_submission_locked', __( 'Submitted and confirmed submissions cannot be edited.', 'ppc-link-growth-engine' ), 409 );
+        }
+        // The queue run re-reads the payload just before it claims the row, so edits saved before the
+        // claim are what gets sent; between the claim and the POST an edit would silently not be sent.
+        if ( SubmissionEngine::isInFlight( $sub ) ) {
+            return $this->fail( 'ppclg_submission_in_flight', self::inFlightMessage(), 409 );
         }
         $incoming = $request->get_param( 'payload' );
         if ( is_string( $incoming ) ) {
@@ -270,6 +275,20 @@ final class SubmissionsController extends Controller {
     }
 
     // ------------------------------------------------------------------
+
+    private static function inFlightMessage(): string {
+        return __( 'This submission is being sent right now; try again in a minute.', 'ppc-link-growth-engine' );
+    }
+
+    /**
+     * Whether a queue run holds the row right now (re-read; falls back to the row loaded for the request).
+     *
+     * @param array<string,mixed> $sub
+     */
+    private function inFlightNow( int $id, array $sub ): bool {
+        $fresh = $this->c->get( Submissions::class )->find( $id );
+        return SubmissionEngine::isInFlight( $fresh ?? $sub );
+    }
 
     /**
      * Why an approve/retry/rebuild must not (re-)queue this submission, or null when it may proceed.

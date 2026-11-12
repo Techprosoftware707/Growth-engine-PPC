@@ -65,7 +65,10 @@ final class ProspectsController extends Controller {
         }
         $auto = $request->get_param( 'automation_allowed' );
         if ( null !== $auto && '' !== $auto ) {
-            $where['automation_allowed'] = $this->bool( $request, 'automation_allowed' ) ? 1 : 0;
+            $setting = self::automationSettingParam( $auto );
+            if ( null !== $setting ) {
+                $where['automation_allowed'] = $setting;
+            }
         }
         $extra  = '';
         $params = [];
@@ -176,7 +179,11 @@ final class ProspectsController extends Controller {
         if ( Prospects::STATUS_SUPPRESSED === $status ) {
             $this->safe( fn(): bool => $this->c->get( Suppression::class )->add( 'domain', (string) $p['domain'], '' !== $reason ? $reason : 'Suppressed from the prospect list' ), false, 'suppress domain' );
         }
-        $this->audit( 'prospect.status_changed', 'prospect', $id, [ 'from' => (string) $p['status'], 'to' => $status, 'reason' => $reason, 'domain' => (string) $p['domain'] ] );
+        $details = [ 'from' => (string) $p['status'], 'to' => $status, 'reason' => $reason, 'domain' => (string) $p['domain'] ];
+        if ( in_array( $status, [ Prospects::STATUS_REJECTED, Prospects::STATUS_SUPPRESSED ], true ) ) {
+            $details['outreach_cancelled'] = $this->cancelPendingOutreach( $id, $status );
+        }
+        $this->audit( 'prospect.status_changed', 'prospect', $id, $details );
         return [ 'ok' => true, 'prospect' => $this->fresh( $id ) ];
     }
 
@@ -206,9 +213,14 @@ final class ProspectsController extends Controller {
         $data    = [ 'updated_at' => Repository::now() ];
         $details = [];
         if ( $request->has_param( 'automation_allowed' ) ) {
-            $allowed                    = $this->bool( $request, 'automation_allowed', (bool) ( $p['automation_allowed'] ?? false ) );
-            $data['automation_allowed'] = $allowed ? 1 : 0;
-            $details['automation_allowed'] = $allowed;
+            // -1 never automate, 0 follow the submission mode, 1 always allowed (true/false still mean 1/0).
+            $setting = self::automationSettingParam( $request->get_param( 'automation_allowed' ) );
+            if ( null === $setting ) {
+                return $this->fail( 'ppclg_invalid_automation_setting', __( 'automation_allowed must be -1 (never automate), 0 (follow the submission mode) or 1 (always allowed).', 'ppc-link-growth-engine' ), 400 );
+            }
+            $data['automation_allowed']    = $setting;
+            $details['automation_allowed'] = $setting;
+            $details['previous']           = Prospects::automationSetting( $p );
         }
         if ( $request->has_param( 'submission_config' ) ) {
             $raw = $request->get_param( 'submission_config' );
@@ -277,7 +289,8 @@ final class ProspectsController extends Controller {
             null,
             'dismiss opportunities'
         );
-        $this->audit( 'prospect.suppressed', 'prospect', $id, [ 'domain' => (string) $p['domain'], 'reason' => $reason, 'suppression_added' => (bool) $added ] );
+        $cancelled = $this->cancelPendingOutreach( $id, Prospects::STATUS_SUPPRESSED );
+        $this->audit( 'prospect.suppressed', 'prospect', $id, [ 'domain' => (string) $p['domain'], 'reason' => $reason, 'suppression_added' => (bool) $added, 'outreach_cancelled' => $cancelled ] );
         return [ 'ok' => true, 'prospect' => $this->fresh( $id ), 'suppression_added' => (bool) $added ];
     }
 
@@ -392,6 +405,65 @@ final class ProspectsController extends Controller {
     }
 
     // ------------------------------------------------------------------
+
+    /**
+     * Per-site automation setting from a request value: -1/0/1 (numbers or numeric strings),
+     * "never"/"inherit"/"always", or a boolean (true = 1, false = 0). Null when not recognised.
+     */
+    private static function automationSettingParam( mixed $raw ): ?int {
+        if ( is_bool( $raw ) ) {
+            return $raw ? Prospects::AUTOMATION_ALWAYS : Prospects::AUTOMATION_INHERIT;
+        }
+        if ( is_int( $raw ) ) {
+            return in_array( $raw, Prospects::AUTOMATION_SETTINGS, true ) ? $raw : null;
+        }
+        if ( ! is_string( $raw ) && ! is_float( $raw ) ) {
+            return null;
+        }
+        $value = strtolower( trim( (string) $raw ) );
+        if ( preg_match( '/^-?\d+$/', $value ) ) {
+            $n = (int) $value;
+            return in_array( $n, Prospects::AUTOMATION_SETTINGS, true ) ? $n : null;
+        }
+        return match ( $value ) {
+            'never'                            => Prospects::AUTOMATION_NEVER,
+            'inherit', 'false', 'off', 'no'    => Prospects::AUTOMATION_INHERIT,
+            'always', 'true', 'on', 'yes'      => Prospects::AUTOMATION_ALWAYS,
+            default                            => null,
+        };
+    }
+
+    /**
+     * Takes the unsent outreach of a prospect that was just rejected or suppressed out of the queue:
+     * draft, approved and scheduled messages become rejected (prospect rejected) or closed (domain
+     * suppressed). A message already being sent is left to the send path, which refuses rejected and
+     * suppressed prospects itself. Returns the number of messages changed.
+     */
+    private function cancelPendingOutreach( int $id, string $prospectStatus ): int {
+        global $wpdb;
+        $suppressed = Prospects::STATUS_SUPPRESSED === $prospectStatus;
+        return (int) $this->safe(
+            function () use ( $wpdb, $id, $suppressed ): int {
+                $sql = 'UPDATE ' . $this->c->get( OutreachMessages::class )->table() . ' SET status = %s, last_error = %s, updated_at = %s WHERE prospect_id = %d AND status IN (%s, %s, %s)';
+                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- table name from the repository, values prepared.
+                $n = $wpdb->query(
+                    $wpdb->prepare(
+                        $sql,
+                        $suppressed ? OutreachMessages::STATUS_CLOSED : OutreachMessages::STATUS_REJECTED,
+                        $suppressed ? 'Cancelled: the domain was suppressed.' : 'Cancelled: the prospect was rejected.',
+                        Repository::now(),
+                        $id,
+                        OutreachMessages::STATUS_DRAFT,
+                        OutreachMessages::STATUS_APPROVED,
+                        OutreachMessages::STATUS_SCHEDULED
+                    )
+                );
+                return false === $n ? 0 : (int) $n;
+            },
+            0,
+            'cancel pending outreach'
+        );
+    }
 
     /**
      * Submissions and outreach messages that already went out to this prospect.

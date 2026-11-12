@@ -104,9 +104,12 @@ final class DiscoveryContentFixesTest extends TestCase {
         $this->assertNotEmpty( $pages );
         $this->assertLessThanOrEqual( 11, (int) $pages[0]['args']['timeout'], 'robots (8s) + page must fit the 20s budget' );
         $this->assertGreaterThanOrEqual( 3, (int) $pages[0]['args']['timeout'] );
-        // Not enough budget for robots.txt plus a page: nothing is crawled.
+        // Not enough budget for robots.txt plus a page (3 s each, plus 1 s slack): nothing is crawled.
+        // A fresh container, so the page is not served from the client's in-request cache.
+        Container::reset();
+        Container::get( Settings::class )->set( 'advanced.crawl_delay_seconds', 0 );
         HttpFixtures::$requests = [];
-        Container::get( MentionFinder::class )->scan( [ 'other brand query' ], TimeBudget::seconds( 9 ) );
+        Container::get( MentionFinder::class )->scan( [ 'other brand query' ], TimeBudget::seconds( 7 ) );
         $this->assertSame( [], array_filter( HttpFixtures::$requests, static fn( array $r ): bool => str_contains( $r['url'], 'labdirectory.test' ) ) );
     }
 
@@ -222,8 +225,11 @@ final class DiscoveryContentFixesTest extends TestCase {
 
     /** discovery-content-8: probe timeouts are sized to the remaining budget. */
     public function testBrokenLinkProbesFitTheBudget(): void {
+        // slowlab.test answers robots.txt (404: no rules) but every page request times out, so each probe
+        // really sends HEAD and the GET fallback.
+        HttpFixtures::add( 'https://slowlab.test/robots.txt', '', 404, [ 'content-type' => 'text/plain' ] );
         HttpFixtures::$handler = static function ( string $url ) {
-            return str_contains( $url, 'slowlab.test' ) ? new \WP_Error( 'http_request_failed', 'cURL error 28: Operation timed out' ) : null;
+            return str_contains( $url, 'slowlab.test' ) && ! str_ends_with( $url, '/robots.txt' ) ? new \WP_Error( 'http_request_failed', 'cURL error 28: Operation timed out' ) : null;
         };
         [ $pid ] = Container::get( Prospects::class )->upsertDiscovered( 'resources3.test', [] );
         $html    = '<html><head><title>Peptide resources</title></head><body><main><ul>'
@@ -232,17 +238,18 @@ final class DiscoveryContentFixesTest extends TestCase {
             . '</ul></main></body></html>';
         $page = ( new PageAnalyzer() )->analyze( $html, 'https://resources3.test/links/' );
 
-        Container::get( BrokenLinkFinder::class )->scan( $page, $pid, TimeBudget::seconds( 8 ), 10 );
-        $this->assertNotEmpty( HttpFixtures::$requests );
+        Container::get( BrokenLinkFinder::class )->scan( $page, $pid, TimeBudget::seconds( 10 ), 10 );
+        $this->assertContains( 'HEAD', array_column( HttpFixtures::$requests, 'method' ) );
         foreach ( HttpFixtures::$requests as $r ) {
-            $this->assertLessThanOrEqual( 3, (int) $r['args']['timeout'], 'HEAD+GET must fit an 8s budget' );
+            $this->assertLessThanOrEqual( 3, (int) $r['args']['timeout'], 'robots.txt+HEAD+GET must fit a 10s budget' );
         }
         HttpFixtures::$requests = [];
         Container::get( BrokenLinkFinder::class )->scan( $page, $pid, TimeBudget::seconds( 60 ), 10 );
+        $this->assertCount( 4, HttpFixtures::$requests, 'HEAD and GET for both links (robots.txt is cached)' );
         foreach ( HttpFixtures::$requests as $r ) {
             $this->assertSame( 10, (int) $r['args']['timeout'], 'capped at the normal probe timeout' );
         }
-        // Too little budget for even one HEAD+GET: no request at all.
+        // Too little budget for even one robots.txt+HEAD+GET: no request at all.
         HttpFixtures::$requests = [];
         $stats = Container::get( BrokenLinkFinder::class )->scan( $page, $pid, TimeBudget::seconds( 5 ), 10 );
         $this->assertSame( 0, $stats['checked'] );

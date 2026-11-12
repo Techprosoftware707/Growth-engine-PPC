@@ -139,13 +139,16 @@ export default async function render( root, ctx ) {
         const trend = arr( s.weekly_trend || s.trend );
         const referring = s.referring_domains !== undefined ? s.referring_domains : ( isObject( s.domains ) ? s.domains.referring : null );
         const highAuth = s.high_authority_domains !== undefined ? s.high_authority_domains : ( isObject( s.domains ) ? s.domains.high_authority : null );
+        const authorityMin = s.high_authority_min !== undefined ? s.high_authority_min : 30;
+        // quality_domains is the monitor's link-quality count, shown beside the provider-authority one.
+        const qualityNote = s.quality_domains !== undefined ? ` · ${ fmtNumber( s.quality_domains ) } with quality score ≥ 60` : '';
 
         replace( summaryHost,
             el( 'div', { class: 'ppclg-grid ppclg-grid--tiles', style: { marginBottom: '16px' } },
                 statTile( { label: 'Active', iconName: 'check', value: fmtNumber( count( 'active' ) ), hint: `${ fmtNumber( count( 'pending' ) ) } pending verification`, onClick: () => list.setFilters( { status: 'active' } ) } ),
                 statTile( { label: 'Lost or broken', iconName: 'alert', value: fmtNumber( count( 'lost' ) + count( 'broken' ) ), hint: `${ fmtNumber( count( 'redirected' ) ) } redirected · ${ fmtNumber( count( 'unverified' ) ) } unverified`, tone: count( 'lost' ) + count( 'broken' ) > 0 ? 'critical' : null, onClick: () => list.setFilters( { status: 'lost' } ) } ),
                 statTile( { label: 'Referring domains', iconName: 'globe', value: fmtNumber( referring ), hint: 'Unique source domains with a live link' } ),
-                statTile( { label: 'High-authority domains', iconName: 'shield', value: fmtNumber( highAuth ), hint: 'Authority ≥ 30 on a configured provider' } ),
+                statTile( { label: 'High-authority domains', iconName: 'shield', value: fmtNumber( highAuth ), hint: `Authority ≥ ${ fmtNumber( authorityMin ) } on a configured provider${ qualityNote }` } ),
             ),
             el( 'div', { class: 'ppclg-grid ppclg-grid--3' },
                 card( { body: lineChart( { title: 'New vs. lost per week', series: [ { name: 'New', points: trend.map( ( r ) => ( { x: r.week, y: Number( r.new ) || 0 } ) ) }, { name: 'Lost', points: trend.map( ( r ) => ( { x: r.week, y: Number( r.lost ) || 0 } ) ) } ], height: 200, emptyMessage: 'No weekly history yet.' } ) } ),

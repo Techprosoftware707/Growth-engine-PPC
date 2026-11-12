@@ -10,7 +10,7 @@ import {
 } from '../ui.js';
 import { reportAction } from './outcome.js';
 
-const MESSAGE_STATUSES = [ 'draft', 'approved', 'scheduled', 'sent', 'failed', 'replied', 'bounced', 'opted_out', 'closed', 'rejected' ];
+const MESSAGE_STATUSES = [ 'draft', 'approved', 'scheduled', 'sending', 'sent', 'failed', 'replied', 'bounced', 'opted_out', 'closed', 'rejected' ];
 const CONTACT_STATUSES = [ 'active', 'opted_out', 'bounced', 'suppressed', 'invalid' ];
 const EDITABLE_STATUSES = [ 'draft', 'approved', 'rejected', 'failed' ];
 
@@ -328,6 +328,51 @@ export default async function render( root, ctx ) {
         };
         search.addEventListener( 'input', debounce( renderRows, 200 ) );
 
+        const domainOf = ( pid ) => rows.find( ( p ) => String( p.id ) === String( pid ) )?.domain || `#${ pid }`;
+
+        // Reports one drafts response. A request stops after its time limit and returns the unprocessed prospect
+        // ids as `remaining`; "Continue" posts exactly those again until none are left.
+        const showDraftResult = ( res, useAi ) => {
+            const created = Number( res && res.created ) || 0;
+            const remaining = arr( res && res.remaining ).map( Number ).filter( ( id ) => id > 0 );
+            const skippedEntries = Object.entries( obj( res && res.skipped ) ).filter( ( [ pid ] ) => ! remaining.includes( Number( pid ) ) );
+            toast( `${ fmtNumber( created ) } draft(s) created${ skippedEntries.length ? `, ${ skippedEntries.length } skipped` : '' }${ remaining.length ? `, ${ remaining.length } not processed yet` : '' }.`, created > 0 ? 'success' : 'warning' );
+            if ( skippedEntries.length || remaining.length ) {
+                let busy = false;
+                const actions = [ { label: 'Close', kind: remaining.length ? 'secondary' : 'primary', onClick: ( close2 ) => close2() } ];
+                if ( remaining.length ) {
+                    actions.push( { label: `Continue (${ fmtNumber( remaining.length ) } left)`, kind: 'primary', iconName: 'play', onClick: async ( close2 ) => {
+                        if ( busy ) {
+                            return;
+                        }
+                        busy = true;
+                        let next;
+                        try {
+                            next = await api.post( `/outreach/campaigns/${ c.id }/drafts`, { prospect_ids: remaining, use_ai: useAi } );
+                        } catch ( e ) {
+                            // api.js already showed the error; the dialog stays open so Continue can be tried again.
+                            busy = false;
+                            return;
+                        }
+                        close2();
+                        showDraftResult( next, useAi );
+                    } } );
+                }
+                modal( {
+                    title: remaining.length ? 'Drafts not finished' : 'Skipped prospects',
+                    content: [
+                        remaining.length ? el( 'p', {}, `The time limit for one request was reached, so ${ fmtNumber( remaining.length ) } prospect(s) were not processed yet. Choose Continue to build their drafts now.` ) : null,
+                        skippedEntries.length ? el( 'ul', { class: 'ppclg-list--bullets' }, skippedEntries.map( ( [ pid, reason ] ) => el( 'li', {}, `${ domainOf( pid ) }: ${ reason }` ) ) ) : null,
+                    ],
+                    actions,
+                } );
+            }
+            view.refresh( 'campaigns' );
+            if ( messagesList ) {
+                messagesList.reload();
+            }
+        };
+
         ( async () => {
             try {
                 const results = await Promise.all( [ 'approved', 'qualified', 'in_progress' ].map( ( status ) => api.get( '/prospects', { status, per_page: 100, orderby: 'score', order: 'desc' }, { silent: true } ).then( normalizeList ).catch( () => ( { items: [] } ) ) ) );
@@ -367,23 +412,10 @@ export default async function render( root, ctx ) {
                         toast( 'Select at least one prospect.', 'warning' );
                         return;
                     }
-                    const res = await api.post( `/outreach/campaigns/${ c.id }/drafts`, { prospect_ids: Array.from( selected ), use_ai: aiField.get() } );
-                    const created = Number( res && res.created ) || 0;
-                    const skipped = obj( res && res.skipped );
-                    const skippedEntries = Object.entries( skipped );
-                    toast( `${ fmtNumber( created ) } draft(s) created${ skippedEntries.length ? `, ${ skippedEntries.length } skipped` : '' }.`, created > 0 ? 'success' : 'warning' );
+                    const useAi = aiField.get();
+                    const res = await api.post( `/outreach/campaigns/${ c.id }/drafts`, { prospect_ids: Array.from( selected ), use_ai: useAi } );
                     close();
-                    if ( skippedEntries.length ) {
-                        modal( {
-                            title: 'Skipped prospects',
-                            content: el( 'ul', { class: 'ppclg-list--bullets' }, skippedEntries.map( ( [ pid, reason ] ) => el( 'li', {}, `${ rows.find( ( p ) => String( p.id ) === String( pid ) )?.domain || `#${ pid }` }: ${ reason }` ) ) ),
-                            actions: [ { label: 'Close', kind: 'primary', onClick: ( close2 ) => close2() } ],
-                        } );
-                    }
-                    view.refresh( 'campaigns' );
-                    if ( messagesList ) {
-                        messagesList.reload();
-                    }
+                    showDraftResult( res, useAi );
                 } },
             ],
         } );
@@ -556,7 +588,14 @@ export default async function render( root, ctx ) {
                     if ( ! ( await confirm( `Send this email to ${ contact.email || 'the contact' } right now? Compliance checks and limits still apply; the send window is bypassed.`, { title: 'Send email', confirmText: 'Send now' } ) ) ) {
                         return;
                     }
-                    const res = await api.post( `/outreach/messages/${ m.id }/send`, {} );
+                    let res;
+                    try {
+                        res = await api.post( `/outreach/messages/${ m.id }/send`, {} );
+                    } catch ( e ) {
+                        // Refused (e.g. 409 while the automation runner is busy); api.js already showed the reason.
+                        await refresh();
+                        return;
+                    }
                     if ( res && res.ok === false ) {
                         toast( `Not sent: ${ res.error || 'blocked by compliance or limits' }`, 'error' );
                     } else {
@@ -619,7 +658,10 @@ export default async function render( root, ctx ) {
                     const select = el( 'select', { class: 'ppclg-select ppclg-input--small', 'aria-label': `Status for ${ c.email }`, style: { width: 'auto', minWidth: '120px' } }, CONTACT_STATUSES.map( ( s ) => el( 'option', { value: s, selected: s === c.status }, labelize( s ) ) ) );
                     select.addEventListener( 'change', async () => {
                         const next = select.value;
-                        if ( next !== 'active' && ! ( await confirm( `Mark ${ c.email } as ${ labelize( next ).toLowerCase() }? They will not be contacted again.`, { confirmText: 'Update' } ) ) ) {
+                        const question = next === 'active'
+                            ? `Reactivate ${ c.email }? Only do this if they have agreed to be contacted.`
+                            : `Mark ${ c.email } as ${ labelize( next ).toLowerCase() }? They will not be contacted again.`;
+                        if ( ! ( await confirm( question, { confirmText: next === 'active' ? 'Reactivate' : 'Update' } ) ) ) {
                             select.value = c.status;
                             return;
                         }

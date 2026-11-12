@@ -197,7 +197,8 @@ final class JsPagesFixesTest extends TestCase {
     public function testBrowserProspectDrawerShowsEffectiveModeAndHonestEvaluateResults(): void {
         $r = $this->browser( 'prospects' );
         $this->assertStringContainsString( 'Submission mode: Auto', $r['modeNotice'] );
-        $this->assertStringContainsString( 'even though the switch below is off', $r['modeNotice'] );
+        $this->assertStringContainsString( 'while its per-site setting below is “Inherit”', $r['modeNotice'] );
+        $this->assertStringContainsString( 'Never automate', $r['modeNotice'] );
         $this->assertStringNotContainsString( 'Everything else always waits for your approval', $r['modeNotice'] );
         $this->assertSame( [ [ 'kind' => 'warning', 'text' => 'Evaluation did not run: the daily evaluation limit is used up.' ] ], $r['evaluate'][0] );
         $this->assertSame( 'info', $r['evaluate'][1][0]['kind'] );

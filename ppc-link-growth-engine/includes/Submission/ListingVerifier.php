@@ -98,15 +98,26 @@ final class ListingVerifier {
         }
 
         // 2. Search the prospect site for the brand and check up to three result pages.
-        $provider = $this->providers->primarySearch();
+        // Like DiscoveryEngine: when a provider fails (revoked key, 429, outage) the next one runs the query.
         $searched = false;
-        if ( null !== $provider && '' !== $domain && '' !== $brand ) {
-            $searched = true;
-            $results  = [];
-            try {
-                $results = $provider->search( sprintf( 'site:%s "%s"', $domain, $brand ), [ 'num' => 10, 'country' => 'ca' ] );
-            } catch ( Throwable $e ) {
-                $this->logger->warning( 'submission', 'Listing search failed', [ 'provider' => $provider->id(), 'error' => $e->getMessage() ] );
+        if ( '' !== $domain && '' !== $brand ) {
+            $results = [];
+            foreach ( $this->providers->searchProviders() as $provider ) {
+                if ( $provider->remainingToday() <= 0 ) {
+                    continue;
+                }
+                $searched = true;
+                try {
+                    $results = $provider->search( sprintf( 'site:%s "%s"', $domain, $brand ), [ 'num' => 10, 'country' => 'ca' ] );
+                } catch ( Throwable $e ) {
+                    $results = [];
+                    $this->logger->warning( 'submission', 'Listing search failed', [ 'provider' => $provider->id(), 'error' => $e->getMessage() ] );
+                    continue;
+                }
+                if ( ! empty( $results ) || '' === $provider->lastError() ) {
+                    break;
+                }
+                $this->logger->warning( 'submission', 'Listing search failed', [ 'provider' => $provider->id(), 'error' => $provider->lastError() ] );
             }
             $n = 0;
             foreach ( $results as $r ) {

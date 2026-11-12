@@ -47,7 +47,7 @@ final class SettingsController extends Controller {
     /** Clamp ranges for integer settings (by leaf key). */
     private const INT_RANGES = [
         'tick_interval'               => [ 60, 86400 ],
-        'max_execution_seconds'       => [ 5, 120 ],
+        'max_execution_seconds'       => [ 15, 120 ], // the runner raises lower values to JobRunner::MIN_TICK_SECONDS
         'send_window_start'           => [ 0, 23 ],
         'send_window_end'             => [ 1, 24 ],
         'request_timeout'             => [ 3, 60 ],
@@ -151,7 +151,12 @@ final class SettingsController extends Controller {
     }
 
     /**
-     * POST /settings {settings, secrets, facts, custom_seeds}
+     * POST /settings {settings, secrets, facts, custom_seeds, confirm}
+     *
+     * Switching automation.submissions or automation.outreach_autosend on needs confirm=true, as on
+     * POST /automation/toggle, and so does turning outreach.require_approval off while outreach autosend is on
+     * (that is what lets automation approve and send its own first-contact drafts). Linkable assets must pass the
+     * claims filter. Otherwise nothing is saved.
      *
      * @return array<string,mixed>|\WP_Error
      */
@@ -161,16 +166,55 @@ final class SettingsController extends Controller {
         $changed  = [];
 
         $incoming = $request->get_param( 'settings' );
-        if ( is_array( $incoming ) && [] !== $incoming ) {
-            $clean = $this->sanitizeSettings( $incoming );
-            if ( [] !== $clean ) {
-                $settings->update( $clean );
-                $changed = self::diffKeys( $before, $settings->all() );
+        $clean    = is_array( $incoming ) && [] !== $incoming ? $this->sanitizeSettings( $incoming ) : [];
+
+        $enabling = [];
+        foreach ( AutomationController::CONFIRM_FLAGS as $flag ) {
+            if ( true === ( $clean['automation'][ $flag ] ?? null ) && ! (bool) $settings->get( 'automation.' . $flag, false ) ) {
+                $enabling[] = $flag;
             }
+        }
+        // Autosend approves auto-drafted first messages only while "Require individual approval" is off, so turning it
+        // off with autosend on (after this request) is gated too; switching autosend on here already asks for it.
+        if (
+            false === ( $clean['outreach']['require_approval'] ?? null )
+            && (bool) $settings->get( 'outreach.require_approval', true )
+            && (bool) ( $clean['automation']['outreach_autosend'] ?? $settings->get( 'automation.outreach_autosend', false ) )
+            && ! in_array( 'outreach_autosend', $enabling, true )
+        ) {
+            $enabling[] = 'require_approval';
+        }
+        if ( [] !== $enabling && ! $this->bool( $request, 'confirm', false ) ) {
+            return $this->fail(
+                'ppclg_confirmation_required',
+                implode( ' ', array_map( [ AutomationController::class, 'confirmationMessage' ], $enabling ) ),
+                400,
+                [ 'confirm_required' => true, 'key' => $enabling[0], 'keys' => $enabling ]
+            );
+        }
+
+        $unclean = $this->uncleanAssets( $clean );
+        if ( [] !== $unclean ) {
+            $lines = array_map( static fn( array $a ): string => sprintf( '“%s” (%s)', $a['title'], implode( '; ', $a['problems'] ) ), $unclean );
+            return $this->fail(
+                'ppclg_asset_claims',
+                sprintf(
+                    /* translators: %s: the linkable assets and the claims found in each */
+                    __( 'Nothing was saved. Linkable assets are quoted in listing packages and outreach, so their title and summary must pass the claims filter. Edit these and save again: %s.', 'ppc-link-growth-engine' ),
+                    implode( '; ', $lines )
+                ),
+                422,
+                [ 'assets' => $unclean ]
+            );
+        }
+
+        if ( [] !== $clean ) {
+            $settings->update( $clean );
+            $changed = self::diffKeys( $before, $settings->all() );
         }
 
         $secretsIn    = $request->get_param( 'secrets' );
-        $secretResult = is_array( $secretsIn ) ? $this->applySecrets( $secretsIn ) : [ 'updated' => [], 'cleared' => [], 'rejected' => [], 'locked' => [] ];
+        $secretResult = is_array( $secretsIn ) ? $this->applySecrets( $secretsIn ) : [ 'updated' => [], 'cleared' => [], 'rejected' => [], 'locked' => [], 'reasons' => [] ];
 
         $factsUpdated = false;
         $facts        = $request->get_param( 'facts' );
@@ -214,6 +258,7 @@ final class SettingsController extends Controller {
                     'secret_keys'  => $secretKeys,
                     'facts'        => $factsUpdated,
                     'custom_seeds' => $seedsUpdated,
+                    'confirmed'    => $enabling,
                 ]
             );
         }
@@ -529,6 +574,41 @@ if ( 'send_days' === $leaf && ( $i < 0 || $i > 7 ) ) {
         return $out;
     }
 
+    /**
+     * Sanitised linkable assets whose title or summary fails the claims filter (LinkableAssets::isClean), with
+     * what was found in each; [] when the save carries no assets or all of them are clean.
+     *
+     * @param array<string,mixed> $clean Output of sanitizeSettings().
+     * @return array<int,array{index:int,title:string,url:string,problems:string[]}>
+     */
+    private function uncleanAssets( array $clean ): array {
+        $assets = $clean['content']['linkable_assets'] ?? null;
+        if ( ! is_array( $assets ) || [] === $assets ) {
+            return [];
+        }
+        $checker = $this->c->get( LinkableAssets::class );
+        $claims  = $this->c->get( ClaimsFilter::class );
+        $fields  = [ 'title' => __( 'title', 'ppc-link-growth-engine' ), 'summary' => __( 'summary', 'ppc-link-growth-engine' ) ];
+        $out     = [];
+        foreach ( $assets as $i => $asset ) {
+            if ( ! is_array( $asset ) || $checker->isClean( $asset ) ) {
+                continue;
+            }
+            $problems = [];
+            foreach ( $fields as $field => $label ) {
+                foreach ( $claims->check( (string) ( $asset[ $field ] ?? '' ) ) as $v ) {
+                    /* translators: 1: "title" or "summary", 2: the matched phrase, 3: the claims rule that matched */
+                    $problems[] = sprintf( __( '%1$s contains “%2$s”: %3$s', 'ppc-link-growth-engine' ), $label, $v['match'], $v['message'] );
+                }
+            }
+            if ( [] === $problems ) {
+                $problems[] = __( 'the title and summary together make a blocked claim', 'ppc-link-growth-engine' );
+            }
+            $out[] = [ 'index' => (int) $i, 'title' => (string) ( $asset['title'] ?? '' ), 'url' => (string) ( $asset['url'] ?? '' ), 'problems' => array_values( array_unique( $problems ) ) ];
+        }
+        return $out;
+    }
+
     /** @param array<mixed> $seeds @return array<int,array<string,string>> */
     private function sanitizeSeeds( array $seeds ): array {
         $out  = [];
@@ -581,14 +661,20 @@ if ( 'send_days' === $leaf && ( $i < 0 || $i > 7 ) ) {
     }
 
     /**
-     * Writes secrets (write-only: values are never returned).
+     * Writes secrets (write-only: values are never returned). `reasons` gives the cause for each rejected key:
+     * invalid_key (not a secret the plugin stores), too_long (over 20,000 characters) or
+     * invalid_service_account_json (not a Google service-account JSON key with client_email and private_key).
      *
      * @param array<mixed> $input
-     * @return array{updated:string[],cleared:string[],rejected:string[],locked:string[]}
+     * @return array{updated:string[],cleared:string[],rejected:string[],locked:string[],reasons:array<string,string>}
      */
     private function applySecrets( array $input ): array {
         $secrets = $this->c->get( Secrets::class );
-        $result  = [ 'updated' => [], 'cleared' => [], 'rejected' => [], 'locked' => [] ];
+        $result  = [ 'updated' => [], 'cleared' => [], 'rejected' => [], 'locked' => [], 'reasons' => [] ];
+        $reject  = static function ( string $key, string $reason ) use ( &$result ): void {
+            $result['rejected'][]      = $key;
+            $result['reasons'][ $key ] = $reason;
+        };
         $n       = 0;
         foreach ( $input as $key => $value ) {
             if ( ++$n > 50 ) {
@@ -599,7 +685,7 @@ if ( 'send_days' === $leaf && ( $i < 0 || $i > 7 ) ) {
                 continue;
             }
             if ( ! Secrets::isValidKey( $key ) ) {
-                $result['rejected'][] = $key;
+                $reject( $key, 'invalid_key' );
                 continue;
             }
             if ( ! is_string( $value ) ) {
@@ -620,13 +706,13 @@ if ( 'send_days' === $leaf && ( $i < 0 || $i > 7 ) ) {
                 continue;
             }
             if ( strlen( $value ) > 20000 ) {
-                $result['rejected'][] = $key;
+                $reject( $key, 'too_long' );
                 continue;
             }
             if ( 'google_service_account_json' === $key ) {
                 $json = json_decode( $value, true );
                 if ( ! is_array( $json ) || empty( $json['client_email'] ) || empty( $json['private_key'] ) ) {
-                    $result['rejected'][] = $key;
+                    $reject( $key, 'invalid_service_account_json' );
                     continue;
                 }
             }

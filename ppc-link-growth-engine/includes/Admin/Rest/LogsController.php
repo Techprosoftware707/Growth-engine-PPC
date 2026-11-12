@@ -19,7 +19,8 @@ final class LogsController extends Controller {
 
     private const LEVELS = [ 'debug', 'info', 'warning', 'error' ];
 
-    private const SUPPRESSION_TYPES = [ 'domain', 'email', 'email_domain' ];
+    /** The repository's list, so the REST filter and validation cannot drift from what Suppression stores. */
+    private const SUPPRESSION_TYPES = Suppression::TYPES;
 
     /**
      * Audit object-type filter values offered by the UI that are recorded under another name.

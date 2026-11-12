@@ -12,9 +12,9 @@ namespace PPC\LinkGrowth\Automation;
 use PPC\LinkGrowth\Automation\Jobs\EvaluateJob;
 use PPC\LinkGrowth\Container;
 use PPC\LinkGrowth\Monitoring\Notifier;
+use PPC\LinkGrowth\Outreach\OutreachEngine;
 use PPC\LinkGrowth\Repositories\Backlinks;
 use PPC\LinkGrowth\Repositories\Jobs;
-use PPC\LinkGrowth\Repositories\OutreachMessages;
 use PPC\LinkGrowth\Repositories\Prospects;
 use PPC\LinkGrowth\Repositories\Submissions;
 use PPC\LinkGrowth\Support\Limits;
@@ -319,7 +319,11 @@ final class Pipeline {
         if ( ! $this->limits->allow( 'outreach_emails' ) ) {
             return false;
         }
-        return [] !== $this->container()->get( OutreachMessages::class )->readyToSend( 1 );
+        // Only rows the send stage may actually send (active, uncapped campaign; scheduled rows only with autosend
+        // on), so held-back messages do not queue a send job that does nothing on every tick. Rows left "sending"
+        // by a run that died also make it due, because the send stage is what marks them failed.
+        $engine = $this->container()->get( OutreachEngine::class );
+        return $engine->hasSendable() || $engine->hasStaleClaims();
     }
 
     private function monitorDue(): bool {

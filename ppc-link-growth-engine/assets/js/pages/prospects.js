@@ -7,7 +7,7 @@ import * as api from '../api.js';
 import {
     el, replace, badge, statusBadge, button, callout, kv, pre, loading, errorState, emptyState, timeEl, fmtNumber, fmtCompact, fmtPercent, fmtDate,
     labelize, truncate, pageHeader, scoreRing, scoreClass, kindFor, drawer, tabs, dataTable, formField, formModal, confirm, prompt, toast, extLink,
-    listView, progressBar, switchRow, details, card, linkButton, copyButton, isObject,
+    listView, progressBar, details, card, linkButton, copyButton, isObject,
 } from '../ui.js';
 import { reportRun } from './outcome.js';
 
@@ -84,6 +84,22 @@ function authorityCell( prospect ) {
 
 const SUBMISSION_MODES = { auto: 'Auto', authorized_only: 'Authorized only', manual: 'Manual' };
 
+/** Per-site automation setting (prospect.automation_allowed): -1 never automate, 0 inherit the mode, 1 always allow. */
+export const AUTOMATION_SETTINGS = [
+    { value: '0', label: 'Inherit (follow the submission mode)' },
+    { value: '1', label: 'Always allow' },
+    { value: '-1', label: 'Never automate' },
+];
+
+/** Normalised per-site setting, mirroring Prospects::automationSetting(): only 1 allows, any negative value never automates. */
+export function automationSetting( p ) {
+    const n = Number( isObject( p ) ? p.automation_allowed : 0 );
+    if ( ! Number.isFinite( n ) ) {
+        return 0;
+    }
+    return n < 0 ? -1 : ( n === 1 ? 1 : 0 );
+}
+
 /**
  * Effective automated-submission status of one prospect under the configured submission mode, mirroring
  * Policy::evaluate()'s authorisation step (the structural gates — form, CAPTCHA, login, robots.txt — still apply).
@@ -94,23 +110,26 @@ export function submissionModeNotice( p, automation, hasApi = false ) {
     const modeLabel = `Submission mode: ${ SUBMISSION_MODES[ mode ] }`;
     const min = Number.isFinite( Number( a.min_score_auto_queue ) ) && a.min_score_auto_queue !== null && a.min_score_auto_queue !== '' ? Number( a.min_score_auto_queue ) : 70;
     const score = p.score === null || p.score === undefined || p.score === '' || ! Number.isFinite( Number( p.score ) ) ? null : Number( p.score );
-    const allowed = Number( p.automation_allowed ) === 1;
+    const setting = automationSetting( p );
     if ( a.submissions !== true ) {
         return callout( 'info', modeLabel, 'The global “Automated submissions” stage is off, so nothing is submitted to this site without you.' );
     }
     if ( [ 'on_hold', 'rejected', 'suppressed' ].includes( p.status ) ) {
         return callout( 'info', modeLabel, `This site is ${ labelize( p.status ).toLowerCase() }, so every automated stage skips it.` );
     }
-    if ( allowed || hasApi ) {
-        return callout( 'warning', modeLabel, `This site is authorised for automated submission (${ allowed ? 'the switch below is on' : 'a partner API is configured' }).` );
+    if ( setting === -1 ) {
+        return callout( 'info', modeLabel, 'This site is set to “Never automate”: nothing is submitted to it automatically in any mode (a partner API included). Its packages are prepared for you to submit by hand.' );
+    }
+    if ( setting === 1 || hasApi ) {
+        return callout( 'warning', modeLabel, `This site is authorised for automated submission (${ setting === 1 ? 'its per-site setting below is “Always allow”' : 'a partner API is configured' }).` );
     }
     if ( mode === 'auto' ) {
         if ( score !== null && score >= min ) {
-            return callout( 'warning', modeLabel, `This site scores ${ score }, at or above the auto-queue threshold (${ min }), so the engine may submit to it automatically even though the switch below is off. To keep it manual, put it on hold or reject it, or change the mode to “Authorized only” under Settings → Automation.` );
+            return callout( 'warning', modeLabel, `This site scores ${ score }, at or above the auto-queue threshold (${ min }), so the engine may submit to it automatically while its per-site setting below is “Inherit”. To keep it manual, choose “Never automate” below, or change the mode to “Authorized only” under Settings → Automation.` );
         }
-        return callout( 'info', modeLabel, `Sites scoring ${ min } or more are submitted automatically even when the switch below is off. This site (${ score === null ? 'not scored yet' : `score ${ score }` }) does not qualify at the moment; it will once it reaches ${ min }.` );
+        return callout( 'info', modeLabel, `Sites scoring ${ min } or more are submitted automatically while their per-site setting is “Inherit”. This site (${ score === null ? 'not scored yet' : `score ${ score }` }) does not qualify at the moment; it will once it reaches ${ min }. Choose “Never automate” below to keep it manual.` );
     }
-    return callout( 'info', modeLabel, 'Only sites with the switch below turned on (or a partner API) are submitted automatically, so packages for this site wait for your approval.' );
+    return callout( 'info', modeLabel, 'Only sites set to “Always allow” below (or with a partner API) are submitted automatically, so packages for this site wait for your approval.' );
 }
 
 export default async function render( root, ctx ) {
@@ -282,7 +301,8 @@ export default async function render( root, ctx ) {
                     breakdown.confidence !== undefined ? badge( `Confidence ${ fmtNumber( breakdown.confidence ) }%`, 'neutral' ) : null,
                     p.relevance !== null && p.relevance !== undefined ? badge( `Relevance ${ fmtNumber( p.relevance ) }`, 'neutral' ) : null,
                     badge( oppLabel( p.opportunity_type ), 'brand' ),
-                    p.automation_allowed ? badge( 'Automation allowed', 'warning', { dot: true } ) : null,
+                    automationSetting( p ) === 1 ? badge( 'Automation allowed', 'warning', { dot: true } ) : null,
+                    automationSetting( p ) === -1 ? badge( 'Never automate', 'neutral' ) : null,
                 ),
             ),
         ) );
@@ -461,7 +481,7 @@ export default async function render( root, ctx ) {
             refresh();
         } } );
         return el( 'div', { class: 'ppclg-stack' },
-            el( 'div', { class: 'ppclg-row ppclg-row--between' }, el( 'p', { style: { margin: 0 } }, 'Listing packages built for this site. A package is submitted without your review only while “Automated submissions” is on and the site qualifies under the submission mode (see the Actions tab); in “auto” mode a site scoring at or above the auto-queue threshold qualifies even when it is not marked “automation allowed”. Everything else waits for your approval.' ), packageBtn ),
+            el( 'div', { class: 'ppclg-row ppclg-row--between' }, el( 'p', { style: { margin: 0 } }, 'Listing packages built for this site. A package is submitted without your review only while “Automated submissions” is on and the site qualifies under the submission mode (see the Actions tab); in “auto” mode a site whose per-site automation is “Inherit” qualifies by itself once it scores at or above the auto-queue threshold, and “Never automate” keeps a site manual in every mode. Everything else waits for your approval.' ), packageBtn ),
             dataTable( {
                 dense: true,
                 rows: submissions,
@@ -561,25 +581,52 @@ export default async function render( root, ctx ) {
 
         // Automation
         const cfg = obj( obj( p.submission_config ).api );
-        const allowSwitch = switchRow( {
-            label: 'Allow automated form submission on this site',
-            description: 'Authorises this site for automated submission in every submission mode while the global “Automated submissions” stage is on: the engine may then POST the generated listing to the site’s form without a manual review. Only enable it for directories whose terms permit automated listings. Turning it off is not an opt-out in “auto” mode, where any site scoring at or above the auto-queue threshold qualifies by itself; to keep the engine away from this site, put it on hold or reject it.',
-            checked: Number( p.automation_allowed ) === 1,
-            badgeNode: Number( p.automation_allowed ) === 1 ? badge( 'On', 'warning' ) : null,
-            onChange: async ( next ) => {
-                if ( next && ! ( await confirm( `Allow automated submissions to ${ p.domain }? Confirm that their terms of service permit automated listing submissions.`, { title: 'Enable per-site automation', confirmText: 'Yes, allow', danger: true } ) ) ) {
-                    return false;
+        // Per-site setting (Policy::evaluate): Inherit follows the submission mode, Always allow authorises the
+        // site in every mode, Never automate refuses automation in every mode, "auto" and partner APIs included.
+        let currentSetting = automationSetting( p );
+        const settingToasts = {
+            '-1': 'This site will never be submitted to automatically.',
+            0: 'This site now follows the submission mode.',
+            1: 'Automation always allowed for this site.',
+        };
+        const settingField = formField( {
+            type: 'select',
+            label: 'Per-site automation',
+            options: AUTOMATION_SETTINGS,
+            value: String( currentSetting ),
+            full: true,
+            hint: 'Inherit: the submission mode decides (in “Auto” mode, sites scoring at or above the auto-queue threshold are submitted automatically). Always allow: authorises this site in every mode, so the engine may POST the generated listing to its form without a manual review; only choose it for directories whose terms permit automated listings. Never automate: nothing is submitted to this site automatically in any mode; its packages are prepared for you to submit by hand.',
+            onChange: async ( value ) => {
+                const next = Number( value );
+                if ( ! [ -1, 0, 1 ].includes( next ) || next === currentSetting ) {
+                    return;
                 }
-                await api.post( `/prospects/${ p.id }/automation`, { automation_allowed: next } );
-                toast( next ? 'Automation allowed for this site.' : 'Automation disabled for this site.', 'success' );
-                p.automation_allowed = next ? 1 : 0;
-                drawMode();
-                list.reload();
-                return true;
+                const reset = () => settingField.set( String( currentSetting ) );
+                if ( next === 1 && ! ( await confirm( `Always allow automated submissions to ${ p.domain }? Confirm that their terms of service permit automated listing submissions.`, { title: 'Always allow automation', confirmText: 'Yes, allow', danger: true } ) ) ) {
+                    reset();
+                    return;
+                }
+                if ( next === 0 && currentSetting === -1 && ! ( await confirm( `Let ${ p.domain } follow the submission mode? In “Auto” mode a site scoring at or above the auto-queue threshold is submitted automatically.`, { title: 'Follow the submission mode', confirmText: 'Follow the mode' } ) ) ) {
+                    reset();
+                    return;
+                }
+                settingField.input.disabled = true;
+                try {
+                    await api.post( `/prospects/${ p.id }/automation`, { automation_allowed: next } );
+                    currentSetting = next;
+                    p.automation_allowed = next;
+                    toast( settingToasts[ next ], 'success' );
+                    drawMode();
+                    list.reload();
+                } catch ( e ) {
+                    reset(); // api.js has already shown the error.
+                } finally {
+                    settingField.input.disabled = false;
+                }
             },
         } );
-        // What the switch actually means under the current submission mode (Policy::evaluate): in "auto"
-        // mode a high enough score authorises the site whatever automation_allowed says.
+        // What the setting actually means under the current submission mode (Policy::evaluate): in "auto"
+        // mode a high enough score authorises an "Inherit" site by itself.
         const modeHost = el( 'div' );
         let automationCfg = null;
         const drawMode = () => {
@@ -608,7 +655,7 @@ export default async function render( root, ctx ) {
             body: [
                 callout( 'warning', 'Compliance gate', 'Nothing is submitted while the global “Automated submissions” switch is off. CAPTCHA, login walls and robots.txt disallow rules always stop automation regardless of this setting.' ),
                 modeHost,
-                allowSwitch,
+                settingField.el,
                 details( 'Configured API (optional, for partners that offer a listing API)', el( 'div', { class: 'ppclg-stack' },
                     el( 'div', { class: 'ppclg-form-grid' }, apiFields.map( ( f ) => f.el ) ),
                     el( 'div', { class: 'ppclg-row ppclg-row--end' },
@@ -616,7 +663,8 @@ export default async function render( root, ctx ) {
                             if ( ! ( await confirm( 'Remove the configured API for this prospect?', { danger: true, confirmText: 'Remove' } ) ) ) {
                                 return;
                             }
-                            await api.post( `/prospects/${ p.id }/automation`, { automation_allowed: Number( p.automation_allowed ) === 1, submission_config: null } );
+                            // automation_allowed is left out so the per-site setting is kept as it is.
+                            await api.post( `/prospects/${ p.id }/automation`, { submission_config: null } );
                             toast( 'API configuration removed.', 'success' );
                             await refresh();
                         } } ),
@@ -629,8 +677,8 @@ export default async function render( root, ctx ) {
                                 byName.endpoint.setError( 'An endpoint URL is required.' );
                                 return;
                             }
+                            // automation_allowed is left out so the per-site setting is kept as it is.
                             const payload = {
-                                automation_allowed: Number( p.automation_allowed ) === 1,
                                 submission_config: { api: {
                                     endpoint,
                                     method: byName.method.get(),
@@ -679,10 +727,14 @@ export default async function render( root, ctx ) {
                     await refresh();
                 } } ),
                 button( 'Delete prospect', { kind: 'danger', iconName: 'trash', onClick: async () => {
-                    if ( ! ( await confirm( `Delete ${ p.domain } and its opportunities? Backlinks and audit history are kept. This cannot be undone.`, { danger: true, confirmText: 'Delete' } ) ) ) {
+                    if ( ! ( await confirm( `Delete ${ p.domain } with its opportunities, submissions, contacts and outreach messages? Backlinks and audit history are kept. This cannot be undone. A prospect that was already sent a submission or an email cannot be deleted (those records prevent a duplicate submission or a repeat contact); use “Suppress domain” instead.`, { danger: true, confirmText: 'Delete' } ) ) ) {
                         return;
                     }
-                    await api.del( `/prospects/${ p.id }` );
+                    try {
+                        await api.del( `/prospects/${ p.id }` );
+                    } catch ( e ) {
+                        return; // api.js has already shown the reason (e.g. the prospect has sent history).
+                    }
                     toast( 'Prospect deleted.', 'success' );
                     dr.close();
                     list.reload();

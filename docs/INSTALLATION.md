@@ -20,7 +20,7 @@ Then in WordPress: **Plugins → Add New → Upload Plugin**, choose `dist/ppc-l
 ## What activation does
 
 1. Creates the plugin tables (`wp_ppclg_*`: prospects, opportunities, submissions, contacts, campaigns, outreach_messages, backlinks, suppression, notifications, audit_log, logs, jobs, domain_metrics, search_log). When the plugin is later upgraded, the existing tables are backed up to a gzipped SQL file in a randomly named folder under `wp-content/uploads/` **before** the schema migration runs.
-2. Stores default settings (business profile seeded from purepeptidescanada.com, conservative limits, automation **off**).
+2. Stores default settings (business profile seeded from purepeptidescanada.com, conservative limits, automation **on** in the default *auto* submission mode, *Outreach autosend* **off**).
 3. Grants the `ppclg_manage` capability to the Administrator role.
 4. Schedules the `ppclg_tick` background action.
 5. Redirects you to **Link Growth → Overview**.

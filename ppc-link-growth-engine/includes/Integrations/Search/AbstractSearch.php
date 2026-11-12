@@ -11,6 +11,7 @@ namespace PPC\LinkGrowth\Integrations\Search;
 
 use PPC\LinkGrowth\Integrations\Contracts\SearchProvider;
 use PPC\LinkGrowth\Support\Http\Client;
+use PPC\LinkGrowth\Support\Http\Response;
 use PPC\LinkGrowth\Support\Logger;
 use PPC\LinkGrowth\Support\Secrets;
 use PPC\LinkGrowth\Support\Settings;
@@ -53,6 +54,33 @@ abstract class AbstractSearch implements SearchProvider {
         }
         $q[ $this->id() ] = (int) ( $q[ $this->id() ] ?? 0 ) + 1;
         update_option( self::OPTION, $q, false );
+    }
+
+    /**
+     * Gives back the query consume() reserved, for a request the provider refused before running it (see
+     * rejectedCredentials()). Nothing is given back once the day has rolled over.
+     */
+    protected function refund(): void {
+        $q = get_option( self::OPTION, [] );
+        if ( ! is_array( $q ) || ( $q['date'] ?? '' ) !== gmdate( 'Y-m-d' ) ) {
+            return;
+        }
+        $q[ $this->id() ] = max( 0, (int) ( $q[ $this->id() ] ?? 0 ) - 1 );
+        update_option( self::OPTION, $q, false );
+    }
+
+    /**
+     * Whether the provider refused the request because of the API key (401, or 403 that is not about a quota
+     * or rate limit). Such a request ran no search, so it does not count against the daily limit.
+     */
+    protected function rejectedCredentials( Response $r ): bool {
+        if ( null !== $r->error ) {
+            return false;
+        }
+        if ( 401 === $r->status ) {
+            return true;
+        }
+        return 403 === $r->status && ! preg_match( '/quota|limit|exceeded|too many|credits/i', $r->body );
     }
 
     protected function fail( string $message ): array {

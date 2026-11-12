@@ -69,7 +69,7 @@ final class OutreachEngine {
     private const EDITABLE_STATUSES = [ OutreachMessages::STATUS_DRAFT, OutreachMessages::STATUS_APPROVED, OutreachMessages::STATUS_SCHEDULED, OutreachMessages::STATUS_REJECTED, OutreachMessages::STATUS_FAILED ];
 
     /** Transient message status while one run owns the row and the email is being handed to wp_mail(). */
-    public const STATUS_SENDING = 'sending';
+    public const STATUS_SENDING = OutreachMessages::STATUS_SENDING;
 
     /** A claim older than this (seconds) belongs to a run that died mid-send. */
     private const CLAIM_STALE_AFTER = 900;
@@ -249,14 +249,16 @@ final class OutreachEngine {
 
     /**
      * @param array<int,int|string> $prospectIds
+     * @param bool                  $interactive An administrator is waiting on this request: AI calls use the
+     *                                           shorter ClaudeWriter::INTERACTIVE_TIMEOUT.
      * @return array{created:int,skipped:array<int,string>}
      */
-    public function buildDrafts( int $campaignId, array $prospectIds, int $userId, bool $useAi = false ): array {
+    public function buildDrafts( int $campaignId, array $prospectIds, int $userId, bool $useAi = false, bool $interactive = false ): array {
         $out = [ 'created' => 0, 'skipped' => [] ];
         $ids = array_values( array_unique( array_filter( array_map( 'intval', $prospectIds ), static fn( int $i ): bool => $i > 0 ) ) );
         foreach ( array_slice( $ids, 0, 500 ) as $prospectId ) {
             try {
-                [ $id, $reason ] = $this->draft( $campaignId, $prospectId, $userId, $useAi );
+                [ $id, $reason ] = $this->draft( $campaignId, $prospectId, $userId, $useAi, $interactive );
             } catch ( \Throwable $e ) {
                 $id     = null;
                 $reason = 'Error: ' . $e->getMessage();
@@ -287,7 +289,7 @@ final class OutreachEngine {
     /**
      * @return array{0:int|null,1:string} [message id, skip reason]
      */
-    private function draft( int $campaignId, int $prospectId, int $userId, bool $useAi ): array {
+    private function draft( int $campaignId, int $prospectId, int $userId, bool $useAi, bool $interactive = false ): array {
         $campaign = $this->campaignCached( $campaignId );
         if ( ! $campaign ) {
             return [ null, 'Campaign not found' ];
@@ -335,7 +337,7 @@ final class OutreachEngine {
         $subject = $this->cleanSubject( $this->personalizer->render( $variant['subject'], $ctx ) );
         $body    = $this->personalizer->render( $variant['body'], $ctx );
         if ( $useAi ) {
-            $body = $this->aiPersonalize( $body, $ctx );
+            $body = $this->aiPersonalize( $body, $ctx, $interactive );
         }
         $violations = $this->compliance->checkClaims( $subject, $body );
 
@@ -643,6 +645,21 @@ final class OutreachEngine {
     }
 
     /**
+     * Whether a run that died mid-send left a row "sending" for longer than CLAIM_STALE_AFTER. sendDue() marks
+     * such rows failed, so the send stage is due for them even when nothing else can be sent.
+     */
+    public function hasStaleClaims(): bool {
+        global $wpdb;
+        try {
+            $sql = "SELECT id FROM {$this->messages->table()} WHERE status = %s AND updated_at < %s LIMIT 1";
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            return null !== $wpdb->get_var( $wpdb->prepare( $sql, self::STATUS_SENDING, self::staleClaimCutoff() ) );
+        } catch ( \Throwable $e ) {
+            return false;
+        }
+    }
+
+    /**
      * Due messages that sendDue() may actually send: approved (and, with autosend on, scheduled) rows whose
      * campaign is approved/sending and still under its own daily limit. Rows held back by a paused, archived or
      * capped campaign are filtered out here instead of filling the batch on every run and starving the
@@ -675,7 +692,12 @@ final class OutreachEngine {
         global $wpdb;
         $sql = "UPDATE {$this->messages->table()} SET status = %s, last_error = %s, updated_at = %s WHERE status = %s AND updated_at < %s";
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        $wpdb->query( $wpdb->prepare( $sql, OutreachMessages::STATUS_FAILED, 'Sending was interrupted; the email may or may not have gone out. Check the mail log before approving it again.', OutreachMessages::now(), self::STATUS_SENDING, gmdate( 'Y-m-d H:i:s', time() - self::CLAIM_STALE_AFTER ) ) );
+        $wpdb->query( $wpdb->prepare( $sql, OutreachMessages::STATUS_FAILED, 'Sending was interrupted; the email may or may not have gone out. Check the mail log before approving it again.', OutreachMessages::now(), self::STATUS_SENDING, self::staleClaimCutoff() ) );
+    }
+
+    /** Rows still "sending" with an updated_at before this belong to a run that died mid-send. */
+    private static function staleClaimCutoff(): string {
+        return gmdate( 'Y-m-d H:i:s', time() - self::CLAIM_STALE_AFTER );
     }
 
     /**
@@ -957,7 +979,7 @@ final class OutreachEngine {
     }
 
     /** @param array<string,string> $ctx */
-    private function aiPersonalize( string $body, array $ctx ): string {
+    private function aiPersonalize( string $body, array $ctx, bool $interactive = false ): string {
         try {
             if ( ! class_exists( Plugin::class ) ) {
                 return $body;
@@ -968,6 +990,9 @@ final class OutreachEngine {
             }
             /** @var ClaudeWriter $ai */
             $ai = $container->get( ClaudeWriter::class );
+            if ( $interactive ) {
+                $ai = $ai->interactive(); // a copy: background jobs keep the longer timeout
+            }
             /** @var ClaimsFilter $filter */
             $filter = $container->get( ClaimsFilter::class );
             return $this->personalizer->aiPersonalize( $body, $ctx, $ai, $filter );

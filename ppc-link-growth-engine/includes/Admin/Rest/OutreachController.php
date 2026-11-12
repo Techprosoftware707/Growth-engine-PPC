@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace PPC\LinkGrowth\Admin\Rest;
 
+use PPC\LinkGrowth\Automation\JobRunner;
 use PPC\LinkGrowth\Outreach\Compliance;
 use PPC\LinkGrowth\Outreach\OutreachEngine;
 use PPC\LinkGrowth\Outreach\Templates;
@@ -53,6 +54,9 @@ final class OutreachController extends Controller {
 
     /** Prospects drafted per batch between time-budget checks (AI drafting is checked after every prospect). */
     private const DRAFT_BATCH = 25;
+
+    /** Seconds the job-runner lock is held for one "Send now" (released as soon as the send returns). */
+    private const SEND_LOCK_SECONDS = 120;
 
     public function register( string $namespace ): void {
         $this->route( $namespace, '/outreach/campaigns', 'GET', [ $this, 'campaigns' ], $this->listArgs( [ 'status', 'approach' ] ) );
@@ -215,7 +219,9 @@ final class OutreachController extends Controller {
                 }
                 break;
             }
-            $result   = $engine->buildDrafts( $id, $chunk, $this->userId(), $useAi );
+            // Interactive: AI calls use the shorter ClaudeWriter::INTERACTIVE_TIMEOUT so one hung call cannot push
+            // the request past the proxy limit.
+            $result   = $engine->buildDrafts( $id, $chunk, $this->userId(), $useAi, true );
             $created += (int) ( $result['created'] ?? 0 );
             foreach ( is_array( $result['skipped'] ?? null ) ? $result['skipped'] : [] as $pid => $reason ) {
                 $skipped[ $pid ] = $reason;
@@ -349,7 +355,21 @@ final class OutreachController extends Controller {
                 $out['message_text'] = $out['ok'] ? __( 'Message rejected.', 'ppc-link-growth-engine' ) : __( 'The message could not be rejected.', 'ppc-link-growth-engine' );
                 break;
             case 'send':
-                $r                   = $engine->sendNow( $id, $user );
+                // Same lock as the automation runner (Pipeline::runNow), so "Send now" never races a send batch.
+                $runner = $this->c->get( JobRunner::class );
+                if ( ! $runner->lock( self::SEND_LOCK_SECONDS ) ) {
+                    return $this->fail(
+                        'ppclg_runner_busy',
+                        __( 'The automation runner is busy (it may be sending outreach right now), so this message was not sent. Try again in a minute.', 'ppc-link-growth-engine' ),
+                        409,
+                        [ 'ok' => false, 'action' => $action ]
+                    );
+                }
+                try {
+                    $r = $engine->sendNow( $id, $user );
+                } finally {
+                    $runner->unlock();
+                }
                 $out['ok']           = (bool) ( $r['ok'] ?? false );
                 $out['error']        = (string) ( $r['error'] ?? '' );
                 $out['message_text'] = $out['ok'] ? __( 'Message sent.', 'ppc-link-growth-engine' ) : ( '' !== $out['error'] ? $out['error'] : __( 'The message could not be sent.', 'ppc-link-growth-engine' ) );

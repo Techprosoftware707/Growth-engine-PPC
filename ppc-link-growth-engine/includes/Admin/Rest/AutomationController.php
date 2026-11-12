@@ -22,8 +22,11 @@ final class AutomationController extends Controller {
     /** Flags that may be toggled; `enabled` is the master switch. */
     private const FLAGS = [ 'enabled', 'discovery', 'evaluation', 'opportunities', 'packaging', 'submissions', 'outreach_autosend', 'monitoring', 'imports' ];
 
-    /** Flags whose activation performs real-world side effects and therefore needs explicit confirmation. */
-    private const CONFIRM_FLAGS = [ 'submissions', 'outreach_autosend' ];
+    /**
+     * Flags whose activation performs real-world side effects and therefore needs explicit confirmation.
+     * POST /settings enforces the same gate (SettingsController::update), so no client can skip it.
+     */
+    public const CONFIRM_FLAGS = [ 'submissions', 'outreach_autosend' ];
 
     private const RUN_SECONDS = 25.0;
 
@@ -90,14 +93,7 @@ final class AutomationController extends Controller {
         }
         $value = $this->bool( $request, 'value', false );
         if ( $value && in_array( $key, self::CONFIRM_FLAGS, true ) && ! $this->bool( $request, 'confirm', false ) ) {
-            return $this->fail(
-                'ppclg_confirmation_required',
-                'submissions' === $key
-                    ? __( 'Enabling automated submissions lets the engine submit approved listing packages to third-party sites. Confirm to proceed.', 'ppc-link-growth-engine' )
-                    : __( 'Enabling outreach auto-send lets the engine send individually approved emails and scheduled follow-ups without further review. Confirm to proceed.', 'ppc-link-growth-engine' ),
-                400,
-                [ 'confirm_required' => true, 'key' => $key ]
-            );
+            return $this->fail( 'ppclg_confirmation_required', self::confirmationMessage( $key ), 400, [ 'confirm_required' => true, 'key' => $key ] );
         }
         $settings = $this->c->get( Settings::class );
         $previous = (bool) $settings->get( 'automation.' . $key, false );
@@ -120,6 +116,20 @@ final class AutomationController extends Controller {
             $flags[ $flag ] = (bool) $settings->get( 'automation.' . $flag, false );
         }
         return [ 'ok' => true, 'key' => $key, 'value' => $value, 'flags' => $flags ];
+    }
+
+    /**
+     * Why enabling a CONFIRM_FLAGS flag needs confirmation (shared with POST /settings), or, for the key
+     * 'require_approval', why POST /settings needs it to turn "Require individual approval" off while autosend is on.
+     */
+    public static function confirmationMessage( string $key ): string {
+        if ( 'submissions' === $key ) {
+            return __( 'Enabling automated submissions lets the engine submit approved listing packages to third-party sites. Confirm to proceed.', 'ppc-link-growth-engine' );
+        }
+        if ( 'require_approval' === $key ) {
+            return __( 'Turning off “Require individual approval” while outreach auto-send is on lets the engine approve and send, in your name and without review, the first-contact emails it drafts for qualified prospects. Confirm to proceed.', 'ppc-link-growth-engine' );
+        }
+        return __( 'Enabling outreach auto-send lets the engine approve and send, in your name and without review, the first-contact emails it drafts for qualified prospects (while “Require individual approval” in Settings → Outreach is off) plus follow-ups in campaigns that auto-approve follow-ups. Confirm to proceed.', 'ppc-link-growth-engine' );
     }
 
     /** POST /automation/tick @return array<string,mixed> */
@@ -212,7 +222,8 @@ final class AutomationController extends Controller {
                 'stage_labels'       => $stages,
                 'confirm_flags'      => self::CONFIRM_FLAGS,
                 'settings'           => [
-                    'max_execution_seconds' => (int) $settings->get( 'automation.max_execution_seconds', 20 ),
+                    // What the runner actually uses: the setting, raised to JobRunner::MIN_TICK_SECONDS.
+                    'max_execution_seconds' => (int) ceil( JobRunner::effectiveMaxSeconds( $settings ) ),
                     'tick_interval'         => (int) $settings->get( 'automation.tick_interval', 300 ),
                     'min_score_auto_queue'  => (int) $settings->get( 'automation.min_score_auto_queue', 70 ),
                     'min_score_keep'        => (int) $settings->get( 'automation.min_score_keep', 50 ),

@@ -3,7 +3,8 @@
  * Submits a listing through a site's own HTML form by an authorised HTTP POST.
  *
  * Runs while the automation master switch is on, for prospects the policy authorises (explicitly
- * allowed, or in "auto" mode scored at or above the auto-queue threshold).
+ * allowed, or in "auto" mode scored at or above the auto-queue threshold), never for a site set to
+ * "never automate".
  * It re-fetches the page, re-detects the same listing form (never a newsletter/contact form that
  * shares its action URL), stops (needs_manual) when a CAPTCHA, password or required upload appears,
  * a required field cannot be mapped or a value fails the claims filter, never ticks newsletter or
@@ -24,6 +25,7 @@ use PPC\LinkGrowth\Analysis\FormDetector;
 use PPC\LinkGrowth\Content\ClaimsFilter;
 use PPC\LinkGrowth\Analysis\PageAnalysis;
 use PPC\LinkGrowth\Analysis\PageAnalyzer;
+use PPC\LinkGrowth\Repositories\Prospects;
 use PPC\LinkGrowth\Submission\PackageBuilder;
 use PPC\LinkGrowth\Support\Http\Client;
 use PPC\LinkGrowth\Support\Http\Response;
@@ -157,8 +159,12 @@ final class GenericFormAdapter implements AdapterInterface {
         if ( ! (bool) $this->settings->get( 'automation.submissions', false ) ) {
             return $this->manual( 'Automated submissions are switched off.' );
         }
-        $mode = \PPC\LinkGrowth\Submission\Policy::submissionMode( $this->settings );
-        if ( 1 !== (int) ( $prospect['automation_allowed'] ?? 0 ) ) {
+        $mode    = \PPC\LinkGrowth\Submission\Policy::submissionMode( $this->settings );
+        $perSite = Prospects::automationSetting( $prospect );
+        if ( Prospects::AUTOMATION_NEVER === $perSite ) {
+            return $this->manual( 'This site is set to "Never automate"; a person must submit the listing.' );
+        }
+        if ( Prospects::AUTOMATION_ALWAYS !== $perSite ) {
             if ( 'auto' !== $mode ) {
                 return $this->manual( 'This prospect is not authorised for automated form submission.' );
             }
@@ -218,8 +224,10 @@ final class GenericFormAdapter implements AdapterInterface {
             return $this->failed( 'robots.txt disallows posting to the form action URL.', false );
         }
 
-        // 3. Build the POST body from the live form + package.
-        $dom      = $this->inspectForm( $resp->body, $index );
+        // 3. Build the POST body from the live form + package. The page is converted to UTF-8 first
+        // (as PageAnalyzer does), so checkbox/radio/submit values from a legacy-charset page or one
+        // with a stale meta charset are posted back as the site sent them, not as mojibake.
+        $dom      = $this->inspectForm( $this->analyzer->utf8Html( $resp->body, $resp->header( 'content-type' ) ), $index );
         $problems = [];
         $body     = $this->buildBody( $form, $payload, $dom, $problems );
         if ( [] !== $problems ) {

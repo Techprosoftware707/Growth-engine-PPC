@@ -35,11 +35,37 @@ final class Prospects extends Repository {
         self::STATUS_SUPPRESSED,
     ];
 
+    /**
+     * Per-site automation setting (automation_allowed, a signed tinyint): never automate, follow the
+     * global submission mode, or always allowed (still subject to the master switch and the form,
+     * CAPTCHA, login, robots.txt, duplicate and claims gates).
+     */
+    public const AUTOMATION_NEVER   = -1;
+    public const AUTOMATION_INHERIT = 0;
+    public const AUTOMATION_ALWAYS  = 1;
+
+    public const AUTOMATION_SETTINGS = [ self::AUTOMATION_NEVER, self::AUTOMATION_INHERIT, self::AUTOMATION_ALWAYS ];
+
     protected string $table = 'prospects';
 
     protected array $jsonColumns = [ 'score_breakdown', 'metrics', 'profile', 'risk_flags', 'submission_config' ];
 
     protected array $sortable = [ 'id', 'domain', 'name', 'score', 'relevance', 'status', 'first_seen', 'last_evaluated', 'updated_at', 'country', 'site_type', 'opportunity_type' ];
+
+    /**
+     * The prospect's per-site automation setting. Only 1 means "always allowed"; any negative value
+     * means "never automate"; everything else (0, null, unknown values) follows the submission mode.
+     *
+     * @param array<string,mixed> $prospect
+     */
+    public static function automationSetting( array $prospect ): int {
+        $raw = $prospect['automation_allowed'] ?? 0;
+        $v   = is_bool( $raw ) ? (int) $raw : ( is_numeric( $raw ) ? (int) $raw : 0 );
+        if ( $v < 0 ) {
+            return self::AUTOMATION_NEVER;
+        }
+        return self::AUTOMATION_ALWAYS === $v ? self::AUTOMATION_ALWAYS : self::AUTOMATION_INHERIT;
+    }
 
     /** @return array<string,mixed>|null */
     public function findByDomain( string $domain ): ?array {

@@ -30,7 +30,7 @@ final class Client {
     /** Redirects followed by crawl() and probe() when the caller does not say otherwise. */
     private const MAX_REDIRECTS = 4;
 
-    /** robots.txt fetch timeout (seconds) unless the caller's own timeout is shorter. */
+    /** robots.txt fetch timeout (seconds) unless the caller's own timeout, or crawl()'s robots_timeout, is shorter. */
     private const ROBOTS_TIMEOUT = 8;
 
     /**
@@ -61,7 +61,11 @@ final class Client {
      * Redirects are followed here, one hop at a time, so each target is checked against its own host's
      * robots.txt and crawl delay before it is requested.
      *
-     * @param array<string,mixed> $opts { allow_robots_skip?: bool, timeout?: int, cache?: bool, redirection?: int }
+     * robots_timeout caps the robots.txt request (3..8 s, default 8) for a host whose robots.txt is not cached
+     * yet, so a caller with a time budget can fit robots.txt plus the page into what it has left. When such a
+     * shortened request times out, the failure is kept for this request only (see RobotsTxt::isAllowed()).
+     *
+     * @param array<string,mixed> $opts { allow_robots_skip?: bool, timeout?: int, robots_timeout?: int, cache?: bool, redirection?: int }
      */
     public function crawl( string $url, array $opts = [] ): Response {
         $url = Url::normalize( $url );
@@ -73,7 +77,7 @@ final class Client {
         }
         $robots = empty( $opts['allow_robots_skip'] );
         if ( $robots ) {
-            $blocked = $this->robotsGate( $url, self::ROBOTS_TIMEOUT, false );
+            $blocked = $this->robotsGate( $url, $this->robotsTimeout( $opts ), false );
             if ( null !== $blocked ) {
                 return $blocked;
             }
@@ -252,7 +256,7 @@ final class Client {
             }
             $hops++;
             if ( $checkRobots ) {
-                $blocked = $this->robotsGate( $next, min( self::ROBOTS_TIMEOUT, $timeout ), $allowUnreachable );
+                $blocked = $this->robotsGate( $next, min( $this->robotsTimeout( $opts ), $timeout ), $allowUnreachable );
                 if ( null !== $blocked ) {
                     $this->logger->debug( 'http', 'Redirect target blocked by robots.txt', [ 'url' => $url, 'target' => $next ] );
                     return new Response( 0, [], '', $url, $next, microtime( true ) - $start, (string) $blocked->error, (string) $blocked->errorCode );
@@ -274,10 +278,12 @@ final class Client {
      */
     private function robotsGate( string $url, int $timeout, bool $allowUnreachable ): ?Response {
         $fetcher = $this->robotsFetcher( $timeout );
-        if ( $this->robots->isAllowed( $url, $fetcher ) ) {
+        // A robots.txt request shorter than ROBOTS_TIMEOUT that times out is not cached for other callers.
+        $shortened = self::robotsFetchTimeout( $timeout ) < self::ROBOTS_TIMEOUT;
+        if ( $this->robots->isAllowed( $url, $fetcher, $shortened ) ) {
             return null;
         }
-        $error = $this->robots->fetchError( $url, $fetcher );
+        $error = $this->robots->fetchError( $url, $fetcher, $shortened );
         if ( null !== $error ) {
             if ( $allowUnreachable && preg_match( self::UNREACHABLE_ERROR, $error ) && ! preg_match( '/timed?\s?out|timeout/i', $error ) ) {
                 return null;
@@ -289,14 +295,55 @@ final class Client {
         return Response::error( $url, 'Disallowed by robots.txt.', 'robots_disallow' );
     }
 
+    /**
+     * Seconds the client waits between two requests to $url's host: the crawl-delay setting, or the host's
+     * robots.txt Crawl-delay when that is longer and the host's robots.txt is already loaded (it is never
+     * fetched here). Lets a caller keep a series of requests to one host inside its time budget.
+     */
+    public function delayFor( string $url ): float {
+        return $this->delaySeconds( (float) ( $this->robots->knownCrawlDelay( Url::normalize( $url ) ?: $url ) ?? 0.0 ) );
+    }
+
+    /** Seconds the client waits between two requests to any host: the crawl-delay setting (delayFor() can be longer). */
+    public function minDelay(): float {
+        return $this->delaySeconds( 0.0 );
+    }
+
+    /**
+     * Seconds the client would wait now before its next request to $url's host: what is left of delayFor()
+     * since the host was last requested, 0 when that was longer ago or never. Never fetches robots.txt.
+     */
+    public function pendingWait( string $url ): float {
+        $host = Url::host( Url::normalize( $url ) ?: $url );
+        if ( '' === $host ) {
+            return 0.0;
+        }
+        $delay = $this->delayFor( $url );
+        $last  = $this->lastHitAt( $host );
+        if ( $last <= 0 || $delay <= 0 ) {
+            return 0.0;
+        }
+        return max( 0.0, min( $delay, $delay - ( microtime( true ) - $last ) ) );
+    }
+
+    /** robots.txt request timeout asked for by the caller (crawl()'s robots_timeout), else the default. */
+    private function robotsTimeout( array $opts ): int {
+        return isset( $opts['robots_timeout'] ) ? (int) $opts['robots_timeout'] : self::ROBOTS_TIMEOUT;
+    }
+
     /** The host's robots.txt Crawl-delay in seconds (0 when none). Uses the robots.txt already loaded for the gate. */
     private function robotsDelay( string $url ): float {
         return (float) ( $this->robots->crawlDelay( $url, $this->robotsFetcher( self::ROBOTS_TIMEOUT ) ) ?? 0.0 );
     }
 
     private function robotsFetcher( int $timeout ): \Closure {
-        $timeout = max( 3, min( self::ROBOTS_TIMEOUT, $timeout ) );
+        $timeout = self::robotsFetchTimeout( $timeout );
         return fn( string $u ): Response => $this->rawRequest( 'GET', $u, [ 'timeout' => $timeout ] );
+    }
+
+    /** The timeout a robots.txt request asked for with $timeout really gets: 3..ROBOTS_TIMEOUT seconds. */
+    private static function robotsFetchTimeout( int $timeout ): int {
+        return max( 3, min( self::ROBOTS_TIMEOUT, $timeout ) );
     }
 
     /**
@@ -308,9 +355,8 @@ final class Client {
         if ( '' === $host ) {
             return;
         }
-        $delay = min( self::MAX_DELAY_SECONDS, max( 0.0, (float) $this->settings->get( 'advanced.crawl_delay_seconds', 2 ), $robotsDelay ) );
-        $key   = 'ppclg_hit_' . md5( $host );
-        $last  = $this->lastHit[ $host ] ?? (float) get_transient( $key );
+        $delay = $this->delaySeconds( $robotsDelay );
+        $last  = $this->lastHitAt( $host );
         if ( $last > 0 && $delay > 0 ) {
             // min(): a timestamp from the future (another server's clock) never makes the wait longer than the delay.
             $wait = min( $delay, $delay - ( microtime( true ) - $last ) );
@@ -320,7 +366,17 @@ final class Client {
         }
         $now                     = microtime( true );
         $this->lastHit[ $host ] = $now;
-        set_transient( $key, $now, max( 60, (int) ceil( $delay ) + 5 ) );
+        set_transient( 'ppclg_hit_' . md5( $host ), $now, max( 60, (int) ceil( $delay ) + 5 ) );
+    }
+
+    /** When $host was last requested (this request, or another one within its delay), 0.0 when unknown. */
+    private function lastHitAt( string $host ): float {
+        return $this->lastHit[ $host ] ?? (float) get_transient( 'ppclg_hit_' . md5( $host ) );
+    }
+
+    /** The per-host delay: the larger of the crawl-delay setting and $robotsDelay, at most MAX_DELAY_SECONDS. */
+    private function delaySeconds( float $robotsDelay ): float {
+        return min( self::MAX_DELAY_SECONDS, max( 0.0, (float) $this->settings->get( 'advanced.crawl_delay_seconds', 2 ), $robotsDelay ) );
     }
 
     private function pause( float $seconds ): void {

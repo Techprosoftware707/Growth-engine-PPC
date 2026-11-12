@@ -20,7 +20,7 @@ use PPC\LinkGrowth\Support\Url;
 
 final class MentionFinder {
 
-    /** Timeout Client::crawl() uses for its robots.txt request. */
+    /** Longest timeout Client::crawl() uses for its robots.txt request. */
     private const ROBOTS_TIMEOUT = 8;
 
     /** Shortest page timeout worth trying (the HTTP client's own floor). */
@@ -41,9 +41,9 @@ final class MentionFinder {
      * @return array{queries:int,pages_checked:int,unlinked:int,linked:array<int,array{url:string,anchor:string,nofollow:bool,target:string}>,warning:string}
      */
     public function scan( array $queries, TimeBudget $budget, int $maxPages = 15 ): array {
-        $stats    = [ 'queries' => 0, 'pages_checked' => 0, 'unlinked' => 0, 'linked' => [], 'warning' => '' ];
-        $provider = $this->registry->primarySearch();
-        if ( ! $provider ) {
+        $stats     = [ 'queries' => 0, 'pages_checked' => 0, 'unlinked' => 0, 'linked' => [], 'warning' => '' ];
+        $providers = $this->registry->searchProviders();
+        if ( [] === $providers ) {
             $stats['warning'] = 'No search provider configured.';
             return $stats;
         }
@@ -59,11 +59,29 @@ final class MentionFinder {
             if ( $this->log->ranWithin( $q, 7 ) ) {
                 continue;
             }
-            $results = $provider->search( $q, [ 'num' => 10, 'country' => 'ca' ] );
+            // Like DiscoveryEngine: when a provider fails (bad key, 429, outage), the next one runs the query.
+            $results  = [];
+            $provider = null;
+            $failed   = [];
+            foreach ( $providers as $p ) {
+                if ( $p->remainingToday() <= 0 ) {
+                    continue;
+                }
+                $results  = $p->search( $q, [ 'num' => 10, 'country' => 'ca' ] );
+                $provider = $p;
+                if ( ! empty( $results ) || '' === $p->lastError() ) {
+                    break;
+                }
+                $failed[] = sprintf( 'Search provider "%s" failed: %s.', $p->id(), $p->lastError() );
+            }
+            if ( null === $provider ) {
+                $stats['warning'] = 'Search quota used up for every provider today.';
+                break;
+            }
             if ( empty( $results ) && '' !== $provider->lastError() ) {
-                // The search did not run (bad key, 429, outage): do not log it, or the query would be
-                // skipped for 7 days although it never ran.
-                $stats['warning'] = sprintf( 'Search provider "%s" failed: %s. Mention queries were not counted and will be retried.', $provider->id(), $provider->lastError() );
+                // The search did not run: do not log it, or the query would be skipped for 7 days
+                // although it never ran.
+                $stats['warning'] = implode( ' ', $failed ) . ' Mention queries were not counted and will be retried.';
                 if ( ++$failures >= 2 ) {
                     break;
                 }
@@ -73,9 +91,12 @@ final class MentionFinder {
             $stats['queries']++;
             $new = 0;
             foreach ( $results as $res ) {
-                // A crawl is a robots.txt fetch (up to ROBOTS_TIMEOUT) plus the page request: size the
-                // page timeout to what is left of the budget instead of a fixed 15 s.
-                $timeout = (int) min( $maxWait, floor( $budget->remaining() - self::ROBOTS_TIMEOUT - 1 ) );
+                // A crawl is a robots.txt fetch (when the host's robots.txt is not cached) plus the page
+                // request: split what is left of the budget between the two, with at most ROBOTS_TIMEOUT
+                // for robots.txt, so a scan with as little as 7 s left can still crawl a page.
+                $left    = $budget->remaining() - 1;
+                $robots  = (int) max( self::MIN_TIMEOUT, min( self::ROBOTS_TIMEOUT, floor( $left / 2 ) ) );
+                $timeout = (int) min( $maxWait, floor( $left - $robots ) );
                 if ( $timeout < self::MIN_TIMEOUT || $stats['pages_checked'] >= $maxPages ) {
                     break;
                 }
@@ -84,7 +105,7 @@ final class MentionFinder {
                     continue;
                 }
                 $seen[ $url ] = true;
-                $resp = $this->client->crawl( $url, [ 'cache' => true, 'timeout' => $timeout ] );
+                $resp = $this->client->crawl( $url, [ 'cache' => true, 'timeout' => $timeout, 'robots_timeout' => $robots ] );
                 $stats['pages_checked']++;
                 if ( $resp->failed() || ! $resp->isHtml() ) {
                     continue;

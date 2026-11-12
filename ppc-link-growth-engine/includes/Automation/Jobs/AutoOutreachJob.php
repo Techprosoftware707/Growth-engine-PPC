@@ -3,11 +3,13 @@
  * Automatically drafts personalised outreach for qualified prospects whose best
  * opportunity is editorial rather than a submission form.
  *
- * One evergreen campaign per approach ("Auto: <approach>") collects the drafts. Drafts always
- * require the configured approval flow before anything is sent; when the administrator has
- * explicitly enabled outreach autosend AND the sender identity (name, address, postal address)
- * is complete, drafts and their campaign are approved automatically so the send stage can
- * deliver them inside the send window and limits.
+ * One evergreen campaign per approach ("Auto: <approach>") collects the drafts. By default every draft waits
+ * for a person to approve it. When the administrator has turned on outreach autosend (Automation) and the
+ * sender identity (name, address, postal address) is complete, the evergreen campaign is approved
+ * automatically; if "Require individual approval" (Settings → Outreach) is also turned off, this job approves
+ * each auto-drafted first-contact email itself, and the send stage then emails the qualified prospect inside
+ * the send window and limits without per-message review. A campaign a person paused, archived or completed
+ * gets no new drafts and is never re-approved by automation.
  *
  * @package PPC\LinkGrowth
  */
@@ -52,6 +54,9 @@ final class AutoOutreachJob extends AbstractJob {
 
     private const PAGE_SIZE = 40;
 
+    /** Evergreen campaign states set by a person in which no new drafts are created. */
+    private const HELD_CAMPAIGN_STATUSES = [ Campaigns::STATUS_PAUSED, Campaigns::STATUS_ARCHIVED, Campaigns::STATUS_COMPLETED ];
+
     public static function type(): string {
         return 'auto_outreach';
     }
@@ -84,7 +89,17 @@ final class AutoOutreachJob extends AbstractJob {
             $result['warnings'][] = 'Outreach autosend is enabled but the sender identity is incomplete: ' . implode( ', ', $sender['missing'] ) . '.';
         }
 
+        // The engine refuses automated message approval while "Require individual approval" is on, so it is not
+        // attempted then; the drafts simply wait for review.
+        $approveMessages = $autosend && $sender['ok'] && ! (bool) $settings->get( 'outreach.require_approval', true );
+
         $approaches = Templates::approaches();
+        // An approach whose evergreen campaign a person paused, archived or completed is left out of the candidate
+        // query, so its prospects (which get no drafts) cannot fill the candidate window and starve the others.
+        foreach ( $this->heldApproaches( $campaigns, $approaches ) as $approach => $warning ) {
+            unset( $approaches[ $approach ] );
+            $result['warnings'][] = $warning;
+        }
         // Eligibility is filtered in SQL before the LIMIT, so form-first, low-score, contact-less and already
         // drafted prospects at the top of the ranking can no longer fill the window and starve the rest.
         $candidateIds = $this->candidateIds( $prospects, $approaches, $minScore );
@@ -94,7 +109,7 @@ final class AutoOutreachJob extends AbstractJob {
                 if ( $result['drafted'] >= self::MAX_DRAFTS_PER_RUN || ! $budget->has( 4 ) ) {
                     break 2;
                 }
-                $this->draftOne( $prospect, $result, $engine, $campaigns, $contacts, $messages, $logger, $approaches, $minScore, $autosend && $sender['ok'] );
+                $this->draftOne( $prospect, $result, $engine, $campaigns, $contacts, $messages, $logger, $approaches, $minScore, $autosend && $sender['ok'], $approveMessages );
             }
         }
         return $this->result( $result );
@@ -106,8 +121,10 @@ final class AutoOutreachJob extends AbstractJob {
      * @param array<string,mixed>  $prospect
      * @param array<string,mixed>  $result
      * @param array<string,string> $approaches
+     * @param bool                 $autoApprove     Approve the evergreen campaign (autosend on, sender complete).
+     * @param bool                 $approveMessages Also approve the draft (and "Require individual approval" is off).
      */
-    private function draftOne( array $prospect, array &$result, OutreachEngine $engine, Campaigns $campaigns, Contacts $contacts, OutreachMessages $messages, Logger $logger, array $approaches, int $minScore, bool $autoApprove ): void {
+    private function draftOne( array $prospect, array &$result, OutreachEngine $engine, Campaigns $campaigns, Contacts $contacts, OutreachMessages $messages, Logger $logger, array $approaches, int $minScore, bool $autoApprove, bool $approveMessages ): void {
         try {
             $approach = self::APPROACH_FOR_TYPE[ (string) $prospect['opportunity_type'] ] ?? '';
             if ( '' === $approach || ! isset( $approaches[ $approach ] ) ) {
@@ -121,7 +138,7 @@ final class AutoOutreachJob extends AbstractJob {
                 $result['skipped']++;
                 return;
             }
-            $campaignId = $this->evergreenCampaign( $campaigns, $engine, $approach, (string) $approaches[ $approach ], $autoApprove );
+            $campaignId = $this->evergreenCampaign( $campaigns, $engine, $approach, (string) $approaches[ $approach ], $autoApprove, $result );
             if ( $campaignId <= 0 ) {
                 return;
             }
@@ -132,7 +149,7 @@ final class AutoOutreachJob extends AbstractJob {
                 return;
             }
             $result['drafted']++;
-            if ( $autoApprove ) {
+            if ( $approveMessages ) {
                 $approved = $engine->approveMessage( $messageId, 0 );
                 if ( ! empty( $approved['ok'] ) ) {
                     $result['auto_approved']++;
@@ -215,11 +232,48 @@ final class AutoOutreachJob extends AbstractJob {
         return $out;
     }
 
-    /** Find or create the evergreen campaign for an approach; approve it only in the autosend path. */
-    private function evergreenCampaign( Campaigns $campaigns, OutreachEngine $engine, string $approach, string $label, bool $autosend ): int {
+    /**
+     * Approaches whose evergreen campaign ("Auto: <label>") a person paused, archived or completed.
+     *
+     * @param array<string,string> $approaches approach => label
+     * @return array<string,string> approach => warning
+     */
+    private function heldApproaches( Campaigns $campaigns, array $approaches ): array {
+        $held = [];
+        foreach ( array_unique( array_values( self::APPROACH_FOR_TYPE ) ) as $approach ) {
+            if ( ! isset( $approaches[ $approach ] ) ) {
+                continue;
+            }
+            $name = 'Auto: ' . $approaches[ $approach ];
+            $row  = $campaigns->findOneBy( [ 'approach' => $approach, 'name' => $name ] );
+            if ( null !== $row && in_array( (string) $row['status'], self::HELD_CAMPAIGN_STATUSES, true ) ) {
+                $held[ $approach ] = self::heldWarning( $name, (string) $row['status'] );
+            }
+        }
+        return $held;
+    }
+
+    private static function heldWarning( string $name, string $status ): string {
+        return sprintf( 'The "%s" campaign is %s, so no new drafts were created for it.', $name, $status );
+    }
+
+    /**
+     * Find or create the evergreen campaign for an approach; approve it only in the autosend path. Returns 0 (no
+     * drafting) when a person paused, archived or completed it, so drafts do not pile up in a held campaign.
+     *
+     * @param array<string,mixed> $result
+     */
+    private function evergreenCampaign( Campaigns $campaigns, OutreachEngine $engine, string $approach, string $label, bool $autosend, array &$result ): int {
         $name = 'Auto: ' . $label;
         $row  = $campaigns->findOneBy( [ 'approach' => $approach, 'name' => $name ] );
-        $id   = null !== $row ? (int) $row['id'] : 0;
+        if ( null !== $row && in_array( (string) $row['status'], self::HELD_CAMPAIGN_STATUSES, true ) ) {
+            $warning = self::heldWarning( $name, (string) $row['status'] );
+            if ( ! in_array( $warning, $result['warnings'], true ) ) {
+                $result['warnings'][] = $warning;
+            }
+            return 0;
+        }
+        $id = null !== $row ? (int) $row['id'] : 0;
         if ( 0 === $id ) {
             $id = $engine->createCampaign(
                 $name,
@@ -228,14 +282,14 @@ final class AutoOutreachJob extends AbstractJob {
                     'daily_limit'  => 5,
                     'follow_ups'   => true,
                     'auto_created' => true,
-                    'notes'        => 'Created automatically for hands-off drafting. Drafts wait for approval unless outreach autosend is enabled.',
+                    'notes'        => 'Created automatically for hands-off drafting. Drafts wait for your approval unless outreach autosend is on and "Require individual approval" is off.',
                 ],
                 0
             );
         }
         if ( $id > 0 && $autosend ) {
             $row = $campaigns->find( $id );
-            if ( null !== $row && in_array( (string) $row['status'], [ Campaigns::STATUS_DRAFT, Campaigns::STATUS_PENDING_APPROVAL, Campaigns::STATUS_PAUSED ], true ) ) {
+            if ( null !== $row && in_array( (string) $row['status'], [ Campaigns::STATUS_DRAFT, Campaigns::STATUS_PENDING_APPROVAL ], true ) ) {
                 $engine->approveCampaign( $id, 0 );
             }
         }

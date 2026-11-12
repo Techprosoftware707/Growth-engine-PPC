@@ -35,14 +35,18 @@ ppc-link-growth-engine/
 
 Status flows:
 
-- Prospect: discovered → evaluating → qualified | rejected → approved/in_progress → acquired; on_hold and suppressed are manual.
-- Submission: pending_review | needs_manual → approved → queued → submitted → confirmed | failed | rejected | duplicate.
-- Outreach message: draft → approved | scheduled → sent → replied | bounced | opted_out | closed.
+- Prospect: discovered → qualified | rejected → approved/in_progress → acquired; on_hold and suppressed are set by a person (the engine also parks a prospect on hold after an evaluation error and retries it after 1 day). No "evaluating" status is stored while a prospect is evaluated: the in-flight marker lives in the `ppclg_evaluate_inflight` option (a legacy "evaluating" row older than 15 minutes is picked up again). Machine decisions are retried, a person's never: a site that cannot be fetched is re-checked after 1, 7 and 30 days (then no longer); a qualified prospect keeps its status until 3 consecutive checks failed, and statuses set by a person (approved, in progress, acquired, on hold) are kept.
+- Submission: packaged as queued (the policy allows it), pending_review (only authorisation blocks it) or needs_manual (a person must submit) → approved (by a person) → submitted → confirmed; failed (a retryable failure goes back to queued, at most 3 attempts) | rejected | duplicate. While the queue sends a row it holds a short claim on it, and payload edits, reject, rebuild and mark-submitted are refused until the result is recorded.
+- Outreach message: draft → approved | scheduled → sending → sent → replied | bounced | opted_out | closed; rejected by a person (or when the prospect is rejected), failed when sending fails. "sending" is the claim taken just before the email goes out; a row left in it for more than 15 minutes is marked failed and never re-sent automatically.
 - Backlink: pending → active | lost | broken | redirected | unverified.
+
+## Submission delivery
+
+Adapters (`Submission\Adapters\*`) return `status` (`submitted`, `failed` with `retryable`, or `needs_manual`) plus two optional keys: `sent` (whether a request actually reached the destination; the daily/weekly submission limit is spent only then) and `retry_after` (seconds the destination asked to wait on a retryable failure; the retry then waits at least 6 hours and at most 7 days). A listing request is not idempotent, so `retryable` is reported only when it provably never left (DNS, connect or TLS failure). A timeout or dropped connection after sending, a 5xx answer, an exception after hand-off or an interrupted run (an expired claim) moves the row to needs_manual with `outcome_unknown`; it is never re-posted automatically. Limits are checked when a row is about to be sent, not when it is packaged or approved. `Submission\Policy` re-runs every gate right before sending; its hard blockers include a site set to "never automate", a comment or forum form, a CAPTCHA, login or required upload, robots.txt, an unmapped required field, an earlier sent submission to the same target or site, and package text that fails the claims filter. Checkboxes about fees, paid or featured placements and newsletters (`PackageBuilder::CONSENT_PAID`, `CONSENT_DENY`) are never ticked.
 
 ## Background execution
 
-`Scheduler` registers `ppclg_tick`. `Pipeline::tick()` records the tick, enqueues due stages (deduplicated), and runs `JobRunner` under a lock for `automation.max_execution_seconds`. Jobs are small, idempotent and re-enqueue themselves when work remains, so the 30-second PHP limit is never approached. Failed jobs retry with backoff up to three times; stale "running" jobs are recovered by the cleanup stage. Manual runs from the dashboard use `Pipeline::runNow()`.
+`Scheduler` registers `ppclg_tick`. `Pipeline::tick()` records the tick, enqueues due stages (deduplicated), and runs `JobRunner` under a lock for `automation.max_execution_seconds` (at least 15 s). Jobs are small, idempotent and re-enqueue themselves when work remains, so with the default 20 s the 30-second PHP limit is never approached. Failed jobs retry with backoff up to three times; stale "running" jobs are recovered by the cleanup stage. Manual runs from the dashboard use `Pipeline::runNow()`; *Send now* on an outreach message takes the same runner lock and is refused (HTTP 409) while a background run holds it.
 
 ## Scoring model
 

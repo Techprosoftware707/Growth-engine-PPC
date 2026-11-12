@@ -22,7 +22,18 @@ final class ClaudeWriter {
     public const ENDPOINT    = 'https://api.anthropic.com/v1/messages';
     public const API_VERSION = '2026-10-21';
 
+    /** HTTP timeout (seconds) per API call for background jobs. */
+    public const TIMEOUT = 90;
+
+    /**
+     * HTTP timeout (seconds) per API call while an administrator waits on a REST request: one hung call plus the
+     * caller's own time budget must stay under a proxy limit such as Cloudflare's 100 s.
+     */
+    public const INTERACTIVE_TIMEOUT = 40;
+
     private string $lastError = '';
+
+    private int $timeout = self::TIMEOUT;
 
     public function __construct( private Secrets $secrets, private Settings $settings, private Client $client, private Logger $logger ) {}
 
@@ -36,6 +47,26 @@ final class ClaudeWriter {
 
     public function lastError(): string {
         return $this->lastError;
+    }
+
+    /** Seconds each API call made by this instance may take. */
+    public function timeout(): int {
+        return $this->timeout;
+    }
+
+    /**
+     * A copy of this writer whose API calls give up after INTERACTIVE_TIMEOUT seconds (for requests an
+     * administrator is waiting on). The shared instance used by background jobs keeps TIMEOUT.
+     */
+    public function interactive(): self {
+        return $this->withTimeout( self::INTERACTIVE_TIMEOUT );
+    }
+
+    /** A copy of this writer with a different per-call HTTP timeout (5 to TIMEOUT seconds). */
+    public function withTimeout( int $seconds ): self {
+        $copy          = clone $this;
+        $copy->timeout = max( 5, min( self::TIMEOUT, $seconds ) );
+        return $copy;
     }
 
     public function model(): string {
@@ -69,7 +100,7 @@ final class ClaudeWriter {
                 'Accept'            => 'application/json',
             ],
             $body,
-            90
+            $this->timeout
         );
         if ( ! $r->ok() ) {
             $this->lastError = 'Anthropic API: ' . ( $r->error ?: 'HTTP ' . $r->status . ' ' . mb_substr( (string) ( $r->json()['error']['message'] ?? '' ), 0, 200 ) );

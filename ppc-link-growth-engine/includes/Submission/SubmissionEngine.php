@@ -27,7 +27,6 @@ use PPC\LinkGrowth\Repositories\Repository;
 use PPC\LinkGrowth\Repositories\Submissions;
 use PPC\LinkGrowth\Submission\Adapters\AdapterInterface;
 use PPC\LinkGrowth\Submission\Adapters\Delivery;
-use PPC\LinkGrowth\Support\Json;
 use PPC\LinkGrowth\Support\Limits;
 use PPC\LinkGrowth\Support\Logger;
 use PPC\LinkGrowth\Support\TimeBudget;
@@ -490,7 +489,7 @@ final class SubmissionEngine {
             if ( $try >= 2 || self::isInFlight( $sub ) ) {
                 return false;
             }
-            if ( $this->transitionFromQueue( $sub, Submissions::STATUS_REJECTED ) ) {
+            if ( $this->submissions->casStatusFromQueue( $sub, Submissions::STATUS_REJECTED ) ) {
                 break;
             }
             $sub = $this->submissions->find( $id );
@@ -990,38 +989,10 @@ final class SubmissionEngine {
      * @param array<string,mixed> $sub Row as just read.
      */
     private function claim( array $sub ): bool {
-        global $wpdb;
-        $now      = Repository::now();
         $until    = time() + self::CLAIM_LEASE;
         $response = self::unclaimed( $sub );
         $response[ self::CLAIM_KEY ] = [ 'since' => gmdate( 'c' ), 'until' => $until ];
-        $table    = $this->submissions->table();
-        $sql      = "UPDATE {$table} SET scheduled_at = %s, updated_at = %s, response = %s WHERE id = %d AND status IN (%s,%s) AND (scheduled_at IS NULL OR scheduled_at <= %s) AND updated_at = %s";
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        $n = $wpdb->query( $wpdb->prepare( $sql, gmdate( 'Y-m-d H:i:s', $until ), $now, Json::encode( $response ), (int) $sub['id'], Submissions::STATUS_APPROVED, Submissions::STATUS_QUEUED, $now, (string) ( $sub['updated_at'] ?? '' ) ) );
-        return 1 === (int) $n;
-    }
-
-    /**
-     * Compare-and-set status change for a row in the automated queue: applies only while the row still
-     * has the status and schedule we read (a queue run's claim always moves scheduled_at).
-     *
-     * @param array<string,mixed> $sub Row as just read.
-     */
-    private function transitionFromQueue( array $sub, string $status ): bool {
-        global $wpdb;
-        $table  = $this->submissions->table();
-        $at     = trim( (string) ( $sub['scheduled_at'] ?? '' ) );
-        $params = [ $status, Repository::now(), (int) $sub['id'], (string) $sub['status'] ];
-        if ( '' === $at ) {
-            $sql = "UPDATE {$table} SET status = %s, updated_at = %s, scheduled_at = NULL WHERE id = %d AND status = %s AND scheduled_at IS NULL";
-        } else {
-            $sql      = "UPDATE {$table} SET status = %s, updated_at = %s, scheduled_at = NULL WHERE id = %d AND status = %s AND scheduled_at = %s";
-            $params[] = $at;
-        }
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        $n = $wpdb->query( $wpdb->prepare( $sql, $params ) );
-        return 1 === (int) $n;
+        return $this->submissions->claimForSend( $sub, $until, $response );
     }
 
     /**

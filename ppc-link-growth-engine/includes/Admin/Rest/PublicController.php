@@ -36,6 +36,19 @@ final class PublicController extends Controller {
         $this->route( $namespace, '/unsubscribe', 'GET', [ $this, 'unsubscribePage' ], $tokenArg, true );
         $this->route( $namespace, '/unsubscribe', 'POST', [ $this, 'unsubscribePost' ], $tokenArg, true );
         $this->route( $namespace, '/inbound', 'POST', [ $this, 'inbound' ], [], true );
+
+        // The inbound webhook may carry its secret as an HTTP Basic auth password (https://ppclg:SECRET@site/...).
+        // WordPress would otherwise read those credentials as an Application Password login for a user named
+        // "ppclg" and reject the request (401) before it reaches this public route, so Application Password
+        // authentication is not attempted on it. No user is logged in either way; the secret is checked below.
+        $inboundRoute = '/' . trim( $namespace, '/' ) . '/inbound';
+        add_filter(
+            'application_password_is_api_request',
+            static function ( $isApiRequest ) use ( $inboundRoute ) {
+                $route = $GLOBALS['wp']->query_vars['rest_route'] ?? '';
+                return is_string( $route ) && 0 === strcasecmp( $inboundRoute, rtrim( $route, '/' ) ) ? false : $isApiRequest;
+            }
+        );
     }
 
     /**
@@ -72,7 +85,13 @@ final class PublicController extends Controller {
         return $this->ok( [ 'ok' => (bool) $result['ok'] ], $result['ok'] ? 200 : 404 );
     }
 
-    /** POST /inbound — reply / bounce webhook from the mail provider (secret in X-PPCLG-Secret header or body). */
+    /**
+     * POST /inbound — reply / bounce webhook from the mail provider. The shared secret is read, in this order,
+     * from the X-PPCLG-Secret header, the body "secret" field, the "secret" query parameter
+     * (/inbound?secret=…) or the HTTP Basic auth password (https://ppclg:SECRET@site/…) for providers that can
+     * only be configured with a URL. Header and body are preferred: a query-string secret can end up in
+     * server access logs.
+     */
     public function inbound( WP_REST_Request $request ) {
         $limited = $this->rateLimit( $request, self::INBOUND_PER_MINUTE, 'ip' );
         if ( true !== $limited ) {
@@ -94,6 +113,15 @@ final class PublicController extends Controller {
         }
         unset( $params['secret'] );
         if ( '' === $secret ) {
+            $query = $request->get_query_params();
+            if ( is_array( $query ) && isset( $query['secret'] ) && is_scalar( $query['secret'] ) ) {
+                $secret = trim( (string) $query['secret'] );
+            }
+        }
+        if ( '' === $secret ) {
+            $secret = $this->basicAuthPassword( $request );
+        }
+        if ( '' === $secret ) {
             return $this->fail( 'ppclg_inbound_unauthorized', __( 'Missing webhook secret.', 'ppc-link-growth-engine' ), 401 );
         }
 
@@ -113,6 +141,23 @@ final class PublicController extends Controller {
     }
 
     // ------------------------------------------------------------------
+
+    /**
+     * Password of an HTTP Basic Authorization header ("Basic base64(user:password)"), or of PHP's own parse of
+     * it ($_SERVER['PHP_AUTH_PW']); '' when there is none. Only the password is used (the user name is ignored).
+     */
+    private function basicAuthPassword( WP_REST_Request $request ): string {
+        $header = trim( (string) $request->get_header( 'authorization' ) );
+        if ( 1 === preg_match( '/^Basic\s+([A-Za-z0-9+\/=]+)$/i', $header, $m ) ) {
+            $pair = base64_decode( $m[1], true );
+            if ( is_string( $pair ) && str_contains( $pair, ':' ) ) {
+                return trim( explode( ':', $pair, 2 )[1] );
+            }
+        }
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- compared with hash_equals() only, never stored or echoed
+        $pw = $_SERVER['PHP_AUTH_PW'] ?? '';
+        return is_string( $pw ) ? trim( $pw ) : '';
+    }
 
     /** The request's unsubscribe token when it is well formed, else ''. */
     private function token( WP_REST_Request $request ): string {

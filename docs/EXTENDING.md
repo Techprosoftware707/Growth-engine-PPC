@@ -21,7 +21,7 @@ Implement `PPC\LinkGrowth\Integrations\Contracts\SearchProvider` and append it t
 
 ## Add a submission adapter (official directory API)
 
-Implement `PPC\LinkGrowth\Submission\Adapters\AdapterInterface` and register through `ppclg_submission_adapters`. `supports()` decides when the adapter applies; `submit()` returns `submitted`, `failed` (with `retryable`) or `needs_manual`. The engine still applies every authorisation gate before calling you.
+Implement `PPC\LinkGrowth\Submission\Adapters\AdapterInterface` and register through `ppclg_submission_adapters`. `supports()` decides when the adapter applies; `submit()` returns `submitted`, `failed` (with `retryable`) or `needs_manual`, and optionally `sent` (whether a request reached the destination; the submission limit is spent only then, and when the key is missing every status but `needs_manual` counts as sent) and `retry_after` (seconds the destination asked to wait). Submission requests are not idempotent: report `retryable` only when the request provably never reached the destination, and return `needs_manual` when the outcome is unknown (timeout after sending, 5xx). The engine still applies every authorisation gate before calling you.
 
 For most REST-style partner APIs no code is needed: use the *Configured API* fields on the prospect (endpoint, method, headers, JSON body template with `{{business.name}}`-style placeholders, success path, listing-URL path, encrypted API key).
 

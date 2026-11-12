@@ -9,6 +9,8 @@ declare(strict_types=1);
 
 namespace PPC\LinkGrowth\Integrations\Search;
 
+use PPC\LinkGrowth\Support\Http\Response;
+
 final class GoogleCustomSearch extends AbstractSearch {
 
     public function id(): string {
@@ -27,6 +29,11 @@ final class GoogleCustomSearch extends AbstractSearch {
         return (int) $this->settings->get( 'providers.search.google_cse_daily_limit', 90 );
     }
 
+    /** Google APIs answer an invalid key with 400 "API key not valid" (API_KEY_INVALID). */
+    protected function rejectedCredentials( Response $r ): bool {
+        return parent::rejectedCredentials( $r ) || ( null === $r->error && 400 === $r->status && 1 === preg_match( '/API_KEY_INVALID|API key not valid|keyInvalid/i', $r->body ) );
+    }
+
     public function search( string $query, array $opts = [] ): array {
         if ( ! $this->isConfigured() || $this->remainingToday() <= 0 ) {
             return [];
@@ -43,6 +50,9 @@ final class GoogleCustomSearch extends AbstractSearch {
         $this->consume();
         $r = $this->client->api( 'GET', 'https://www.googleapis.com/customsearch/v1?' . http_build_query( $params, '', '&', PHP_QUERY_RFC3986 ) );
         if ( ! $r->ok() ) {
+            if ( $this->rejectedCredentials( $r ) ) {
+                $this->refund();
+            }
             return $this->fail( 'Google CSE error: ' . ( $r->error ?: 'HTTP ' . $r->status . ' ' . mb_substr( (string) ( $r->json()['error']['message'] ?? '' ), 0, 160 ) ) );
         }
         $this->ok();

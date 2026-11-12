@@ -2,8 +2,9 @@
 /**
  * Inbound email webhook (replies, bounces, "unsubscribe" replies) from the mail provider.
  *
- * The provider posts a JSON payload with a shared secret; the secret is compared in constant
- * time against the encrypted "inbound_webhook_secret". Matching order: In-Reply-To / References
+ * The provider posts a JSON or form payload with a shared secret (X-PPCLG-Secret header, "secret" body field,
+ * "secret" query parameter or HTTP Basic auth password; PublicController::inbound() extracts it); the secret is
+ * compared in constant time against the encrypted "inbound_webhook_secret". Matching order: In-Reply-To / References
  * → "ppclg-{token}" anywhere in headers or text → sender address → latest sent message.
  *
  * Opt-out intent is read from the new text of the reply: quoted history (">" lines, the "On … wrote:"

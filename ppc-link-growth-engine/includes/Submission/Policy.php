@@ -3,8 +3,9 @@
  * Authorization policy for automated submissions.
  *
  * A submission may run automatically only when every gate passes: the automation master switch,
- * per-prospect authorization (or a configured partner API), an automatable listing form (POST, no
- * CAPTCHA, no password, no required upload), robots.txt permission for the action URL, daily and
+ * per-prospect authorization (or a configured partner API; a site set to "never automate" is refused
+ * in every mode), an automatable listing form (POST, no CAPTCHA, no password, no required upload, never
+ * a blog comment or forum form), robots.txt permission for the action URL, daily and
  * weekly limits (checked when sending; packaging/approval may skip them so the item waits in the
  * queue), no submission already sent to the same target or site, no required field left unmapped
  * and package text that passes the claims filter.
@@ -17,6 +18,7 @@ declare(strict_types=1);
 namespace PPC\LinkGrowth\Submission;
 
 use PPC\LinkGrowth\Analysis\FormDetector;
+use PPC\LinkGrowth\Repositories\Prospects;
 use PPC\LinkGrowth\Repositories\Submissions;
 use PPC\LinkGrowth\Support\Http\RobotsTxt;
 use PPC\LinkGrowth\Support\Json;
@@ -33,6 +35,17 @@ final class Policy {
     public const SUBMISSION_MODES = [ 'auto', 'authorized_only', 'manual' ];
 
     private const API_METHODS = [ 'POST', 'PUT', 'PATCH' ];
+
+    private const COMMENT_REFUSAL = 'The detected form is a blog comment / forum reply form (comment and forum posting is never automated).';
+
+    /** Form action paths of comment, reply and forum endpoints. */
+    private const COMMENT_ACTION_RE = '/wp-comments-post|\/comments?\/|reply|bbp-|forum/i';
+
+    /** Field names used by comment and forum reply forms. */
+    private const COMMENT_FIELD_RE = '/^(comment|comment_post_id|comment_parent)$|wc_comment|bbp_|reply_content/i';
+
+    /** Hidden values that mark a bbPress reply/topic form. */
+    private const COMMENT_HIDDEN_RE = '/bbp-new-(reply|topic)/i';
 
     public function __construct(
         private Settings $settings,
@@ -79,17 +92,21 @@ final class Policy {
         // 2. Authorization. In "auto" mode a high-quality prospect is authorised by itself; the
         // structural gates below (listing form, no CAPTCHA/login, robots.txt, mappable fields)
         // still decide whether the destination actually permits an automated submission.
-        $mode = self::submissionMode( $this->settings );
-        if ( 1 !== (int) ( $prospect['automation_allowed'] ?? 0 ) && null === $api ) {
+        // A site set to "never automate" is refused in every mode, partner API included.
+        $mode    = self::submissionMode( $this->settings );
+        $perSite = Prospects::automationSetting( $prospect );
+        if ( Prospects::AUTOMATION_NEVER === $perSite ) {
+            $add( 'This site is set to "Never automate": submissions to it are always prepared for a person (Prospects → Automation).', true );
+        } elseif ( Prospects::AUTOMATION_ALWAYS !== $perSite && null === $api ) {
             if ( 'manual' === $mode ) {
                 $add( 'Submission mode is "manual": every submission is prepared for a person (Settings → Automation).', false );
             } elseif ( 'authorized_only' === $mode ) {
-                $add( 'This prospect is not authorised for automated submission (enable "automation allowed" or configure a partner API).', false );
+                $add( 'This prospect is not authorised for automated submission (set its per-site automation to "Always allow" or configure a partner API).', false );
             } else {
                 $minScore = (int) $this->settings->get( 'automation.min_score_auto_queue', 70 );
                 $score    = isset( $prospect['score'] ) && null !== $prospect['score'] ? (int) $prospect['score'] : null;
                 if ( null === $score || $score < $minScore ) {
-                    $add( sprintf( 'Auto mode only submits to sites scoring at least %d (this one: %s); authorise it manually to override.', $minScore, null === $score ? 'not yet scored' : (string) $score ), false );
+                    $add( sprintf( 'Auto mode only submits to sites scoring at least %d (this one: %s); set its per-site automation to "Always allow" to override.', $minScore, null === $score ? 'not yet scored' : (string) $score ), false );
                 }
             }
         }
@@ -204,8 +221,15 @@ final class Policy {
         }
         $out  = [];
         $kind = (string) ( $form['kind'] ?? '' );
-        if ( FormDetector::KIND_LISTING !== $kind ) {
+        if ( FormDetector::KIND_COMMENT === $kind ) {
+            $out[] = self::COMMENT_REFUSAL;
+        } elseif ( FormDetector::KIND_LISTING !== $kind ) {
             $out[] = sprintf( 'The detected form is a "%s" form, not a listing submission form.', '' !== $kind ? str_replace( '_', ' ', $kind ) : 'unknown' );
+        }
+        // Comment and forum posting is refused from the form's own markers too, whatever kind
+        // FormDetector assigned to it.
+        if ( self::isCommentOrForumForm( $form, $payload ) ) {
+            $out[] = self::COMMENT_REFUSAL;
         }
         if ( 'POST' !== strtoupper( (string) ( $form['method'] ?? 'GET' ) ) ) {
             $out[] = 'The form does not submit via POST.';
@@ -234,6 +258,44 @@ final class Policy {
             }
         }
         return array_values( array_unique( $out ) );
+    }
+
+    /**
+     * True when the form posts to a comment/reply/forum endpoint, carries comment or forum field names,
+     * or a hidden bbPress reply/topic marker.
+     *
+     * @param array<string,mixed> $form
+     * @param array<string,mixed> $payload
+     */
+    public static function isCommentOrForumForm( array $form, array $payload = [] ): bool {
+        $action = trim( (string) ( $form['action'] ?? '' ) );
+        if ( '' === $action ) {
+            $action = trim( (string) ( $form['page_url'] ?? '' ) ); // An empty action posts to the page itself.
+        }
+        if ( '' !== $action ) {
+            $parts = wp_parse_url( $action );
+            $path  = is_array( $parts ) ? (string) ( $parts['path'] ?? '' ) . ( isset( $parts['query'] ) ? '?' . $parts['query'] : '' ) : $action;
+            if ( '' !== $path && preg_match( self::COMMENT_ACTION_RE, $path ) ) {
+                return true;
+            }
+        }
+        $fields = array_merge(
+            is_array( $form['fields'] ?? null ) ? $form['fields'] : [],
+            is_array( $payload['fields'] ?? null ) ? $payload['fields'] : []
+        );
+        foreach ( $fields as $f ) {
+            if ( ! is_array( $f ) ) {
+                continue;
+            }
+            $name = trim( (string) ( $f['name'] ?? '' ) );
+            if ( '' !== $name && preg_match( self::COMMENT_FIELD_RE, $name ) ) {
+                return true;
+            }
+            if ( 'hidden' === strtolower( (string) ( $f['type'] ?? '' ) ) && is_scalar( $f['value'] ?? null ) && preg_match( self::COMMENT_HIDDEN_RE, (string) $f['value'] ) ) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

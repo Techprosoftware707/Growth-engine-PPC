@@ -9,6 +9,8 @@ declare(strict_types=1);
 
 namespace PPC\LinkGrowth\Integrations\Search;
 
+use PPC\LinkGrowth\Support\Http\Response;
+
 final class BraveSearch extends AbstractSearch {
 
     public function id(): string {
@@ -27,6 +29,11 @@ final class BraveSearch extends AbstractSearch {
         return (int) $this->settings->get( 'providers.search.brave_daily_limit', 60 );
     }
 
+    /** Brave also answers an invalid subscription token with 422 SUBSCRIPTION_TOKEN_INVALID. */
+    protected function rejectedCredentials( Response $r ): bool {
+        return parent::rejectedCredentials( $r ) || ( null === $r->error && str_contains( $r->body, 'SUBSCRIPTION_TOKEN_INVALID' ) );
+    }
+
     public function search( string $query, array $opts = [] ): array {
         if ( ! $this->isConfigured() || $this->remainingToday() <= 0 ) {
             return [];
@@ -41,6 +48,9 @@ final class BraveSearch extends AbstractSearch {
         $this->consume();
         $r = $this->client->api( 'GET', 'https://api.search.brave.com/res/v1/web/search?' . http_build_query( $params, '', '&', PHP_QUERY_RFC3986 ), [ 'X-Subscription-Token' => $this->secrets->get( 'brave_api_key' ), 'Accept' => 'application/json' ] );
         if ( ! $r->ok() ) {
+            if ( $this->rejectedCredentials( $r ) ) {
+                $this->refund();
+            }
             return $this->fail( 'Brave Search error: ' . ( $r->error ?: 'HTTP ' . $r->status ) );
         }
         $this->ok();

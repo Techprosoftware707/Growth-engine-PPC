@@ -91,6 +91,9 @@ final class ConfiguredApiAdapter implements AdapterInterface {
         if ( ! (bool) $this->settings->get( 'automation.submissions', false ) ) {
             return $this->manual( 'Automated submissions are switched off.' );
         }
+        if ( \PPC\LinkGrowth\Repositories\Prospects::AUTOMATION_NEVER === \PPC\LinkGrowth\Repositories\Prospects::automationSetting( $prospect ) ) {
+            return $this->manual( 'This site is set to "Never automate"; a person must submit the listing.' );
+        }
         $cfg = Policy::apiConfig( $prospect );
         if ( null === $cfg ) {
             return $this->manual( 'No partner API is configured for this prospect.' );

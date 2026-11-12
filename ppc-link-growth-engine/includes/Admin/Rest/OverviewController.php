@@ -94,6 +94,7 @@ final class OverviewController extends Controller {
         $since30     = gmdate( 'Y-m-d H:i:s', time() - 30 * DAY_IN_SECONDS );
         $gsc         = $this->searchConsole();
         $referral    = $this->referral();
+        $quality     = (int) $this->safe( fn(): int => $backlinks->highAuthorityDomainCount( 60 ), 0, 'quality domains' );
 
         return [
             'prospects_total'        => (int) array_sum( $ps ),
@@ -110,7 +111,12 @@ final class OverviewController extends Controller {
             'backlinks_new_30d'      => (int) $this->safe( fn(): int => $backlinks->countSince( 'first_seen', $since30 ), 0, 'new backlinks' ),
             'backlinks_lost_30d'     => (int) $this->safe( fn(): int => $backlinks->countSince( 'lost_at', $since30 ), 0, 'lost backlinks' ),
             'referring_domains'      => (int) $this->safe( fn(): int => $backlinks->referringDomainCount( Backlinks::STATUS_ACTIVE ), 0, 'referring domains' ),
-            'high_authority_domains' => (int) $this->safe( fn(): int => $backlinks->highAuthorityDomainCount( 60 ), 0, 'high authority domains' ),
+            // Active referring domains with a link quality score >= 60 (the monitor's score, not provider authority;
+            // /backlinks/summary reports provider authority as high_authority_domains).
+            'quality_domains'        => $quality,
+            // Deprecated: the same link-quality count under its old, misleading name. Kept for one release for
+            // readers of the old field; remove in the next minor version.
+            'high_authority_domains' => $quality,
             'referral_sessions_28d'  => $referral['sessions'],
             'referral_source'        => $referral['source'],
             'outreach_sent'          => (int) ( $rr['sent'] ?? 0 ),

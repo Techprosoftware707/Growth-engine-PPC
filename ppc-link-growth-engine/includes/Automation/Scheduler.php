@@ -42,12 +42,13 @@ final class Scheduler {
     /**
      * Hook callback: runs one pipeline tick and never lets an exception escape into cron.
      *
-     * Cron passes the event's arguments to the callback. They are not used, but they must be accepted:
-     * WP_Hook calls call_user_func_array(), which treats string keys as PHP 8 named arguments, so an
-     * event scheduled with associative args (e.g. a kick queued by an earlier version) would otherwise
-     * throw "Unknown named parameter" before this method's try/catch is reached.
+     * The recurring tick has no arguments; a kick() carries one (a timestamp) so that it never looks like the
+     * recurring action. Action Scheduler passes args positionally and WP-Cron passes them through
+     * call_user_func_array(), which treats string keys as PHP 8 named arguments, so the variadic accepts the
+     * no-argument, positional and legacy associative forms alike instead of throwing "Unknown named parameter"
+     * before this method's try/catch is reached.
      *
-     * @param mixed ...$args Ignored cron event arguments.
+     * @param mixed ...$args Ignored event arguments.
      */
     public function onTick( mixed ...$args ): void {
         unset( $args );
@@ -132,7 +133,9 @@ final class Scheduler {
     public function unschedule(): void {
         try {
             if ( function_exists( 'as_unschedule_all_actions' ) ) {
-                as_unschedule_all_actions( self::HOOK, [], self::GROUP );
+                // Hook only: Action Scheduler then cancels every pending action of the hook whatever its args,
+                // which includes kicks (they carry their own argument, so an args/group match would miss them).
+                as_unschedule_all_actions( self::HOOK );
             }
         } catch ( Throwable $e ) {
             $this->logger->warning( 'automation', 'Action Scheduler unschedule failed: ' . $e->getMessage() );
@@ -187,7 +190,9 @@ final class Scheduler {
     public function kick(): bool {
         try {
             if ( function_exists( 'as_enqueue_async_action' ) && did_action( 'init' ) ) {
-                $id = as_enqueue_async_action( self::HOOK, [], self::GROUP );
+                // A kick carries an argument so that it never matches the recurring action's empty args: otherwise
+                // hasActionSchedulerTick() would mistake a pending kick for the schedule and not repair a lost one.
+                $id = as_enqueue_async_action( self::HOOK, [ time() ], self::GROUP );
                 if ( (int) $id > 0 ) {
                     return true;
                 }
@@ -209,6 +214,7 @@ final class Scheduler {
         return function_exists( 'as_schedule_recurring_action' ) && ( function_exists( 'as_has_scheduled_action' ) || function_exists( 'as_next_scheduled_action' ) );
     }
 
+    /** Whether the recurring tick exists (pending or running). Kicks do not count: their args are never empty. */
     private function hasActionSchedulerTick(): bool {
         if ( function_exists( 'as_has_scheduled_action' ) ) {
             return (bool) as_has_scheduled_action( self::HOOK, [], self::GROUP );
@@ -226,7 +232,7 @@ final class Scheduler {
             return $next;
         }
         if ( true === $next ) {
-            return time(); // an async/overdue action is pending
+            return time(); // the recurring action is running (or an argument-less action is due now)
         }
         return null;
     }

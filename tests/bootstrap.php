@@ -173,7 +173,53 @@ function sanitize_textarea_field( mixed $str ): string { return trim( wp_strip_a
 function sanitize_key( mixed $key ): string { return preg_replace( '/[^a-z0-9_\-]/', '', strtolower( (string) $key ) ) ?? ''; }
 function sanitize_title( string $title ): string { $t = strtolower( trim( wp_strip_all_tags( $title ) ) ); $t = preg_replace( '/[^a-z0-9\s\-]/', '', $t ) ?? $t; return trim( preg_replace( '/[\s\-]+/', '-', $t ) ?? $t, '-' ); }
 function sanitize_email( string $email ): string { $email = trim( $email ); return is_email( $email ) ? strtolower( $email ) : ''; }
-function sanitize_file_name( string $name ): string { return preg_replace( '/[^A-Za-z0-9\.\-_]/', '', $name ) ?? ''; }
+if ( ! function_exists( 'sanitize_file_name' ) ) {
+    /**
+     * Like core: strips unsafe characters, collapses repeated dots, trims ".-_" and, when the name has more than
+     * one extension, appends "_" to every intermediate 2-5 letter extension that is not an allowed upload type
+     * ("backup.sql.gz" becomes "backup.sql_.gz"; "archive.tar.gz" is unchanged).
+     */
+    function sanitize_file_name( string $name ): string {
+        $name  = preg_replace( '/[^A-Za-z0-9\.\-_]/', '', $name ) ?? '';
+        $name  = preg_replace( '/\.{2,}/', '.', $name ) ?? $name;
+        $name  = trim( $name, '.-_' );
+        $parts = explode( '.', $name );
+        if ( count( $parts ) <= 2 ) {
+            return $name;
+        }
+        // Extensions of core's get_allowed_mime_types() (swf/exe removed; htm/html/js only with unfiltered_html).
+        $allowed = 'jpg|jpeg|jpe|gif|png|bmp|tiff|tif|webp|avif|ico|heic|heif|heics|heifs|asf|asx|wmv|wmx|wm|avi|divx|flv|mov|qt|mpeg|mpg|mpe|mp4|m4v|ogv|webm|mkv|3gp|3gpp|3g2|3gp2|txt|asc|c|cc|h|srt|csv|tsv|ics|rtx|css|vtt|dfxp|mp3|m4a|m4b|aac|ra|ram|wav|ogg|oga|flac|mid|midi|wma|wax|mka|rtf|pdf|class|tar|zip|gz|gzip|rar|7z|psd|xcf|doc|pot|pps|ppt|wri|xla|xls|xlt|xlw|mdb|mpp|docx|docm|dotx|dotm|xlsx|xlsm|xlsb|xltx|xltm|xlam|pptx|pptm|ppsx|ppsm|potx|potm|ppam|sldx|sldm|onetoc|onetoc2|onetmp|onepkg|oxps|xps|odt|odp|ods|odg|odc|odb|odf|wp|wpd|key|numbers|pages';
+        if ( current_user_can( 'unfiltered_html' ) ) {
+            $allowed .= '|htm|html|js';
+        }
+        $out = (string) array_shift( $parts );
+        $ext = (string) array_pop( $parts );
+        foreach ( $parts as $part ) {
+            $out .= '.' . $part;
+            if ( preg_match( '/^[a-zA-Z]{2,5}\d?$/', $part ) && ! preg_match( '/^(' . $allowed . ')$/i', $part ) ) {
+                $out .= '_';
+            }
+        }
+        return $out . '.' . $ext;
+    }
+}
+if ( ! function_exists( 'wp_check_invalid_utf8' ) ) {
+    /** Like core: the text when it is valid UTF-8, otherwise '' (with $strip, invalid sequences become U+FFFD). */
+    function wp_check_invalid_utf8( mixed $text, bool $strip = false ): string {
+        $text = (string) $text;
+        if ( '' === $text || mb_check_encoding( $text, 'UTF-8' ) ) {
+            return $text;
+        }
+        if ( ! $strip ) {
+            return '';
+        }
+        $previous = mb_substitute_character();
+        mb_substitute_character( 0xFFFD );
+        $scrubbed = (string) mb_scrub( $text, 'UTF-8' );
+        mb_substitute_character( $previous );
+        return $scrubbed;
+    }
+}
 function is_email( mixed $email ): mixed { $email = (string) $email; return filter_var( $email, FILTER_VALIDATE_EMAIL ) ? $email : false; }
 function absint( mixed $v ): int { return abs( (int) $v ); }
 function wp_unslash( mixed $v ): mixed { return is_array( $v ) ? array_map( 'wp_unslash', $v ) : ( is_string( $v ) ? stripslashes( $v ) : $v ); }
@@ -259,6 +305,10 @@ function spawn_cron( int $gmt = 0 ): bool { return true; }
 function wp_get_schedules(): array { return [ 'hourly' => [ 'interval' => 3600, 'display' => 'Hourly' ] ]; }
 function rest_do_request( WP_REST_Request $r ): WP_REST_Response { return new WP_REST_Response( [], 404 ); }
 function rest_ensure_response( mixed $r ): WP_REST_Response { return $r instanceof WP_REST_Response ? $r : new WP_REST_Response( $r ); }
+if ( ! function_exists( 'rest_authorization_required_code' ) ) {
+    /** Like core: 403 for a logged-in user who lacks the capability, 401 when nobody is logged in. */
+    function rest_authorization_required_code(): int { return is_user_logged_in() ? 403 : 401; }
+}
 function register_rest_route( string $ns, string $route, array $args = [], bool $override = false ): bool { $GLOBALS['ppclg_test_routes'][ $ns . $route ][] = $args; return true; }
 function rest_get_server(): object { return (object) []; }
 function add_menu_page( mixed ...$a ): string { return 'ppclg'; }

@@ -167,39 +167,13 @@ final class BacklinkMonitor {
     }
 
     /**
-     * Rows due for a check: Backlinks::dueForCheck() plus "unverified" rows whose robots.txt re-check
-     * date has passed. dueForCheck() leaves out every unverified row, so without this the 30-day robots
-     * re-check would never run. Unverified rows with next_check_at NULL (monitoring stopped) stay out.
+     * Rows due for a check. Backlinks::dueForCheck() includes "unverified" rows whose 30-day robots.txt
+     * re-check date has passed; rows with next_check_at NULL (monitoring stopped) stay out.
      *
      * @return array<int,array<string,mixed>>
      */
     private function dueRows( int $limit ): array {
-        $limit = max( 1, $limit );
-        $rows  = $this->backlinks->dueForCheck( $limit );
-        if ( count( $rows ) >= $limit ) {
-            return $rows;
-        }
-        $seen = [];
-        foreach ( $rows as $row ) {
-            $seen[ (int) ( $row['id'] ?? 0 ) ] = true;
-        }
-        $page = $this->backlinks->paginate(
-            [ 'status' => Backlinks::STATUS_UNVERIFIED ],
-            '',
-            [],
-            1,
-            $limit - count( $rows ),
-            'next_check_at',
-            'ASC',
-            'next_check_at IS NOT NULL AND next_check_at <= %s',
-            [ Repository::now() ]
-        );
-        foreach ( (array) ( $page['items'] ?? [] ) as $row ) {
-            if ( is_array( $row ) && ! isset( $seen[ (int) ( $row['id'] ?? 0 ) ] ) ) {
-                $rows[] = $row;
-            }
-        }
-        return $rows;
+        return $this->backlinks->dueForCheck( max( 1, $limit ) );
     }
 
     /**

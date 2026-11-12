@@ -27,9 +27,18 @@ const arr = ( v ) => ( Array.isArray( v ) ? v : [] );
 const TOGGLE_FLAGS = [ 'enabled', 'submissions', 'outreach_autosend' ];
 const CONFIRM_FLAGS = {
     submissions: { title: 'Enable automated submissions', text: 'Enable automated submissions? In auto mode the engine submits by itself to high-scoring sites whenever every safety gate passes (public listing form, no CAPTCHA or login, robots.txt allows it). Every submission is logged in the audit trail.' },
-    outreach_autosend: { title: 'Enable outreach autosend', text: 'Enable outreach autosend? Initial cold emails that the engine drafts for qualified prospects (score at or above the auto-queue threshold, with a known contact) will be approved and sent to those third parties in your name without your review, together with follow-ups in campaigns marked “auto-approve”. Sending stays inside the send window and the outreach email limits, and every message includes the unsubscribe link.' },
+    outreach_autosend: { title: 'Enable outreach autosend', text: 'Enable outreach autosend? Follow-ups in campaigns set to “Auto-approve follow-ups” will be sent to third parties in your name without your review. Initial cold emails that the engine drafts for qualified prospects (score at or above the auto-queue threshold, with a known contact) are also approved and sent without your review if “Require individual approval” (Settings → Outreach) is off; while it is on, they wait for your approval. Sending stays inside the send window and the outreach email limits, and every message includes the unsubscribe link.' },
 };
+/** Turning “Require individual approval” off while autosend is on: POST /settings needs confirm=true for it. */
+const APPROVAL_OFF_GATE = { title: 'Turn off individual approval', text: 'Turn off “Require individual approval”? Outreach autosend is on, so initial cold emails that the engine drafts for qualified prospects (score at or above the auto-queue threshold, with a known contact) will be approved and sent to third parties in your name without your review. Sending stays inside the send window and the outreach email limits, and every message includes the unsubscribe link.' };
 const LIMIT_GROUPS = { daily_limits: 'Daily', weekly_limits: 'Weekly' };
+
+/** Why POST /settings rejected a secret (secrets.reasons[key]). */
+const SECRET_REJECT_REASONS = {
+    invalid_key: 'not a setting this plugin stores',
+    too_long: 'longer than 20,000 characters',
+    invalid_service_account_json: 'must be the JSON key file Google issues for a service account, with client_email and private_key',
+};
 
 /**
  * The leaves of draft that differ from original, as a nested partial (lists and scalars are sent whole).
@@ -215,8 +224,25 @@ export default async function render( root, ctx ) {
                 return;
             }
         }
+        let approvalOffConfirmed = false;
+        if ( obj( changed.outreach ).require_approval === false && getPath( state.original, 'automation.outreach_autosend', false ) ) {
+            const autosendOff = flagChanges.findIndex( ( [ flag, value ] ) => flag === 'outreach_autosend' && ! value );
+            if ( autosendOff >= 0 ) {
+                // Autosend is switched off in this save too: send that with the settings so both apply together.
+                flagChanges.splice( autosendOff, 1 );
+                setPath( changed, 'automation.outreach_autosend', false );
+            } else if ( await confirm( APPROVAL_OFF_GATE.text, { title: APPROVAL_OFF_GATE.title, confirmText: 'Turn off', danger: true } ) ) {
+                approvalOffConfirmed = true;
+            } else {
+                toast( 'Nothing was saved.', 'info' );
+                return;
+            }
+        }
         if ( Object.keys( changed ).length ) {
             body.settings = changed;
+            if ( approvalOffConfirmed ) {
+                body.confirm = true;
+            }
         }
         if ( Object.keys( state.pendingSecrets ).length ) {
             body.secrets = { ...state.pendingSecrets };
@@ -238,7 +264,17 @@ export default async function render( root, ctx ) {
             toast( 'Nothing to save.', 'info' );
             return;
         }
-        const res = Object.keys( body ).length ? await api.post( '/settings', body ) : null;
+        let res = null;
+        if ( Object.keys( body ).length ) {
+            try {
+                res = await api.post( '/settings', body, { silent: true } );
+            } catch ( e ) {
+                // Nothing was saved (e.g. a linkable asset failed the claims filter, which the message names):
+                // keep the draft and leave the reason up long enough to read.
+                toast( e && e.message ? e.message : 'The settings could not be saved.', 'error', { timeout: 15000 } );
+                return;
+            }
+        }
         for ( const [ flag, value ] of flagChanges ) {
             await api.post( '/automation/toggle', value && CONFIRM_FLAGS[ flag ] ? { key: flag, value, confirm: true } : { key: flag, value } );
         }
@@ -256,10 +292,16 @@ export default async function render( root, ctx ) {
         const secretsSaved = arr( secretResult.updated ).length + arr( secretResult.cleared ).length;
         const otherSaved = Boolean( body.settings || body.facts || body.custom_seeds || flagChanges.length || secretsSaved );
         if ( rejected.length ) {
-            const why = rejected.includes( 'google_service_account_json' )
-                ? 'A Google service-account key must be the JSON key file Google issues (with client_email and private_key); other values must be at most 20,000 characters.'
-                : 'The value is invalid or longer than 20,000 characters.';
-            toast( `Not saved: ${ rejected.map( secretLabel ).join( ', ' ) }. ${ why } Your input is kept so you can correct it.`, 'error', { timeout: 12000 } );
+            const reasons = obj( secretResult.reasons );
+            if ( rejected.every( ( key ) => SECRET_REJECT_REASONS[ reasons[ key ] ] ) ) {
+                const list = rejected.map( ( key ) => `${ secretLabel( key ) } (${ SECRET_REJECT_REASONS[ reasons[ key ] ] })` ).join( '; ' );
+                toast( `Not saved: ${ list }. Your input is kept so you can correct it.`, 'error', { timeout: 12000 } );
+            } else {
+                const why = rejected.includes( 'google_service_account_json' )
+                    ? 'A Google service-account key must be the JSON key file Google issues (with client_email and private_key); other values must be at most 20,000 characters.'
+                    : 'The value is invalid or longer than 20,000 characters.';
+                toast( `Not saved: ${ rejected.map( secretLabel ).join( ', ' ) }. ${ why } Your input is kept so you can correct it.`, 'error', { timeout: 12000 } );
+            }
         }
         if ( locked.length ) {
             toast( `${ locked.map( secretLabel ).join( ', ' ) } ${ locked.length === 1 ? 'is' : 'are' } defined in wp-config.php and cannot be changed here.`, 'warning', { timeout: 9000 } );
@@ -337,7 +379,7 @@ export default async function render( root, ctx ) {
             [ 'packaging', 'Packaging', 'Build listing packages for review.' ],
             [ 'submissions', 'Automated submissions', 'Submit packages without a manual click wherever the policy and safety gates allow.' ],
             [ 'auto_outreach_drafts', 'Auto outreach drafts', 'Draft personalised outreach for qualified editorial prospects into evergreen “Auto” campaigns.' ],
-            [ 'outreach_autosend', 'Outreach autosend', 'Approve and send auto-drafted messages without review (sender identity must be complete). Off by default: emails go out in your name.' ],
+            [ 'outreach_autosend', 'Outreach autosend', 'Send without per-message review (sender identity must be complete): follow-ups in campaigns set to “Auto-approve follow-ups”; auto-drafted first messages also need “Require individual approval” (Outreach tab) turned off. Off by default: emails go out in your name.' ],
             [ 'monitoring', 'Backlink monitoring', 'Re-check backlinks and alert on changes.' ],
             [ 'imports', 'Provider imports', 'Import backlinks and referral sources periodically.' ],
         ];
@@ -350,14 +392,14 @@ export default async function render( root, ctx ) {
             card( { title: 'Submission mode', body: [
                 bind( 'automation.submission_mode', { type: 'select', label: 'Who authorises automated submissions', options: [
                     { value: 'auto', label: 'Auto — any site scoring at or above the auto-queue threshold (recommended)' },
-                    { value: 'authorized_only', label: 'Authorized only — each site must be marked “automation allowed” by hand' },
+                    { value: 'authorized_only', label: 'Authorized only — each site must be set to “Always allow” by hand' },
                     { value: 'manual', label: 'Manual — everything goes to the review queue' },
                 ], hint: 'Whatever the mode, the engine only ever posts through public listing forms (POST, no CAPTCHA, no login, no required upload) that robots.txt allows, within the daily limits, and never twice to the same target.' } ).el,
             ] } ),
             card( { title: 'Thresholds & timing', body: grid( [
                 bind( 'automation.min_score_auto_queue', { type: 'number', label: 'Minimum score to auto-package', min: 0, max: 100, default: 70, hint: 'In auto mode this is also the quality bar a site must clear before the engine submits to it by itself.' } ),
                 bind( 'automation.min_score_keep', { type: 'number', label: 'Minimum score to keep', min: 0, max: 100, default: 50, hint: 'Prospects below this are rejected after evaluation.' } ),
-                bind( 'automation.max_execution_seconds', { type: 'number', label: 'Max seconds per tick', min: 5, max: 25, default: 20, hint: 'Keep below the PHP time limit (30 s on this host).' } ),
+                bind( 'automation.max_execution_seconds', { type: 'number', label: 'Max seconds per tick', min: 15, max: 25, default: 20, hint: 'Keep below the PHP time limit (30 s on this host).' } ),
                 bind( 'automation.tick_interval', { type: 'number', label: 'Tick interval (seconds)', min: 60, step: 60, default: 300 } ),
                 bind( 'automation.international', { type: 'toggle', label: 'Include non-Canadian sites', hint: 'When off, only sites judged Canadian are kept.' } ),
             ] ) } ),
@@ -526,6 +568,18 @@ export default async function render( root, ctx ) {
         const s = state.draft;
         const has = ( path ) => getPath( s, path ) !== undefined;
         const inboundUrl = api.buildUrl( '/inbound' );
+        // URL forms for providers that can only be given a URL (the server also reads ?secret= and the Basic auth password).
+        const inboundQueryUrl = api.buildUrl( '/inbound', { secret: 'SECRET' } );
+        let inboundBasicUrl;
+        try {
+            const u = new URL( inboundUrl );
+            u.username = 'ppclg';
+            u.password = 'SECRET';
+            inboundBasicUrl = u.toString();
+        } catch ( e ) {
+            inboundBasicUrl = inboundUrl.replace( /^(https?:\/\/)/i, '$1ppclg:SECRET@' );
+        }
+        const urlRow = ( url ) => el( 'div', { class: 'ppclg-row' }, el( 'code', { class: 'ppclg-secret-masked', style: { flex: '1 1 auto' } }, url ), copyButton( url ) );
         return el( 'div', { class: 'ppclg-stack' },
             ! obj( state.data ).crypto_strong ? callout( 'warning', 'Weak encryption keys', 'AUTH_KEY / AUTH_SALT in wp-config.php look like defaults. Secrets are encrypted with them; generate strong salts before storing API keys.' ) : null,
             el( 'div', { class: 'ppclg-grid ppclg-grid--2' },
@@ -597,8 +651,14 @@ export default async function render( root, ctx ) {
                 card( { title: 'Email, RDAP & inbound replies', body: el( 'div', { class: 'ppclg-stack' },
                     bind( 'providers.rdap.enabled', { type: 'toggle', label: 'RDAP domain age lookups', hint: 'Free registry lookups used for the young-domain risk flag.' } ).el,
                     el( 'div', {}, el( 'div', { class: 'ppclg-field-label' }, 'Outgoing email' ), el( 'div', { class: 'ppclg-field-hint', style: { marginBottom: '6px' } }, 'Sends a test message to your account address through wp_mail() (WP Mail SMTP).' ), testButton( 'email', 'Send test email' ) ),
-                    secretField( 'inbound_webhook_secret', { hint: 'Shared secret your inbound-email provider sends in the X-PPCLG-Secret header (or “secret” body field).' } ),
-                    el( 'div', {}, el( 'div', { class: 'ppclg-field-label' }, 'Inbound webhook URL' ), el( 'div', { class: 'ppclg-row' }, el( 'code', { class: 'ppclg-secret-masked', style: { flex: '1 1 auto' } }, inboundUrl ), copyButton( inboundUrl ) ), el( 'div', { class: 'ppclg-field-hint' }, 'POST JSON with from, subject, text, in_reply_to / message_id. Replies are matched to sent messages and logged.' ) ),
+                    secretField( 'inbound_webhook_secret', { hint: 'Shared secret your inbound-email provider sends with every request: in the X-PPCLG-Secret header, a “secret” body field, or the webhook URL (see below).' } ),
+                    el( 'div', {}, el( 'div', { class: 'ppclg-field-label' }, 'Inbound webhook URL' ), urlRow( inboundUrl ), el( 'div', { class: 'ppclg-field-hint' }, 'POST JSON with from, subject, text, in_reply_to / message_id. Replies are matched to sent messages and logged.' ) ),
+                    el( 'div', {},
+                        el( 'div', { class: 'ppclg-field-label' }, 'Sending the secret' ),
+                        el( 'div', { class: 'ppclg-field-hint' }, 'Preferred: the header ', el( 'code', {}, 'X-PPCLG-Secret: SECRET' ), ' (or a “secret” field in the body). If your provider can only be given a URL, use one of these forms instead, with SECRET replaced by your secret. For these URL forms, use a secret of only letters and digits, or percent-encode any other character (such as + & # % @ : / ?); otherwise the request fails. A secret in a URL can end up in server and proxy logs, so use the header when you can.' ),
+                        urlRow( inboundQueryUrl ),
+                        urlRow( inboundBasicUrl ),
+                    ),
                 ) } ),
             ),
         );
@@ -636,7 +696,7 @@ export default async function render( root, ctx ) {
                 bind( 'outreach.signature', { type: 'textarea', label: 'Signature', rows: 3, full: true, hint: 'Plain text; appears above the compliance footer.' } ),
             ] ) } ),
             card( { title: 'Approval & pacing', body: grid( [
-                bind( 'outreach.require_approval', { type: 'toggle', label: 'Require individual approval for every message', hint: 'Recommended. Drafts are never sent until approved.' } ),
+                bind( 'outreach.require_approval', { type: 'toggle', label: 'Require individual approval for every message', hint: 'Recommended. While on, automation never approves a message; only follow-ups in campaigns that opted in to auto-approval can send automatically, and only with Outreach autosend on.' } ),
                 bind( 'outreach.follow_up_days', { type: 'number', label: 'Days before a follow-up', min: 1, default: 7 } ),
                 bind( 'outreach.max_follow_ups', { type: 'number', label: 'Maximum follow-ups', min: 0, max: 3, default: 1 } ),
                 bind( 'outreach.min_days_between_contacts', { type: 'number', label: 'Cool-down between contacts (days)', min: 1, default: 90 } ),
