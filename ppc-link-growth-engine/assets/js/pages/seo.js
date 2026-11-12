@@ -251,11 +251,14 @@ export default async function render( root, ctx ) {
         const s = obj( data.status );
         const history = arr( data.history );
         const blocked = String( s.blocked_reason || '' );
+        // After an HTTP 429 the endpoint asked us to wait: "Submit now" waits as well (the server refuses it too).
+        const slowDown = Boolean( s.retry_after ) && ( s.rate_limited === true || Number( s.last_status ) === 429 );
+        const resumeAt = slowDown ? fmtDate( s.retry_after ) : '';
 
         const submitBtn = button( 'Submit now', {
             kind: 'primary', small: true, iconName: 'send',
-            disabled: blocked !== '',
-            title: blocked !== '' ? blocked : 'Sends new and changed public URLs to IndexNow now.',
+            disabled: blocked !== '' || slowDown,
+            title: blocked !== '' ? blocked : ( slowDown ? `IndexNow asked us to wait; submissions resume at ${ resumeAt }.` : 'Sends new and changed public URLs to IndexNow now.' ),
             onClick: async () => {
                 let res;
                 try {
@@ -276,7 +279,9 @@ export default async function render( root, ctx ) {
         const body = el( 'div', { class: 'ppclg-stack' },
             blocked !== '' ? callout( 'warning', 'Submissions are paused', blocked ) : null,
             s.last_error ? callout( 'danger', 'Last submission was refused', String( s.last_error ) ) : null,
-            s.retry_after ? callout( 'info', null, el( 'span', {}, 'The scheduled submission waits until ', timeEl( s.retry_after, { relative: false } ), ' before it tries again.' ) ) : null,
+            s.retry_after ? callout( slowDown ? 'warning' : 'info', null, slowDown
+                ? el( 'span', {}, 'IndexNow asked us to slow down (HTTP 429). Submissions, including “Submit now”, resume at ', timeEl( s.retry_after, { relative: false } ), '.' )
+                : el( 'span', {}, 'The scheduled submission waits until ', timeEl( s.retry_after, { relative: false } ), ' before it tries again.' ) ) : null,
             kv( [
                 [ 'Status', s.enabled ? badge( 'On', 'success', { dot: true } ) : badge( 'Off', 'neutral', { dot: true } ) ],
                 [ 'Key file', s.key_url ? extLink( s.key_url ) : el( 'span', { class: 'ppclg-muted' }, 'not generated yet (created on the first submission)' ) ],

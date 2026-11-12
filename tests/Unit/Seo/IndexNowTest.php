@@ -214,7 +214,17 @@ final class IndexNowTest extends TestCase {
         $logged = (int) $GLOBALS['wpdb']->get_var( "SELECT COUNT(*) FROM wp_ppclg_logs WHERE channel = 'seo' AND level = 'warning'" );
         $this->assertGreaterThanOrEqual( 4, $logged );
 
-        // Accepted later (202 = key still being verified): the pending URL goes out and the error clears.
+        // After the 429 even "Submit now" waits for the back-off.
+        $sentBefore = count( $this->sent );
+        $forced     = $in->run( TimeBudget::seconds( 20 ), [ 'force' => true ] );
+        $this->assertTrue( $forced['skipped'] );
+        $this->assertSame( 'rate_limited', $forced['reason'] );
+        $this->assertCount( $sentBefore, $this->sent, 'no request while IndexNow asked us to slow down' );
+
+        // Accepted once the wait is over (202 = key still being verified): the pending URL goes out, the error clears.
+        $state                = get_option( IndexNow::OPTION_STATE );
+        $state['retry_after'] = time() - 1;
+        update_option( IndexNow::OPTION_STATE, $state, false );
         $this->answer = 202;
         $ok           = $in->run( TimeBudget::seconds( 20 ), [ 'force' => true ] );
         $this->assertTrue( $ok['ok'] );

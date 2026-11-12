@@ -198,6 +198,8 @@ IT::step( 'Growth (a): one-click run while the storefront blocks', static functi
     global $wpdb;
     $verifiedDrafts = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->prefix}ppclg_outreach_messages m INNER JOIN {$wpdb->prefix}ppclg_prospects p ON p.id = m.prospect_id WHERE p.discovered_via = %s", 'verified_db' ) ); // phpcs:ignore
     IT::check( 0 === $verifiedDrafts, 'no outreach drafts for verified-database prospects (the owner decides whether to pitch)', (string) $verifiedDrafts );
+    $paidTasks = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->prefix}ppclg_submissions WHERE status = %s AND payload LIKE %s", 'needs_manual', '%"item_id":"ec40093b4f8ac1ef"%' ) ); // phpcs:ignore
+    IT::check( 0 === $paidTasks && (int) ( $vo['skip_reasons']['paid_only'] ?? 0 ) > 0, 'paid-only items (e.g. EIN Presswire) are skipped, not owner tasks', $paidTasks . ' / ' . (string) wp_json_encode( $vo['skip_reasons'] ?? null ) );
 
     // IndexNow (mocked endpoint) and the key file.
     $key = (string) $settings->get( 'seo.indexnow_key', '' );
@@ -262,6 +264,9 @@ IT::step( 'Growth (a): one-click run while the storefront blocks', static functi
         $revs = wp_get_post_revisions( $g['post'] );
         $last = reset( $revs );
         IT::check( count( $revs ) > $revsBefore && is_object( $last ) && (string) $last->post_content === $afterContent, 'WordPress saved a revision of the edit', $revsBefore . ' -> ' . count( $revs ) );
+        $restorable = array_filter( $revs, static fn( $r ): bool => is_object( $r ) && (string) $r->post_content === $before );
+        $appliedRow = (array) ( ppclg_it_rest( 'GET', '/seo/links', [ 'status' => 'applied' ] )->get_data()['items'][0] ?? [] );
+        IT::check( [] !== $restorable && isset( $restorable[ (int) ( $appliedRow['restore_revision_id'] ?? 0 ) ] ), 'the content before the edit is kept as a revision to restore', $revsBefore . ' revisions before; restore id ' . (string) wp_json_encode( $appliedRow['restore_revision_id'] ?? null ) );
         IT::check( $auditLog->count( [ 'action' => 'seo.internal_link_applied' ] ) >= 1, 'applied link audited' );
         $again = ppclg_it_rest( 'POST', '/seo/links/apply', [ 'ids' => [ (int) $sugg['id'] ], 'confirm' => true ] );
         IT::check( empty( $again->get_data()['ok'] ) && (string) get_post( $g['post'] )->post_content === $afterContent, 'applying the same suggestion twice changes nothing', (string) wp_json_encode( $again->get_data()['results'] ?? null ) );

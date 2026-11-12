@@ -9,6 +9,10 @@
  * (ProspectIntake::fromUrl() makes no HTTP requests). Outreach-class items become owner tasks too; no outreach
  * message or contact is created, the owner decides whether to pitch.
  *
+ * Items without a free tier are skipped as paid_only (the budget rule allows free tiers only; an earlier task
+ * for such an item is closed), and so are items for a site that already has a sent listing on the same host
+ * (already_listed), so no task ever asks the owner to buy a listing or post a duplicate.
+ *
  * The import is version aware (option ppclg_verified_db_version holds the last fully imported data version)
  * and runs in batches of at most 100 items with a cursor (option ppclg_verified_db_state), so a short time
  * budget never times out; the job continues the pass on the next run. Each imported item's fingerprint is kept
@@ -21,6 +25,7 @@ declare(strict_types=1);
 
 namespace PPC\LinkGrowth\Discovery;
 
+use PPC\LinkGrowth\Automation\Jobs\EvaluateJob;
 use PPC\LinkGrowth\Container;
 use PPC\LinkGrowth\Content\ClaimsFilter;
 use PPC\LinkGrowth\Content\ContentGenerator;
@@ -30,6 +35,7 @@ use PPC\LinkGrowth\Repositories\Opportunities;
 use PPC\LinkGrowth\Repositories\Prospects;
 use PPC\LinkGrowth\Repositories\Repository;
 use PPC\LinkGrowth\Repositories\Submissions;
+use PPC\LinkGrowth\Submission\Policy;
 use PPC\LinkGrowth\Support\Locks;
 use PPC\LinkGrowth\Support\Logger;
 use PPC\LinkGrowth\Support\TimeBudget;
@@ -411,6 +417,12 @@ final class VerifiedOpportunities {
         }
         $hash = substr( sha1( (string) wp_json_encode( $item ) . '|' . $kitHash ), 0, 16 );
         $prev = $map[ $id ] ?? null;
+        // Checked before the unchanged-item shortcut, so a task created by an earlier import is closed too.
+        if ( self::isPaidOnly( $item ) ) {
+            $this->closeOwnTask( $id, null !== $prev ? (int) $prev['s'] : 0, Submissions::STATUS_REJECTED, 'Paid-only: the budget rule allows free tiers only.' );
+            unset( $map[ $id ] );
+            return self::skip( 'paid_only' );
+        }
         if ( null !== $prev && $prev['h'] === $hash ) {
             return [ 'outcome' => 'existing', 'reason' => '', 'submission_id' => (int) $prev['s'] ];
         }
@@ -451,8 +463,23 @@ final class VerifiedOpportunities {
             return self::skip( 'prospect_missing' );
         }
         $status = (string) ( $prospect['status'] ?? '' );
-        if ( Prospects::STATUS_SUPPRESSED === $status || Prospects::STATUS_REJECTED === $status ) {
+        // A site the evaluator could not fetch (bot protection, a timeout) is parked for a re-check, not refused by
+        // the owner: the researched item still gets (or keeps) its owner task.
+        if ( Prospects::STATUS_SUPPRESSED === $status || ( Prospects::STATUS_REJECTED === $status && ! EvaluateJob::isUnreachableRejection( $prospect ) ) ) {
             return self::skip( 'prospect_' . $status );
+        }
+        $listed = $this->alreadyListedOn( $pid, $target, $item );
+        if ( null !== $listed ) {
+            // A listing on this site was already sent: a task would ask the owner to post a duplicate.
+            if ( null !== $prev && $this->closeOwnTask( $id, (int) $prev['s'], Submissions::STATUS_DUPLICATE, sprintf( 'Already listed: a listing on this site was already submitted (#%d); a second one would be a duplicate.', (int) $listed['id'] ) ) ) {
+                unset( $map[ $id ] );
+            }
+            $intakeOpp = isset( $res['opportunity_id'] ) && null !== $res['opportunity_id'] ? (int) $res['opportunity_id'] : 0;
+            $opp       = $intakeOpp > 0 ? $this->opportunities->find( $intakeOpp ) : null;
+            if ( null !== $opp && Opportunities::STATUS_OPEN === (string) ( $opp['status'] ?? '' ) ) {
+                $this->opportunities->setStatus( $intakeOpp, Opportunities::STATUS_DISMISSED );
+            }
+            return self::skip( 'already_listed' );
         }
 
         $this->updateProspect( $prospect, $item, $id, $claimed );
@@ -521,6 +548,99 @@ final class VerifiedOpportunities {
     }
 
     /**
+     * True when the item has no free tier (its `free` field is false / no). The budget rule allows free tiers
+     * only, so such an item never becomes an owner task: following it would mean buying a listing or a release.
+     *
+     * @param array<string,mixed> $item
+     */
+    public static function isPaidOnly( array $item ): bool {
+        $raw = $item['free'] ?? '';
+        if ( false === $raw ) {
+            return true;
+        }
+        $free = strtolower( trim( is_scalar( $raw ) ? (string) $raw : '' ) );
+        // "no", "no - paid packages only", ... but not "none" or "not stated".
+        return 'false' === $free || 1 === preg_match( '/^no\b/', $free );
+    }
+
+    /**
+     * Closes this item's own still-open owner task (created by an earlier import) with $status and $reason.
+     * The task from the item map is used when known; otherwise the task is looked up by its item id.
+     * Returns true when a task was closed. A task the owner already acted on is left as it is.
+     */
+    private function closeOwnTask( string $id, int $sid, string $status, string $reason ): bool {
+        $rows = [];
+        if ( $sid > 0 ) {
+            $row = $this->submissions->find( $sid );
+            if ( null !== $row ) {
+                $rows[] = $row;
+            }
+        }
+        if ( [] === $rows ) {
+            try {
+                global $wpdb;
+                $table = Schema::table( 'submissions' );
+                $sql   = "SELECT * FROM {$table} WHERE status IN (%s,%s) AND payload LIKE %s AND payload LIKE %s ORDER BY id ASC LIMIT 5";
+                // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+                $found = $wpdb->get_results( $wpdb->prepare( $sql, Submissions::STATUS_NEEDS_MANUAL, Submissions::STATUS_PENDING_REVIEW, '%' . self::PAYLOAD_MARKER . '%', '%"item_id":"' . preg_replace( '/[^0-9a-zA-Z-]/', '', $id ) . '"%' ), ARRAY_A );
+                $rows  = array_map( [ $this->submissions, 'hydrate' ], is_array( $found ) ? $found : [] );
+            } catch ( Throwable $e ) {
+                $rows = [];
+            }
+        }
+        $closed = false;
+        foreach ( $rows as $row ) {
+            $payload = is_array( $row['payload'] ?? null ) ? $row['payload'] : [];
+            if ( ! self::isOwnerTask( $row ) || (string) ( $payload['package']['item_id'] ?? '' ) !== $id ) {
+                continue;
+            }
+            if ( ! in_array( (string) $row['status'], [ Submissions::STATUS_NEEDS_MANUAL, Submissions::STATUS_PENDING_REVIEW ], true ) ) {
+                continue; // The owner already acted on it; their record stays as it is.
+            }
+            $this->submissions->setStatus( (int) $row['id'], $status, [ 'last_error' => mb_substr( $reason, 0, 1000 ) ] );
+            $this->logger->info( 'verified', 'Closed a verified owner task: ' . $reason, [ 'item' => $id, 'submission_id' => (int) $row['id'], 'status' => $status ] );
+            $closed = true;
+        }
+        return $closed;
+    }
+
+    /**
+     * The first already-sent submission (submitted / confirmed / has a submitted_at) of this prospect on the
+     * same site as the item, or null. "Same site" is the host of the target page or of the item's website (so
+     * www.example.com/add and app.example.com/update of one directory match, while two Stack Exchange sites
+     * that share a registrable domain do not). The row for $target itself is handled by the (prospect, target)
+     * check, and an item that optimises an existing profile ("exists - optimize") is never a duplicate.
+     *
+     * @param array<string,mixed> $item
+     * @return array<string,mixed>|null
+     */
+    private function alreadyListedOn( int $pid, string $target, array $item ): ?array {
+        if ( 1 === preg_match( '/\(\s*exists?\s*[-\x{2013}\x{2014}:]\s*optimi[sz]e|\boptimi[sz]e\s+(?:the\s+|your\s+|an\s+)?existing\b/iu', (string) ( $item['platform'] ?? '' ) . ' ' . (string) ( $item['steps'] ?? '' ) ) ) {
+            return null;
+        }
+        $hosts = array_filter( [ self::bareHost( $target ), self::bareHost( self::httpUrl( $item['website'] ?? '' ) ) ] );
+        if ( [] === $hosts ) {
+            return null;
+        }
+        $targetHash = Url::hash( $target );
+        foreach ( $this->submissions->findBy( [ 'prospect_id' => $pid ], 'id', 'ASC', 200 ) as $row ) {
+            if ( (string) ( $row['target_hash'] ?? '' ) === $targetHash ) {
+                continue;
+            }
+            if ( Policy::alreadySent( $row ) && in_array( self::bareHost( (string) ( $row['target_url'] ?? '' ) ), $hosts, true ) ) {
+                return $row;
+            }
+        }
+        return null;
+    }
+
+    /** Host of a URL without a leading "www." ('' when there is none). */
+    private static function bareHost( string $url ): string {
+        $host = Url::host( $url );
+        return preg_replace( '/^www\./', '', $host ) ?? $host;
+    }
+
+    /**
      * Sets submission_url (http/https only), recommended_action and the item's notes block on the prospect.
      * When several items share one registrable domain, the first item in file order sets the URL and action.
      *
@@ -537,7 +657,10 @@ final class VerifiedOpportunities {
             if ( '' !== $submissionUrl ) {
                 $data['submission_url'] = mb_substr( $submissionUrl, 0, 700 );
             }
-            $data['recommended_action'] = ! empty( $item['outreach'] ) ? 'outreach_pitch' : 'manual_submission';
+            if ( ! EvaluateJob::isUnreachableRejection( $prospect ) ) {
+                // Kept on a parked prospect: "Do not pursue" is what marks it for the evaluator's automatic re-check.
+                $data['recommended_action'] = ! empty( $item['outreach'] ) ? 'outreach_pitch' : 'manual_submission';
+            }
         }
         $data['notes']      = self::mergeNotes( (string) ( $prospect['notes'] ?? '' ), $id, self::notesBlock( $item, $id ) );
         $data['updated_at'] = Prospects::now();
@@ -875,39 +998,44 @@ final class VerifiedOpportunities {
      * @param array<string,mixed> $state
      */
     private function importSentence( array $out, array $state, string $version ): string {
-        $parts = [];
-        if ( $out['imported'] > 0 ) {
-            $parts[] = sprintf( '%d new owner task%s', $out['imported'], 1 === $out['imported'] ? '' : 's' );
-        }
-        if ( $out['updated'] > 0 ) {
-            $parts[] = sprintf( '%d updated', $out['updated'] );
-        }
-        if ( $out['existing'] > 0 ) {
-            $parts[] = sprintf( '%d already present', $out['existing'] );
-        }
-        if ( $out['skipped'] > 0 ) {
-            $parts[] = sprintf( '%d skipped', $out['skipped'] );
-        }
-        $did = [] !== $parts ? implode( ', ', $parts ) : 'nothing new';
         if ( 0 === $out['processed'] ) {
             return sprintf( 'Not enough time left to import verified opportunities; %d of %d items processed so far, the import continues on the next run.', (int) $state['cursor'], $out['total'] );
         }
+        // The counts cover the whole import of this version (every batch so far), not only this call's batch: a
+        // growth run shows the sentence of its last round, which must not read as the total.
+        $totals = is_array( $state['counts'] ?? null ) ? $state['counts'] : [];
+        $parts  = [];
+        $new    = (int) ( $totals['imported'] ?? 0 );
+        if ( $new > 0 ) {
+            $parts[] = sprintf( '%d new owner task%s', $new, 1 === $new ? '' : 's' );
+        }
+        if ( (int) ( $totals['updated'] ?? 0 ) > 0 ) {
+            $parts[] = sprintf( '%d updated', (int) $totals['updated'] );
+        }
+        if ( (int) ( $totals['existing'] ?? 0 ) > 0 ) {
+            $parts[] = sprintf( '%d already present', (int) $totals['existing'] );
+        }
+        $skipped = (int) ( $totals['skipped'] ?? 0 );
         if ( $out['done'] ) {
             $reasons = [];
             foreach ( (array) $state['skip_reasons'] as $reason => $n ) {
                 $reasons[] = sprintf( '%s: %d', str_replace( '_', ' ', (string) $reason ), (int) $n );
             }
+            if ( $skipped > 0 ) {
+                $parts[] = sprintf( '%d skipped', $skipped ) . ( [] !== $reasons ? ' (' . implode( ', ', $reasons ) . ')' : '' );
+            }
             return sprintf(
-                'Imported verified opportunities version %s (%s); all %d items processed, %d skipped in total%s; %d owner tasks are open.',
+                'Imported verified opportunities version %s: all %d items processed (%s); %d owner tasks are open.',
                 $version,
-                $did,
                 $out['total'],
-                (int) $state['counts']['skipped'],
-                [] !== $reasons ? ' (' . implode( ', ', $reasons ) . ')' : '',
+                [] !== $parts ? implode( ', ', $parts ) : 'nothing new',
                 $out['owner_tasks_open']
             );
         }
-        return sprintf( 'Imported verified opportunities %d of %d (%s); the rest continues on the next run.', (int) $state['cursor'], $out['total'], $did );
+        if ( $skipped > 0 ) {
+            $parts[] = sprintf( '%d skipped', $skipped );
+        }
+        return sprintf( 'Imported verified opportunities %d of %d so far (%s); the rest continues on the next run.', (int) $state['cursor'], $out['total'], [] !== $parts ? implode( ', ', $parts ) : 'nothing new' );
     }
 
     // ------------------------------------------------------------------

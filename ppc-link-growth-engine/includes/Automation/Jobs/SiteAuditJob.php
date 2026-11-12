@@ -49,6 +49,12 @@ final class SiteAuditJob extends AbstractJob {
         if ( ! empty( $res['busy'] ) ) {
             return $this->skipped( 'audit_running', $out );
         }
+        if ( ! empty( $res['sample_deferred'] ) ) {
+            // The HTTP spot check needs a fresh budget: continue on the next tick (a continuation due at once would
+            // be claimed again in this tick with even less time left).
+            unset( $payload['restart'] );
+            return $this->deferred( $c, $payload, 'time_budget', $out );
+        }
         if ( $out['more'] ) {
             // Local database work only: the next batch may start right away.
             unset( $payload['restart'] );

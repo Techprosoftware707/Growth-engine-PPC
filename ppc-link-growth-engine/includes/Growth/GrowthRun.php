@@ -10,8 +10,9 @@
  * Every job step runs the existing job through Automation\JobRunner with manual=true, under the runner lock, so
  * all the owner's gates still apply: the hard automation flags (submissions, outreach autosend), the submission
  * Policy (including the storefront compliance gate), robots.txt, the daily limits and the outreach approval rules.
- * The run never changes a setting, never sends outreach (drafting only; sending stays with the approval/autosend
- * gates) and never edits site content (internal links are suggestions applied only by an admin click).
+ * The run never changes a setting, has no send step for outreach (drafting only; sending stays with the
+ * approval/autosend gates) and never edits site content (internal links are suggestions applied only by an admin
+ * click). The submit step posts listings only where automation.submissions and the Policy gates allow it.
  *
  * @package PPC\LinkGrowth
  */
@@ -124,6 +125,17 @@ final class GrowthRun {
     /** Top-level integer result keys that are bookkeeping, not work done. */
     private const IGNORED_COUNTS = [ 'elapsed', 'deferrals', 'requeued_job_id', 'job_id', 'attempt', 'attempts', 'prospect_id', 'limit', 'max', 'min_score', 'continued' ];
 
+    /**
+     * Result keys that report a running total or a point-in-time value rather than the work of one round: the
+     * latest round's value replaces the stored one instead of being added (per job type, plus the generic keys).
+     */
+    private const SNAPSHOT_COUNTS = [
+        '*'               => [ 'cursor', 'total', 'owner_tasks_open', 'http_status' ],
+        'site_audit'      => [ 'checked', 'issues', 'high', 'medium', 'low' ],
+        'internal_links'  => [ 'checked', 'targets', 'suggested', 'pending' ],
+        'indexnow'        => [ 'candidates', 'pending' ],
+    ];
+
     /** Most count entries quoted in a composed step summary. */
     private const MAX_SUMMARY_COUNTS = 6;
 
@@ -161,6 +173,8 @@ final class GrowthRun {
             }
             $now   = gmdate( 'c' );
             $state = [
+                // Earlier cancelled runs stay known, so a job of theirs that was still running never continues.
+                'cancelled_ids'   => self::cancelledIds( $current ),
                 'id'              => gmdate( 'YmdHis' ) . '-' . Crypto::randomToken( 3 ),
                 'status'          => self::STATUS_RUNNING,
                 'started_at'      => $now,
@@ -306,6 +320,46 @@ final class GrowthRun {
         $out                   = $this->decorate( $state );
         $out['cancelled_jobs'] = $cancelled;
         return $out;
+    }
+
+    /**
+     * Whether $runId names a growth run that was cancelled (the current state or one of the cancelled runs it
+     * remembers). AbstractJob asks this before a job tagged with the run queues a continuation, so a job that was
+     * already running when Stop was clicked finishes its round and does not continue.
+     */
+    public static function isCancelledRun( string $runId ): bool {
+        if ( '' === $runId ) {
+            return false;
+        }
+        if ( function_exists( 'wp_cache_delete' ) ) {
+            wp_cache_delete( self::OPTION, 'options' );
+        }
+        $state = get_option( self::OPTION, null );
+        if ( ! is_array( $state ) ) {
+            return false;
+        }
+        if ( $runId === ( $state['id'] ?? null ) && self::STATUS_CANCELLED === ( $state['status'] ?? null ) ) {
+            return true;
+        }
+        return in_array( $runId, array_map( 'strval', is_array( $state['cancelled_ids'] ?? null ) ? $state['cancelled_ids'] : [] ), true );
+    }
+
+    /**
+     * Ids of cancelled runs to remember in a new run's state (the previous run's when it was cancelled, plus the
+     * ones it remembered; at most 10).
+     *
+     * @param array<string,mixed>|null $previous
+     * @return string[]
+     */
+    private static function cancelledIds( ?array $previous ): array {
+        if ( null === $previous ) {
+            return [];
+        }
+        $ids = array_map( 'strval', is_array( $previous['cancelled_ids'] ?? null ) ? $previous['cancelled_ids'] : [] );
+        if ( self::STATUS_CANCELLED === ( $previous['status'] ?? null ) && '' !== (string) ( $previous['id'] ?? '' ) ) {
+            $ids[] = (string) $previous['id'];
+        }
+        return array_slice( array_values( array_unique( $ids ) ), -10 );
     }
 
     public function isActive(): bool {
@@ -459,7 +513,7 @@ final class GrowthRun {
         $note = $more ? 'More work remains; the scheduler continues it in the background.' : '';
         if ( (int) $acc['failed'] > 0 && 0 === (int) $acc['ok'] ) {
             $this->finishStep( $state, $i, self::STEP_FAILED, self::composeSummary( $step ), (string) $acc['error'], $note );
-        } elseif ( (int) $acc['skipped'] > 0 && (int) $acc['skipped'] === (int) $acc['ok'] && [] === self::nonZero( $step['counts'] ) && empty( $acc['deferred_any'] ) ) {
+        } elseif ( (int) $acc['skipped'] > 0 && (int) $acc['skipped'] === (int) $acc['ok'] && [] === self::workCounts( $step ) && empty( $acc['deferred_any'] ) ) {
             $this->finishStep( $state, $i, self::STEP_SKIPPED, self::composeSummary( $step ), '', $note );
         } else {
             $this->finishStep( $state, $i, self::STEP_DONE, self::composeSummary( $step ), (string) $acc['error'], $note );
@@ -510,14 +564,32 @@ final class GrowthRun {
                 }
             }
         }
-        $counts = is_array( $step['counts'] ?? null ) ? $step['counts'] : [];
+        $counts   = is_array( $step['counts'] ?? null ) ? $step['counts'] : [];
+        $snapshot = self::snapshotKeys( (string) ( $step['key'] ?? '' ) );
         foreach ( $result as $k => $v ) {
             if ( is_int( $v ) && is_string( $k ) && ! in_array( $k, self::IGNORED_COUNTS, true ) ) {
-                $counts[ $k ] = (int) ( $counts[ $k ] ?? 0 ) + $v;
+                $counts[ $k ] = in_array( $k, $snapshot, true ) ? $v : (int) ( $counts[ $k ] ?? 0 ) + $v;
             }
         }
         $step['counts'] = $counts;
         $step['_acc']   = $acc;
+    }
+
+    /** @return string[] result keys of job $type whose latest value replaces the stored one (see SNAPSHOT_COUNTS) */
+    private static function snapshotKeys( string $type ): array {
+        return array_merge( self::SNAPSHOT_COUNTS['*'], self::SNAPSHOT_COUNTS[ $type ] ?? [] );
+    }
+
+    /**
+     * Counts that measure work done in the step's rounds (snapshot values such as a pending total or the last
+     * HTTP status say nothing about whether the step did anything).
+     *
+     * @param array<string,mixed> $step
+     * @return array<string,int>
+     */
+    private static function workCounts( array $step ): array {
+        $counts = is_array( $step['counts'] ?? null ) ? $step['counts'] : [];
+        return self::nonZero( array_diff_key( $counts, array_flip( self::snapshotKeys( (string) ( $step['key'] ?? '' ) ) ) ) );
     }
 
     /**
@@ -704,16 +776,20 @@ final class GrowthRun {
 
         $parts = [];
         if ( is_array( $summary['prospects'] ) ) {
-            $parts[] = sprintf( '%d prospects (%d qualified).', $summary['prospects']['total'], $summary['prospects']['qualified'] );
+            $total   = (int) $summary['prospects']['total'];
+            $parts[] = sprintf( '%d %s (%d qualified).', $total, 1 === $total ? 'prospect' : 'prospects', $summary['prospects']['qualified'] );
         }
         if ( is_array( $summary['submissions'] ) ) {
-            $parts[] = sprintf( '%d owner tasks waiting.', $summary['submissions']['owner_tasks'] );
+            $tasks   = (int) $summary['submissions']['owner_tasks'];
+            $parts[] = sprintf( '%d owner %s waiting.', $tasks, 1 === $tasks ? 'task' : 'tasks' );
         }
         if ( null !== $summary['outreach_drafts'] ) {
-            $parts[] = sprintf( '%d outreach drafts await your approval.', $summary['outreach_drafts'] );
+            $drafts  = (int) $summary['outreach_drafts'];
+            $parts[] = 1 === $drafts ? '1 outreach draft awaits your approval.' : sprintf( '%d outreach drafts await your approval.', $drafts );
         }
         if ( is_array( $summary['backlinks'] ) ) {
-            $parts[] = sprintf( '%d live backlinks.', $summary['backlinks']['live'] );
+            $live    = (int) $summary['backlinks']['live'];
+            $parts[] = sprintf( '%d live %s.', $live, 1 === $live ? 'backlink' : 'backlinks' );
         }
         $parts[] = sprintf( '%d next %s for you.', count( $state['next_actions'] ), 1 === count( $state['next_actions'] ) ? 'action' : 'actions' );
 
@@ -763,16 +839,21 @@ final class GrowthRun {
             ];
         } );
         $audit = $this->optional( SiteAuditor::class, static function ( object $auditor ): array {
-            $s      = (array) $auditor->summary();
-            $counts = is_array( $s['counts'] ?? null ) ? $s['counts'] : [];
+            $s       = (array) $auditor->summary();
+            $counts  = is_array( $s['counts'] ?? null ) ? $s['counts'] : [];
+            $checked = isset( $s['checked_at'] ) && is_string( $s['checked_at'] ) ? $s['checked_at'] : null;
+            $running = ! empty( $s['running'] );
+            // No stored audit and none running (never ran, failed or was skipped): the counts are unknown, not 0.
+            $known = null !== $checked || $running;
             return [
-                'checked_at'   => isset( $s['checked_at'] ) && is_string( $s['checked_at'] ) ? $s['checked_at'] : null,
+                'checked_at'   => $checked,
                 'pages'        => (int) ( $s['pages'] ?? 0 ),
                 'complete'     => ! empty( $s['complete'] ),
-                'high'         => (int) ( $counts['high'] ?? 0 ),
-                'medium'       => (int) ( $counts['medium'] ?? 0 ),
-                'low'          => (int) ( $counts['low'] ?? 0 ),
-                'issues_total' => (int) ( $s['issues_total'] ?? 0 ),
+                'running'      => $running,
+                'high'         => $known ? (int) ( $counts['high'] ?? 0 ) : null,
+                'medium'       => $known ? (int) ( $counts['medium'] ?? 0 ) : null,
+                'low'          => $known ? (int) ( $counts['low'] ?? 0 ) : null,
+                'issues_total' => $known ? (int) ( $s['issues_total'] ?? 0 ) : null,
             ];
         } );
         $indexNow = $this->optional( IndexNow::class, static function ( object $svc ): array {
@@ -869,8 +950,8 @@ final class GrowthRun {
         if ( is_int( $links ) && $links > 0 ) {
             $add( self::action( 'link_suggestions', sprintf( 'Review %d internal-link %s (applied only when you click Apply)', $links, 1 === $links ? 'suggestion' : 'suggestions' ), $links, 'seo', [ 'links' => 'pending' ] ) );
         }
-        if ( is_array( $summary['site_audit'] ) && $summary['site_audit']['high'] > 0 ) {
-            $high = (int) $summary['site_audit']['high'];
+        $high = is_array( $summary['site_audit'] ) && null !== ( $summary['site_audit']['high'] ?? null ) ? (int) $summary['site_audit']['high'] : 0;
+        if ( $high > 0 ) {
             $add( self::action( 'seo_issues', sprintf( 'Fix %d high-priority on-site SEO %s', $high, 1 === $high ? 'issue' : 'issues' ), $high, 'seo', [ 'severity' => 'high' ] ) );
         }
         foreach ( $state['steps'] as $step ) {
@@ -1079,6 +1160,7 @@ final class GrowthRun {
         }
         $started = is_string( $state['started_at'] ?? null ) ? strtotime( (string) $state['started_at'] ) : false;
         $ended   = is_string( $state['finished_at'] ?? null ) ? strtotime( (string) $state['finished_at'] ) : false;
+        unset( $state['cancelled_ids'] ); // bookkeeping for isCancelledRun(), not part of the reported state
         $state['active']          = self::STATUS_RUNNING === $state['status'];
         $state['progress']        = [ 'done' => $done, 'total' => $total ];
         $state['elapsed_seconds'] = false !== $started && $started > 0 ? max( 0, ( false !== $ended && $ended > 0 ? $ended : time() ) - $started ) : 0;

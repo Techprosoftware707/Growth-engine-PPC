@@ -308,16 +308,19 @@ final class SiteAuditorTest extends TestCase {
             $this->assertIsInt( $done[ $k ] );
         }
 
-        // With the HTTP spot check on and too little time left for it, the job reports more work and queues an
-        // immediate continuation (local work: no delay).
+        // With the HTTP spot check on and too little time left for it, the job reports more work and waits for the
+        // next tick (a continuation due at once would be claimed again in this tick with even less time).
         $this->settings()->set( 'seo.audit_http_sample', true );
         $c->set( SiteAuditor::class, $this->auditor( null, true ) );
         $more = ( new SiteAuditJob() )->handle( [ 'manual' => true, 'restart' => true ], TimeBudget::seconds( 4.0 ), $c );
         $this->assertTrue( $more['more'] );
-        $this->assertTrue( $more['continued'] );
+        $this->assertTrue( $more['requeued'] );
+        $this->assertTrue( $more['skipped'] );
+        $this->assertSame( 'time_budget', $more['reason'] );
         $this->assertSame( 'Audited all 3 pages; the HTTP spot check of up to 10 URLs runs next.', $more['summary'] );
         $queued = $c->get( Jobs::class )->findBy( [ 'type' => 'site_audit', 'status' => Jobs::STATUS_QUEUED ] );
         $this->assertCount( 1, $queued );
         $this->assertArrayNotHasKey( 'restart', $queued[0]['payload'], 'The continuation must not restart the audit.' );
+        $this->assertGreaterThan( gmdate( 'Y-m-d H:i:s', time() + 30 ), (string) $queued[0]['scheduled_at'], 'the spot check continues on a later tick' );
     }
 }

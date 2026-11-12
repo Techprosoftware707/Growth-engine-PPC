@@ -83,6 +83,37 @@ final class ComplianceBannerTest extends TestCase {
         $this->assertStringContainsString( 'could not be loaded', $r['models']['missing']['lines'][0] );
     }
 
+    public function testACheckThatCouldNotRunIsShownEvenWhenTheLastStoredResultPassed(): void {
+        $r = $this->harness();
+        $stale = $r['models']['stalePassFailed'];
+        $this->assertTrue( $stale['show'], 'a stored pass that could not be refreshed still shows the paused banner' );
+        $this->assertTrue( $stale['paused'] );
+        $this->assertSame( 'danger', $stale['kind'] );
+        $this->assertStringContainsString( 'could not run', $stale['title'] );
+        $this->assertSame( 'x', $stale['lines'][0] );
+        $this->assertTrue( $stale['canRecheck'] );
+        $this->assertFalse( $stale['canAcknowledge'] );
+
+        $this->assertTrue( $r['models']['acknowledgedFailed']['show'] );
+        $this->assertTrue( $r['models']['acknowledgedFailed']['paused'] );
+        $this->assertSame( 'The last check could not be refreshed.', $r['models']['acknowledgedFailed']['lines'][0] );
+
+        $gateOff = $r['models']['passErrorGateOff'];
+        $this->assertTrue( $gateOff['show'] );
+        $this->assertFalse( $gateOff['paused'], 'with the gate off nothing is paused, and the banner does not say so' );
+        $this->assertStringNotContainsString( 'paused', $gateOff['title'] );
+    }
+
+    public function testAStaleAcknowledgementReloadsTheCurrentFindings(): void {
+        $r = $this->harness();
+        $this->assertTrue( $r['ackConfirmFound'] );
+        $this->assertSame( [ 'POST /compliance/storefront/acknowledge', 'GET /compliance/storefront' ], $r['ackRequests'] );
+        $this->assertSame( str_repeat( 'a', 40 ), $r['ackSentHash'] );
+        $this->assertTrue( $r['ackShowsCurrentFindings'], 'the banner shows the findings the server has now' );
+        $this->assertSame( 'warning', $r['ackToast']['kind'] ?? null );
+        $this->assertSame( str_repeat( 'b', 40 ), $r['secondAckHash'], 'the next acknowledgement covers the current findings' );
+    }
+
     public function testRenderedBannerEscapesDataAndLinksOnlyHttpUrls(): void {
         $r = $this->harness();
         $this->assertSame( [ 'Re-check now', 'Acknowledge these findings' ], $r['blockButtons'] );

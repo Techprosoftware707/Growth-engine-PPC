@@ -52,6 +52,9 @@ namespace PPC\LinkGrowth\Tests\Support {
             self::$revisionsEnabled  = true;
             self::$environment       = 'production';
             self::$nextRevision      = 9000;
+            if ( class_exists( StubsSeoReview::class ) ) {
+                StubsSeoReview::reset();
+            }
         }
 
         /**
@@ -308,4 +311,7 @@ namespace PPC\LinkGrowth\Seo {
             return StubsSeo::$environment;
         }
     }
+
+    // Revisions kept before an edit, WooCommerce page ids and the block registry (review fixes).
+    require_once __DIR__ . '/StubsSeoReview.php';
 }

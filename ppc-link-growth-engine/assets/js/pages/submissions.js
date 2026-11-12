@@ -63,6 +63,8 @@ const SKIP_REASONS = {
     prospect_rejected: 'the site was rejected earlier',
     prospect_suppressed: 'the site is suppressed',
     prospect_missing: 'the site record could not be created',
+    paid_only: 'it has no free tier (the budget rule allows free tiers only)',
+    already_listed: 'a listing on this site was already submitted (a new one would be a duplicate)',
     error: 'an error occurred (see Logs)',
 };
 
@@ -161,7 +163,7 @@ export function ownerTaskCard( s, pkg, { onMarked = null } = {} ) {
 
     if ( p.outreach ) {
         stack.appendChild( callout( 'info', 'Outreach opportunity: your decision', [
-            el( 'div', {}, 'This is a pitch to a person, not a form. The plugin does not write to this site and creates no outreach message or contact for it. If you decide to pitch, write the message yourself, once, as a real named person.' ),
+            el( 'div', {}, 'This is a pitch to a person, not a form. The plugin never drafts or sends outreach for this site; if you decide to pitch, write the message yourself, once, as a real named person.' ),
             contactEmail ? el( 'div', { style: { marginTop: '6px' } }, 'Contact address the site lists: ', el( 'span', { class: 'ppclg-mono' }, contactEmail ) ) : null,
         ] ) );
     }

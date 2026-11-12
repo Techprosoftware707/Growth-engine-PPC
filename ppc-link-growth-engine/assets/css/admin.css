@@ -2812,7 +2812,8 @@
     color: var(--ppclg-critical);
 }
 
-.ppclg-grow-step--pending {
+.ppclg-grow-step--pending,
+.ppclg-grow-step--notrun {
     opacity: .75;
 }
 

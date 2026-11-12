@@ -54,6 +54,25 @@ final class InternalLinker {
     /** Elements whose content is raw text (never parsed as markup, never visible prose). */
     private const RAW_TEXT_TAGS = [ 'script', 'style', 'textarea', 'title', 'xmp', 'noscript', 'iframe', 'noembed', 'noframes', 'plaintext' ];
 
+    /**
+     * Foreign (SVG / MathML) roots: the only NO_LINK_TAGS elements HTML5 lets "/>" close. On every other element
+     * the parser ignores a trailing slash, so `<a href=/shop/>` or `<h2 class="x" />` stay open.
+     */
+    private const FOREIGN_TAGS = [ 'svg', 'math' ];
+
+    /**
+     * Blocks whose visible output is built from their comment attributes, not from the saved inner HTML (an edit
+     * there would never show, and could make the editor flag the block as invalid). Used whether or not the block
+     * registry is loaded; other non-core blocks are checked with WP_Block_Type_Registry (dynamic = opaque).
+     */
+    private const OPAQUE_BLOCKS = [ 'rank-math/faq-block', 'rank-math/howto-block', 'rank-math/toc-block' ];
+
+    /** Block comment delimiter (the pattern WordPress' own block parser uses). */
+    private const BLOCK_COMMENT = '/\G<!--\s+(?P<closer>\/)?wp:(?P<namespace>[a-z][a-z0-9_-]*\/)?(?P<name>[a-z][a-z0-9_-]*)\s+(?P<attrs>{(?:(?:[^}]+|}+(?=})|(?!}\s+\/?-->).)*+)?}\s+)?(?P<void>\/)?-->/s';
+
+    /** Most characters of block attribute text kept per segment for the attribute check in locate(). */
+    private const MAX_ATTR_TEXT = 20000;
+
     /** Anchors too generic to link. */
     private const GENERIC = [
         'home', 'shop', 'store', 'about', 'about us', 'contact', 'contact us', 'blog', 'news', 'product', 'products', 'service', 'services',
@@ -327,7 +346,34 @@ final class InternalLinker {
         if ( ! wp_revisions_enabled( $post ) ) {
             return 'Revisions are turned off on this site, so the change could not be undone from the editor; add the link manually instead.';
         }
+        // The version before the edit and the edited one must both be kept for "restore the previous version".
+        $keep = (int) wp_revisions_to_keep( $post );
+        if ( $keep >= 0 && $keep < 2 ) {
+            return 'WordPress keeps fewer than 2 revisions for this item, so the previous version could not be restored; add the link in the editor instead.';
+        }
         return '';
+    }
+
+    /**
+     * Makes sure the content as it is now is kept as a revision before an edit, and returns that revision's id
+     * (0 when none could be made). WordPress itself only saves a revision of the content AFTER an update, so a
+     * post that never had one (created through REST, WP-CLI or an importer) would otherwise lose its old content.
+     */
+    private function restorePoint( int $postId ): int {
+        $saved = wp_save_post_revision( $postId );
+        if ( is_int( $saved ) && $saved > 0 ) {
+            return $saved;
+        }
+        if ( is_wp_error( $saved ) ) {
+            return 0;
+        }
+        // null: the newest revision already holds exactly the current content.
+        $revs = wp_get_post_revisions( $postId, [ 'numberposts' => 1, 'fields' => 'ids' ] );
+        if ( is_array( $revs ) && [] !== $revs ) {
+            $first = reset( $revs );
+            return is_object( $first ) ? (int) ( $first->ID ?? 0 ) : (int) $first;
+        }
+        return 0;
     }
 
     /** @return int[] published source ids (pages, posts, products), capped */
@@ -559,7 +605,7 @@ final class InternalLinker {
             'refused' => $refused,
             'results' => $results,
             'message' => 0 === $refused
-                ? sprintf( 'Added %d internal %s. WordPress saved a revision of each edited item.', $applied, 1 === $applied ? 'link' : 'links' )
+                ? sprintf( 'Added %d internal %s. The previous version of each edited item is kept as a revision you can restore from the editor.', $applied, 1 === $applied ? 'link' : 'links' )
                 : sprintf( 'Added %d internal %s; %d %s not applied (see the reason on each row).', $applied, 1 === $applied ? 'link' : 'links', $refused, 1 === $refused ? 'suggestion was' : 'suggestions were' ),
         ];
     }
@@ -621,6 +667,11 @@ final class InternalLinker {
             return [ false, 'Refused: your account cannot save unfiltered HTML, and WordPress would re-filter other markup in this item. Add the link in the editor instead.', '', [] ];
         }
 
+        $restore = $this->restorePoint( $sourceId );
+        if ( $restore <= 0 ) {
+            return [ false, 'Refused: WordPress could not keep a revision of the current content, so the previous version could not be restored; nothing was edited.', '', [] ];
+        }
+
         $result = wp_update_post( wp_slash( [ 'ID' => $sourceId, 'post_content' => $new ] ), true );
         if ( is_wp_error( $result ) || (int) $result <= 0 ) {
             $why = is_wp_error( $result ) ? $result->get_error_message() : 'WordPress did not save the item';
@@ -642,10 +693,10 @@ final class InternalLinker {
             'seo.internal_link_applied',
             'post',
             $sourceId,
-            [ 'suggestion_id' => (int) $item['id'], 'target_id' => $targetId, 'target_url' => $targetUrl, 'anchor' => $occ['text'], 'revision_id' => $revision, 'byte_identical' => $stored === $new ]
+            [ 'suggestion_id' => (int) $item['id'], 'target_id' => $targetId, 'target_url' => $targetUrl, 'anchor' => $occ['text'], 'restore_revision_id' => $restore, 'revision_id' => $revision, 'byte_identical' => $stored === $new ]
         );
-        $this->logger->info( 'seo', 'Internal link applied', [ 'post_id' => $sourceId, 'target_id' => $targetId, 'anchor' => $occ['text'] ] );
-        return [ true, $message, self::STATUS_APPLIED, [ 'applied_at' => gmdate( 'c' ), 'applied_by' => $userId, 'revision_id' => $revision, 'target_url' => $targetUrl ] ];
+        $this->logger->info( 'seo', 'Internal link applied', [ 'post_id' => $sourceId, 'target_id' => $targetId, 'anchor' => $occ['text'], 'restore_revision_id' => $restore ] );
+        return [ true, $message, self::STATUS_APPLIED, [ 'applied_at' => gmdate( 'c' ), 'applied_by' => $userId, 'restore_revision_id' => $restore, 'revision_id' => $revision, 'target_url' => $targetUrl ] ];
     }
 
     /**
@@ -686,17 +737,33 @@ final class InternalLinker {
 
     /**
      * Splits raw HTML into text segments with byte offsets. A segment is "eligible" when it is outside every
-     * NO_LINK_TAGS element, "visible" when it is not raw text (script/style/…). Comments, tags, doctype and
-     * processing instructions are not segments.
+     * NO_LINK_TAGS element and every opaque block (see opaqueBlock()), "visible" when it is not raw text
+     * (script/style/…). `attrs` is the lower-cased text of the enclosing blocks' comment attributes (locate()
+     * refuses a match that also appears there). Comments, tags, doctype and processing instructions are not segments.
      *
-     * @return array<int,array{start:int,end:int,eligible:bool,visible:bool}>
+     * @return array<int,array{start:int,end:int,eligible:bool,visible:bool,attrs:string}>
      */
     public static function segments( string $html ): array {
-        $out   = [];
-        $len   = strlen( $html );
-        $stack = [];
-        $text  = 0;
-        $i     = 0;
+        $out    = [];
+        $len    = strlen( $html );
+        $stack  = [];
+        $blocks = []; // open blocks: [name, opaque, attribute text]
+        $text   = 0;
+        $i      = 0;
+        $free   = static function () use ( &$stack, &$blocks ): bool {
+            if ( [] !== $stack ) {
+                return false;
+            }
+            foreach ( $blocks as $b ) {
+                if ( $b[1] ) {
+                    return false;
+                }
+            }
+            return true;
+        };
+        $attrs  = static function () use ( &$blocks ): string {
+            return self::attrText( $blocks );
+        };
         while ( $i < $len ) {
             $lt = strpos( $html, '<', $i );
             if ( false === $lt ) {
@@ -711,7 +778,10 @@ final class InternalLinker {
                     $close = strpos( $html, '>', $lt + 2 );
                     $after = false === $close ? $len : $close + 1;
                 }
-                self::emit( $out, $text, $lt, [] === $stack, true );
+                self::emit( $out, $text, $lt, $free(), true, $attrs() );
+                if ( '!' === $next && preg_match( self::BLOCK_COMMENT, $html, $bm, 0, $lt ) ) {
+                    self::trackBlock( $blocks, $bm );
+                }
                 $i = $text = $after;
                 continue;
             }
@@ -738,7 +808,7 @@ final class InternalLinker {
             $tagEnd  = min( $len, $j + 1 );
             $name    = strtolower( $m[2] );
             $closing = '/' === $m[1];
-            self::emit( $out, $text, $lt, [] === $stack, true );
+            self::emit( $out, $text, $lt, $free(), true, $attrs() );
             if ( ! $closing && in_array( $name, self::RAW_TEXT_TAGS, true ) ) {
                 if ( preg_match( '#</' . preg_quote( $name, '#' ) . '\s*>#i', $html, $cm, PREG_OFFSET_CAPTURE, $tagEnd ) ) {
                     $closeAt  = (int) $cm[0][1];
@@ -746,7 +816,7 @@ final class InternalLinker {
                 } else {
                     $closeAt = $closeEnd = $len;
                 }
-                self::emit( $out, $tagEnd, $closeAt, false, false );
+                self::emit( $out, $tagEnd, $closeAt, false, false, '' );
                 $i = $text = $closeEnd;
                 continue;
             }
@@ -758,20 +828,113 @@ final class InternalLinker {
                             break;
                         }
                     }
-                } elseif ( '/' !== ( $html[ $j - 1 ] ?? '' ) ) {
+                } elseif ( ! ( in_array( $name, self::FOREIGN_TAGS, true ) && self::selfClosingFlag( $html, $lt + strlen( $m[0] ), $j ) ) ) {
+                    // HTML5 ignores "/>" on <a>, <h2>, <code>…: the element stays open (only SVG/MathML self-close).
                     $stack[] = $name;
                 }
             }
             $i = $text = $tagEnd;
         }
-        self::emit( $out, $text, $len, [] === $stack, true );
+        self::emit( $out, $text, $len, $free(), true, $attrs() );
         return $out;
     }
 
-    /** @param array<int,array{start:int,end:int,eligible:bool,visible:bool}> $out */
-    private static function emit( array &$out, int $start, int $end, bool $eligible, bool $visible ): void {
+    /**
+     * Whether the "/" before the ">" at $gt is a real self-closing flag: right after the tag name, or after
+     * whitespace or a closing quote. `<svg viewBox=0/>` ends an unquoted attribute value instead.
+     */
+    private static function selfClosingFlag( string $html, int $nameEnd, int $gt ): bool {
+        if ( $gt <= $nameEnd || '/' !== ( $html[ $gt - 1 ] ?? '' ) ) {
+            return false;
+        }
+        if ( $gt - 1 === $nameEnd ) {
+            return true;
+        }
+        $before = $html[ $gt - 2 ] ?? '';
+        return '"' === $before || "'" === $before || ctype_space( $before );
+    }
+
+    /**
+     * Opens or closes a block from a matched block comment (BLOCK_COMMENT).
+     *
+     * @param array<int,array{0:string,1:bool,2:string}> $blocks
+     * @param array<string,string>                       $m
+     */
+    private static function trackBlock( array &$blocks, array $m ): void {
+        $name = ( '' !== ( $m['namespace'] ?? '' ) ? $m['namespace'] : 'core/' ) . $m['name'];
+        if ( '' !== ( $m['closer'] ?? '' ) ) {
+            for ( $k = count( $blocks ) - 1; $k >= 0; $k-- ) {
+                if ( $blocks[ $k ][0] === $name ) {
+                    array_splice( $blocks, $k );
+                    break;
+                }
+            }
+            return;
+        }
+        if ( '' !== ( $m['void'] ?? '' ) ) {
+            return; // self-closing block: no inner HTML
+        }
+        $blocks[] = [ $name, self::opaqueBlock( $name ), self::flattenAttrs( (string) ( $m['attrs'] ?? '' ) ) ];
+    }
+
+    /**
+     * Whether a block's saved inner HTML is not what visitors see: Rank Math's FAQ / HowTo / TOC blocks (built
+     * from their attributes), and any other non-core block registered with a render callback. Core blocks render
+     * their saved content (their callbacks only decorate it), so they stay eligible.
+     */
+    public static function opaqueBlock( string $name ): bool {
+        if ( in_array( $name, self::OPAQUE_BLOCKS, true ) ) {
+            return true;
+        }
+        if ( str_starts_with( $name, 'core/' ) || ! class_exists( 'WP_Block_Type_Registry' ) ) {
+            return false;
+        }
+        try {
+            $type = \WP_Block_Type_Registry::get_instance()->get_registered( $name );
+            return is_object( $type ) && method_exists( $type, 'is_dynamic' ) && (bool) $type->is_dynamic();
+        } catch ( Throwable $e ) {
+            return false;
+        }
+    }
+
+    /** Lower-cased text of every string value in a block's comment attributes ('' when none). */
+    private static function flattenAttrs( string $json ): string {
+        $json = trim( $json );
+        if ( '' === $json ) {
+            return '';
+        }
+        $data = json_decode( $json, true );
+        if ( ! is_array( $data ) ) {
+            return '';
+        }
+        $parts = [];
+        array_walk_recursive(
+            $data,
+            static function ( mixed $v ) use ( &$parts ): void {
+                if ( is_string( $v ) && '' !== $v ) {
+                    $parts[] = $v;
+                }
+            }
+        );
+        $text = html_entity_decode( strip_tags( implode( ' ', $parts ) ), ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+        return mb_substr( mb_strtolower( self::normalizeSpace( $text ) ), 0, self::MAX_ATTR_TEXT );
+    }
+
+    /** @param array<int,array{0:string,1:bool,2:string}> $blocks */
+    private static function attrText( array $blocks ): string {
+        $parts = [];
+        foreach ( $blocks as $b ) {
+            if ( '' !== $b[2] ) {
+                $parts[] = $b[2];
+            }
+        }
+        return implode( ' | ', $parts );
+    }
+
+    /** @param array<int,array{start:int,end:int,eligible:bool,visible:bool,attrs:string}> $out */
+    private static function emit( array &$out, int $start, int $end, bool $eligible, bool $visible, string $attrs ): void {
         if ( $end > $start ) {
-            $out[] = [ 'start' => $start, 'end' => $end, 'eligible' => $eligible, 'visible' => $visible ];
+            $out[] = [ 'start' => $start, 'end' => $end, 'eligible' => $eligible, 'visible' => $visible, 'attrs' => $attrs ];
         }
     }
 
@@ -825,8 +988,13 @@ final class InternalLinker {
         // Letters, digits, "_" and "-" around the match mean it is part of a longer word ("non-sterile water-like").
         $pattern = '/(?<![\p{L}\p{N}_\-])' . implode( '[\s\x{00A0}]+', array_map( static fn( string $w ): string => preg_quote( $w, '/' ), $words ) ) . '(?![\p{L}\p{N}_\-])/iu';
         $segments = array_values( $analysis['segments'] );
+        $needle   = mb_strtolower( self::normalizeSpace( $anchor ) );
         foreach ( $segments as $n => $seg ) {
             if ( ! $seg['eligible'] || '' === $seg['decoded'] ) {
+                continue;
+            }
+            // The same words in the enclosing block's attributes: the block may render from them, not this HTML.
+            if ( '' !== (string) ( $seg['attrs'] ?? '' ) && str_contains( (string) $seg['attrs'], $needle ) ) {
                 continue;
             }
             $offset = 0;
@@ -909,6 +1077,19 @@ final class InternalLinker {
             $probe = substr( $probe, 0, $o['start'] ) . '<a href="#" data-ppclg-probe="' . (int) $i . '">' . substr( $probe, $o['start'], $o['end'] - $o['start'] ) . '</a>' . substr( $probe, $o['end'] );
             $valid[ $i ] = false;
         }
+        // libxml2 honours "/>" on any element (HTML5 does not), so the DOM alone can miss an open <a> or heading:
+        // the occurrence must also lie inside one eligible segment of the HTML5-style tokenizer.
+        $inEligible = [];
+        $segments   = self::segments( $html );
+        foreach ( $occurrences as $i => $o ) {
+            $inEligible[ $i ] = false;
+            foreach ( $segments as $seg ) {
+                if ( $seg['eligible'] && $seg['visible'] && $seg['start'] <= $o['start'] && $o['end'] <= $seg['end'] ) {
+                    $inEligible[ $i ] = true;
+                    break;
+                }
+            }
+        }
         $dom = SiteAuditor::loadFragment( $probe );
         if ( null === $dom ) {
             return $valid; // no DOM extension: refuse rather than guess
@@ -923,7 +1104,7 @@ final class InternalLinker {
             if ( ! isset( $occurrences[ $i ] ) ) {
                 continue;
             }
-            $ok = self::normalizeSpace( $a->textContent ) === self::normalizeSpace( $occurrences[ $i ]['text'] ) && 0 === $a->getElementsByTagName( 'a' )->length;
+            $ok = ! empty( $inEligible[ $i ] ) && self::normalizeSpace( $a->textContent ) === self::normalizeSpace( $occurrences[ $i ]['text'] ) && 0 === $a->getElementsByTagName( 'a' )->length;
             for ( $p = $a->parentNode; $ok && $p instanceof \DOMElement && ! $p->isSameNode( $root ); $p = $p->parentNode ) {
                 if ( in_array( strtolower( $p->nodeName ), self::NO_LINK_TAGS, true ) ) {
                     $ok = false;

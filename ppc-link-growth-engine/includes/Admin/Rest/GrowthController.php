@@ -14,6 +14,7 @@ declare(strict_types=1);
 namespace PPC\LinkGrowth\Admin\Rest;
 
 use PPC\LinkGrowth\Growth\GrowthRun;
+use PPC\LinkGrowth\Submission\Policy;
 use PPC\LinkGrowth\Support\Settings;
 use PPC\LinkGrowth\Support\TimeBudget;
 use Throwable;
@@ -89,6 +90,7 @@ final class GrowthController extends Controller {
         }
         $state                 = $run->state();
         $state['step_seconds'] = $this->stepSeconds();
+        $state['policy']       = $this->policy();
         return $state;
     }
 
@@ -113,6 +115,27 @@ final class GrowthController extends Controller {
             ? 'Growth run stopped. Work already done is kept' . ( $jobs > 0 ? sprintf( '; %d queued follow-up %s of this run %s cancelled.', $jobs, 1 === $jobs ? 'job' : 'jobs', 1 === $jobs ? 'was' : 'were' ) : '.' )
             : 'The growth run could not be stopped. Try again in a moment.';
         return $state;
+    }
+
+    /**
+     * The settings that decide what a run may send on its own, so the panel can say so accurately:
+     * automation.submissions + submission_mode (listings) and automation.outreach_autosend + outreach.require_approval
+     * (emails). Values that cannot be read are null (the panel then makes no promise either way).
+     *
+     * @return array{submissions:?bool,submission_mode:?string,outreach_autosend:?bool,require_approval:?bool}
+     */
+    private function policy(): array {
+        $out = [ 'submissions' => null, 'submission_mode' => null, 'outreach_autosend' => null, 'require_approval' => null ];
+        try {
+            $settings                 = $this->c->get( Settings::class );
+            $out['submissions']       = (bool) $settings->get( 'automation.submissions', false );
+            $out['submission_mode']   = Policy::submissionMode( $settings );
+            $out['outreach_autosend'] = (bool) $settings->get( 'automation.outreach_autosend', false );
+            $out['require_approval']  = (bool) $settings->get( 'outreach.require_approval', true );
+        } catch ( Throwable $e ) {
+            unset( $e );
+        }
+        return $out;
     }
 
     /** settings growth.step_seconds, clamped to [MIN_STEP_SECONDS, MAX_STEP_SECONDS]. */

@@ -173,6 +173,18 @@ final class EvaluateJob extends AbstractJob {
     }
 
     /**
+     * Whether $prospect was rejected by this job only because its site could not be fetched (a machine rejection that
+     * is re-checked later), not by a person or on its merits. Other code must not treat it as the owner's "no".
+     *
+     * @param array<string,mixed> $prospect
+     */
+    public static function isUnreachableRejection( array $prospect ): bool {
+        return Prospects::STATUS_REJECTED === (string) ( $prospect['status'] ?? '' )
+            && self::DO_NOT_PURSUE === (string) ( $prospect['recommended_action'] ?? '' )
+            && str_starts_with( (string) ( $prospect['rejection_reason'] ?? '' ), self::UNREACHABLE_REASON_PREFIX );
+    }
+
+    /**
      * Prospects parked by the machine (not by a person) whose automatic re-check is due:
      * rejected because the site was unreachable, put on hold after an evaluation error, or
      * left in the legacy transient "evaluating" status by a worker that died.

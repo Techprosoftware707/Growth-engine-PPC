@@ -62,6 +62,9 @@ final class SiteAuditor {
     /** Seconds one sampled URL may need (robots.txt, crawl delay, request). */
     private const SAMPLE_SECONDS = 12.0;
 
+    /** Spot-check deferrals less than this many seconds apart (one tick) count as one. */
+    private const SAMPLE_DEFERRAL_GAP = 30;
+
     private const THIN_WORDS = 300;
 
     private const TITLE_MIN = 30;
@@ -75,7 +78,11 @@ final class SiteAuditor {
     /** Taxonomies whose archive URLs count as valid internal link targets. */
     private const TAXONOMIES = [ 'category', 'post_tag', 'product_cat', 'product_tag', 'product_brand' ];
 
-    /** Path prefixes that are not posts but are valid on a WordPress/WooCommerce site (never reported as broken). */
+    /**
+     * Paths that are not posts but are valid on a WordPress/WooCommerce site (never reported as broken). An entry
+     * ending in "/" covers everything below it, a file name matches exactly, and any other entry matches itself
+     * and what is below it ("/cart" and "/cart/x", never "/cartridge-filters/").
+     */
     private const SKIP_PREFIXES = [ '/wp-content/', '/wp-admin', '/wp-json', '/wp-includes/', '/wp-login.php', '/feed', '/comments/feed', '/cart', '/checkout', '/my-account', '/xmlrpc.php', '/sitemap', '/robots.txt' ];
 
     /** @var array<string,array{kind:string,id:int}> per-request cache of internal link resolutions */
@@ -206,6 +213,9 @@ final class SiteAuditor {
      * rank_math_robots meta, else the post type's custom robots default, else Rank Math's global robots default.
      */
     public static function isNoindex( int $postId, string $postType ): bool {
+        if ( self::isWooNoindexPage( $postId ) ) {
+            return true; // WooCommerce sends noindex for these through the wp_robots filter, whatever Rank Math says
+        }
         $robots = self::robotsList( get_post_meta( $postId, 'rank_math_robots', true ) );
         if ( [] !== $robots ) {
             return in_array( 'noindex', $robots, true );
@@ -219,6 +229,27 @@ final class SiteAuditor {
             return in_array( 'noindex', self::robotsList( $titles[ 'pt_' . $type . '_robots' ] ?? [] ), true );
         }
         return in_array( 'noindex', self::robotsList( $titles['robots_global'] ?? [] ), true );
+    }
+
+    /**
+     * The WooCommerce cart, checkout and my-account pages: WooCommerce marks them noindex (wc_page_no_robots on the
+     * wp_robots filter), so they are never submitted to IndexNow, graded, or sampled.
+     */
+    public static function isWooNoindexPage( int $postId ): bool {
+        if ( $postId <= 0 || ! function_exists( 'wc_get_page_id' ) ) {
+            return false;
+        }
+        foreach ( [ 'cart', 'checkout', 'myaccount' ] as $page ) {
+            try {
+                $id = (int) \call_user_func( 'wc_get_page_id', $page );
+            } catch ( Throwable $e ) {
+                continue;
+            }
+            if ( $id > 0 && $id === $postId ) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** WordPress "Discourage search engines from indexing this site" (Settings → Reading) is on. */
@@ -464,12 +495,19 @@ final class SiteAuditor {
             }
         }
 
+        $sampleDeferred = false;
         if ( 'sample' === ( $work['phase'] ?? '' ) ) {
             if ( $budget->has( self::SAMPLE_SECONDS ) || (int) ( $work['sample_deferrals'] ?? 0 ) >= 2 ) {
                 $this->runSample( $work, $budget );
                 $work['phase'] = 'finalize';
             } else {
-                $work['sample_deferrals'] = (int) ( $work['sample_deferrals'] ?? 0 ) + 1;
+                // Wait for a fresh budget (SiteAuditJob continues on the next tick). Deferrals within one tick
+                // count once, so the spot check is never forced to run on a nearly spent budget.
+                $sampleDeferred = true;
+                if ( time() - (int) ( $work['sample_deferred_at'] ?? 0 ) >= self::SAMPLE_DEFERRAL_GAP ) {
+                    $work['sample_deferrals'] = (int) ( $work['sample_deferrals'] ?? 0 ) + 1;
+                }
+                $work['sample_deferred_at'] = time();
             }
         }
 
@@ -515,6 +553,8 @@ final class SiteAuditor {
             'low'     => $progress['counts']['low'],
             'more'    => true,
             'done'    => false,
+            // The HTTP spot check waits for a fresh budget: continue on the next tick, not right away.
+            'sample_deferred' => $sampleDeferred,
             'summary' => 'sample' === ( $work['phase'] ?? '' )
                 ? sprintf( 'Audited all %d pages; the HTTP spot check of up to %d URLs runs next.', $progress['total'], self::SAMPLE_MAX )
                 : sprintf( 'Audited %d of %d pages; %d %s so far.', $progress['checked'], $progress['total'], $progress['issues'], 1 === $progress['issues'] ? 'issue' : 'issues' ),
@@ -727,7 +767,13 @@ final class SiteAuditor {
                 if ( ! in_array( (string) $r['ty'], [ 'post', 'page' ], true ) || ! empty( $r['n'] ) || isset( $inbound[ $id ] ) || in_array( $id, $menu, true ) || in_array( $id, $special, true ) ) {
                     continue;
                 }
-                $this->addIssue( $work, [ 'post_id' => $id, 'url' => (string) $r['u'], 'title' => (string) $r['p'], 'severity' => 'medium', 'code' => 'orphan', 'message' => 'No other published page, post, product or menu links to this item, so visitors and crawlers have no path to it.', 'fix' => 'Add a link to this item from at least one related published page or post (or from a menu).', 'edit_url' => (string) $r['e'] ] );
+                if ( 'post' === (string) $r['ty'] ) {
+                    // Posts are listed on the blog page and the category, tag, author and date archives, so they are
+                    // reachable; only the lack of links from other content is worth a (low) note.
+                    $this->addIssue( $work, [ 'post_id' => $id, 'url' => (string) $r['u'], 'title' => (string) $r['p'], 'severity' => 'low', 'code' => 'no_content_links', 'message' => 'No other page or post links to this post from its content; visitors reach it only through the blog listing and archives.', 'fix' => 'Link to it from one or two related pages or posts.', 'edit_url' => (string) $r['e'] ] );
+                    continue;
+                }
+                $this->addIssue( $work, [ 'post_id' => $id, 'url' => (string) $r['u'], 'title' => (string) $r['p'], 'severity' => 'medium', 'code' => 'orphan', 'message' => 'No other published page, post, product or menu links to this page, so visitors and crawlers have no path to it.', 'fix' => 'Add a link to this page from at least one related published page or post (or from a menu).', 'edit_url' => (string) $r['e'] ] );
             }
         }
 
@@ -960,6 +1006,23 @@ final class SiteAuditor {
      *
      * @return array{kind:string,id:int}
      */
+    /** Whether a lower-case site-relative path is a WordPress/WooCommerce system address (see SKIP_PREFIXES). */
+    public static function isSystemPath( string $lower ): bool {
+        foreach ( self::SKIP_PREFIXES as $prefix ) {
+            if ( str_ends_with( $prefix, '/' ) ) {
+                $hit = str_starts_with( $lower, $prefix );
+            } elseif ( 1 === preg_match( '/\.(php|txt)$/', $prefix ) ) {
+                $hit = $lower === $prefix;
+            } else {
+                $hit = $lower === $prefix || str_starts_with( $lower, $prefix . '/' );
+            }
+            if ( $hit ) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public function resolveInternal( string $url ): array {
         $path  = (string) wp_parse_url( $url, PHP_URL_PATH );
         $query = (string) wp_parse_url( $url, PHP_URL_QUERY );
@@ -976,10 +1039,8 @@ final class SiteAuditor {
         if ( '/' === $rel && '' === $query ) {
             return $this->resolved[ $key ] = $out;
         }
-        foreach ( self::SKIP_PREFIXES as $prefix ) {
-            if ( str_starts_with( $lower, $prefix ) ) {
-                return $this->resolved[ $key ] = $out;
-            }
+        if ( self::isSystemPath( $lower ) ) {
+            return $this->resolved[ $key ] = $out;
         }
         if ( preg_match( '/\.([a-z0-9]{2,5})$/', $lower, $m ) && ! in_array( $m[1], [ 'html', 'htm', 'php' ], true ) ) {
             return $this->resolved[ $key ] = $out; // a file (image, PDF, …): not checked without HTTP
@@ -1132,7 +1193,48 @@ final class SiteAuditor {
         } catch ( Throwable $e ) {
             $this->logger->debug( 'seo', 'Navigation menus could not be read: ' . $e->getMessage() );
         }
+        // Block themes keep header/footer links in wp_navigation posts, not in classic menus.
+        try {
+            if ( wp_is_block_theme() ) {
+                foreach ( get_posts( [ 'post_type' => 'wp_navigation', 'post_status' => 'publish', 'numberposts' => 20, 'no_found_rows' => true ] ) as $nav ) {
+                    if ( is_object( $nav ) ) {
+                        $ids = array_merge( $ids, self::navigationLinkIds( (string) ( $nav->post_content ?? '' ) ) );
+                    }
+                }
+            }
+        } catch ( Throwable $e ) {
+            $this->logger->debug( 'seo', 'Block navigation could not be read: ' . $e->getMessage() );
+        }
         return array_values( array_unique( $ids ) );
+    }
+
+    /**
+     * Item ids linked from core/navigation-link and core/navigation-submenu blocks (their `id` for post-type
+     * links, else their `url`).
+     *
+     * @return int[]
+     */
+    public static function navigationLinkIds( string $content ): array {
+        $ids = [];
+        if ( ! preg_match_all( '/<!--\s+wp:(?:core\/)?navigation-(?:link|submenu)\s+(\{.*?\})\s+\/?-->/s', $content, $m ) ) {
+            return $ids;
+        }
+        foreach ( $m[1] as $json ) {
+            $a = json_decode( (string) $json, true );
+            if ( ! is_array( $a ) ) {
+                continue;
+            }
+            $id = (int) ( $a['id'] ?? 0 );
+            if ( $id > 0 && 'post-type' === (string) ( $a['kind'] ?? '' ) ) {
+                $ids[] = $id;
+            } elseif ( is_string( $a['url'] ?? null ) && '' !== $a['url'] ) {
+                $found = (int) url_to_postid( $a['url'] );
+                if ( $found > 0 ) {
+                    $ids[] = $found;
+                }
+            }
+        }
+        return $ids;
     }
 
     /** @return int[] front page, posts page, privacy page and WooCommerce system pages */

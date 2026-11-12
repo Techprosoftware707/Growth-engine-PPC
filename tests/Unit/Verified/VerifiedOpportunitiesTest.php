@@ -128,7 +128,9 @@ final class VerifiedOpportunitiesTest extends TestCase {
         $this->assertCount( $sum['skipped'], $skipped );
         $this->assertGreaterThan( 0, $sum['skipped'], 'platform domains on the exclusion list are skipped' );
         $this->assertSame( $sum['skipped'], array_sum( $state['skip_reasons'] ) );
-        $this->assertSame( [ 'excluded_platform' ], array_values( array_unique( $skipped ) ) );
+        $reasons = array_values( array_unique( $skipped ) );
+        sort( $reasons );
+        $this->assertSame( [ 'excluded_platform', 'paid_only' ], $reasons, 'excluded platforms and items without a free tier are skipped' );
 
         $tasks = $this->ownerTasks();
         $this->assertCount( $sum['imported'], $tasks, 'exactly one owner task per imported item' );

@@ -186,6 +186,7 @@ final class AutoOutreachJob extends AbstractJob {
         $p        = $prospects->table();
         $m        = Schema::table( 'outreach_messages' );
         $ct       = Schema::table( 'contacts' );
+        $s        = Schema::table( 'submissions' );
         $params   = [ Prospects::STATUS_QUALIFIED, Prospects::STATUS_APPROVED ];
         $branches = [];
         foreach ( $byApproach as $approach => $types ) {
@@ -201,10 +202,16 @@ final class AutoOutreachJob extends AbstractJob {
         $sql = "SELECT p.id FROM {$p} p WHERE p.status IN (%s,%s) AND ( " . implode( ' OR ', $branches ) . ' )'
             . " AND EXISTS ( SELECT 1 FROM {$ct} c WHERE c.prospect_id = p.id AND c.status = %s )"
             // Prospects imported from the verified opportunity database are owner tasks: whether to pitch them is the
-            // owner's decision, so they are never auto-drafted (the owner can still draft for them by hand).
-            . ' AND p.discovered_via <> %s';
+            // owner's decision, so they are never auto-drafted (the owner can still draft for them by hand). A site
+            // that was already a prospect (seed, search, manual) keeps its discovered_via, so the owner task itself
+            // is checked too.
+            . ' AND p.discovered_via <> %s'
+            . " AND NOT EXISTS ( SELECT 1 FROM {$s} s WHERE s.prospect_id = p.id AND s.payload LIKE %s )";
         $params[] = Contacts::STATUS_ACTIVE;
         $params[] = VerifiedOpportunities::SOURCE;
+        // Unescaped like the other owner-task queries: SQLite has no default LIKE escape character, and the only
+        // wildcard in the marker ("_") can match nothing but itself in a JSON payload.
+        $params[] = '%' . VerifiedOpportunities::PAYLOAD_MARKER . '%';
         if ( $minScore > 0 ) {
             $sql     .= ' AND p.score >= %d';
             $params[] = $minScore;

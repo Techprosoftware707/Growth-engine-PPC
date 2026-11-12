@@ -24,6 +24,9 @@ const WHERE_LABELS = {
     post: 'Post',
 };
 
+/** Acknowledge refusals that mean the banner shows an outdated state (it is reloaded from the server). */
+const STALE_CODES = [ 'ppclg_findings_changed', 'ppclg_storefront_not_checked', 'ppclg_nothing_to_acknowledge' ];
+
 const LEGAL_NOTE = 'How the store presents itself is your legal decision as the owner, to be made with your Canadian regulatory counsel. This check only reads the store; it never changes it.';
 
 function num( value ) {
@@ -45,6 +48,28 @@ export function bannerModel( status ) {
     const s = status && typeof status === 'object' ? status : null;
     const effective = s && typeof s.effective === 'string' ? s.effective : 'unknown';
     const none = { show: false, kind: 'neutral', title: '', lines: [], canAcknowledge: false, canRecheck: false, recheckLabel: '', paused: false };
+    const error = s && typeof s.error === 'string' ? s.error : '';
+    // The check could not run (or the stored result could not be refreshed): the gate fails closed even when the
+    // last stored result was a pass, so this is shown before the pass/acknowledged early return.
+    if ( s && effective !== 'block' && ( error !== '' || s.blocking === true ) ) {
+        const paused = s.blocking === true;
+        return {
+            show: true,
+            kind: paused ? 'danger' : 'warning',
+            title: paused ? 'Storefront check could not run: automated submissions and outreach sending are paused' : 'Storefront check could not run',
+            lines: [
+                error !== '' ? error : 'The last check could not be refreshed.',
+                paused
+                    ? 'Automated submissions and outreach sending stay paused until the check runs again. Drafting, packaging and owner tasks continue.'
+                    : 'The storefront gate is switched off in the settings, so automation is not paused.',
+                'The check reads product categories, tags, product titles, short descriptions and menus for consumer-use wording.',
+            ],
+            canAcknowledge: false,
+            canRecheck: true,
+            recheckLabel: 'Re-check now',
+            paused,
+        };
+    }
     if ( effective === 'pass' || effective === 'acknowledged' ) {
         return none;
     }
@@ -52,7 +77,6 @@ export function bannerModel( status ) {
     const block = num( counts.block );
     const warn = num( counts.warn );
     const gate = ! s || s.gate !== false;
-    const error = s && typeof s.error === 'string' ? s.error : '';
 
     if ( effective === 'block' ) {
         const paused = gate;
@@ -197,6 +221,18 @@ export default function renderComplianceBanner( container, status, { onRecheck, 
         try {
             res = await api.post( '/compliance/storefront/acknowledge', { confirm: true, hash: typeof s.hash === 'string' ? s.hash : '' }, { silent: true } );
         } catch ( e ) {
+            const code = e && e.code ? String( e.code ) : '';
+            if ( e && ( e.status === 409 || STALE_CODES.includes( code ) ) ) {
+                // The findings changed (or were never checked): show what the server has now, so the next
+                // acknowledgement covers the current findings instead of sending the same stale hash again.
+                try {
+                    rerender( await api.get( '/compliance/storefront', {}, { silent: true } ) );
+                } catch ( reloadError ) {
+                    // The refusal below still tells the owner what happened.
+                }
+                toast( e.message ? e.message : 'The findings changed; review them and acknowledge again.', 'warning', { timeout: 7000 } );
+                return;
+            }
             toast( e && e.message ? e.message : 'The acknowledgement could not be saved.', 'error' );
             return;
         }

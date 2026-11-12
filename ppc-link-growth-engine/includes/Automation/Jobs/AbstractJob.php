@@ -11,6 +11,7 @@ namespace PPC\LinkGrowth\Automation\Jobs;
 
 use PPC\LinkGrowth\Automation\Audit;
 use PPC\LinkGrowth\Container;
+use PPC\LinkGrowth\Growth\GrowthRun;
 use PPC\LinkGrowth\Monitoring\Notifier;
 use PPC\LinkGrowth\Repositories\Jobs;
 use PPC\LinkGrowth\Support\Limits;
@@ -52,6 +53,12 @@ abstract class AbstractJob implements JobInterface {
         try {
             $jobs = $c->get( Jobs::class );
             if ( $jobs->count( [ 'type' => static::type(), 'status' => Jobs::STATUS_QUEUED ] ) > 0 ) {
+                return null;
+            }
+            $run = (string) ( $payload['growth_run'] ?? '' );
+            if ( '' !== $run && class_exists( GrowthRun::class ) && GrowthRun::isCancelledRun( $run ) ) {
+                // Stop was clicked while this job ran: the cancelled run's chain ends here.
+                $this->logger( $c )->info( 'jobs', 'Not continuing: the growth run this job belongs to was cancelled.', [ 'type' => static::type(), 'growth_run' => $run ] );
                 return null;
             }
             $chain = (int) ( $payload['continued'] ?? 0 );

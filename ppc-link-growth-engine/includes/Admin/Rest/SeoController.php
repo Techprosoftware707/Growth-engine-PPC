@@ -113,7 +113,8 @@ final class SeoController extends Controller {
         if ( null === $indexnow ) {
             return [ 'ok' => false, 'message' => 'IndexNow is not available.' ];
         }
-        // An explicit click compares every public URL now and may retry before the hourly back-off ends.
+        // An explicit click compares every public URL now and may retry before the hourly back-off ends, except
+        // after an HTTP 429 (IndexNow::run() then refuses until the requested wait is over).
         $res = $indexnow->run( TimeBudget::seconds( self::RUN_SECONDS ), [ 'full' => true, 'force' => true ] );
         if ( empty( $res['skipped'] ) ) {
             $this->audit( 'seo.indexnow_run', 'seo', 0, [ 'submitted' => $res['submitted'], 'status' => $res['status'], 'ok' => (bool) $res['ok'] ] );
@@ -137,7 +138,7 @@ final class SeoController extends Controller {
         }
         $items = $linker->suggestions( 'all' === $status ? '' : $status, 500 );
         foreach ( $items as &$item ) {
-            $item = self::castInts( $item, [ 'id', 'source_post_id', 'target_id', 'applied_by', 'dismissed_by', 'revision_id' ] );
+            $item = self::castInts( $item, [ 'id', 'source_post_id', 'target_id', 'applied_by', 'dismissed_by', 'revision_id', 'restore_revision_id' ] );
             unset( $item['context_hash'] );
             $item['edit_url'] = $this->editLink( (int) $item['source_post_id'] );
         }

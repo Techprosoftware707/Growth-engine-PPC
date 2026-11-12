@@ -265,8 +265,8 @@ final class GrowthRunTest extends TestCase {
         $this->assertSame( GrowthRun::STATUS_CANCELLED, $after['status'] );
         $this->assertSame( 1, GrowthFakeJob::count( 'site_audit' ), 'the continuation is not drained after the cancel' );
         $this->assertSame( [ 'site_audit' ], GrowthFakeJob::order(), 'no later step runs' );
-        $this->assertSame( 0, $this->jobs()->count( [ 'type' => 'site_audit', 'status' => Jobs::STATUS_QUEUED ] ), 'the late continuation was cancelled too' );
-        $this->assertSame( 1, $this->jobs()->count( [ 'type' => 'site_audit', 'status' => Jobs::STATUS_CANCELLED ] ) );
+        $this->assertSame( 0, $this->jobs()->count( [ 'type' => 'site_audit', 'status' => Jobs::STATUS_QUEUED ] ), 'the late continuation is never queued' );
+        $this->assertSame( 0, $this->jobs()->count( [ 'type' => 'site_audit' ] ), 'a job of a cancelled run does not continue itself' );
         $this->assertSame( $state['id'], $after['id'] );
     }
 
@@ -370,7 +370,7 @@ final class GrowthRunTest extends TestCase {
         $audit = $this->step( $state, 'site_audit' );
         $this->assertSame( 8, $audit['rounds'] );
         $this->assertSame( 8, GrowthFakeJob::count( 'site_audit' ) );
-        $this->assertSame( 40, $audit['counts']['checked'], 'counts are summed over the rounds' );
+        $this->assertSame( 5, $audit['counts']['checked'], 'the audit reports a running total: the latest round\'s value is kept, not a sum' );
         $this->assertSame( 'done', $audit['status'] );
         $this->assertStringContainsString( 'scheduler continues it in the background', $audit['note'] );
 
@@ -379,6 +379,7 @@ final class GrowthRunTest extends TestCase {
 
         $discover = $this->step( $state, 'discover' );
         $this->assertSame( 2, $discover['rounds'], 'a continuation is drained until the job reports no more work' );
+        $this->assertSame( 10, $discover['counts']['checked'], 'per-round counts are summed over the rounds' );
         $this->assertSame( '', $discover['note'] );
 
         // The continuation left for the scheduler carries the run id (manual: it runs even with automation off).

@@ -90,7 +90,7 @@ final class OwnerTaskUiTest extends TestCase {
         $open = array_values( array_filter( $r['anchors'], static fn( array $a ): bool => 'Open submission page' === $a['text'] ) );
         $this->assertCount( 1, $open );
         $this->assertSame( 'https://www.rdworldonline.com/content-submission-guidelines-for-rd-world/', $open[0]['href'] );
-        foreach ( [ 'Tier 1', 'Authority 86', 'Outreach', 'Conditional', 'Storefront consistency', 'creates no outreach message or contact', 'editor@example.org', 'Mark submitted' ] as $needle ) {
+        foreach ( [ 'Tier 1', 'Authority 86', 'Outreach', 'Conditional', 'Storefront consistency', 'never drafts or sends outreach for this site', 'editor@example.org', 'Mark submitted' ] as $needle ) {
             $this->assertStringContainsString( $needle, (string) $r['text'] );
         }
         $this->assertSame( [ 'Copy listing kit', 'Mark submitted' ], $r['buttons'] );

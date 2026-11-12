@@ -97,20 +97,40 @@ export function limitsRemoved( changed ) {
     return out;
 }
 
+/**
+ * Label, tone and tooltip of an integration's health badge (exported for tests). An integration that is not set
+ * up says "Not configured" (the server's note on what is missing becomes the tooltip); "Error" is kept for a
+ * configured integration that reported a failure.
+ *
+ * @param {object|null} p Provider status from GET /settings `providers`.
+ * @return {{label:string, kind:string, title:string}}
+ */
+export function providerBadgeState( p ) {
+    if ( ! p || typeof p !== 'object' ) {
+        return { label: 'Unknown', kind: 'neutral', title: '' };
+    }
+    const note = p.error ? String( p.error ) : '';
+    if ( p.configured === false ) {
+        return { label: 'Not configured', kind: 'warning', title: note };
+    }
+    if ( note !== '' ) {
+        return { label: 'Error', kind: 'danger', title: note };
+    }
+    if ( p.configured && p.enabled !== false ) {
+        return { label: 'Ready', kind: 'success', title: '' };
+    }
+    if ( p.configured ) {
+        return { label: 'Disabled', kind: 'neutral', title: '' };
+    }
+    return { label: 'Not configured', kind: 'warning', title: '' };
+}
+
 function providerBadge( p ) {
     if ( ! p ) {
         return null;
     }
-    if ( p.error ) {
-        return badge( 'Error', 'danger', { dot: true, title: String( p.error ) } );
-    }
-    if ( p.configured && p.enabled !== false ) {
-        return badge( 'Ready', 'success', { dot: true } );
-    }
-    if ( p.configured ) {
-        return badge( 'Disabled', 'neutral', { dot: true } );
-    }
-    return badge( 'Not configured', 'warning', { dot: true } );
+    const st = providerBadgeState( p );
+    return badge( st.label, st.kind, { dot: true, title: st.title } );
 }
 
 export default async function render( root, ctx ) {

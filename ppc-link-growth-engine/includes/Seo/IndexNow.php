@@ -52,6 +52,9 @@ final class IndexNow {
     /** Wait after a refused submission (429 and other errors) before the scheduled stage tries again. */
     private const BACKOFF_SECONDS = 3600;
 
+    /** Longest wait honoured from a 429's Retry-After header. */
+    private const MAX_BACKOFF_SECONDS = 7 * 86400;
+
     private const TIMEOUT = 15;
 
     private const HISTORY_MAX = 20;
@@ -254,6 +257,8 @@ final class IndexNow {
             'tracked'           => count( (array) ( $state['urls'] ?? [] ) ),
             'initialized'       => ! empty( $state['initialized'] ),
             'retry_after'       => $retry > time() ? gmdate( 'c', $retry ) : null,
+            // True while the back-off follows an HTTP 429: "Submit now" waits as well.
+            'rate_limited'      => $retry > time() && self::rateLimited( $state ),
             'blocked_reason'    => $this->blockedReason(),
         ];
     }
@@ -318,8 +323,11 @@ final class IndexNow {
             return $this->outcome( false, true, 'blocked', 0, 0, 0, false, $blocked );
         }
         $state = $this->state();
-        if ( empty( $opts['force'] ) && (int) ( $state['retry_after'] ?? 0 ) > time() ) {
-            return $this->outcome( false, true, 'rate_limited', 0, 0, 0, false, sprintf( 'IndexNow asked us to slow down; the next submission waits until %s UTC.', gmdate( 'Y-m-d H:i', (int) $state['retry_after'] ) ) );
+        // During the back-off only an explicit click may retry, and never after a 429: the endpoint asked us to
+        // slow down, and every retry would send the whole URL list again.
+        $waiting = (int) ( $state['retry_after'] ?? 0 ) > time();
+        if ( $waiting && ( empty( $opts['force'] ) || self::rateLimited( $state ) ) ) {
+            return $this->outcome( false, true, 'rate_limited', 0, 0, count( $this->pending() ), false, sprintf( 'IndexNow asked us to slow down; the next submission waits until %s UTC.', gmdate( 'Y-m-d H:i', (int) $state['retry_after'] ) ) );
         }
         if ( ! $this->locks->acquire( self::LOCK, (int) ceil( $budget->remaining() ) + 60 ) ) {
             return $this->outcome( false, true, 'busy', 0, 0, 0, false, 'Another IndexNow submission is running.' );
@@ -411,6 +419,7 @@ final class IndexNow {
             $state['last_error']        = '';
             $state['submitted_total']   = (int) ( $state['submitted_total'] ?? 0 ) + count( $batch );
             $state['retry_after']       = 0;
+            $state['retry_reason']      = 0;
             $this->finishScan( $state, $full, $complete && count( $submit ) === count( $batch ) );
             $this->pushHistory( $state, count( $batch ), $status, '' );
             $this->saveState( $state );
@@ -444,9 +453,15 @@ final class IndexNow {
         $message = null === $resp
             ? 'The IndexNow request failed: ' . ( '' !== $err ? $err : 'unknown error' ) . '.'
             : ( null !== $resp->error && 0 === $status ? 'The IndexNow request failed: ' . $resp->error . '.' : $this->errorMessage( $status, $host, $this->keyUrl( $key ) ) );
-        // Never hammer the endpoint: the scheduled stage waits an hour after any refusal ("Submit now" may retry sooner).
-        $state['retry_after'] = time() + self::BACKOFF_SECONDS;
-        $state['last_error'] = $message;
+        // Never hammer the endpoint: the scheduled stage waits an hour after any refusal ("Submit now" may retry
+        // sooner, except after a 429). A 429's Retry-After is honoured when it asks for longer (at most a week).
+        $wait = self::BACKOFF_SECONDS;
+        if ( 429 === $status && null !== $resp ) {
+            $wait = max( self::BACKOFF_SECONDS, min( self::MAX_BACKOFF_SECONDS, self::retryAfterSeconds( $resp->header( 'retry-after' ) ) ) );
+        }
+        $state['retry_after']  = time() + $wait;
+        $state['retry_reason'] = $status;
+        $state['last_error']   = $message;
         $this->pushHistory( $state, count( $batch ), $status, $message );
         $this->saveState( $state );
         $ids = [];
@@ -460,12 +475,30 @@ final class IndexNow {
         return $this->outcome( false, false, 'http_' . $status, count( $candidates ), 0, count( $this->pending() ), false, $message );
     }
 
+    /** Whether the stored back-off comes from an HTTP 429 (the endpoint asked us to slow down). @param array<string,mixed> $state */
+    private static function rateLimited( array $state ): bool {
+        return 429 === (int) ( $state['retry_reason'] ?? 0 ) || 429 === (int) ( $state['last_status'] ?? 0 );
+    }
+
+    /** Seconds a Retry-After header asks for (delta-seconds or an HTTP date); 0 when absent or invalid. */
+    private static function retryAfterSeconds( string $value ): int {
+        $value = trim( $value );
+        if ( '' === $value ) {
+            return 0;
+        }
+        if ( ctype_digit( $value ) ) {
+            return (int) min( (float) $value, (float) PHP_INT_MAX );
+        }
+        $at = strtotime( $value );
+        return false !== $at && $at > time() ? $at - time() : 0;
+    }
+
     private function errorMessage( int $status, string $host, string $keyUrl ): string {
         return match ( $status ) {
             400 => 'IndexNow rejected the request as invalid (HTTP 400). The URLs stay queued.',
             403 => sprintf( 'IndexNow could not verify the key (HTTP 403). Check that %s opens and shows only the key. The URLs stay queued.', $keyUrl ),
             422 => sprintf( 'IndexNow refused the URLs (HTTP 422): every URL must belong to %s and match the key location. The URLs stay queued.', $host ),
-            429 => 'IndexNow asked us to slow down (HTTP 429). The URLs stay queued and the next submission waits at least an hour.',
+            429 => 'IndexNow asked us to slow down (HTTP 429). The URLs stay queued and the next submission waits at least an hour (longer when IndexNow asks for longer); "Submit now" waits too.',
             default => sprintf( 'IndexNow answered HTTP %d. The URLs stay queued for the next run.', $status ),
         };
     }

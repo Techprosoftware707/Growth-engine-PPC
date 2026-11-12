@@ -31,6 +31,9 @@ final class Pipeline {
     public const OPTION_LAST_TICK  = 'ppclg_last_tick';
     public const OPTION_STAGE_RUNS = 'ppclg_stage_runs';
 
+    /** Who had the last tick that both a background growth run and due queued jobs wanted: 'growth' | 'queue'. */
+    public const OPTION_GROWTH_TURN = 'ppclg_growth_turn';
+
     /** Per-stage automation flags exposed in status(). */
     public const FLAGS = [ 'discovery', 'evaluation', 'opportunities', 'packaging', 'submissions', 'outreach_autosend', 'monitoring', 'imports' ];
 
@@ -70,14 +73,26 @@ final class Pipeline {
         }
 
         // A growth run is the owner's explicit click, so it continues even while the automation switch is off. It
-        // shares the tick's budget with the queue run below, so one tick never runs longer than the ceiling.
-        $budget        = TimeBudget::seconds( $this->maxSeconds() );
-        $out['growth'] = $this->continueGrowthRun( $budget );
+        // shares the tick's budget with the queue run below, so one tick never runs longer than the ceiling. An
+        // advance uses nearly all of that budget, so while other jobs are due the run and the queue take turns:
+        // after a tick that advanced the run, the next one gives the queue (sends, follow-ups, monitoring) a full
+        // budget, and the run continues on the tick after that.
+        $automation = (bool) $this->settings->get( 'automation.enabled', false );
+        $budget     = TimeBudget::seconds( $this->maxSeconds() );
+        if ( $this->queueTurn( $automation ) ) {
+            $out['growth']      = null;
+            $out['growth_turn'] = 'queue';
+        } else {
+            $out['growth'] = $this->continueGrowthRun( $budget );
+            if ( null !== $out['growth'] && ! empty( $out['growth']['advanced'] ) ) {
+                $this->setTurn( 'growth' );
+            }
+        }
         if ( null === $out['growth'] ) {
             $budget = null; // nothing ran: the queue gets a fresh, full budget (created when it starts)
         }
 
-        if ( (bool) $this->settings->get( 'automation.enabled', false ) ) {
+        if ( $automation ) {
             $out['enqueued'] = $this->enqueueDueStages();
         } else {
             $out['skipped_reason'] = 'automation_disabled';
@@ -230,6 +245,43 @@ final class Pipeline {
     // ------------------------------------------------------------------
     // Internals
     // ------------------------------------------------------------------
+
+    /**
+     * True when this tick belongs to the queue: the previous tick advanced a background growth run and queued jobs
+     * that this tick would run are due (any due job with automation on, manual ones with automation off).
+     */
+    private function queueTurn( bool $automation ): bool {
+        if ( 'growth' !== get_option( self::OPTION_GROWTH_TURN, '' ) ) {
+            return false;
+        }
+        $this->setTurn( 'queue' );
+        return $this->hasDueQueued( ! $automation );
+    }
+
+    private function setTurn( string $turn ): void {
+        if ( get_option( self::OPTION_GROWTH_TURN, '' ) !== $turn ) {
+            update_option( self::OPTION_GROWTH_TURN, $turn, false );
+        }
+    }
+
+    /** Whether a queued job is due now (only manual ones when $manualOnly). */
+    private function hasDueQueued( bool $manualOnly ): bool {
+        try {
+            $now = gmdate( 'Y-m-d H:i:s' );
+            foreach ( $this->jobs->findBy( [ 'status' => Jobs::STATUS_QUEUED ], 'scheduled_at', 'ASC', 200 ) as $job ) {
+                if ( (string) ( $job['scheduled_at'] ?? '' ) > $now ) {
+                    continue;
+                }
+                $payload = is_array( $job['payload'] ?? null ) ? $job['payload'] : [];
+                if ( ! $manualOnly || ! empty( $payload['manual'] ) ) {
+                    return true;
+                }
+            }
+        } catch ( Throwable $e ) {
+            unset( $e );
+        }
+        return false;
+    }
 
     /**
      * Advances an active growth run (Growth\GrowthRun) with this tick's budget when nobody advanced it for more

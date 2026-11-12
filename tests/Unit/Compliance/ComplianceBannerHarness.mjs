@@ -109,15 +109,23 @@ globalThis.document = {
     createTextNode: ( t ) => new FakeText( t ),
     createDocumentFragment: () => Object.assign( new FakeElement( '#fragment' ), { isFragment: true } ),
     querySelector: () => null,
+    // Enough for ui.js confirm()/modal(): focus handling is skipped (no requestAnimationFrame callbacks run).
+    activeElement: null,
+    addEventListener() {},
+    removeEventListener() {},
 };
 globalThis.window = { location: { href: 'https://shop.example/wp-admin/admin.php?page=ppclg', origin: 'https://shop.example' } };
+globalThis.requestAnimationFrame = () => 0;
 
 const requests = [];
 let reply = { status: 200, body: {} };
+/** Replies used in order before `reply` (one per request). */
+let replyQueue = [];
 globalThis.fetch = async ( url, init ) => {
     requests.push( { url: String( url ), method: init.method, body: init.body ? JSON.parse( init.body ) : null } );
-    const text = JSON.stringify( reply.body );
-    return { ok: reply.status >= 200 && reply.status < 300, status: reply.status, text: async () => text };
+    const r = replyQueue.length ? replyQueue.shift() : reply;
+    const text = JSON.stringify( r.body );
+    return { ok: r.status >= 200 && r.status < 300, status: r.status, text: async () => text };
 };
 
 const pluginDir = path.resolve( process.argv[ 2 ] || '.' );
@@ -167,6 +175,10 @@ out.models = {
     unknown: mod.bannerModel( { effective: 'unknown', counts: { block: 0, warn: 0 } } ),
     failed: mod.bannerModel( { effective: 'unknown', blocking: true, error: 'The storefront check could not run: boom' } ),
     missing: mod.bannerModel( null ),
+    // An older stored pass whose refresh failed: the gate fails closed, so the banner must say automation is paused.
+    stalePassFailed: mod.bannerModel( { effective: 'pass', status: 'pass', blocking: true, error: 'x' } ),
+    acknowledgedFailed: mod.bannerModel( { effective: 'acknowledged', status: 'block', blocking: true, error: '' } ),
+    passErrorGateOff: mod.bannerModel( { effective: 'pass', status: 'pass', blocking: false, gate: false, error: 'The storefront check could not run: boom' } ),
 };
 
 // Pass / acknowledged empty the container.
@@ -201,6 +213,43 @@ out.recheckRequest = requests[ requests.length - 1 ];
 out.recheckCallback = rechecked ? rechecked.effective : null;
 out.afterRecheckChildren = host.childNodes.length;
 out.toasts = toasts();
+
+// Acknowledge refused with 409 (the findings changed meanwhile): the banner reloads the current findings, so the
+// next acknowledgement sends the current hash instead of the stale one.
+{
+    const changed = { ...blocking, hash: 'b'.repeat( 40 ), counts: { block: 1, warn: 0 }, total: 1, findings: [ finding( { object_id: 99, term: 'capsules', label: 'Renamed Product Capsules' } ) ] };
+    const ackHost = new FakeElement( 'div' );
+    render( ackHost, blocking );
+    const before = requests.length;
+    replyQueue = [
+        { status: 409, body: { code: 'ppclg_findings_changed', message: 'The storefront findings changed since you loaded them. Review the current findings and acknowledge again.', data: { status: 409 } } },
+        { status: 200, body: changed },
+    ];
+    const pending = buttons( ackHost ).find( ( b ) => b.textContent.includes( 'Acknowledge these findings' ) ).click();
+    await new Promise( ( r ) => setTimeout( r, 5 ) );
+    const confirmButton = buttons( body ).find( ( b ) => b.textContent === 'Acknowledge' );
+    out.ackConfirmFound = Boolean( confirmButton );
+    if ( confirmButton ) {
+        await confirmButton.click();
+    }
+    await pending;
+    out.ackRequests = requests.slice( before ).map( ( r ) => `${ r.method } ${ r.url.replace( /^.*?(\/compliance\/)/, '$1' ).replace( /\?.*$/, '' ) }` );
+    out.ackSentHash = requests[ before ] && requests[ before ].body ? requests[ before ].body.hash : null;
+    out.ackShowsCurrentFindings = ackHost.textContent.includes( 'Renamed Product Capsules' ) && ! ackHost.textContent.includes( 'Anti-Aging & Cellular' );
+    out.ackToast = toasts().filter( ( t ) => t.text.includes( 'findings changed' ) ).pop() || null;
+
+    // The next acknowledgement covers the reloaded findings (their hash).
+    replyQueue = [ { status: 200, body: { ...changed, effective: 'acknowledged', ok: true, message: 'Findings acknowledged.' } } ];
+    const second = requests.length;
+    const pending2 = buttons( ackHost ).find( ( b ) => b.textContent.includes( 'Acknowledge these findings' ) ).click();
+    await new Promise( ( r ) => setTimeout( r, 5 ) );
+    const confirm2 = buttons( body ).find( ( b ) => b.textContent === 'Acknowledge' );
+    if ( confirm2 ) {
+        await confirm2.click();
+    }
+    await pending2;
+    out.secondAckHash = requests[ second ] && requests[ second ].body ? requests[ second ].body.hash : null;
+}
 
 // Toast timers would keep node alive for seconds: exit once the output is flushed.
 process.stdout.write( JSON.stringify( out ), () => process.exit( 0 ) );

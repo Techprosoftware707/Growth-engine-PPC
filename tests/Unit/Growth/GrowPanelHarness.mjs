@@ -95,6 +95,17 @@ class FakeElement extends FakeNode {
     set innerHTML( v ) {
         throw new Error( 'innerHTML must not be used' );
     }
+    focus() {
+        document.activeElement = this;
+    }
+    get isConnected() {
+        // Attached (through its parents) to the body or to a panel node the harness keeps.
+        let n = this;
+        while ( n.parentNode ) {
+            n = n.parentNode;
+        }
+        return n === body || roots.has( n );
+    }
     async click() {
         const event = { preventDefault() {}, stopImmediatePropagation() {}, currentTarget: this };
         for ( const fn of this.listeners.click || [] ) {
@@ -104,9 +115,12 @@ class FakeElement extends FakeNode {
 }
 
 globalThis.Node = FakeNode;
+/** Panel nodes created by the harness count as connected (they stand for the overview page). */
+const roots = new Set();
 const body = new FakeElement( 'body' );
 globalThis.document = {
     body,
+    activeElement: null,
     createElement: ( t ) => new FakeElement( t ),
     createElementNS: ( ns, t ) => new FakeElement( t ),
     createTextNode: ( t ) => new FakeText( t ),
@@ -115,7 +129,12 @@ globalThis.document = {
     addEventListener() {},
     removeEventListener() {},
 };
-globalThis.window = { location: { href: 'https://shop.example/wp-admin/admin.php?page=ppclg', origin: 'https://shop.example' }, addEventListener() {}, removeEventListener() {} };
+let reloads = 0;
+globalThis.window = { location: { href: 'https://shop.example/wp-admin/admin.php?page=ppclg', origin: 'https://shop.example', reload: () => {
+    reloads++;
+} }, addEventListener() {}, removeEventListener() {} };
+// ui.js modal(): the focus callback is not needed here.
+globalThis.requestAnimationFrame = () => 0;
 
 // ---------------------------------------------------------------- scripted fetch
 const requests = [];
@@ -127,6 +146,9 @@ globalThis.fetch = async ( url, init ) => {
     requests.push( key );
     const queue = routes[ key ] || [];
     const reply = queue.length > 1 ? queue.shift() : ( queue[ 0 ] || { status: 404, body: { code: 'rest_no_route', message: '' } } );
+    if ( reply.networkError ) {
+        throw new TypeError( 'Failed to fetch' );
+    }
     const text = JSON.stringify( reply.body );
     return { ok: reply.status >= 200 && reply.status < 300, status: reply.status, text: async () => text };
 };
@@ -163,8 +185,14 @@ const until = async ( pred, ms = 3000 ) => {
     return false;
 };
 
+const panelOf = ( panel ) => {
+    roots.add( panel.node );
+    return panel;
+};
+const attrsOf = ( node, pred ) => find( node, pred ).map( ( n ) => ( { ...n.attributes } ) );
+
 const ctx = {
-    config: { pageUrls: { submissions: 'https://shop.example/wp-admin/admin.php?page=ppclg-submissions', settings: 'https://shop.example/wp-admin/admin.php?page=ppclg-settings', outreach: 'https://shop.example/wp-admin/admin.php?page=ppclg-outreach' } },
+    config: { pageUrls: { submissions: 'https://shop.example/wp-admin/admin.php?page=ppclg-submissions', settings: 'https://shop.example/wp-admin/admin.php?page=ppclg-settings', outreach: 'https://shop.example/wp-admin/admin.php?page=ppclg-outreach', logs: 'https://shop.example/wp-admin/admin.php?page=ppclg-logs' } },
     pageUrl( page, params ) {
         const hash = Object.entries( params || {} ).map( ( [ k, v ] ) => `${ k }=${ encodeURIComponent( v ) }` ).join( '&' );
         return ( this.config.pageUrls[ page ] || '#' ) + ( hash ? `#${ hash }` : '' );
@@ -252,7 +280,9 @@ const fast = { pollDelay: 1, waitDelay: 1, retryDelay: 1 };
     out.retry = {
         stepCallsBeforeResume: stepCalls,
         buttons: buttonLabels( panel.node ),
-        lostContact: text.includes( 'Lost contact with the server' ) && text.includes( 'Bad gateway' ),
+        lostContact: text.includes( 'Lost contact with the server' ),
+        serverError: text.includes( 'The server reported an error' ) && text.includes( 'Bad gateway' ) && text.includes( 'Details are in Logs' ),
+        logsLink: links( panel.node ).some( ( a ) => a.href === 'https://shop.example/wp-admin/admin.php?page=ppclg-logs' ),
     };
     await buttonByLabel( panel.node, 'Resume' ).click();
     await until( () => ! panel.isBusy() && panel.node.textContent.includes( 'What happened' ) );
@@ -275,7 +305,9 @@ const fast = { pollDelay: 1, waitDelay: 1, retryDelay: 1 };
     await until( () => ! panel.isBusy() && panel.node.textContent.includes( 'What happened' ) );
     out.start = {
         idleButtons,
-        explains: idleText.includes( 'never buys or hides links' ) && idleText.includes( 'never emails anyone without your approval' ) && idleText.includes( 'never edits your site content unless you click Apply' ),
+        explains: idleText.includes( 'never buys or hides links' ) && idleText.includes( 'never edits your site content unless you click Apply' ),
+        promisesApproval: /needs your approval|never emails anyone without your approval|approved submissions/.test( idleText ),
+        neutralPolicy: idleText.includes( 'follows your Automation and Outreach settings' ),
         requests: [ ...requests ],
     };
 
@@ -309,6 +341,180 @@ const fast = { pollDelay: 1, waitDelay: 1, retryDelay: 1 };
         blockShown: hostBlock.textContent.length > 0,
         legal: /legal decision/i.test( hostBlock.textContent ),
     };
+}
+
+// 5. Error kinds: no answer at all, an expired session (no retries, only "Reload the page") and Stop from the
+//    error view (the run still runs on the server).
+{
+    requests.length = 0;
+    routes = {
+        'GET /growth/status': [ { status: 200, body: running( [ 'done' ] ) } ],
+        'POST /growth/step': [ { networkError: true } ],
+    };
+    const panel = panelOf( mod.createGrowPanel( ctx, fast ) );
+    await panel.ready;
+    await until( () => ! panel.isBusy() && buttonLabels( panel.node ).includes( 'Resume' ) );
+    out.network = { buttons: buttonLabels( panel.node ), lostContact: panel.node.textContent.includes( 'Lost contact with the server' ) };
+}
+{
+    requests.length = 0;
+    routes = {
+        'GET /growth/status': [ { status: 200, body: running( [ 'done' ] ) } ],
+        'POST /growth/step': [ { status: 403, body: { code: 'rest_cookie_invalid_nonce', message: 'Cookie check failed', data: { status: 403 } } } ],
+    };
+    const panel = panelOf( mod.createGrowPanel( ctx, fast ) );
+    await panel.ready;
+    await until( () => ! panel.isBusy() && buttonLabels( panel.node ).length > 0 && ! buttonLabels( panel.node ).includes( 'Stop' ) );
+    const text = panel.node.textContent;
+    const before = reloads;
+    const reload = buttonByLabel( panel.node, 'Reload the page' );
+    if ( reload ) {
+        await reload.click();
+    }
+    out.session = {
+        stepCalls: requests.filter( ( r ) => r === 'POST /growth/step' ).length,
+        buttons: buttonLabels( panel.node ),
+        expired: text.includes( 'Your session expired' ),
+        lostContact: text.includes( 'Lost contact with the server' ),
+        reloaded: reloads - before,
+    };
+}
+{
+    requests.length = 0;
+    routes = {
+        'GET /growth/status': [ { status: 200, body: running( [ 'done' ] ) } ],
+        'POST /growth/step': [ { status: 500, body: { code: 'internal_server_error', message: 'Critical error', data: { status: 500 } } } ],
+        'POST /growth/cancel': [ { status: 200, body: { ...running( [ 'done', 'skipped' ] ), status: 'cancelled', finished_at: new Date().toISOString(), ok: true, message: 'Growth run stopped. Work already done is kept.', cancelled_jobs: 0 } } ],
+    };
+    const panel = panelOf( mod.createGrowPanel( ctx, fast ) );
+    await panel.ready;
+    await until( () => ! panel.isBusy() && buttonLabels( panel.node ).includes( 'Resume' ) );
+    const errorButtons = buttonLabels( panel.node );
+    const pending = buttonByLabel( panel.node, 'Stop' ).click();
+    await new Promise( ( r ) => setTimeout( r, 5 ) );
+    const confirmStop = find( body, ( n ) => n.tagName === 'BUTTON' && n.textContent.trim() === 'Stop run' )[ 0 ];
+    if ( confirmStop ) {
+        await confirmStop.click();
+    }
+    await pending;
+    const text = panel.node.textContent;
+    out.stopFromError = {
+        errorButtons,
+        confirmShown: Boolean( confirmStop ),
+        cancelled: requests.includes( 'POST /growth/cancel' ),
+        buttons: buttonLabels( panel.node ),
+        errorGone: ! text.includes( 'The server reported an error' ) && ! text.includes( 'Lost contact with the server' ),
+        stopped: text.includes( 'Stopped' ),
+    };
+}
+
+// 6. Accessibility while polling: named progress bar, one persistent live region, focus kept on Stop.
+{
+    requests.length = 0;
+    const gates = {};
+    const held = ( n ) => {
+        gates[ n ] = {};
+        gates[ n ].promise = new Promise( ( r ) => {
+            gates[ n ].release = r;
+        } );
+    };
+    held( 2 );
+    held( 3 );
+    let calls = 0;
+    routes = {
+        'GET /growth/status': [ { status: 200, body: running( [ 'done', 'running' ] ) } ],
+        'POST /growth/step': [
+            { status: 200, body: { ...running( [ 'done', 'running' ] ), ok: true } },
+            { status: 200, body: { ...running( [ 'done', 'done', 'running' ] ), ok: true } },
+            { status: 200, body: completed },
+        ],
+    };
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = async ( url, init ) => {
+        if ( String( url ).includes( '/growth/step' ) ) {
+            calls++;
+            if ( gates[ calls ] ) {
+                await gates[ calls ].promise; // hold this step answer until the harness has looked
+            }
+        }
+        return realFetch( url, init );
+    };
+    const isLive = ( n ) => n.attributes && n.attributes.role === 'status' && n.attributes[ 'aria-live' ] === 'polite' && String( n.className ).includes( 'ppclg-sr-only' );
+    const panel = panelOf( mod.createGrowPanel( ctx, { ...fast, pollDelay: 1 } ) );
+    await panel.ready;
+    await until( () => calls >= 2 );
+    const liveBefore = find( panel.node, isLive );
+    const liveTextBefore = liveBefore.length ? liveBefore[ 0 ].textContent : null;
+    const bars = attrsOf( panel.node, ( n ) => n.attributes && n.attributes.role === 'progressbar' );
+    const stop = buttonByLabel( panel.node, 'Stop' );
+    stop.focus();
+    gates[ 2 ].release();
+    await until( () => calls >= 3 ); // the second answer was drawn
+    const active = document.activeElement;
+    const liveMid = find( panel.node, isLive );
+    out.a11y = {
+        progressbar: bars[ 0 ] || null,
+        liveCount: liveMid.length,
+        liveSameNode: liveBefore.length === 1 && liveMid[ 0 ] === liveBefore[ 0 ],
+        liveTextBefore,
+        liveTextAfter: liveMid.length ? liveMid[ 0 ].textContent : null,
+        stepsListLive: find( panel.node, ( n ) => n.tagName === 'OL' && n.attributes[ 'aria-live' ] ).length,
+        stopRedrawn: active !== stop && ! stop.isConnected,
+        focusOnStop: Boolean( active && active.tagName === 'BUTTON' && active.textContent.trim() === 'Stop' && active.isConnected ),
+    };
+    gates[ 3 ].release();
+    await until( () => ! panel.isBusy() );
+    const done = document.activeElement;
+    out.a11y.focusAfterFinish = done && done.tagName === 'BUTTON' && done.isConnected ? done.textContent.trim() : null;
+    out.a11y.liveTextFinished = find( panel.node, isLive ).map( ( n ) => n.textContent )[ 0 ] || null;
+    globalThis.fetch = realFetch;
+}
+
+// 7. The subtitle states what the run may send on its own, from the current settings.
+{
+    const policy = ( over ) => ( { submissions: true, submission_mode: 'auto', outreach_autosend: false, require_approval: true, ...over } );
+    out.policy = {
+        auto: mod.growPolicyText( policy( {} ) ),
+        autosend: mod.growPolicyText( policy( { outreach_autosend: true, require_approval: false } ) ),
+        autosendWithApproval: mod.growPolicyText( policy( { outreach_autosend: true, require_approval: true } ) ),
+        off: mod.growPolicyText( policy( { submissions: false } ) ),
+        authorizedOnly: mod.growPolicyText( policy( { submission_mode: 'authorized_only' } ) ),
+        unknown: mod.growPolicyText( null ),
+    };
+    requests.length = 0;
+    routes = {
+        'GET /growth/status': [ { status: 200, body: { id: '', status: 'idle', steps: steps( [] ), summary: {}, next_actions: [], policy: policy( {} ) } } ],
+    };
+    const panel = mod.createGrowPanel( ctx, fast );
+    await panel.ready;
+    out.policy.rendered = panel.node.textContent.includes( 'Listings to sites that pass every safety check are submitted automatically' );
+}
+
+// 8. Headline numbers never show 0 for a site audit that did not run; a partial audit says so.
+{
+    const withAudit = ( audit ) => ( { ...completed, summary: { ...completed.summary, site_audit: audit } } );
+    const render = async ( audit ) => {
+        routes = { 'GET /growth/status': [ { status: 200, body: withAudit( audit ) } ] };
+        const panel = mod.createGrowPanel( ctx, fast );
+        await panel.ready;
+        return panel.node.textContent;
+    };
+    const none = await render( { checked_at: null, pages: 0, complete: false, running: false, high: null, medium: null, low: null, issues_total: null } );
+    const partial = await render( { checked_at: '2026-11-12T10:00:00+00:00', pages: 40, complete: false, running: true, high: 2, medium: 1, low: 0, issues_total: 3 } );
+    out.audit = {
+        notRunYet: none.includes( 'not run yet' ),
+        noZero: ! /High-priority SEO issues0/.test( none ),
+        partial: partial.includes( '3 issues in total (partial)' ),
+    };
+}
+
+// 9. The fallback banner shows a check that could not run even when the last stored result passed.
+{
+    const host = document.createElement( 'div' );
+    mod.fallbackComplianceBanner( host, { effective: 'pass', status: 'pass', blocking: true, error: 'x' } );
+    const hostPass = document.createElement( 'div' );
+    mod.fallbackComplianceBanner( hostPass, { effective: 'pass', status: 'pass', blocking: false, error: '' } );
+    out.fallback = { paused: host.textContent.includes( 'paused' ) && host.textContent.includes( 'x' ), passEmpty: hostPass.childNodes.length === 0 };
 }
 
 process.stdout.write( JSON.stringify( out ) );
