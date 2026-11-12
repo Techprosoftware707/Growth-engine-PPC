@@ -26,6 +26,7 @@ use PPC\LinkGrowth\Automation\Audit;
 use PPC\LinkGrowth\Automation\JobRunner;
 use PPC\LinkGrowth\Automation\Pipeline;
 use PPC\LinkGrowth\Automation\Scheduler;
+use PPC\LinkGrowth\Compliance\StorefrontAudit;
 use PPC\LinkGrowth\Content\ClaimsFilter;
 use PPC\LinkGrowth\Content\ContentGenerator;
 use PPC\LinkGrowth\Content\FactsRegistry;
@@ -42,6 +43,8 @@ use PPC\LinkGrowth\Discovery\MentionFinder;
 use PPC\LinkGrowth\Discovery\ProspectIntake;
 use PPC\LinkGrowth\Discovery\QueryGenerator;
 use PPC\LinkGrowth\Discovery\SeedCatalog;
+use PPC\LinkGrowth\Discovery\VerifiedOpportunities;
+use PPC\LinkGrowth\Growth\GrowthRun;
 use PPC\LinkGrowth\Integrations\ClaudeWriter;
 use PPC\LinkGrowth\Integrations\Google\Analytics4;
 use PPC\LinkGrowth\Integrations\Google\SearchConsole;
@@ -76,6 +79,9 @@ use PPC\LinkGrowth\Repositories\SearchLog;
 use PPC\LinkGrowth\Repositories\Submissions;
 use PPC\LinkGrowth\Repositories\Suppression;
 use PPC\LinkGrowth\Scoring\ScoringEngine;
+use PPC\LinkGrowth\Seo\IndexNow;
+use PPC\LinkGrowth\Seo\InternalLinker;
+use PPC\LinkGrowth\Seo\SiteAuditor;
 use PPC\LinkGrowth\Submission\AdapterRegistry;
 use PPC\LinkGrowth\Submission\ListingVerifier;
 use PPC\LinkGrowth\Submission\PackageBuilder;
@@ -143,6 +149,20 @@ final class Plugin {
         // Background automation.
         $this->get( Scheduler::class )->register();
 
+        // Storefront compliance: mark the preflight stale when products, product categories/tags, pages/posts or nav
+        // menus change (outside is_admin(): products are also saved through REST and the WooCommerce API).
+        try {
+            $this->get( StorefrontAudit::class )->register();
+        } catch ( \Throwable $e ) {
+            unset( $e ); // The gate fails closed on its own when the audit cannot run; never break the boot.
+        }
+
+        // IndexNow: serve the key file on front-end requests (as early as possible) and track changed URLs. Each
+        // callback resolves the service only when needed and never throws.
+        add_action( 'parse_request', [ $this, 'maybeServeIndexNowKey' ], 0 );
+        add_action( 'transition_post_status', [ $this, 'onPostTransition' ], 10, 3 );
+        add_action( 'save_post', [ $this, 'onSavePost' ], 20, 3 );
+
         if ( is_admin() ) {
             $this->get( Menu::class )->register();
             $this->get( Assets::class )->register();
@@ -155,6 +175,43 @@ final class Plugin {
          * @param Plugin $plugin
          */
         do_action( 'ppclg_booted', $this );
+    }
+
+    /**
+     * `parse_request` (priority 0): answers GET/HEAD /{indexnow-key}.txt with the key and ends the request.
+     * Every other request is left alone; the service is resolved only for paths that look like a key file.
+     */
+    public function maybeServeIndexNowKey( mixed $wp = null ): void {
+        try {
+            // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- only matched against a strict pattern.
+            $uri = isset( $_SERVER['REQUEST_URI'] ) ? (string) wp_unslash( (string) $_SERVER['REQUEST_URI'] ) : '';
+            if ( IndexNow::looksLikeKeyRequest( $uri ) ) {
+                $this->get( IndexNow::class )->serveKey( $wp );
+            }
+        } catch ( \Throwable $e ) {
+            unset( $e );
+        }
+    }
+
+    /** `transition_post_status`: queue a newly published / updated public URL for IndexNow. */
+    public function onPostTransition( mixed $new = '', mixed $old = '', mixed $post = null ): void {
+        if ( 'publish' !== $new ) {
+            return; // only published items are submitted (fires for every status change, autosaves included)
+        }
+        try {
+            $this->get( IndexNow::class )->onTransition( $new, $old, $post );
+        } catch ( \Throwable $e ) {
+            unset( $e );
+        }
+    }
+
+    /** `save_post` (priority 20): queue the saved URL for IndexNow when it is published. */
+    public function onSavePost( mixed $postId = 0, mixed $post = null, mixed $update = null ): void {
+        try {
+            $this->get( IndexNow::class )->onSavePost( $postId, $post, $update );
+        } catch ( \Throwable $e ) {
+            unset( $e );
+        }
     }
 
     private function registerServices(): void {
@@ -224,6 +281,11 @@ final class Plugin {
         $c->singleton( LinkableAssets::class, static fn( Container $c ) => new LinkableAssets( $c->get( Settings::class ), $c->get( Taxonomy::class ) ) );
         $c->singleton( ContentGenerator::class, static fn( Container $c ) => new ContentGenerator( $c->get( FactsRegistry::class ), $c->get( ClaimsFilter::class ), $c->get( Settings::class ), $c->get( ClaudeWriter::class ), $c->get( Logger::class ) ) );
 
+        // --- Compliance ----------------------------------------------------
+        // Storefront preflight. Submission\Policy and Outreach\OutreachEngine resolve it lazily (and fail closed when
+        // it cannot be built), so a broken audit never stops those services from being constructed.
+        $c->singleton( StorefrontAudit::class, static fn( Container $c ) => new StorefrontAudit( $c->get( Settings::class ), $c->get( Logger::class ), $c->get( ClaimsFilter::class ), $c->get( AuditLog::class ) ) );
+
         // --- Discovery -----------------------------------------------------
         $c->singleton( DomainFilter::class, static fn( Container $c ) => new DomainFilter( $c->get( Settings::class ), $c->get( Suppression::class ) ) );
         $c->singleton( Classifier::class, static fn( Container $c ) => new Classifier( $c->get( Taxonomy::class ) ) );
@@ -234,6 +296,7 @@ final class Plugin {
         $c->singleton( MentionFinder::class, static fn( Container $c ) => new MentionFinder( $c->get( ProviderRegistry::class ), $c->get( Client::class ), $c->get( PageAnalyzer::class ), $c->get( Settings::class ), $c->get( ProspectIntake::class ), $c->get( SearchLog::class ), $c->get( Logger::class ) ) );
         $c->singleton( BrokenLinkFinder::class, static fn( Container $c ) => new BrokenLinkFinder( $c->get( Client::class ), $c->get( PageAnalyzer::class ), $c->get( Taxonomy::class ), $c->get( LinkableAssets::class ), $c->get( Opportunities::class ), $c->get( Logger::class ) ) );
         $c->singleton( DiscoveryEngine::class, static fn( Container $c ) => new DiscoveryEngine( $c->get( ProviderRegistry::class ), $c->get( QueryGenerator::class ), $c->get( SeedCatalog::class ), $c->get( ProspectIntake::class ), $c->get( CompetitorBacklinkSource::class ), $c->get( SearchLog::class ), $c->get( Limits::class ), $c->get( Settings::class ), $c->get( Logger::class ) ) );
+        $c->singleton( VerifiedOpportunities::class, static fn( Container $c ) => new VerifiedOpportunities( $c->get( ProspectIntake::class ), $c->get( Prospects::class ), $c->get( Opportunities::class ), $c->get( Submissions::class ), $c->get( ClaimsFilter::class ), $c->get( AuditLog::class ), $c->get( Logger::class ), $c->get( ContentGenerator::class ), $c->get( Locks::class ) ) );
 
         // --- Submission ----------------------------------------------------
         $c->singleton( PackageBuilder::class, static fn( Container $c ) => new PackageBuilder( $c->get( Settings::class ), $c->get( ContentGenerator::class ), $c->get( FactsRegistry::class ), $c->get( LinkableAssets::class ) ) );
@@ -262,6 +325,16 @@ final class Plugin {
         $c->singleton( JobRunner::class, static fn( Container $c ) => new JobRunner( $c, $c->get( Jobs::class ), $c->get( Locks::class ), $c->get( Settings::class ), $c->get( Logger::class ), $c->get( AuditLog::class ) ) );
         $c->singleton( Pipeline::class, static fn( Container $c ) => new Pipeline( $c->get( Jobs::class ), $c->get( JobRunner::class ), $c->get( Settings::class ), $c->get( Limits::class ), $c->get( Logger::class ) ) );
         $c->singleton( Scheduler::class, static fn( Container $c ) => new Scheduler( $c->get( Pipeline::class ), $c->get( Settings::class ), $c->get( Logger::class ) ) );
+
+        // --- On-site SEO ---------------------------------------------------
+        // The audit and the link suggestions only read content; links are applied only by an admin's Apply click.
+        $c->singleton( SiteAuditor::class, static fn( Container $c ) => new SiteAuditor( $c->get( Settings::class ), $c->get( Logger::class ), $c->get( Locks::class ), $c->get( Client::class ) ) );
+        $c->singleton( IndexNow::class, static fn( Container $c ) => new IndexNow( $c->get( Settings::class ), $c->get( Logger::class ), $c->get( Client::class ), $c->get( Locks::class ), $c->get( Audit::class ) ) );
+        $c->singleton( InternalLinker::class, static fn( Container $c ) => new InternalLinker( $c->get( Settings::class ), $c->get( Logger::class ), $c->get( Locks::class ), $c->get( Audit::class ) ) );
+
+        // --- Growth run ----------------------------------------------------
+        // Resolves JobRunner, Scheduler and the other services lazily (Pipeline -> GrowthRun -> Scheduler -> Pipeline).
+        $c->singleton( GrowthRun::class, static fn( Container $c ) => new GrowthRun( $c ) );
 
         // --- Admin ---------------------------------------------------------
         $c->singleton( Capabilities::class, static fn() => new Capabilities() );

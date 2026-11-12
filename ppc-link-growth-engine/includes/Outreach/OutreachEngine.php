@@ -11,6 +11,10 @@
  * Every send first claims its row (approved/scheduled -> "sending" with a compare-and-set on status and
  * updated_at), so a message that was sent, edited or rejected meanwhile is never sent from a stale copy.
  *
+ * While the storefront compliance check (Compliance\StorefrontAudit) blocks, nothing is sent: approved messages
+ * stay approved with a "Paused: …" last_error and drafting/approval continue. When the check cannot run, sending
+ * fails closed.
+ *
  * @package PPC\LinkGrowth
  */
 
@@ -18,6 +22,7 @@ declare(strict_types=1);
 
 namespace PPC\LinkGrowth\Outreach;
 
+use PPC\LinkGrowth\Compliance\StorefrontAudit;
 use PPC\LinkGrowth\Content\ClaimsFilter;
 use PPC\LinkGrowth\Content\ContentGenerator;
 use PPC\LinkGrowth\Integrations\ClaudeWriter;
@@ -80,6 +85,15 @@ final class OutreachEngine {
     /** Not-yet-sent states that a reply or a closed conversation cancels. */
     private const PENDING = [ OutreachMessages::STATUS_DRAFT, OutreachMessages::STATUS_APPROVED, OutreachMessages::STATUS_SCHEDULED ];
 
+    /** Skip reason recorded while the storefront compliance check blocks sending. */
+    public const SKIP_STOREFRONT = 'storefront_blocking';
+
+    /** Ready messages that receive the "Paused" note per run while the storefront check blocks. */
+    private const PAUSE_SCAN = 200;
+
+    /** last_error when the storefront check cannot run (fail closed). */
+    private const STOREFRONT_UNAVAILABLE = 'Paused: the storefront compliance check could not run, so outreach sending is paused until it does (check the plugin logs).';
+
     /** @var array<int,array<string,mixed>|null> */
     private array $campaignCache = [];
 
@@ -98,7 +112,8 @@ final class OutreachEngine {
         private AuditLog $audit,
         private Notifier $notifier,
         private Settings $settings,
-        private Logger $logger
+        private Logger $logger,
+        private ?StorefrontAudit $storefront = null
     ) {}
 
     // --- Campaigns ----------------------------------------------------------
@@ -597,6 +612,16 @@ final class OutreachEngine {
             if ( [] === $ready ) {
                 return $out;
             }
+            $pause = $this->storefrontPause();
+            if ( '' !== $pause ) {
+                // Nothing goes out; every ready message shows why (written once, not on every run).
+                foreach ( $this->sendCandidates( self::PAUSE_SCAN, $autosend ) as $m ) {
+                    $this->markPaused( $m, $pause );
+                }
+                $skip( self::SKIP_STOREFRONT, count( $ready ) );
+                $this->logger->info( 'outreach', 'Outreach sending is paused by the storefront compliance check.', [ 'ready' => count( $ready ) ] );
+                return $out;
+            }
             if ( ! $this->compliance->withinSendWindow() ) {
                 $skip( 'outside_send_window', count( $ready ) );
                 return $out;
@@ -635,13 +660,67 @@ final class OutreachEngine {
         return $out;
     }
 
-    /** Whether sendDue() would find a message it may send now (for deciding whether to queue the send job). */
+    /**
+     * Whether sendDue() would find a message it may send now (for deciding whether to queue the send job).
+     * While the storefront check blocks, only when a ready message does not show the pause note yet (so the
+     * send stage records it once instead of running on every tick).
+     */
     public function hasSendable(): bool {
         try {
-            return [] !== $this->sendCandidates( 1, (bool) $this->settings->get( 'automation.outreach_autosend', false ) );
+            $autosend = (bool) $this->settings->get( 'automation.outreach_autosend', false );
+            if ( [] === $this->sendCandidates( 1, $autosend ) ) {
+                return false;
+            }
+            $pause = $this->storefrontPause();
+            if ( '' === $pause ) {
+                return true;
+            }
+            foreach ( $this->sendCandidates( self::PAUSE_SCAN, $autosend ) as $m ) {
+                if ( (string) ( $m['last_error'] ?? '' ) !== $pause ) {
+                    return true;
+                }
+            }
+            return false;
         } catch ( \Throwable $e ) {
             return false;
         }
+    }
+
+    /**
+     * '' when outreach may be sent; otherwise the "Paused: …" note. Fails closed (and logs) when the storefront
+     * compliance check cannot be constructed or cannot run.
+     */
+    private function storefrontPause(): string {
+        try {
+            $audit = $this->storefront;
+            if ( null === $audit ) {
+                $audit = class_exists( Plugin::class ) ? Plugin::instance()->get( StorefrontAudit::class ) : null;
+                if ( ! $audit instanceof StorefrontAudit ) {
+                    throw new \RuntimeException( 'the storefront check service is not available' );
+                }
+                $this->storefront = $audit;
+            }
+            if ( ! $audit->isBlocking() ) {
+                return '';
+            }
+            $why = $audit->blockingReason();
+            return '' !== $why ? 'Paused: ' . lcfirst( $why ) : self::STOREFRONT_UNAVAILABLE;
+        } catch ( \Throwable $e ) {
+            $this->logger->error( 'outreach', 'Storefront compliance check unavailable; outreach sending is paused (fail closed): ' . $e->getMessage() );
+            return self::STOREFRONT_UNAVAILABLE;
+        }
+    }
+
+    /**
+     * Records the pause note on a ready message (compare-and-set; status unchanged; skipped when already shown).
+     *
+     * @param array<string,mixed> $m
+     */
+    private function markPaused( array $m, string $pause ): void {
+        if ( (string) ( $m['last_error'] ?? '' ) === $pause ) {
+            return;
+        }
+        $this->transition( $m, [ 'last_error' => mb_substr( $pause, 0, 2000 ) ] );
     }
 
     /**
@@ -775,6 +854,11 @@ final class OutreachEngine {
         if ( ! in_array( $status, [ OutreachMessages::STATUS_APPROVED, OutreachMessages::STATUS_SCHEDULED ], true ) ) {
             return [ 'ok' => false, 'error' => 'Message cannot be sent (status: ' . $status . ').' ];
         }
+        $pause = $this->storefrontPause();
+        if ( '' !== $pause ) {
+            $this->markPaused( $m, $pause );
+            return [ 'ok' => false, 'error' => $pause ];
+        }
         try {
             [ $result, $reason ] = $this->deliver( $m, true, $userId );
         } catch ( \Throwable $e ) {
@@ -801,6 +885,12 @@ final class OutreachEngine {
         }
         if ( ! in_array( $status, [ OutreachMessages::STATUS_APPROVED, OutreachMessages::STATUS_SCHEDULED ], true ) ) {
             return [ 'skipped', 'not_approved' ];
+        }
+        // Storefront compliance gate (sendDue()/sendNow() check it first; repeated here for every caller).
+        $pause = $this->storefrontPause();
+        if ( '' !== $pause ) {
+            $this->markPaused( $m, $pause );
+            return [ 'skipped', self::SKIP_STOREFRONT ];
         }
         $campaignId = (int) ( $m['campaign_id'] ?? 0 );
         $campaign   = $campaignId > 0 ? $this->campaignCached( $campaignId ) : null;

@@ -33,6 +33,14 @@ Implement `PPC\LinkGrowth\Automation\Jobs\JobInterface` and map it through `ppcl
 
 `ppclg_taxonomy` lets you add or re-weight keyword groups, negative terms and site-type hints without editing `data/keywords.json`. `ppclg_discovery_queries` and `ppclg_seed_catalog` do the same for queries and seeds; `ppclg_excluded_domains` extends the platform exclusion list.
 
+## IndexNow environment
+
+IndexNow submits only when `wp_get_environment_type()` returns `production`. A live site whose host sets another environment type, or an end-to-end test with a mocked endpoint, can opt in from code (never on a staging or local copy: IndexNow would be told about addresses that are not the public site):
+
+```php
+add_filter( 'ppclg_indexnow_environment', static fn() => 'production' );
+```
+
 ## Outbound HTTP
 
 `ppclg_http_request_args` receives the `wp_remote_request` arguments and the URL for every outbound request (useful for proxies or test routing).

@@ -7,8 +7,10 @@
  * in every mode), an automatable listing form (POST, no CAPTCHA, no password, no required upload, never
  * a blog comment or forum form), robots.txt permission for the action URL, daily and
  * weekly limits (checked when sending; packaging/approval may skip them so the item waits in the
- * queue), no submission already sent to the same target or site, no required field left unmapped
- * and package text that passes the claims filter.
+ * queue), no submission already sent to the same target or site, no required field left unmapped,
+ * package text that passes the claims filter and a storefront that does not contradict the
+ * research-use-only positioning (Compliance\StorefrontAudit; a hard blocker with the code
+ * "storefront_inconsistent" — the item becomes an owner task, manual packaging keeps working).
  *
  * @package PPC\LinkGrowth
  */
@@ -18,11 +20,14 @@ declare(strict_types=1);
 namespace PPC\LinkGrowth\Submission;
 
 use PPC\LinkGrowth\Analysis\FormDetector;
+use PPC\LinkGrowth\Compliance\StorefrontAudit;
+use PPC\LinkGrowth\Plugin;
 use PPC\LinkGrowth\Repositories\Prospects;
 use PPC\LinkGrowth\Repositories\Submissions;
 use PPC\LinkGrowth\Support\Http\RobotsTxt;
 use PPC\LinkGrowth\Support\Json;
 use PPC\LinkGrowth\Support\Limits;
+use PPC\LinkGrowth\Support\Logger;
 use PPC\LinkGrowth\Support\Settings;
 use PPC\LinkGrowth\Support\Url;
 use Throwable;
@@ -33,6 +38,12 @@ final class Policy {
     public const MODE_MANUAL = 'manual';
 
     public const SUBMISSION_MODES = [ 'auto', 'authorized_only', 'manual' ];
+
+    /** Machine code of the storefront compliance blocker (listed in evaluate()['codes']). */
+    public const REASON_STOREFRONT = 'storefront_inconsistent';
+
+    /** Reason used when the storefront check cannot run (fail closed). */
+    private const STOREFRONT_UNAVAILABLE = 'The storefront compliance check could not run, so automated submissions are paused until it does (manual packaging and owner tasks keep working; check the plugin logs).';
 
     private const API_METHODS = [ 'POST', 'PUT', 'PATCH' ];
 
@@ -51,7 +62,8 @@ final class Policy {
         private Settings $settings,
         private RobotsTxt $robots,
         private Limits $limits,
-        private Submissions $submissions
+        private Submissions $submissions,
+        private ?StorefrontAudit $storefront = null
     ) {}
 
     /**
@@ -66,9 +78,12 @@ final class Policy {
      *                                                processor checks the daily/weekly limits before every send, so a
      *                                                package created while the limit is used up waits in the queue
      *                                                instead of being parked in review.
-     * @return array{allowed:bool,mode:string,reasons:string[],hard:bool} "hard" is true when a structural blocker
-     *                                                                     (form, CAPTCHA, robots, unmapped field…) exists,
-     *                                                                     false when only authorization/limits block it.
+     * @return array{allowed:bool,mode:string,reasons:string[],hard:bool,codes:string[]} "hard" is true when a structural
+     *                                                                     blocker (form, CAPTCHA, robots, unmapped field,
+     *                                                                     storefront…) exists, false when only
+     *                                                                     authorization/limits block it. "codes" lists
+     *                                                                     machine codes of coded reasons
+     *                                                                     (REASON_STOREFRONT).
      */
     public function evaluate( array $prospect, array $payload, ?array $form, string $targetUrl, ?callable $robotsFetcher = null, bool $enforceLimits = true ): array {
         $reasons = [];
@@ -179,13 +194,51 @@ final class Policy {
             $add( sprintf( 'The package text fails the claims compliance check (%d issue(s)); edit the flagged text before it can be submitted.', max( 1, $count ) ), true );
         }
 
+        // 10. Storefront compliance: while the storefront presents the products for consumer use (and the owner
+        // has not acknowledged those exact findings), nothing is submitted automatically. evaluate() only decides
+        // automation, so packaging continues and the item becomes an owner task.
+        $codes      = [];
+        $storefront = $this->storefrontBlocker();
+        if ( '' !== $storefront ) {
+            $add( $storefront, true );
+            $codes[] = self::REASON_STOREFRONT;
+        }
+
         $allowed = [] === $reasons;
         return [
             'allowed' => $allowed,
             'mode'    => $allowed ? self::MODE_AUTO : self::MODE_MANUAL,
             'reasons' => $reasons,
             'hard'    => $hard,
+            'codes'   => $codes,
         ];
+    }
+
+    /**
+     * The storefront blocker sentence, or '' when automated submissions may proceed. Fails closed (and logs)
+     * when the storefront check cannot be constructed or cannot run.
+     */
+    private function storefrontBlocker(): string {
+        try {
+            $audit = $this->storefront ?? Plugin::instance()->get( StorefrontAudit::class );
+            if ( ! $audit instanceof StorefrontAudit ) {
+                throw new \RuntimeException( 'unexpected service type' );
+            }
+            $this->storefront = $audit;
+            if ( ! $audit->isBlocking() ) {
+                return '';
+            }
+            $why = $audit->blockingReason();
+            return '' !== $why ? $why : self::STOREFRONT_UNAVAILABLE;
+        } catch ( Throwable $e ) {
+            try {
+                Plugin::instance()->get( Logger::class )->error( 'compliance', 'Storefront compliance check unavailable; automated submissions are paused (fail closed): ' . $e->getMessage() );
+            } catch ( Throwable $ignored ) {
+                // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+                error_log( '[ppclg][error][compliance] Storefront compliance check unavailable; automated submissions are paused: ' . $e->getMessage() );
+            }
+            return self::STOREFRONT_UNAVAILABLE;
+        }
     }
 
     /**

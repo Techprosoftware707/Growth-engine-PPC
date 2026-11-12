@@ -63,12 +63,25 @@ final class Jobs extends Repository {
     /**
      * Atomically claims the next due job for this runner.
      *
+     * @param string|null $type           Only claim jobs of this type (null/'' = any type).
+     * @param bool        $ignoreSchedule Also claim queued jobs whose scheduled_at is still in the future (a
+     *                                    continuation queued for the next tick, run right away by a growth step).
      * @return array<string,mixed>|null
      */
-    public function claimNext( string $token ): ?array {
-        $sql = "SELECT id FROM {$this->table()} WHERE status = %s AND scheduled_at <= %s ORDER BY priority ASC, scheduled_at ASC, id ASC LIMIT 1";
+    public function claimNext( string $token, ?string $type = null, bool $ignoreSchedule = false ): ?array {
+        $where  = 'status = %s';
+        $params = [ self::STATUS_QUEUED ];
+        if ( ! $ignoreSchedule ) {
+            $where   .= ' AND scheduled_at <= %s';
+            $params[] = self::now();
+        }
+        if ( null !== $type && '' !== $type ) {
+            $where   .= ' AND type = %s';
+            $params[] = $type;
+        }
+        $sql = "SELECT id FROM {$this->table()} WHERE {$where} ORDER BY priority ASC, scheduled_at ASC, id ASC LIMIT 1";
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-        $id = (int) $this->db()->get_var( $this->db()->prepare( $sql, self::STATUS_QUEUED, self::now() ) );
+        $id = (int) $this->db()->get_var( $this->db()->prepare( $sql, $params ) );
         if ( ! $id ) {
             return null;
         }

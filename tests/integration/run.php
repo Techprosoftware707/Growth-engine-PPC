@@ -48,6 +48,10 @@ final class IT {
 
 use PPC\LinkGrowth\Plugin;
 
+require_once __DIR__ . '/growth-fixtures.php';
+// The run stays offline: fixture hosts (*.test) go to the fixture server, everything else is refused.
+ppclg_it_offline_guard();
+
 $fixtureLog = getenv( 'PPCLG_FIXTURE_LOG' ) ?: sys_get_temp_dir() . '/ppclg-fixture-submissions.log';
 @unlink( $fixtureLog );
 $GLOBALS['itMail'] = [];
@@ -72,6 +76,9 @@ IT::step( 'Activation and schema', static function (): void {
         $wpdb->query( "DELETE FROM {$wpdb->options} WHERE option_name LIKE 'ppclg\_%' OR option_name LIKE '\_transient\_ppclg\_%' OR option_name LIKE '\_transient\_timeout\_ppclg\_%'" ); // phpcs:ignore
         wp_cache_flush();
         IT::check( true, 'plugin state reset' );
+        // Store fixtures left behind by an interrupted growth section would change the storefront check.
+        $leftovers = ppclg_it_growth_cleanup();
+        IT::check( true, 'growth section leftovers removed (' . $leftovers . ')' );
     }
     if ( ! is_plugin_active( $plugin ) ) {
         $r = activate_plugin( $plugin );
@@ -413,6 +420,9 @@ IT::step( 'Scheduler tick, limits and backups', static function (): void {
         }
     }
 } );
+
+// "Grow now" release: storefront compliance, growth run, verified opportunities, on-site SEO.
+require __DIR__ . '/growth.php';
 
 echo "\n==============================\n";
 printf( "Passed: %d  Failed: %d\n", IT::$pass, IT::$fail );

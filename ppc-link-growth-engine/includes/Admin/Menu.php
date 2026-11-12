@@ -21,7 +21,7 @@ final class Menu {
     public const REDIRECT_TRANSIENT = 'ppclg_activation_redirect';
 
     /** Page keys in navigation order. */
-    public const PAGE_KEYS = [ 'overview', 'prospects', 'submissions', 'outreach', 'backlinks', 'automation', 'settings', 'logs' ];
+    public const PAGE_KEYS = [ 'overview', 'prospects', 'submissions', 'outreach', 'backlinks', 'seo', 'automation', 'settings', 'logs' ];
 
     public function __construct( private Settings $settings, private Notifications $notifications ) {}
 
@@ -39,6 +39,7 @@ final class Menu {
             'submissions' => __( 'Submissions', 'ppc-link-growth-engine' ),
             'outreach'    => __( 'Outreach', 'ppc-link-growth-engine' ),
             'backlinks'   => __( 'Backlinks', 'ppc-link-growth-engine' ),
+            'seo'         => __( 'On-site SEO', 'ppc-link-growth-engine' ),
             'automation'  => __( 'Automation', 'ppc-link-growth-engine' ),
             'settings'    => __( 'Settings', 'ppc-link-growth-engine' ),
             'logs'        => __( 'Logs', 'ppc-link-growth-engine' ),

@@ -8,7 +8,7 @@ const { chromium } = require('playwright');
 
 const [base = 'http://127.0.0.1:8787', user = 'admin', pass = 'adminpass123!', out = './screenshots'] = process.argv.slice(2);
 fs.mkdirSync(out, { recursive: true });
-const pages = ['ppclg', 'ppclg-prospects', 'ppclg-submissions', 'ppclg-outreach', 'ppclg-backlinks', 'ppclg-automation', 'ppclg-settings', 'ppclg-logs'];
+const pages = ['ppclg', 'ppclg-prospects', 'ppclg-submissions', 'ppclg-outreach', 'ppclg-backlinks', 'ppclg-seo', 'ppclg-automation', 'ppclg-settings', 'ppclg-logs'];
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
 const page = await ctx.newPage();

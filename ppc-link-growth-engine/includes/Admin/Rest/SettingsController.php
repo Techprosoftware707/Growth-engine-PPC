@@ -72,6 +72,22 @@ final class SettingsController extends Controller {
         'google_cse_daily_limit'      => [ 0, 10000 ],
         'brave_daily_limit'           => [ 0, 100000 ],
         'serper_daily_limit'          => [ 0, 100000 ],
+        'audit_max_pages'             => [ 20, 5000 ],
+        'max_links_per_post'          => [ 1, 10 ],
+        'evaluate_rounds'             => [ 1, 20 ],
+        'step_seconds'                => [ 8, 25 ],
+    ];
+
+    /**
+     * Settings that POST /settings never writes (dot paths). The storefront acknowledgement is recorded only through
+     * POST /compliance/storefront/acknowledge (audited, hash-checked); the IndexNow key is generated once by
+     * Seo\IndexNow and must not be replaced from a form (search engines would have to verify a new key).
+     */
+    private const READ_ONLY = [
+        [ 'compliance', 'acknowledged_hash' ],
+        [ 'compliance', 'acknowledged_by' ],
+        [ 'compliance', 'acknowledged_at' ],
+        [ 'seo', 'indexnow_key' ],
     ];
 
     private const EMAIL_KEYS    = [ 'email', 'sender_email', 'reply_to', 'notify_email' ];
@@ -167,6 +183,7 @@ final class SettingsController extends Controller {
 
         $incoming = $request->get_param( 'settings' );
         $clean    = is_array( $incoming ) && [] !== $incoming ? $this->sanitizeSettings( $incoming ) : [];
+        $clean    = self::dropReadOnly( $clean );
 
         $enabling = [];
         foreach ( AutomationController::CONFIRM_FLAGS as $flag ) {
@@ -184,10 +201,15 @@ final class SettingsController extends Controller {
         ) {
             $enabling[] = 'require_approval';
         }
+        // Switching the storefront compliance gate off lets automated submissions and outreach sending continue while
+        // the storefront contradicts the research-use-only listings, so it needs the same explicit confirmation.
+        if ( false === ( $clean['compliance']['storefront_gate'] ?? null ) && (bool) $settings->get( 'compliance.storefront_gate', true ) ) {
+            $enabling[] = 'storefront_gate_off';
+        }
         if ( [] !== $enabling && ! $this->bool( $request, 'confirm', false ) ) {
             return $this->fail(
                 'ppclg_confirmation_required',
-                implode( ' ', array_map( [ AutomationController::class, 'confirmationMessage' ], $enabling ) ),
+                implode( ' ', array_map( [ self::class, 'confirmationText' ], $enabling ) ),
                 400,
                 [ 'confirm_required' => true, 'key' => $enabling[0], 'keys' => $enabling ]
             );
@@ -273,6 +295,32 @@ final class SettingsController extends Controller {
             'secret_status' => $this->safe( fn(): array => $this->c->get( Secrets::class )->status(), [], 'secret status' ),
             'providers'     => $this->safe( fn(): array => $this->c->get( ProviderRegistry::class )->status(), [], 'provider status' ),
         ];
+    }
+
+    /** Why a settings change needs confirm=true (see update()). */
+    public static function confirmationText( string $key ): string {
+        if ( 'storefront_gate_off' === $key ) {
+            return __( 'Turning off the storefront compliance gate lets automated submissions and outreach sending continue while the storefront check finds consumer-use wording that contradicts the research-use-only listings. How the store presents itself is your legal decision. Confirm to proceed.', 'ppc-link-growth-engine' );
+        }
+        return AutomationController::confirmationMessage( $key );
+    }
+
+    /**
+     * Removes the READ_ONLY keys (and sections left empty by that) from a sanitised settings tree.
+     *
+     * @param array<string,mixed> $clean
+     * @return array<string,mixed>
+     */
+    private static function dropReadOnly( array $clean ): array {
+        foreach ( self::READ_ONLY as [ $section, $key ] ) {
+            if ( isset( $clean[ $section ] ) && is_array( $clean[ $section ] ) ) {
+                unset( $clean[ $section ][ $key ] );
+                if ( [] === $clean[ $section ] ) {
+                    unset( $clean[ $section ] );
+                }
+            }
+        }
+        return $clean;
     }
 
     /** POST /settings/test {provider} @return array<string,mixed>|\WP_Error */

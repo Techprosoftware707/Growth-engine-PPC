@@ -2752,6 +2752,137 @@
 
 /* Print */
 
+/* ------------------------------------------------------------------ */
+/* Grow your site panel (assets/js/pages/overview.js)                  */
+/* ------------------------------------------------------------------ */
+
+.ppclg-grow-card .ppclg-grow-explain {
+    margin: 0 0 12px;
+    max-width: 72ch;
+}
+
+.ppclg-grow-steps {
+    list-style: none;
+    margin: 8px 0 0;
+    padding: 0;
+}
+
+.ppclg-grow-step {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 8px 0;
+    border-top: 1px solid var(--ppclg-line);
+}
+
+.ppclg-grow-step:first-child {
+    border-top: 0;
+}
+
+.ppclg-grow-step-icon {
+    flex: 0 0 22px;
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: var(--ppclg-surface-2);
+    color: var(--ppclg-ink-3);
+    margin-top: 1px;
+}
+
+.ppclg-grow-step--done .ppclg-grow-step-icon {
+    background: var(--ppclg-good-soft);
+    color: var(--ppclg-good);
+}
+
+.ppclg-grow-step--running .ppclg-grow-step-icon {
+    background: var(--ppclg-info-soft);
+    color: var(--ppclg-blue);
+}
+
+.ppclg-grow-step--blocked .ppclg-grow-step-icon {
+    background: var(--ppclg-warning-soft);
+    color: var(--ppclg-warning);
+}
+
+.ppclg-grow-step--failed .ppclg-grow-step-icon {
+    background: var(--ppclg-critical-soft);
+    color: var(--ppclg-critical);
+}
+
+.ppclg-grow-step--pending {
+    opacity: .75;
+}
+
+.ppclg-grow-elapsed {
+    font-variant-numeric: tabular-nums;
+}
+
+.ppclg-grow-results h4 {
+    margin: 12px 0 6px;
+}
+
+.ppclg-grow-needs li {
+    margin: 4px 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* Storefront compliance banner (assets/js/compliance-banner.js)       */
+/* ------------------------------------------------------------------ */
+
+.ppclg-compliance-host:empty {
+    display: none;
+}
+
+.ppclg-compliance-findings {
+    margin-top: 8px;
+}
+
+.ppclg-compliance-list {
+    list-style: none;
+    margin: 6px 0 0;
+    padding: 0;
+}
+
+.ppclg-compliance-finding {
+    padding: 4px 0;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+}
+
+.ppclg-compliance-finding .ppclg-badge {
+    margin-right: 6px;
+    vertical-align: middle;
+}
+
+.ppclg-compliance-excerpt {
+    font-size: 12px;
+    margin-top: 2px;
+}
+
+/* ------------------------------------------------------------------ */
+/* Owner tasks (assets/js/pages/submissions.js)                         */
+/* ------------------------------------------------------------------ */
+
+.ppclg-owner-steps {
+    margin: 4px 0 0;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+}
+
+/* ------------------------------------------------------------------ */
+/* On-site SEO page: anchor highlight in internal-link excerpts         */
+/* ------------------------------------------------------------------ */
+
+.ppclg-wrap mark {
+    background: var(--ppclg-warning-soft);
+    color: inherit;
+    padding: 0 2px;
+    border-radius: var(--ppclg-radius-xs, 3px);
+}
+
 @media print {
     .ppclg-subnav,
     .ppclg-header-actions,

@@ -3,7 +3,7 @@
  * Plugin Name:       PPC Link Growth Engine
  * Plugin URI:        https://purepeptidescanada.com/
  * Description:       Automated, compliance-first backlink discovery, qualification, submission packaging, outreach drafting and backlink monitoring for Pure Peptides Canada.
- * Version:           1.0.0
+ * Version:           1.1.0
  * Requires at least: 6.5
  * Requires PHP:      8.1
  * Author:            Pure Peptides Canada
@@ -27,7 +27,7 @@ if ( defined( 'PPCLG_VERSION' ) ) {
     return;
 }
 
-define( 'PPCLG_VERSION', '1.0.0' );
+define( 'PPCLG_VERSION', '1.1.0' );
 define( 'PPCLG_DB_VERSION', '1.0.1' ); // 1.0.1: suppression.type widened to varchar(20) for 'email_domain'.
 define( 'PPCLG_FILE', __FILE__ );
 define( 'PPCLG_DIR', plugin_dir_path( __FILE__ ) );

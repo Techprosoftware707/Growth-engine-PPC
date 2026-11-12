@@ -20,6 +20,7 @@ namespace PPC\LinkGrowth\Automation\Jobs;
 
 use PPC\LinkGrowth\Container;
 use PPC\LinkGrowth\Database\Schema;
+use PPC\LinkGrowth\Discovery\VerifiedOpportunities;
 use PPC\LinkGrowth\Outreach\Compliance;
 use PPC\LinkGrowth\Outreach\OutreachEngine;
 use PPC\LinkGrowth\Outreach\Templates;
@@ -198,8 +199,12 @@ final class AutoOutreachJob extends AbstractJob {
             $params[] = Contacts::STATUS_ACTIVE;
         }
         $sql = "SELECT p.id FROM {$p} p WHERE p.status IN (%s,%s) AND ( " . implode( ' OR ', $branches ) . ' )'
-            . " AND EXISTS ( SELECT 1 FROM {$ct} c WHERE c.prospect_id = p.id AND c.status = %s )";
+            . " AND EXISTS ( SELECT 1 FROM {$ct} c WHERE c.prospect_id = p.id AND c.status = %s )"
+            // Prospects imported from the verified opportunity database are owner tasks: whether to pitch them is the
+            // owner's decision, so they are never auto-drafted (the owner can still draft for them by hand).
+            . ' AND p.discovered_via <> %s';
         $params[] = Contacts::STATUS_ACTIVE;
+        $params[] = VerifiedOpportunities::SOURCE;
         if ( $minScore > 0 ) {
             $sql     .= ' AND p.score >= %d';
             $params[] = $minScore;

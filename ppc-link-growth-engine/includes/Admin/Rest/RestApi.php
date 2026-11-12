@@ -36,6 +36,9 @@ final class RestApi {
             SettingsController::class,
             LogsController::class,
             PublicController::class,
+            ComplianceController::class,
+            SeoController::class,
+            GrowthController::class,
         ];
         /**
          * Filters the REST controllers registered by the plugin.

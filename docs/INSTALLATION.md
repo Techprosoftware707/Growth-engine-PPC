@@ -15,7 +15,7 @@ Nothing else is installed. The plugin has no Composer runtime dependencies and s
 bash bin/build-zip.sh
 ```
 
-Then in WordPress: **Plugins → Add New → Upload Plugin**, choose `dist/ppc-link-growth-engine-1.0.0.zip`, install and activate. Alternatively copy the `ppc-link-growth-engine/` directory into `wp-content/plugins/` and activate it from the Plugins screen.
+Then in WordPress: **Plugins → Add New → Upload Plugin**, choose `dist/ppc-link-growth-engine-1.1.0.zip`, install and activate. Alternatively copy the `ppc-link-growth-engine/` directory into `wp-content/plugins/` and activate it from the Plugins screen.
 
 ## What activation does
 

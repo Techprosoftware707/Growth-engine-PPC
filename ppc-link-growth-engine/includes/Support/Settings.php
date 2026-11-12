@@ -124,6 +124,25 @@ final class Settings {
                 'import_interval_days'        => 7,
                 'import_limit'                => 500,
             ],
+            'seo'        => [
+                'indexnow'           => true,
+                'indexnow_key'       => '', // generated once by Seo\IndexNow::key(); never edited through the settings form
+                'audit_max_pages'    => 400,
+                'audit_http_sample'  => true, // optional HTTP spot check of at most 10 URLs at the end of each audit
+                'internal_links'     => true,
+                'max_links_per_post' => 3,
+            ],
+            'compliance' => [
+                'storefront_gate'   => true,
+                // Written only by Compliance\StorefrontAudit::acknowledge() (POST /compliance/storefront/acknowledge).
+                'acknowledged_hash' => '',
+                'acknowledged_by'   => 0,
+                'acknowledged_at'   => '',
+            ],
+            'growth'     => [
+                'evaluate_rounds' => 6,  // most evaluate job runs per growth step (1–20)
+                'step_seconds'    => 20, // seconds per POST /growth/step (8–25)
+            ],
             'advanced'   => [
                 'delete_on_uninstall'  => false,
                 'log_level'            => 'info',

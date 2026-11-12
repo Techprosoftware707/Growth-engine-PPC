@@ -29,6 +29,8 @@ const CONFIRM_FLAGS = {
     submissions: { title: 'Enable automated submissions', text: 'Enable automated submissions? In auto mode the engine submits by itself to high-scoring sites whenever every safety gate passes (public listing form, no CAPTCHA or login, robots.txt allows it). Every submission is logged in the audit trail.' },
     outreach_autosend: { title: 'Enable outreach autosend', text: 'Enable outreach autosend? Follow-ups in campaigns set to “Auto-approve follow-ups” will be sent to third parties in your name without your review. Initial cold emails that the engine drafts for qualified prospects (score at or above the auto-queue threshold, with a known contact) are also approved and sent without your review if “Require individual approval” (Settings → Outreach) is off; while it is on, they wait for your approval. Sending stays inside the send window and the outreach email limits, and every message includes the unsubscribe link.' },
 };
+/** Turning the storefront compliance gate off: POST /settings needs confirm=true for it. */
+const STOREFRONT_GATE_OFF = { title: 'Turn off the storefront compliance gate', text: 'Turn off the storefront compliance gate? Automated submissions and outreach sending will continue even while the storefront check finds consumer-use wording (weight loss, skincare, nasal sprays, capsules, syringes, dosing…) that contradicts the research-use-only listings. How the store presents itself is your legal decision; the check keeps running and its findings stay visible on the Overview.' };
 /** Turning “Require individual approval” off while autosend is on: POST /settings needs confirm=true for it. */
 const APPROVAL_OFF_GATE = { title: 'Turn off individual approval', text: 'Turn off “Require individual approval”? Outreach autosend is on, so initial cold emails that the engine drafts for qualified prospects (score at or above the auto-queue threshold, with a known contact) will be approved and sent to third parties in your name without your review. Sending stays inside the send window and the outreach email limits, and every message includes the unsubscribe link.' };
 const LIMIT_GROUPS = { daily_limits: 'Daily', weekly_limits: 'Weekly' };
@@ -238,9 +240,18 @@ export default async function render( root, ctx ) {
                 return;
             }
         }
+        let gateOffConfirmed = false;
+        if ( obj( changed.compliance ).storefront_gate === false && getPath( state.original, 'compliance.storefront_gate', true ) ) {
+            if ( await confirm( STOREFRONT_GATE_OFF.text, { title: STOREFRONT_GATE_OFF.title, confirmText: 'Turn off', danger: true } ) ) {
+                gateOffConfirmed = true;
+            } else {
+                toast( 'Nothing was saved.', 'info' );
+                return;
+            }
+        }
         if ( Object.keys( changed ).length ) {
             body.settings = changed;
-            if ( approvalOffConfirmed ) {
+            if ( approvalOffConfirmed || gateOffConfirmed ) {
                 body.confirm = true;
             }
         }
@@ -402,6 +413,17 @@ export default async function render( root, ctx ) {
                 bind( 'automation.max_execution_seconds', { type: 'number', label: 'Max seconds per tick', min: 15, max: 25, default: 20, hint: 'Keep below the PHP time limit (30 s on this host).' } ),
                 bind( 'automation.tick_interval', { type: 'number', label: 'Tick interval (seconds)', min: 60, step: 60, default: 300 } ),
                 bind( 'automation.international', { type: 'toggle', label: 'Include non-Canadian sites', hint: 'When off, only sites judged Canadian are kept.' } ),
+            ] ) } ),
+            card( { title: 'Grow now', subtitle: 'The one-click run on the Overview page', body: grid( [
+                bind( 'growth.evaluate_rounds', { type: 'number', label: 'Evaluation rounds per run', min: 1, max: 20, default: 6, hint: 'Most evaluation batches one run performs; the daily evaluation limit still applies. The scheduler continues any remaining work.' } ),
+                bind( 'growth.step_seconds', { type: 'number', label: 'Seconds per step request', min: 8, max: 25, default: 20, hint: 'How long each request of a running growth run may work. Keep it below the PHP time limit.' } ),
+            ] ) } ),
+            card( { title: 'On-site SEO', subtitle: 'Site audit, IndexNow and internal-link suggestions (On-site SEO page)', body: grid( [
+                bind( 'seo.indexnow', { type: 'toggle', label: 'Notify search engines through IndexNow', hint: 'Submits new and changed public URLs. Only on the production site, and never while WordPress discourages search engines.' } ),
+                bind( 'seo.internal_links', { type: 'toggle', label: 'Suggest internal links', hint: 'Suggestions only: content changes only when you click Apply on the On-site SEO page (WordPress keeps a revision).' } ),
+                bind( 'seo.max_links_per_post', { type: 'number', label: 'Suggested links per item', min: 1, max: 10, default: 3 } ),
+                bind( 'seo.audit_max_pages', { type: 'number', label: 'Pages per site audit', min: 20, max: 5000, default: 400, hint: 'Posts, pages and products read from the database. Orphan pages are checked only when the audit covers every item.' } ),
+                bind( 'seo.audit_http_sample', { type: 'toggle', label: 'HTTP spot check after each audit', hint: 'Requests at most 10 of your own URLs (after reading robots.txt) to confirm their status and canonical tag.' } ),
             ] ) } ),
         );
     }
@@ -707,6 +729,9 @@ export default async function render( root, ctx ) {
                     bind( 'outreach.send_window_end', { type: 'number', label: 'End hour (1–24)', min: 1, max: 24, default: 17 } ),
                 ] ),
                 el( 'div', { class: 'ppclg-field', style: { marginTop: '12px' } }, el( 'span', { class: 'ppclg-field-label' }, 'Send days' ), dayGroup ),
+            ] } ),
+            card( { title: 'Storefront compliance gate', subtitle: 'Listings and outreach describe a research-use-only supplier', body: [
+                bind( 'compliance.storefront_gate', { type: 'toggle', default: true, label: 'Pause automated submissions and outreach sending while the storefront check blocks', hint: 'The check reads product categories, tags, product titles and menus for consumer-use wording. You can acknowledge its current findings on the Overview page instead of turning the gate off; any change in the findings pauses again. Turning the gate off asks for confirmation.' } ).el,
             ] } ),
         );
     }

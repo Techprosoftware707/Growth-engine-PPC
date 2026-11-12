@@ -17,12 +17,17 @@ use PPC\LinkGrowth\Automation\Jobs\EvaluateJob;
 use PPC\LinkGrowth\Automation\Jobs\FindOpportunitiesJob;
 use PPC\LinkGrowth\Automation\Jobs\FollowUpJob;
 use PPC\LinkGrowth\Automation\Jobs\ImportBacklinksJob;
+use PPC\LinkGrowth\Automation\Jobs\ImportVerifiedJob;
+use PPC\LinkGrowth\Automation\Jobs\IndexNowJob;
+use PPC\LinkGrowth\Automation\Jobs\InternalLinksJob;
 use PPC\LinkGrowth\Automation\Jobs\JobInterface;
 use PPC\LinkGrowth\Automation\Jobs\MentionScanJob;
 use PPC\LinkGrowth\Automation\Jobs\MetricsRefreshJob;
 use PPC\LinkGrowth\Automation\Jobs\MonitorBacklinksJob;
 use PPC\LinkGrowth\Automation\Jobs\OutreachSendJob;
 use PPC\LinkGrowth\Automation\Jobs\PackageJob;
+use PPC\LinkGrowth\Automation\Jobs\SiteAuditJob;
+use PPC\LinkGrowth\Automation\Jobs\StorefrontAuditJob;
 use PPC\LinkGrowth\Automation\Jobs\SubmitJob;
 use PPC\LinkGrowth\Automation\Jobs\VerifyListingsJob;
 use PPC\LinkGrowth\Container;
@@ -75,6 +80,11 @@ final class JobRunner {
         BrokenLinkScanJob::class,
         CleanupJob::class,
         MetricsRefreshJob::class,
+        StorefrontAuditJob::class,
+        ImportVerifiedJob::class,
+        SiteAuditJob::class,
+        IndexNowJob::class,
+        InternalLinksJob::class,
     ];
 
     public function __construct(
@@ -149,6 +159,53 @@ final class JobRunner {
             }
         } finally {
             $this->unlock();
+        }
+        return $out;
+    }
+
+    /**
+     * Claims and executes queued jobs of one type only, through the same execute() path as run() (so job
+     * results, attempts, failures and the audit trail are recorded identically), while the budget allows.
+     *
+     * The CALLER holds the runner lock (see lock()). With $ignoreSchedule a continuation that a job queued for
+     * the next tick runs right away. A job that fails is re-queued with its normal retry delay and is not claimed
+     * again in this call, so a failing job is never retried in a tight loop.
+     *
+     * @param int $max Most jobs to run in this call (0 = no limit besides the budget).
+     * @return array{ran:int,completed:int,failed:int,results:array<int,array{job_id:int,ok:bool,result:array<string,mixed>}>,error?:string}
+     */
+    public function runQueuedOfType( string $type, TimeBudget $budget, bool $ignoreSchedule = true, int $max = 0 ): array {
+        $out = [ 'ran' => 0, 'completed' => 0, 'failed' => 0, 'results' => [] ];
+        if ( ! isset( $this->types()[ $type ] ) ) {
+            $out['error'] = sprintf( 'Unknown job type "%s".', $type );
+            return $out;
+        }
+        $token = Crypto::randomToken( 8 );
+        while ( $budget->has( self::MIN_CLAIM_SECONDS ) && ( $max <= 0 || $out['ran'] < $max ) ) {
+            $job = $this->jobs->claimNext( $token, $type, $ignoreSchedule );
+            if ( null === $job ) {
+                break;
+            }
+            $id = (int) $job['id'];
+            $out['ran']++;
+            $ok  = $this->execute( $job, $budget );
+            $row = null;
+            try {
+                $row = $this->jobs->find( $id );
+            } catch ( Throwable $e ) {
+                unset( $e );
+            }
+            if ( $ok ) {
+                $out['completed']++;
+                $result = is_array( $row['result'] ?? null ) ? $row['result'] : [];
+            } else {
+                $out['failed']++;
+                $result = [ 'ok' => false, 'job' => $type, 'error' => '' !== (string) ( $row['error'] ?? '' ) ? (string) $row['error'] : 'The job failed.' ];
+            }
+            $out['results'][] = [ 'job_id' => $id, 'ok' => $ok, 'result' => $result ];
+            if ( ! $ok ) {
+                break;
+            }
         }
         return $out;
     }

@@ -48,6 +48,31 @@ If a provider is not configured, every place that would use it says so explicitl
 - `min_score_keep` (default 50): prospects below it are rejected automatically. `min_score_auto_queue` (default 70): opportunities at or above it are packaged automatically — and in auto mode this is the quality bar a site must clear before the engine submits to it by itself. Raise it to be pickier, lower it to pursue more moderate sites.
 - `max_execution_seconds` (default 20, minimum 15): the time budget each background tick may use. Lower values are raised to 15 s, the least some stages need per item. Keep it below the PHP time limit (30 s on the live site).
 
+## Grow now (`growth`)
+
+Settings → Automation & limits → *Grow now*:
+
+- `growth.evaluate_rounds` (default 6, 1–20): the most evaluation batches one growth run performs. The daily evaluation limit still applies; remaining work continues in the background.
+- `growth.step_seconds` (default 20, 8–25): how long each `POST /growth/step` request may work. Keep it below the PHP time limit (30 s on the live site) and any proxy timeout (Cloudflare allows 100 s).
+
+## On-site SEO (`seo`)
+
+Settings → Automation & limits → *On-site SEO*:
+
+- `seo.indexnow` (on): submit new and changed public URLs to IndexNow. Submissions happen only when WordPress reports the `production` environment and *Discourage search engines* (Settings → Reading) is off. A live site whose host reports another environment type can opt in from code with the `ppclg_indexnow_environment` filter (see EXTENDING.md).
+- `seo.indexnow_key`: generated once (32 hexadecimal characters) and served at `https://SITE/{key}.txt`. It is not editable through the settings form, because search engines would have to verify a new key; the On-site SEO page shows the key file link.
+- `seo.internal_links` (on): compute internal-link suggestions weekly. Suggestions never change content by themselves.
+- `seo.max_links_per_post` (default 3, 1–10): suggested links per post or page.
+- `seo.audit_max_pages` (default 400, 20–5000): items read per site audit (posts, pages, products). Orphan pages are checked only when the audit covered every item.
+- `seo.audit_http_sample` (on): after each audit, request at most 10 of the site's own URLs (after reading robots.txt) to confirm their HTTP status and canonical tag. A Cloudflare challenge is reported as unknown.
+
+## Storefront compliance (`compliance`)
+
+Settings → Outreach & compliance → *Storefront compliance gate*:
+
+- `compliance.storefront_gate` (on): while the storefront check blocks, automated submissions become owner tasks and outreach sending pauses. Turning it off asks for confirmation (`POST /settings` refuses it with `ppclg_confirmation_required` unless the request carries `confirm: true`), and the change is recorded in the audit log.
+- `compliance.acknowledged_hash`, `acknowledged_by`, `acknowledged_at`: written only by *Acknowledge* on the Overview (`POST /compliance/storefront/acknowledge` with `confirm: true`). `POST /settings` ignores these keys.
+
 ## Discovery
 
 Geo modifiers (Canadian provinces and cities), competitor domains (use *Suggest from SE Ranking*), brand terms for unlinked-mention detection, custom queries, excluded domains and custom seeds. The query pool is generated from `data/discovery-queries.json` × topics × geo modifiers; each query is not repeated within the cooldown (30 days).

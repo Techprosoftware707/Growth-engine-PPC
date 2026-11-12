@@ -1,10 +1,466 @@
 /**
- * Overview page: hero stats, charts, integration health, automation status and notifications.
+ * Overview page: the "Grow your site" panel (one-click growth run) under the storefront compliance banner, then
+ * hero stats, charts, integration health, automation status and notifications.
  */
 
 import * as api from '../api.js';
-import { el, replace, statTile, card, badge, button, linkButton, callout, kv, meter, loading, errorState, emptyState, timeEl, fmtNumber, fmtPercent, fmtCompact, labelize, pageHeader, statusBadge, truncate, fmtDate } from '../ui.js';
+import {
+    el, replace, statTile, card, badge, button, linkButton, callout, kv, meter, loading, errorState, emptyState, timeEl, fmtNumber, fmtPercent, fmtCompact, labelize, pageHeader, statusBadge, truncate, fmtDate,
+    icon, spinner, progressBar, details, fmtDuration, sleep, toast, confirm,
+} from '../ui.js';
 import { barChart, lineChart, histogram, segmentedBar } from '../charts.js';
+
+// ---------------------------------------------------------------------
+// Storefront compliance banner (assets/js/compliance-banner.js)
+// ---------------------------------------------------------------------
+
+const asArray = ( v ) => ( Array.isArray( v ) ? v : [] );
+const asObject = ( v ) => ( v && typeof v === 'object' && ! Array.isArray( v ) ? v : {} );
+
+function errorMessage( e ) {
+    return e && e.message ? String( e.message ) : 'The request failed.';
+}
+
+/** Minimal banner used when compliance-banner.js cannot be loaded (same facts, plain text only). */
+function fallbackComplianceBanner( host, status ) {
+    const st = asObject( status );
+    const effective = String( st.effective || '' );
+    if ( effective !== 'block' && effective !== 'warn' ) {
+        replace( host );
+        return;
+    }
+    const counts = asObject( st.counts );
+    const paused = Boolean( st.blocking );
+    replace( host, callout(
+        paused ? 'danger' : 'warning',
+        paused ? 'Automated submissions and outreach sending are paused by the storefront check' : 'Storefront wording to review',
+        [
+            el( 'div', {}, st.message ? String( st.message ) : `${ fmtNumber( Number( counts.block ) || 0 ) } blocking and ${ fmtNumber( Number( counts.warn ) || 0 ) } to review.` ),
+            el( 'div', { class: 'ppclg-small' }, 'How the store presents itself is your legal decision as the owner, to be made with your Canadian regulatory counsel.' ),
+        ],
+    ) );
+}
+
+/** Loads GET /compliance/storefront and renders the banner into `host` (nothing on 404: the check is not installed). */
+export async function loadComplianceBanner( host ) {
+    let status;
+    try {
+        status = await api.get( '/compliance/storefront', {}, { silent: true } );
+    } catch ( e ) {
+        if ( e && e.status === 404 ) {
+            replace( host );
+            return;
+        }
+        replace( host, callout( 'warning', 'The storefront compliance status could not be loaded', errorMessage( e ) ) );
+        return;
+    }
+    let renderBanner = null;
+    try {
+        const mod = await import( '../compliance-banner.js' );
+        renderBanner = mod && typeof mod.default === 'function' ? mod.default : null;
+    } catch ( e ) {
+        renderBanner = null;
+    }
+    if ( renderBanner ) {
+        try {
+            renderBanner( host, status, {} );
+            return;
+        } catch ( e ) {
+            // Fall through to the plain banner.
+        }
+    }
+    fallbackComplianceBanner( host, status );
+}
+
+// ---------------------------------------------------------------------
+// "Grow your site" panel (POST /growth/start, then POST /growth/step until the run is no longer running)
+// ---------------------------------------------------------------------
+
+const GROW_EXPLAIN = 'Runs the whole growth routine once, in order: storefront and setup checks, on-site SEO audit, search-engine notification, prospect discovery and evaluation, listing packages, approved submissions and outreach drafts. It never buys or hides links, never emails anyone without your approval and never edits your site content unless you click Apply.';
+
+const STEP_STATUS = {
+    pending: { label: 'Waiting', kind: 'neutral', iconName: 'clock' },
+    running: { label: 'Running', kind: 'info', iconName: 'play' },
+    done: { label: 'Done', kind: 'success', iconName: 'check' },
+    skipped: { label: 'Skipped', kind: 'neutral', iconName: 'more' },
+    blocked: { label: 'Blocked', kind: 'warning', iconName: 'lock' },
+    failed: { label: 'Failed', kind: 'danger', iconName: 'alert' },
+};
+const FINISHED_STEPS = [ 'done', 'skipped', 'blocked', 'failed' ];
+const RUN_STATUS = {
+    idle: { label: 'Never run', kind: 'neutral' },
+    running: { label: 'Running', kind: 'info' },
+    completed: { label: 'Completed', kind: 'success' },
+    cancelled: { label: 'Stopped', kind: 'neutral' },
+    failed: { label: 'Stopped on an error', kind: 'danger' },
+};
+/** Failed step requests are retried this many times before the panel offers "Resume". */
+const MAX_RETRIES = 2;
+
+function pageHref( ctx, page, params ) {
+    const urls = ctx && ctx.config && ctx.config.pageUrls ? ctx.config.pageUrls : {};
+    if ( ! page || typeof urls[ page ] !== 'string' || typeof ctx.pageUrl !== 'function' ) {
+        return null;
+    }
+    return ctx.pageUrl( page, asObject( params ) );
+}
+
+function stepRow( step ) {
+    const st = asObject( step );
+    const status = STEP_STATUS[ st.status ] ? String( st.status ) : 'pending';
+    const meta = STEP_STATUS[ status ];
+    const rounds = Number( st.rounds ) || 0;
+    const summary = st.summary ? String( st.summary ) : '';
+    const error = st.error ? String( st.error ) : '';
+    return el( 'li', { class: [ 'ppclg-grow-step', `ppclg-grow-step--${ status }` ] },
+        el( 'span', { class: 'ppclg-grow-step-icon', title: meta.label }, status === 'running' ? spinner( true ) : icon( meta.iconName, 14 ) ),
+        el( 'div', { class: 'ppclg-grow' },
+            el( 'div', { class: 'ppclg-row' },
+                el( 'strong', {}, String( st.label || labelize( st.key ) ) ),
+                badge( meta.label, meta.kind ),
+                rounds > 1 ? el( 'span', { class: 'ppclg-muted ppclg-small' }, `${ fmtNumber( rounds ) } rounds` ) : null,
+            ),
+            summary ? el( 'div', { class: 'ppclg-small' }, summary ) : null,
+            st.note ? el( 'div', { class: 'ppclg-muted ppclg-small' }, String( st.note ) ) : null,
+            status === 'failed' && error && ! summary.includes( error ) ? el( 'div', { class: 'ppclg-small' }, `Error: ${ error }` ) : null,
+        ),
+    );
+}
+
+function needsYouList( actions, ctx ) {
+    const items = asArray( actions ).filter( ( a ) => a && typeof a === 'object' );
+    if ( items.length === 0 ) {
+        return el( 'p', { class: 'ppclg-muted' }, 'Nothing needs you right now.' );
+    }
+    return el( 'ul', { class: 'ppclg-list ppclg-list--bullets ppclg-grow-needs' }, items.map( ( a ) => {
+        const label = String( a.label || labelize( a.key ) );
+        const href = pageHref( ctx, String( a.page || '' ), a.params );
+        const count = Number( a.count );
+        return el( 'li', {},
+            href ? el( 'a', { href }, label ) : el( 'span', {}, label ),
+            Number.isFinite( count ) && count > 0 ? [ ' ', badge( fmtNumber( count ), 'warning' ) ] : null,
+        );
+    } ) );
+}
+
+function valueOr( value, missing ) {
+    return value === null || value === undefined || ! Number.isFinite( Number( value ) ) ? missing : fmtNumber( value );
+}
+
+function headline( summary, ctx ) {
+    const s = asObject( summary );
+    const subs = s.submissions && typeof s.submissions === 'object' ? s.submissions : null;
+    const prospects = s.prospects && typeof s.prospects === 'object' ? s.prospects : null;
+    const backlinks = s.backlinks && typeof s.backlinks === 'object' ? s.backlinks : null;
+    const audit = s.site_audit && typeof s.site_audit === 'object' ? s.site_audit : null;
+    return el( 'div', { class: 'ppclg-grid ppclg-grid--tiles' },
+        statTile( { label: 'Owner tasks', iconName: 'package', value: subs ? valueOr( subs.owner_tasks, 'unknown' ) : 'unknown', hint: 'Listings you submit yourself', href: pageHref( ctx, 'submissions', { tab: 'needs_manual' } ) } ),
+        statTile( { label: 'Drafts to approve', iconName: 'mail', value: valueOr( s.outreach_drafts, 'unknown' ), hint: 'Nothing is sent without approval', href: pageHref( ctx, 'outreach', { tab: 'messages', status: 'draft' } ) } ),
+        statTile( { label: 'Qualified prospects', iconName: 'target', value: prospects ? valueOr( prospects.qualified, 'unknown' ) : 'unknown', hint: prospects ? `${ valueOr( prospects.total, 'unknown' ) } prospects in total` : '', href: pageHref( ctx, 'prospects', { status: 'qualified' } ) } ),
+        statTile( { label: 'Live backlinks', iconName: 'link', value: backlinks ? valueOr( backlinks.live, 'unknown' ) : 'unknown', hint: backlinks ? `${ valueOr( backlinks.lost, 'unknown' ) } lost` : '' } ),
+        statTile( { label: 'High-priority SEO issues', iconName: 'alert', value: audit ? valueOr( audit.high, 'unknown' ) : 'not available', hint: audit ? `${ valueOr( audit.issues_total, 'unknown' ) } issues in total` : 'The site audit is not available', href: audit ? pageHref( ctx, 'seo', { severity: 'high' } ) : null } ),
+        statTile( { label: 'Link suggestions', iconName: 'link', value: valueOr( s.link_suggestions_pending, 'not available' ), hint: 'Applied only when you click Apply', href: pageHref( ctx, 'seo', { links: 'pending' } ) } ),
+    );
+}
+
+/**
+ * Creates the panel (exported for tests; the page uses the per-page instance from growPanel()).
+ *
+ * @param {object} ctx Page context from app.js.
+ * @param {{onFinished?: Function, pollDelay?: number, waitDelay?: number, retryDelay?: number}} options
+ * @return {{node: Element, refresh: Function, setFinished: Function, isBusy: Function, ready: Promise}}
+ */
+export function createGrowPanel( ctx, options = {} ) {
+    const node = el( 'div', { class: 'ppclg-section ppclg-grow-panel' } );
+    const pollDelay = Number.isFinite( options.pollDelay ) ? options.pollDelay : 400;
+    const waitDelay = Number.isFinite( options.waitDelay ) ? options.waitDelay : 3000;
+    const retryDelay = Number.isFinite( options.retryDelay ) ? options.retryDelay : 1500;
+    const s = { mode: 'loading', run: null, busy: false, failures: 0, error: '', notice: '', elapsedBase: 0, elapsedAt: Date.now(), ticker: null, stoppedByUser: false, onFinished: typeof options.onFinished === 'function' ? options.onFinished : null };
+    let elapsedNode = null;
+
+    const isRunning = () => s.busy || ( s.run && s.run.status === 'running' );
+
+    function setRun( res ) {
+        if ( res && typeof res === 'object' && Array.isArray( res.steps ) ) {
+            s.run = res;
+            s.elapsedBase = Number( res.elapsed_seconds ) || 0;
+            s.elapsedAt = Date.now();
+        }
+    }
+
+    function elapsedText() {
+        const live = s.run && s.run.status === 'running' ? ( Date.now() - s.elapsedAt ) / 1000 : 0;
+        return fmtDuration( s.elapsedBase + live );
+    }
+
+    function startTicker() {
+        if ( s.ticker ) {
+            return;
+        }
+        s.ticker = setInterval( () => {
+            if ( elapsedNode ) {
+                elapsedNode.textContent = elapsedText();
+            }
+            if ( ! s.busy ) {
+                stopTicker();
+            }
+        }, 1000 );
+        if ( s.ticker && typeof s.ticker.unref === 'function' ) {
+            s.ticker.unref();
+        }
+    }
+
+    function stopTicker() {
+        if ( s.ticker ) {
+            clearInterval( s.ticker );
+            s.ticker = null;
+        }
+    }
+
+    function progressView( run ) {
+        const steps = asArray( run && run.steps );
+        const total = steps.length;
+        const done = steps.filter( ( st ) => st && FINISHED_STEPS.includes( st.status ) ).length;
+        const current = steps.find( ( st ) => st && st.status === 'running' ) || steps.find( ( st ) => st && st.status === 'pending' );
+        elapsedNode = el( 'span', { class: 'ppclg-grow-elapsed' }, elapsedText() );
+        return el( 'div', { class: 'ppclg-stack' },
+            el( 'div', { class: 'ppclg-row' },
+                el( 'strong', {}, total > 0 ? `${ fmtNumber( done ) } of ${ fmtNumber( total ) } steps finished` : 'Starting…' ),
+                current && isRunning() ? el( 'span', { class: 'ppclg-muted' }, `Now: ${ String( current.label || labelize( current.key ) ) }` ) : null,
+                el( 'span', { class: 'ppclg-muted' }, 'Elapsed: ', elapsedNode ),
+            ),
+            progressBar( done, total > 0 ? total : 1, { tone: 'good' } ),
+            run && run.waiting && run.note ? el( 'div', { class: 'ppclg-muted ppclg-small', role: 'status' }, String( run.note ) ) : null,
+            el( 'ol', { class: 'ppclg-list ppclg-grow-steps', 'aria-live': 'polite' }, steps.map( stepRow ) ),
+        );
+    }
+
+    function lastRunView( run ) {
+        if ( ! run || ! run.id ) {
+            return el( 'p', {}, 'No growth run yet. Click "Grow now" to run the whole routine once. It takes a few minutes; keep this page open to watch it, or close it and the scheduler finishes the run in the background.' );
+        }
+        const meta = RUN_STATUS[ run.status ] || { label: labelize( run.status ), kind: 'neutral' };
+        const when = run.finished_at || run.updated_at || run.started_at;
+        const summary = asObject( run.summary );
+        return el( 'div', { class: 'ppclg-stack' },
+            el( 'div', { class: 'ppclg-row' },
+                el( 'span', {}, 'Last run: ', when ? timeEl( when ) : 'unknown' ),
+                badge( meta.label, meta.kind ),
+                el( 'span', { class: 'ppclg-muted' }, `took ${ fmtDuration( run.elapsed_seconds ) }` ),
+            ),
+            summary.computed_at ? headline( summary, ctx ) : el( 'p', { class: 'ppclg-muted' }, 'Headline numbers appear once a run reaches its summary step.' ),
+        );
+    }
+
+    function resultsView( run ) {
+        const finished = run.finished_at ? Date.parse( run.finished_at ) : NaN;
+        const recent = Number.isFinite( finished ) && Date.now() - finished < 30 * 60 * 1000;
+        const actions = asArray( run.next_actions ).length ? run.next_actions : run.needs_you;
+        return el( 'div', { class: 'ppclg-grid ppclg-grid--2 ppclg-grow-results' },
+            el( 'div', {}, el( 'h4', {}, 'Needs you' ), needsYouList( actions, ctx ) ),
+            el( 'div', {}, el( 'h4', {}, 'What happened' ), details( recent ? 'Step by step' : 'Step by step (last run)', el( 'ol', { class: 'ppclg-list ppclg-grow-steps' }, asArray( run.steps ).map( stepRow ) ), { open: recent } ) ),
+        );
+    }
+
+    function draw() {
+        const run = s.run;
+        const status = run ? String( run.status || 'idle' ) : 'idle';
+        const running = isRunning();
+        const actions = [];
+        if ( s.mode === 'error' ) {
+            actions.push( button( 'Resume', { kind: 'primary', iconName: 'play', onClick: () => {
+                loop();
+            } } ) );
+        } else if ( running ) {
+            actions.push( button( 'Stop', { small: true, iconName: 'stop', onClick: stopRun, disabled: status !== 'running' } ) );
+        } else {
+            actions.push( button( 'Grow now', { kind: 'primary', iconName: 'zap', onClick: startRun, disabled: s.mode === 'loading' } ) );
+        }
+        const body = [ el( 'p', { class: 'ppclg-muted ppclg-grow-explain' }, GROW_EXPLAIN ) ];
+        if ( s.notice ) {
+            body.push( callout( 'warning', 'The last growth run could not be loaded', s.notice ) );
+        }
+        if ( s.mode === 'loading' ) {
+            body.push( loading( 'Checking the last growth run…', true ) );
+        } else if ( running || s.mode === 'error' ) {
+            body.push( progressView( run ) );
+        } else {
+            body.push( lastRunView( run ) );
+        }
+        if ( s.mode === 'error' ) {
+            body.push( callout( 'danger', 'Lost contact with the server', `${ s.error } Work done so far is saved; click Resume to continue where it stopped.` ) );
+        }
+        if ( ! running && s.mode !== 'error' && s.mode !== 'loading' && run && [ 'completed', 'cancelled', 'failed' ].includes( status ) ) {
+            if ( status === 'failed' && run.error ) {
+                body.push( callout( 'danger', 'The run stopped on an error', String( run.error ) ) );
+            }
+            body.push( resultsView( run ) );
+        }
+        replace( node, card( {
+            title: 'Grow your site',
+            subtitle: 'One click runs the whole routine; anything that leaves your site still needs your approval.',
+            actions,
+            body,
+            className: 'ppclg-grow-card',
+        } ) );
+    }
+
+    async function loop() {
+        if ( s.busy ) {
+            return;
+        }
+        s.busy = true;
+        s.mode = 'running';
+        s.failures = 0;
+        s.error = '';
+        s.stoppedByUser = false;
+        draw();
+        startTicker();
+        try {
+            for ( ;; ) {
+                let res;
+                try {
+                    res = await api.post( '/growth/step', {}, { silent: true } );
+                } catch ( e ) {
+                    s.failures += 1;
+                    if ( s.failures > MAX_RETRIES ) {
+                        s.mode = 'error';
+                        s.error = errorMessage( e );
+                        break;
+                    }
+                    await sleep( retryDelay * s.failures );
+                    continue;
+                }
+                s.failures = 0;
+                setRun( res );
+                if ( ! res || typeof res !== 'object' || res.status !== 'running' ) {
+                    s.mode = 'idle';
+                    break;
+                }
+                draw();
+                await sleep( res.waiting ? waitDelay : pollDelay );
+            }
+        } catch ( e ) {
+            s.mode = 'error';
+            s.error = errorMessage( e );
+        } finally {
+            s.busy = false;
+            stopTicker();
+            draw();
+        }
+        if ( s.mode !== 'idle' || ! s.run ) {
+            return;
+        }
+        const status = s.run.status;
+        if ( status === 'completed' ) {
+            toast( 'Growth run finished. "Needs you" lists what to do next.', 'success' );
+        } else if ( status === 'cancelled' && ! s.stoppedByUser ) {
+            toast( 'The growth run was stopped.', 'info' );
+        } else if ( status === 'failed' ) {
+            toast( s.run.error ? String( s.run.error ) : 'The growth run stopped on an error.', 'error' );
+        }
+        if ( s.onFinished ) {
+            try {
+                s.onFinished( s.run );
+            } catch ( e ) {
+                // The panel already shows the result.
+            }
+        }
+    }
+
+    async function startRun() {
+        let res;
+        try {
+            res = await api.post( '/growth/start', {} );
+        } catch ( e ) {
+            return; // api.js already reported the error.
+        }
+        if ( ! res || typeof res !== 'object' ) {
+            toast( 'The growth run could not be started: the server sent no answer.', 'error' );
+            return;
+        }
+        setRun( res );
+        if ( res.ok === false || res.status !== 'running' ) {
+            toast( res.message ? String( res.message ) : 'The growth run could not be started.', 'warning' );
+            draw();
+            return;
+        }
+        if ( res.message ) {
+            toast( String( res.message ), res.already_running ? 'info' : 'success' );
+        }
+        s.notice = '';
+        loop();
+    }
+
+    async function stopRun() {
+        const yes = await confirm( 'Stop the growth run? Steps already finished are kept; queued follow-up jobs of this run are cancelled.', { title: 'Stop the growth run', confirmText: 'Stop run', danger: true } );
+        if ( ! yes ) {
+            return;
+        }
+        let res;
+        try {
+            res = await api.post( '/growth/cancel', {} );
+        } catch ( e ) {
+            return;
+        }
+        if ( res && res.ok ) {
+            s.stoppedByUser = true;
+            toast( String( res.message || 'Growth run stopped.' ), 'success' );
+        } else {
+            toast( res && res.message ? String( res.message ) : 'The growth run could not be stopped.', 'warning' );
+        }
+        setRun( res );
+        draw();
+    }
+
+    async function refresh() {
+        if ( s.busy ) {
+            return;
+        }
+        let res;
+        try {
+            res = await api.get( '/growth/status', {}, { silent: true } );
+        } catch ( e ) {
+            s.mode = 'idle';
+            s.notice = e && e.status === 404 ? 'The growth run endpoints are not available. Reload the page after updating the plugin.' : errorMessage( e );
+            draw();
+            return;
+        }
+        s.notice = '';
+        setRun( res );
+        if ( res && res.status === 'running' ) {
+            loop(); // an active run (this tab was closed or reloaded) resumes automatically
+            return;
+        }
+        s.mode = 'idle';
+        draw();
+    }
+
+    draw();
+    const ready = refresh();
+    return {
+        node,
+        refresh,
+        ready,
+        isBusy: () => s.busy,
+        setFinished: ( fn ) => {
+            s.onFinished = typeof fn === 'function' ? fn : null;
+        },
+    };
+}
+
+/** One panel per page view: re-renders of the overview keep the same panel (and its running loop). */
+let growPanelInstance = null;
+
+function growPanel( ctx, onFinished ) {
+    if ( growPanelInstance ) {
+        growPanelInstance.setFinished( onFinished );
+        growPanelInstance.refresh();
+        return growPanelInstance.node;
+    }
+    growPanelInstance = createGrowPanel( ctx, { onFinished } );
+    return growPanelInstance.node;
+}
 
 function providerBadge( p ) {
     if ( ! p ) {
@@ -41,13 +497,21 @@ function balanceRows( balance ) {
 
 export default async function render( root, ctx ) {
     const { config, shell } = ctx;
-    replace( root, pageHeader( { title: 'Overview', description: `Link acquisition health for ${ config.siteDomain || config.brand }.` } ), loading( 'Loading overview…' ) );
+    // Compliance banner first, then the "Grow your site" panel; both stay in place while the rest reloads.
+    const bannerHost = el( 'div', { class: 'ppclg-compliance-host' } );
+    loadComplianceBanner( bannerHost );
+    const grow = growPanel( ctx, () => {
+        if ( root.isConnected ) {
+            render( root, ctx ); // fresh numbers below once a run finishes
+        }
+    } );
+    replace( root, pageHeader( { title: 'Overview', description: `Link acquisition health for ${ config.siteDomain || config.brand }.` } ), bannerHost, grow, loading( 'Loading overview…' ) );
 
     let data;
     try {
         data = await api.get( '/overview' );
     } catch ( e ) {
-        replace( root, pageHeader( { title: 'Overview' } ), errorState( { title: 'The overview could not be loaded', message: e && e.message ? e.message : '', retry: () => render( root, ctx ) } ) );
+        replace( root, pageHeader( { title: 'Overview' } ), bannerHost, grow, errorState( { title: 'The overview could not be loaded', message: e && e.message ? e.message : '', retry: () => render( root, ctx ) } ) );
         return;
     }
 
@@ -191,6 +655,8 @@ export default async function render( root, ctx ) {
             description: `Link acquisition health for ${ config.siteDomain || config.brand }. Data refreshed ${ fmtDate( new Date() ) }.`,
             actions: [ button( 'Refresh', { iconName: 'refresh', onClick: () => render( root, ctx ) } ) ],
         } ),
+        bannerHost,
+        grow,
         missing.length ? callout( 'warning', 'Some integrations are not configured', el( 'ul', {}, missing.map( ( m ) => el( 'li', {}, String( m ) ) ) ), { actions: linkButton( 'Configure integrations', settingsUrl, { small: true, kind: 'primary' } ) } ) : null,
         ! automation.automation_enabled ? callout( 'info', 'Automation is switched off', 'Discovery, evaluation, monitoring and the submission/outreach queues only run while the master switch is on. Manual actions still work.', { actions: linkButton( 'Open automation', ctx.pageUrl( 'automation' ), { small: true } ) } ) : null,
         tiles,

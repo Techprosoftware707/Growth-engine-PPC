@@ -11,12 +11,15 @@ namespace PPC\LinkGrowth\Automation;
 
 use PPC\LinkGrowth\Automation\Jobs\EvaluateJob;
 use PPC\LinkGrowth\Container;
+use PPC\LinkGrowth\Discovery\VerifiedOpportunities;
+use PPC\LinkGrowth\Growth\GrowthRun;
 use PPC\LinkGrowth\Monitoring\Notifier;
 use PPC\LinkGrowth\Outreach\OutreachEngine;
 use PPC\LinkGrowth\Repositories\Backlinks;
 use PPC\LinkGrowth\Repositories\Jobs;
 use PPC\LinkGrowth\Repositories\Prospects;
 use PPC\LinkGrowth\Repositories\Submissions;
+use PPC\LinkGrowth\Seo\IndexNow;
 use PPC\LinkGrowth\Support\Limits;
 use PPC\LinkGrowth\Support\Logger;
 use PPC\LinkGrowth\Support\Settings;
@@ -43,9 +46,10 @@ final class Pipeline {
     ) {}
 
     /**
-     * One scheduler tick: enqueue due stages (when automation is enabled) and run the queue.
+     * One scheduler tick: continue an active growth run whose browser tab went away, enqueue due stages (when
+     * automation is enabled) and run the queue.
      *
-     * @return array{enqueued:string[],run:array{ran:int,completed:int,failed:int,skipped:bool},skipped_reason:string}
+     * @return array{enqueued:string[],run:array{ran:int,completed:int,failed:int,skipped:bool},skipped_reason:string,growth:?array<string,mixed>}
      */
     public function tick(): array {
         update_option( self::OPTION_LAST_TICK, gmdate( 'c' ), false );
@@ -53,6 +57,7 @@ final class Pipeline {
             'enqueued'       => [],
             'run'            => [ 'ran' => 0, 'completed' => 0, 'failed' => 0, 'skipped' => false ],
             'skipped_reason' => '',
+            'growth'         => null,
         ];
 
         try {
@@ -62,6 +67,14 @@ final class Pipeline {
             }
         } catch ( Throwable $e ) {
             $this->logger->error( 'automation', 'Stale job recovery failed: ' . $e->getMessage() );
+        }
+
+        // A growth run is the owner's explicit click, so it continues even while the automation switch is off. It
+        // shares the tick's budget with the queue run below, so one tick never runs longer than the ceiling.
+        $budget        = TimeBudget::seconds( $this->maxSeconds() );
+        $out['growth'] = $this->continueGrowthRun( $budget );
+        if ( null === $out['growth'] ) {
+            $budget = null; // nothing ran: the queue gets a fresh, full budget (created when it starts)
         }
 
         if ( (bool) $this->settings->get( 'automation.enabled', false ) ) {
@@ -75,7 +88,7 @@ final class Pipeline {
         }
 
         try {
-            $out['run'] = $this->runner->run( TimeBudget::seconds( $this->maxSeconds() ) );
+            $out['run'] = $this->runner->run( $budget ?? TimeBudget::seconds( $this->maxSeconds() ) );
         } catch ( Throwable $e ) {
             $this->logger->error( 'automation', 'Job runner crashed: ' . $e->getMessage() );
         }
@@ -219,6 +232,38 @@ final class Pipeline {
     // ------------------------------------------------------------------
 
     /**
+     * Advances an active growth run (Growth\GrowthRun) with this tick's budget when nobody advanced it for more
+     * than GrowthRun::BACKGROUND_AFTER_SECONDS (the dashboard tab was closed). Never lets a failure break the tick.
+     *
+     * @return array<string,mixed>|null null when there was nothing to continue.
+     */
+    private function continueGrowthRun( TimeBudget $budget ): ?array {
+        try {
+            if ( ! class_exists( GrowthRun::class ) ) {
+                return null;
+            }
+            $run = $this->container()->get( GrowthRun::class );
+            if ( ! $run instanceof GrowthRun || ! $run->isActive() || $run->lastAdvanceAge() <= GrowthRun::BACKGROUND_AFTER_SECONDS ) {
+                return null;
+            }
+            $state = $run->advance( $budget );
+            return [
+                'advanced' => empty( $state['waiting'] ),
+                'id'       => (string) ( $state['id'] ?? '' ),
+                'status'   => (string) ( $state['status'] ?? '' ),
+                'cursor'   => (int) ( $state['cursor'] ?? 0 ),
+            ];
+        } catch ( Throwable $e ) {
+            try {
+                $this->logger->error( 'growth', 'The growth run could not be continued in the background: ' . $e->getMessage() );
+            } catch ( Throwable $ignored ) {
+                unset( $ignored );
+            }
+            return null;
+        }
+    }
+
+    /**
      * Stage definitions: cadence in seconds (0 = every tick, subject to the optional due-check),
      * governing automation flag ('' = none) and priority from the job class.
      *
@@ -231,6 +276,8 @@ final class Pipeline {
             'mention_scan'       => [ 'every' => WEEK_IN_SECONDS, 'flag' => 'discovery', 'due' => null, 'cadence' => 'weekly' ],
             'evaluate'           => [ 'every' => 0, 'flag' => 'evaluation', 'due' => 'evaluateDue', 'cadence' => 'every tick (when prospects are due)' ],
             'find_opportunities' => [ 'every' => 0, 'flag' => 'opportunities', 'due' => 'opportunitiesDue', 'cadence' => 'every tick (when qualified prospects lack opportunities)' ],
+            'storefront_audit'   => [ 'every' => DAY_IN_SECONDS, 'flag' => '', 'due' => null, 'cadence' => 'daily (and when products, product categories/tags or menus change)' ],
+            'import_verified'    => [ 'every' => 0, 'flag' => '', 'due' => 'verifiedImportDue', 'cadence' => 'when the bundled verified opportunity data changes' ],
             'package'            => [ 'every' => HOUR_IN_SECONDS, 'flag' => 'packaging', 'due' => null, 'cadence' => 'hourly' ],
             'submit'             => [ 'every' => 0, 'flag' => 'submissions', 'due' => 'submitDue', 'cadence' => 'every tick (when approved submissions are queued)' ],
             'verify_listings'    => [ 'every' => 6 * HOUR_IN_SECONDS, 'flag' => '', 'due' => null, 'cadence' => 'every 6 hours' ],
@@ -241,6 +288,9 @@ final class Pipeline {
             'import_backlinks'   => [ 'every' => $importDays * DAY_IN_SECONDS, 'flag' => 'imports', 'due' => null, 'cadence' => sprintf( 'every %d days', $importDays ) ],
             'cleanup'            => [ 'every' => DAY_IN_SECONDS, 'flag' => '', 'due' => null, 'cadence' => 'daily' ],
             'metrics_refresh'    => [ 'every' => WEEK_IN_SECONDS, 'flag' => '', 'due' => null, 'cadence' => 'weekly' ],
+            'site_audit'         => [ 'every' => DAY_IN_SECONDS, 'flag' => '', 'due' => null, 'cadence' => 'daily' ],
+            'indexnow'           => [ 'every' => HOUR_IN_SECONDS, 'flag' => '', 'due' => 'indexnowDue', 'cadence' => 'hourly (when URLs are waiting)' ],
+            'internal_links'     => [ 'every' => WEEK_IN_SECONDS, 'flag' => '', 'due' => null, 'cadence' => 'weekly (suggestions only)' ],
         ];
         $types = $this->runner->types();
         $out   = [];
@@ -331,6 +381,27 @@ final class Pipeline {
             return true;
         }
         return $this->digestDue();
+    }
+
+    /**
+     * IndexNow has URLs waiting (changed posts queued by the save hooks, the first submission, or the daily
+     * comparison) and may submit (production site, search engines not discouraged, no back-off running).
+     */
+    private function indexnowDue(): bool {
+        try {
+            return class_exists( IndexNow::class ) && $this->container()->get( IndexNow::class )->isDue();
+        } catch ( Throwable $e ) {
+            return false;
+        }
+    }
+
+    /** The bundled verified opportunity data has a version that is not fully imported (or a pass is unfinished). */
+    private function verifiedImportDue(): bool {
+        try {
+            return class_exists( VerifiedOpportunities::class ) && $this->container()->get( VerifiedOpportunities::class )->needsImport();
+        } catch ( Throwable $e ) {
+            return false;
+        }
     }
 
     private function digestDue(): bool {

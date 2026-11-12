@@ -9,12 +9,17 @@ declare(strict_types=1);
 
 namespace PPC\LinkGrowth\Admin\Rest;
 
+use PPC\LinkGrowth\Automation\JobRunner;
+use PPC\LinkGrowth\Automation\Pipeline;
 use PPC\LinkGrowth\Content\ClaimsFilter;
+use PPC\LinkGrowth\Discovery\VerifiedOpportunities;
 use PPC\LinkGrowth\Repositories\Opportunities;
 use PPC\LinkGrowth\Repositories\Prospects;
 use PPC\LinkGrowth\Repositories\Repository;
 use PPC\LinkGrowth\Repositories\Submissions;
 use PPC\LinkGrowth\Submission\SubmissionEngine;
+use PPC\LinkGrowth\Support\TimeBudget;
+use Throwable;
 use WP_REST_Request;
 
 final class SubmissionsController extends Controller {
@@ -28,7 +33,10 @@ final class SubmissionsController extends Controller {
     private const AUTO_STATUSES = [ Submissions::STATUS_APPROVED, Submissions::STATUS_QUEUED ];
 
     public function register( string $namespace ): void {
-        $this->route( $namespace, '/submissions', 'GET', [ $this, 'index' ], $this->listArgs( [ 'status', 'method', 'prospect_id', 'adapter' ] ) );
+        $this->route( $namespace, '/submissions', 'GET', [ $this, 'index' ], $this->listArgs( [ 'status', 'method', 'prospect_id', 'adapter', 'source', 'tier', 'kind', 'conditional' ] ) );
+        // Verified opportunity database (owner tasks): import status and an on-demand import batch.
+        $this->route( $namespace, '/submissions/verified', 'GET', [ $this, 'verifiedStatus' ] );
+        $this->route( $namespace, '/submissions/verified/import', 'POST', [ $this, 'verifiedImport' ] );
         $this->route( $namespace, '/submissions/(?P<id>\d+)', 'GET', [ $this, 'show' ], $this->idArgs() );
         $this->route( $namespace, '/submissions/(?P<id>\d+)/payload', 'POST', [ $this, 'payload' ], $this->idArgs() );
         $this->route(
@@ -58,8 +66,9 @@ final class SubmissionsController extends Controller {
         if ( $prospectId > 0 ) {
             $where['prospect_id'] = $prospectId;
         }
-        $repo = $this->c->get( Submissions::class );
-        $page = $repo->paginate( $where, $pg['q'], [ 'target_url', 'listing_url', 'category' ], $pg['page'], $pg['per_page'], $pg['orderby'], $pg['order'] );
+        $repo                         = $this->c->get( Submissions::class );
+        [ $extraWhere, $extraParams ] = $this->ownerTaskFilter( $request );
+        $page                         = $repo->paginate( $where, $pg['q'], [ 'target_url', 'listing_url', 'category' ], $pg['page'], $pg['per_page'], $pg['orderby'], $pg['order'], $extraWhere, $extraParams );
 
         $items = array_map( fn( array $s ): array => $this->slimSubmission( $s ), $page['items'] );
         foreach ( $items as &$item ) {
@@ -72,6 +81,11 @@ final class SubmissionsController extends Controller {
                 'fields_count'     => is_array( $payload['fields'] ?? null ) ? count( $payload['fields'] ) : 0,
                 'instructions_count' => is_array( $payload['instructions'] ?? null ) ? count( $payload['instructions'] ) : 0,
             ];
+            // Owner tasks from the verified database also carry their tier / kind badges in the list.
+            $ownerTask = class_exists( VerifiedOpportunities::class ) ? VerifiedOpportunities::listSummary( $payload ) : null;
+            if ( null !== $ownerTask ) {
+                $item['payload']['package'] = $ownerTask;
+            }
             unset( $item['response'] );
         }
         unset( $item );
@@ -272,6 +286,98 @@ final class SubmissionsController extends Controller {
             'changed'    => array_values( array_unique( $changed ) ),
             'submission' => $fresh ? $this->slimSubmission( $fresh ) : null,
         ];
+    }
+
+    /**
+     * GET /submissions/verified — import status of the verified opportunity database.
+     *
+     * @return array<string,mixed>
+     */
+    public function verifiedStatus( WP_REST_Request $request ): array {
+        unset( $request );
+        $service = $this->verifiedService();
+        if ( null === $service ) {
+            return [ 'available' => false, 'error' => 'not_available', 'summary' => __( 'The verified opportunity database is not available in this installation.', 'ppc-link-growth-engine' ) ];
+        }
+        $status = $this->safe( static fn(): array => $service->status(), null, 'verified database status' );
+        if ( ! is_array( $status ) ) {
+            return [ 'available' => false, 'error' => 'status_failed', 'summary' => __( 'The verified opportunity database status could not be read. Check the plugin logs.', 'ppc-link-growth-engine' ) ];
+        }
+        $status['job_registered'] = $this->importJobRegistered();
+        return $status;
+    }
+
+    /**
+     * POST /submissions/verified/import — imports one batch now (local database work only: no HTTP, no email)
+     * and, when the job type is registered, queues the rest for the background runner.
+     *
+     * @return array<string,mixed>
+     */
+    public function verifiedImport( WP_REST_Request $request ): array {
+        unset( $request );
+        $service = $this->verifiedService();
+        if ( null === $service ) {
+            return [ 'ok' => false, 'message' => __( 'The verified opportunity database is not available in this installation.', 'ppc-link-growth-engine' ) ];
+        }
+        $result = $service->import( TimeBudget::seconds( 15.0 ) );
+        $ok     = '' === (string) $result['error'] && empty( $result['busy'] );
+        $msg    = (string) $result['summary'];
+        if ( $ok && ! $result['done'] ) {
+            $queued = null;
+            if ( $this->importJobRegistered() ) {
+                $queued = $this->safe( fn(): ?int => $this->c->get( Pipeline::class )->enqueueStage( 'import_verified', [], 4, true ), null, 'verified import continuation' );
+            }
+            $msg .= null !== $queued
+                ? ' ' . __( 'The remaining items were queued and are imported by the background runner.', 'ppc-link-growth-engine' )
+                : ' ' . __( 'Click "Import now" again to continue with the next batch.', 'ppc-link-growth-engine' );
+        }
+        $this->audit( 'verified_db.import_requested', 'verified_db', 0, [ 'imported' => (int) $result['imported'], 'updated' => (int) $result['updated'], 'skipped' => (int) $result['skipped'], 'done' => (bool) $result['done'], 'ok' => $ok ] );
+        return [
+            'ok'      => $ok,
+            'message' => $msg,
+            'result'  => $result,
+            'status'  => $this->safe( static fn(): array => $service->status(), null, 'verified database status' ),
+        ];
+    }
+
+    /** The verified-database service (container factory when registered), or null when unavailable. */
+    private function verifiedService(): ?VerifiedOpportunities {
+        if ( ! class_exists( VerifiedOpportunities::class ) ) {
+            return null;
+        }
+        try {
+            return $this->c->has( VerifiedOpportunities::class ) ? $this->c->get( VerifiedOpportunities::class ) : VerifiedOpportunities::fromContainer( $this->c );
+        } catch ( Throwable $e ) {
+            $this->logger()->warning( 'rest', 'Verified opportunity database unavailable: ' . $e->getMessage() );
+            return null;
+        }
+    }
+
+    private function importJobRegistered(): bool {
+        return (bool) $this->safe( fn(): bool => isset( $this->c->get( JobRunner::class )->types()['import_verified'] ), false, 'job types' );
+    }
+
+    /**
+     * Extra WHERE for the owner-task filters: source=verified_db, tier=1..4, kind=outreach|listing, conditional=yes|no.
+     * Any of the three narrower filters implies source=verified_db.
+     *
+     * @return array{0:string,1:array<int,string>}
+     */
+    private function ownerTaskFilter( WP_REST_Request $request ): array {
+        $source      = sanitize_key( $this->str( $request, 'source', '', 40 ) );
+        $tier        = $this->int( $request, 'tier', 0 );
+        $kind        = sanitize_key( $this->str( $request, 'kind', '', 20 ) );
+        $conditional = sanitize_key( $this->str( $request, 'conditional', '', 10 ) );
+        $conditional = in_array( $conditional, [ '1', 'true', 'yes' ], true ) ? 'yes' : ( in_array( $conditional, [ '0', 'false', 'no' ], true ) ? 'no' : '' );
+        $kind        = in_array( $kind, [ 'outreach', 'listing' ], true ) ? $kind : '';
+        $tier        = $tier >= 1 && $tier <= 9 ? $tier : 0;
+        if ( 'verified_db' !== $source && 0 === $tier && '' === $kind && '' === $conditional ) {
+            return [ '', [] ];
+        }
+        if ( ! class_exists( VerifiedOpportunities::class ) ) {
+            return [ '1=0', [] ];
+        }
+        return VerifiedOpportunities::payloadFilter( [ 'tier' => $tier, 'kind' => $kind, 'conditional' => $conditional ] );
     }
 
     // ------------------------------------------------------------------

@@ -13,19 +13,55 @@ Every tick (default every 5 minutes via Action Scheduler) the pipeline enqueues 
 7. **Auto outreach** (daily) — drafts personalised messages for qualified editorial prospects (resource pages, publications, broken links, unlinked mentions, podcasts, associations) into evergreen "Auto" campaigns (a paused, archived or completed Auto campaign gets no new drafts); **Outreach send** delivers approved messages inside the send window and limits (auto-drafts are approved automatically only with *Outreach autosend* on and *Require individual approval* off); **Follow-ups** (daily) drafts follow-ups for unanswered messages, which are queued to send without review only with autosend on and in campaigns set to auto-approve follow-ups.
 8. **Monitor backlinks** — checks due links, records changes, raises notifications; **Import backlinks** (weekly) pulls provider and GA4 referral data.
 9. **Cleanup** (daily) and **Metrics refresh** (weekly).
+10. **Storefront audit** (daily, and again after products, product categories or tags, or menus change) — see *Storefront compliance check* below.
+11. **Import verified** (when the bundled `data/verified-opportunities.json` changes) — imports the researched opportunities as owner tasks.
+12. **Site audit** (daily), **IndexNow** (hourly, only when URLs are waiting and the site may submit) and **Internal links** (weekly, suggestions only) — see the On-site SEO page.
 
 Every automated action is written to the audit log (Logs → Audit).
+
+## Grow now (one click)
+
+**Overview → Grow your site → Grow now** runs every stage above once, in this order: check the storefront and the setup, import verified opportunities, audit on-site SEO, notify search engines (IndexNow), suggest internal links, discover, find unlinked mentions, find broken-link opportunities, evaluate, find opportunities, prepare packages, submit, verify listings, draft outreach, check backlinks, import backlinks, refresh metrics, summarise.
+
+- The panel lists each step with its status (done, skipped, blocked, failed) and one sentence about what it did. The browser asks the server to continue every few seconds; each request works for at most `growth.step_seconds` (20 s).
+- If you close the tab, the scheduler continues the run about a minute later, even while the automation switch is off (the run was your explicit click). Opening the Overview again resumes the display. Only one run is active at a time; *Stop* keeps what was done and cancels the run's queued follow-up jobs.
+- The run uses the same gates as the scheduled stages: the submission policy (including the storefront gate), robots.txt, the daily limits and the outreach approval rules. Steps run as manual runs, so a stage whose own switch is off still runs, but *Automated submissions* and *Outreach autosend* are always respected. The submit step shows **blocked** when the storefront check blocks or automated submissions are off.
+- The run never changes a setting, never sends outreach (it only drafts; sending stays behind approval and autosend) and never edits your pages (internal links are suggestions).
+- At the end, **What happened** shows headline numbers (prospects, owner tasks, drafts awaiting approval, live and lost backlinks, SEO issues, IndexNow submissions, link suggestions, storefront status) and **Needs you** links to the pages where you act. A number that could not be read shows as "not available", never as 0.
+- Work that does not fit (for example more prospects than the evaluation rounds allow) continues in the background; the step says so.
+
+## Storefront compliance check
+
+Listings and outreach describe the business as a research-use-only supplier of laboratory reagents. When the storefront presents products for consumer use, every automated listing and email would misrepresent the business, so the plugin checks the store first:
+
+- **What it reads**: product category and tag names, slugs and descriptions, published product titles and short descriptions, and menu items (page and post titles when WooCommerce is not active). It never edits anything.
+- **Results**: *block* (consumer-use wording such as weight loss, anti-aging, tanning, skincare, beauty, nasal spray, capsules, injections, syringes, needles, dosing, supplements, wellness, "for human use", or a product title that is a consumer dosage form), *warn* (wording to review: recovery, growth, cognitive, metabolic, longevity, healing) or *pass*. Each finding names the term, where it is and a link to edit it.
+- **While it blocks** (and the gate is on): new packages become owner tasks under Submissions → Needs manual, queued submissions are moved there when the queue runs, and outreach sending pauses; each paused message shows "Paused: the storefront compliance check is blocking …". Drafting and packaging continue so you can review them. These items do not return to the queue by themselves after the store is fixed: approve or retry them.
+- **Your decision**: how the store presents itself is your legal decision, ideally with Canadian regulatory counsel. Either change the storefront wording (the check re-runs when products, categories, tags or menus are saved; *Re-check now* on the banner runs it at once), or click *Acknowledge* to record that you reviewed these exact findings. An acknowledgement lasts until the findings change. Turning the gate off (Settings → Outreach & compliance) asks for confirmation.
+- **Fail closed**: if the check cannot run, automated submissions and outreach sending stay paused and the error is logged.
+
+## On-site SEO page
+
+- **Site audit**: issues by severity (high, medium, low) with the fix and an edit link. *Run audit* continues where the last batch stopped; the audit reads the database and changes nothing.
+- **IndexNow**: the key file link, the last submission and its HTTP status, URLs waiting, and *Submit now* (compares every public URL now). Submissions happen only on the production site and never while WordPress discourages search engines. HTTP 403 means IndexNow could not read the key file: open the key file link and check that it shows only the key (a caching or security rule may block it).
+- **Internal-link suggestions**: each row shows the sentence, the anchor and the target. *Apply* (or *Apply all*, after confirmation) adds the link and WordPress saves a revision; nothing is changed if the text was edited since the suggestion was made. *Dismiss* hides a suggestion for good.
+
+## Verified opportunities (owner tasks)
+
+The plugin bundles 595 researched opportunities (business directories, associations, research and data platforms, publications) with their submission pages, requirements and steps. They are imported once per data version as owner tasks: Submissions → **Owner tasks** lists them with tier, authority, kind (listing or outreach) and conditions. Each task has the listing kit (*Copy listing kit*), the steps, a safe link to the submission page and *Mark submitted* for the listing URL, after which listing verification takes over. The import contacts nobody and sends nothing; whether to pitch an outreach-type opportunity is your decision (automatic drafting skips them). Items whose domain is on the platform exclusion list (`data/excluded-domains.json`, for example Google Business Profile, LinkedIn or GitHub) are skipped and listed with the reason; allowing them means changing that exclusion list, which also lets discovery pick those platforms up.
 
 ## Daily routine for the administrator (10–15 minutes)
 
 1. **Overview** — read notifications (lost links, high-value prospects, replies), check that integrations are healthy and credits remain.
-2. **Submissions → Needs manual** — open each package, read the instructions, visit the submission page in your browser, paste the prepared fields and content, then click *Mark submitted* with the listing URL/confirmation. The verifier takes it from there.
-3. **Submissions → Pending review** — approve packages whose destination you have authorised for automated posting (set its *Per-site automation* to *Always allow* in the prospect drawer first; approving re-checks every gate, and a package that still cannot be automated moves to *Needs manual* with the reason), or reject.
-4. **Outreach → Messages → Draft** — read each draft, edit if needed (the claims check runs live), approve. Approved messages go out automatically within the send window, or use *Send now*.
-5. **Prospects** — sanity-check new *qualified* prospects; hold, reject or suppress anything you do not want pursued. Rejections and suppressions are permanent for discovery, and they cancel the prospect's unsent outreach (draft, approved and scheduled messages). *Delete* also removes the prospect's opportunities, submissions, contacts and outreach messages, so it is refused once a submission or email was sent to the site: suppress or reject it instead.
+2. **Overview** — if the storefront compliance banner shows, read the findings and decide (change the wording, or acknowledge). Click *Grow now* when you want everything to run once and see what needs you.
+3. **Submissions → Owner tasks / Needs manual** — open each package, read the instructions, visit the submission page in your browser, paste the prepared fields and content, then click *Mark submitted* with the listing URL/confirmation. The verifier takes it from there.
+4. **Submissions → Pending review** — approve packages whose destination you have authorised for automated posting (set its *Per-site automation* to *Always allow* in the prospect drawer first; approving re-checks every gate, and a package that still cannot be automated moves to *Needs manual* with the reason), or reject.
+5. **Outreach → Messages → Draft** — read each draft, edit if needed (the claims check runs live), approve. Approved messages go out automatically within the send window, or use *Send now*.
+6. **Prospects** — sanity-check new *qualified* prospects; hold, reject or suppress anything you do not want pursued. Rejections and suppressions are permanent for discovery, and they cancel the prospect's unsent outreach (draft, approved and scheduled messages). *Delete* also removes the prospect's opportunities, submissions, contacts and outreach messages, so it is refused once a submission or email was sent to the site: suppress or reject it instead.
 
 ## Weekly
 
+- Review **On-site SEO**: fix high-priority audit issues in the editor and apply or dismiss internal-link suggestions.
 - Review **Backlinks**: new, lost, changed; investigate lost links (the source page may have moved).
 - Review replies in **Outreach → Messages** and use *Log reply* for replies that arrived outside the webhook.
 - Check **Automation → Limits** and adjust if the queue is starving or growing too fast.
@@ -71,4 +107,10 @@ Each prospect drawer shows the seven components with their weight, raw score, da
 | Outreach not sending | Sender identity incomplete (postal address), campaign not approved (or paused), message not approved, outside send window, limits reached, WP Mail SMTP misconfigured. Auto-drafts stay drafts while *Require individual approval* is on, even with autosend on. |
 | *Send now* says the automation runner is busy | A background run holds the runner lock (it may be sending outreach); nothing was sent. Try again in a minute. |
 | Inbound webhook answers 401, 403 or 503 | 401: no secret in the request; 403: wrong secret (in the URL forms, use only letters and digits or percent-encode); 503: no secret configured in Settings → Integrations. |
+| Submissions all go to *Needs manual* with "storefront" in the reason, and outreach says "Paused: the storefront compliance check is blocking" | The storefront check blocks (Overview banner). Change the storefront wording and click *Re-check now*, or *Acknowledge* the findings. |
+| Grow now step shows *blocked* at "Submit approved listings" | The storefront check blocks, or *Automated submissions* is off; the step sentence says which. |
+| Grow now keeps saying the runner is busy | A background job holds the runner lock; the panel retries every few seconds. If it persists, check Automation → Queue for a long-running job. |
+| IndexNow says it only runs on the production site | WordPress reports another environment type (`WP_ENVIRONMENT_TYPE`). Nothing is submitted from staging copies. |
+| IndexNow answers HTTP 403 | The key file is not reachable: open `https://SITE/{key}.txt` (link on the On-site SEO page); it must show only the key. Check caching or firewall rules (Cloudflare) for `.txt` files. |
+| An internal-link suggestion is refused with "the text changed" | The post was edited after the suggestion was made. Click *Find suggestions* on the On-site SEO page. |
 | Errors in Logs | Each entry has channel and context; provider errors also appear on the provider card. |
