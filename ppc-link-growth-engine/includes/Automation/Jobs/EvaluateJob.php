@@ -43,6 +43,29 @@ final class EvaluateJob extends AbstractJob {
     private const CLASSIFIER_MIN_CONF    = 40;
     private const ERROR_REASON_PREFIX    = 'Evaluation error:';
 
+    /** Prefix of the rejection reason stored when a site cannot be fetched. */
+    private const UNREACHABLE_REASON_PREFIX = 'Site unreachable';
+
+    /** Recommended action stored on machine-made rejections. */
+    private const DO_NOT_PURSUE = 'Do not pursue';
+
+    /**
+     * Back-off (days) before re-checking a site after its 1st, 2nd, 3rd … consecutive failed fetch.
+     * Once the list is exhausted the prospect stays rejected and is no longer re-checked automatically.
+     */
+    private const UNREACHABLE_RETRY_DAYS = [ 1, 7, 30 ];
+
+    /** A qualified prospect keeps its status until this many consecutive checks found the site unreachable. */
+    private const UNREACHABLE_REJECT_AFTER = 3;
+
+    /** Option holding prospects whose evaluation is in flight: prospect id => start timestamp. */
+    private const OPTION_INFLIGHT = 'ppclg_evaluate_inflight';
+
+    /** An in-flight marker (or a legacy "evaluating" row) older than this belongs to a worker that died. */
+    private const INFLIGHT_STALE_SECONDS = 900;
+
+    private const INFLIGHT_MAX = 50;
+
     /** Statuses set by a person (or by acquisition) that automatic evaluation must not override. */
     private const PROTECTED_STATUSES = [ Prospects::STATUS_APPROVED, Prospects::STATUS_IN_PROGRESS, Prospects::STATUS_ACQUIRED, Prospects::STATUS_ON_HOLD ];
 
@@ -81,6 +104,10 @@ final class EvaluateJob extends AbstractJob {
             if ( ! $limits->allow( 'evaluations' ) ) {
                 return $this->skipped( 'evaluation_limit_reached', [ 'limits' => $limits->snapshot()['evaluations'] ?? null ] );
             }
+            // An earlier attempt on this prospect that died is restored first; the owner's explicit request then proceeds.
+            if ( [] !== $this->recoverInterrupted( $c, $prospects, [ $single ] ) ) {
+                $row = $prospects->find( $single ) ?? $row;
+            }
             $batch = [ $row ];
         } else {
             if ( ! $this->flag( $c, $payload, 'evaluation' ) ) {
@@ -92,6 +119,19 @@ final class EvaluateJob extends AbstractJob {
             }
             $limit = max( 1, min( (int) ( $payload['limit'] ?? self::DEFAULT_LIMIT ), self::MAX_LIMIT, $remaining ) );
             $batch = $prospects->dueForEvaluation( $limit );
+            if ( count( $batch ) < $limit ) {
+                // Machine-parked rows (unreachable / evaluation error / interrupted) whose retry date has come.
+                $batch = array_merge( $batch, self::retryDue( $prospects, $limit - count( $batch ) ) );
+            }
+            // Prospects whose previous evaluation died with the worker are parked instead of being retried at once.
+            $interrupted = $this->recoverInterrupted( $c, $prospects, array_map( static fn( array $r ): int => (int) $r['id'], $batch ) );
+            if ( [] !== $interrupted ) {
+                $stats['errors'] += count( $interrupted );
+                foreach ( $interrupted as $iid ) {
+                    $stats['items'][] = [ 'prospect_id' => $iid, 'outcome' => 'error', 'error' => 'The previous evaluation was interrupted; retry scheduled.' ];
+                }
+                $batch = array_values( array_filter( $batch, static fn( array $r ): bool => ! in_array( (int) $r['id'], $interrupted, true ) ) );
+            }
             if ( [] === $batch ) {
                 return $this->result( array_merge( $stats, [ 'message' => 'No prospects are due for evaluation.' ] ) );
             }
@@ -107,6 +147,7 @@ final class EvaluateJob extends AbstractJob {
                 continue;
             }
             $id = (int) $prospect['id'];
+            $this->markInflight( $id );
             try {
                 $item = $this->evaluateOne( $prospect, $c, $budget );
                 $stats['evaluated']++;
@@ -115,18 +156,76 @@ final class EvaluateJob extends AbstractJob {
             } catch ( Throwable $e ) {
                 $stats['errors']++;
                 $logger->error( 'evaluate', 'Evaluation failed', array_merge( [ 'prospect_id' => $id, 'domain' => (string) $prospect['domain'] ], $this->errorContext( $e ) ) );
-                $this->parkAfterError( $prospects, $prospect, $e );
+                $this->parkAfterError( $prospects, $prospect, $e->getMessage() );
                 $stats['items'][] = [ 'prospect_id' => $id, 'domain' => (string) $prospect['domain'], 'outcome' => 'error', 'error' => $e->getMessage() ];
+            } finally {
+                $this->clearInflight( $id );
             }
         }
 
         if ( 0 === $stats['evaluated'] && 0 === $stats['errors'] && $stats['deferred'] > 0 ) {
             return $this->deferred( $c, $payload, 'time_budget', $stats );
         }
-        if ( $single <= 0 && $stats['evaluated'] > 0 && $limits->allow( 'evaluations' ) && [] !== $prospects->dueForEvaluation( 1 ) ) {
+        if ( $single <= 0 && $stats['evaluated'] > 0 && $limits->allow( 'evaluations' ) && ( [] !== $prospects->dueForEvaluation( 1 ) || [] !== self::retryDue( $prospects, 1 ) ) ) {
             $stats['continued'] = null !== $this->continueLater( $c, $payload, 30 );
         }
         return $this->result( $stats );
+    }
+
+    /**
+     * Prospects parked by the machine (not by a person) whose automatic re-check is due:
+     * rejected because the site was unreachable, put on hold after an evaluation error, or
+     * left in the legacy transient "evaluating" status by a worker that died.
+     *
+     * Human decisions are never selected: an owner's rejection keeps the previous recommended
+     * action (not "Do not pursue"), and an owner's hold keeps a non-empty recommended action.
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    public static function retryDue( Prospects $prospects, int $limit ): array {
+        global $wpdb;
+        if ( $limit <= 0 ) {
+            return [];
+        }
+        $now   = Prospects::now();
+        $stale = gmdate( 'Y-m-d H:i:s', time() - self::INFLIGHT_STALE_SECONDS );
+        $sql   = "SELECT id FROM {$prospects->table()} WHERE"
+            . ' ( next_review IS NOT NULL AND next_review <= %s AND ('
+            . ' ( status = %s AND recommended_action = %s AND rejection_reason LIKE %s )'
+            . ' OR ( status = %s AND recommended_action = %s AND rejection_reason LIKE %s ) ) )'
+            . ' OR ( status = %s AND updated_at <= %s )'
+            . ' ORDER BY next_review ASC, id ASC LIMIT %d';
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $ids = $wpdb->get_col(
+            $wpdb->prepare(
+                $sql,
+                $now,
+                Prospects::STATUS_REJECTED,
+                self::DO_NOT_PURSUE,
+                $wpdb->esc_like( self::UNREACHABLE_REASON_PREFIX ) . '%',
+                Prospects::STATUS_ON_HOLD,
+                '',
+                $wpdb->esc_like( self::ERROR_REASON_PREFIX ) . '%',
+                Prospects::STATUS_EVALUATING,
+                $stale,
+                $limit
+            )
+        );
+        $ids = array_values( array_unique( array_map( 'intval', (array) $ids ) ) );
+        if ( [] === $ids ) {
+            return [];
+        }
+        $byId = [];
+        foreach ( $prospects->findBy( [ 'id' => $ids ], 'id', 'ASC', count( $ids ) ) as $row ) {
+            $byId[ (int) $row['id'] ] = $row;
+        }
+        $out = [];
+        foreach ( $ids as $id ) {
+            if ( isset( $byId[ $id ] ) ) {
+                $out[] = $byId[ $id ];
+            }
+        }
+        return $out;
     }
 
     // ------------------------------------------------------------------
@@ -148,8 +247,9 @@ final class EvaluateJob extends AbstractJob {
         $errorParked = Prospects::STATUS_ON_HOLD === $previous && str_starts_with( (string) ( $prospect['rejection_reason'] ?? '' ), self::ERROR_REASON_PREFIX );
         $protected   = in_array( $previous, self::PROTECTED_STATUSES, true ) && ! $errorParked;
 
-        $prospects->update( $id, [ 'status' => Prospects::STATUS_EVALUATING, 'updated_at' => $this->now() ] );
-
+        // The stored status is left untouched until the outcome is written: a worker that dies mid-evaluation
+        // (FPM kill, OOM, restart) must not erase a human-set status. The in-flight marker (markInflight)
+        // lets the next run detect and park such a prospect.
         $profile    = $c->get( SiteProfiler::class )->profile( $domain, (string) ( $prospect['homepage_url'] ?? '' ), 2 );
         $profileArr = $profile->toArray();
 
@@ -361,19 +461,47 @@ final class EvaluateJob extends AbstractJob {
         $id        = (int) $prospect['id'];
         $domain    = (string) $prospect['domain'];
         $previous  = (string) ( $prospect['status'] ?? Prospects::STATUS_DISCOVERED );
-        $reason    = 'Site unreachable' . ( '' !== $profile->error ? ' (' . $profile->error . ')' : '' );
-        $status    = $protected ? $previous : Prospects::STATUS_REJECTED;
+        $reason    = self::UNREACHABLE_REASON_PREFIX . ( '' !== $profile->error ? ' (' . $profile->error . ')' : '' );
         $now       = $this->now();
+
+        // One failed fetch is usually a transient outage (timeout, 5xx, 429, CDN challenge, robots.txt fetch error):
+        // count consecutive failures, keep a qualified prospect until the site has failed several checks in a row,
+        // and schedule a real re-check (retryDue() selects these rows) instead of rejecting it for good.
+        $oldProfile = is_array( $prospect['profile'] ?? null ) ? $prospect['profile'] : [];
+        $checks     = max( 0, (int) ( $oldProfile['unreachable_checks'] ?? 0 ) ) + 1;
+        $keep       = $protected || ( Prospects::STATUS_QUALIFIED === $previous && $checks < self::UNREACHABLE_REJECT_AFTER );
+        $status     = $keep ? $previous : Prospects::STATUS_REJECTED;
+        if ( $protected ) {
+            $review = $this->inDays( self::UNREACHABLE_REVIEW_DAYS );
+        } else {
+            $days   = self::UNREACHABLE_RETRY_DAYS[ $checks - 1 ] ?? null;
+            $review = null !== $days ? $this->inDays( $days ) : null;
+        }
+
+        $failure = [ 'error' => $profile->error, 'checked_at' => gmdate( 'c' ), 'fetches' => $profile->fetches ];
+        if ( $keep && [] !== $oldProfile && false !== ( $oldProfile['reachable'] ?? true ) ) {
+            // Keep the last good profile (submission form, contacts page …) that packaging and outreach rely on.
+            $stored = array_merge( $oldProfile, [ 'unreachable_checks' => $checks, 'last_unreachable' => $failure ] );
+        } else {
+            $stored = array_merge( $profileArr, [ 'unreachable_checks' => $checks, 'last_unreachable' => $failure ] );
+        }
+
+        // "Do not pursue" (with an unreachable reason) marks a machine rejection that retryDue() re-checks, so a
+        // kept prospect never carries it: otherwise an owner rejecting it later would be re-evaluated automatically.
+        $keptAction = (string) ( $prospect['recommended_action'] ?? '' );
+        if ( self::DO_NOT_PURSUE === $keptAction ) {
+            $keptAction = 'Review manually';
+        }
 
         $prospects->update(
             $id,
             [
                 'status'             => $status,
                 'rejection_reason'   => mb_substr( $reason, 0, 255 ),
-                'profile'            => $profileArr,
-                'recommended_action' => $protected ? (string) ( $prospect['recommended_action'] ?? '' ) : 'Do not pursue',
+                'profile'            => $stored,
+                'recommended_action' => $keep ? $keptAction : self::DO_NOT_PURSUE,
                 'last_evaluated'     => $now,
-                'next_review'        => $this->inDays( self::UNREACHABLE_REVIEW_DAYS ),
+                'next_review'        => $review,
                 'updated_at'         => $now,
             ]
         );
@@ -382,43 +510,146 @@ final class EvaluateJob extends AbstractJob {
             'prospect.evaluated',
             'prospect',
             $id,
-            [ 'domain' => $domain, 'outcome' => 'unreachable', 'error' => $profile->error, 'status' => $status, 'previous_status' => $previous, 'fetches' => $profile->fetches ]
+            [ 'domain' => $domain, 'outcome' => 'unreachable', 'error' => $profile->error, 'status' => $status, 'previous_status' => $previous, 'fetches' => $profile->fetches, 'consecutive_failures' => $checks, 'next_review' => $review ]
         );
         if ( $protected ) {
+            $autoReview = in_array( $previous, [ Prospects::STATUS_APPROVED, Prospects::STATUS_ACQUIRED ], true );
             $this->notify(
                 $c,
                 'prospect',
                 'warning',
                 'Prospect site unreachable',
-                sprintf( '%s could not be fetched during re-evaluation (%s). Its "%s" status was kept; it will be re-checked in %d days.', $domain, $profile->error ?: 'no response', $previous, self::UNREACHABLE_REVIEW_DAYS ),
+                sprintf( '%s could not be fetched during re-evaluation (%s). Its "%s" status was kept; ', $domain, $profile->error ?: 'no response', $previous )
+                    . ( $autoReview ? sprintf( 'it will be re-checked in %d days.', self::UNREACHABLE_REVIEW_DAYS ) : 'run "Re-evaluate" on it once the site is back.' ),
                 [ 'prospect_id' => $id, 'domain' => $domain ]
             );
         }
-        return [ 'prospect_id' => $id, 'domain' => $domain, 'outcome' => 'unreachable', 'status' => $status, 'error' => $profile->error ];
+        return [ 'prospect_id' => $id, 'domain' => $domain, 'outcome' => 'unreachable', 'status' => $status, 'error' => $profile->error, 'consecutive_failures' => $checks, 'next_review' => $review ];
     }
 
     /**
      * After an exception the prospect must not stall the queue: "discovered" rows are always due, so they are
-     * parked on hold with the error; other rows keep their status and get a short review delay.
+     * parked on hold with the error (retryDue() re-checks them after ERROR_REVIEW_DAYS); other rows keep their
+     * status and get a short review delay.
      *
      * @param array<string,mixed> $prospect
      */
-    private function parkAfterError( Prospects $prospects, array $prospect, Throwable $e ): void {
+    private function parkAfterError( Prospects $prospects, array $prospect, string $message ): void {
         try {
             $previous = (string) ( $prospect['status'] ?? Prospects::STATUS_DISCOVERED );
             $park     = in_array( $previous, [ Prospects::STATUS_DISCOVERED, Prospects::STATUS_EVALUATING ], true );
-            $prospects->update(
-                (int) $prospect['id'],
-                [
-                    'status'           => $park ? Prospects::STATUS_ON_HOLD : $previous,
-                    'rejection_reason' => mb_substr( self::ERROR_REASON_PREFIX . ' ' . $e->getMessage(), 0, 255 ),
-                    'next_review'      => $this->inDays( self::ERROR_REVIEW_DAYS ),
-                    'updated_at'       => $this->now(),
-                ]
-            );
+            $data     = [
+                'status'           => $park ? Prospects::STATUS_ON_HOLD : $previous,
+                'rejection_reason' => mb_substr( self::ERROR_REASON_PREFIX . ' ' . $message, 0, 255 ),
+                'next_review'      => $this->inDays( self::ERROR_REVIEW_DAYS ),
+                'updated_at'       => $this->now(),
+            ];
+            if ( $park ) {
+                // An empty recommended action marks the hold as machine-made (see retryDue()).
+                $data['recommended_action'] = '';
+            } elseif ( '' === (string) ( $prospect['recommended_action'] ?? '' ) ) {
+                // A kept status never carries the machine-hold marker, so a later manual hold is not auto-retried.
+                $data['recommended_action'] = 'Review manually';
+            }
+            $prospects->update( (int) $prospect['id'], $data );
         } catch ( Throwable $inner ) {
             unset( $inner );
         }
+    }
+
+    // ------------------------------------------------------------------
+    // In-flight markers (crash recovery)
+    // ------------------------------------------------------------------
+
+    private function markInflight( int $id ): void {
+        try {
+            $map = get_option( self::OPTION_INFLIGHT, [] );
+            $map = is_array( $map ) ? $map : [];
+            $map[ $id ] = time();
+            if ( count( $map ) > self::INFLIGHT_MAX ) {
+                $map = array_slice( $map, -self::INFLIGHT_MAX, null, true );
+            }
+            update_option( self::OPTION_INFLIGHT, $map, false );
+        } catch ( Throwable $e ) {
+            unset( $e );
+        }
+    }
+
+    private function clearInflight( int $id ): void {
+        try {
+            $map = get_option( self::OPTION_INFLIGHT, [] );
+            if ( ! is_array( $map ) || ! array_key_exists( $id, $map ) ) {
+                return;
+            }
+            unset( $map[ $id ] );
+            if ( [] === $map ) {
+                delete_option( self::OPTION_INFLIGHT );
+            } else {
+                update_option( self::OPTION_INFLIGHT, $map, false );
+            }
+        } catch ( Throwable $e ) {
+            unset( $e );
+        }
+    }
+
+    /**
+     * Restores prospects whose evaluation never finished because the worker died (an uncatchable fatal,
+     * FPM kill, OOM, restart). A marker is treated as dead when it is stale or when its prospect is about to
+     * be evaluated again (runs are serialised by the runner lock). The prospect keeps its status, or is
+     * parked on hold when it was "discovered", so a site that kills the worker cannot block the queue.
+     *
+     * @param int[] $upcoming prospect ids about to be evaluated
+     * @return int[] ids of prospects that were restored
+     */
+    private function recoverInterrupted( Container $c, Prospects $prospects, array $upcoming ): array {
+        try {
+            $map = get_option( self::OPTION_INFLIGHT, [] );
+        } catch ( Throwable $e ) {
+            return [];
+        }
+        if ( ! is_array( $map ) || [] === $map ) {
+            return [];
+        }
+        $now       = time();
+        $recovered = [];
+        $changed   = false;
+        foreach ( $map as $id => $since ) {
+            $id    = (int) $id;
+            $since = (int) $since;
+            if ( ! in_array( $id, $upcoming, true ) && ( $now - $since ) < self::INFLIGHT_STALE_SECONDS ) {
+                continue;
+            }
+            unset( $map[ $id ] );
+            $changed = true;
+            try {
+                $row = $id > 0 ? $prospects->find( $id ) : null;
+                if ( null === $row || Prospects::STATUS_SUPPRESSED === (string) $row['status'] ) {
+                    continue;
+                }
+                $last     = trim( (string) ( $row['last_evaluated'] ?? '' ) );
+                $finished = '' !== $last ? strtotime( $last . ' UTC' ) : false;
+                if ( false !== $finished && $finished >= $since ) {
+                    continue; // The outcome was written; only the marker clean-up was lost.
+                }
+                $this->parkAfterError( $prospects, $row, 'interrupted (the worker stopped before the evaluation finished)' );
+                $this->logger( $c )->warning( 'evaluate', 'Interrupted evaluation recovered', [ 'prospect_id' => $id, 'domain' => (string) $row['domain'], 'status' => (string) $row['status'] ] );
+                $recovered[] = $id;
+            } catch ( Throwable $e ) {
+                $this->logger( $c )->warning( 'evaluate', 'Interrupted evaluation could not be recovered', array_merge( [ 'prospect_id' => $id ], $this->errorContext( $e ) ) );
+            }
+        }
+        if ( $changed ) {
+            try {
+                if ( [] === $map ) {
+                    delete_option( self::OPTION_INFLIGHT );
+                } else {
+                    update_option( self::OPTION_INFLIGHT, $map, false );
+                }
+            } catch ( Throwable $e ) {
+                unset( $e );
+            }
+        }
+        return $recovered;
     }
 
     // ------------------------------------------------------------------

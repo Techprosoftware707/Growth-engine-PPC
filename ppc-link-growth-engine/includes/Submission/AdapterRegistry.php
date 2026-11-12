@@ -12,6 +12,7 @@ namespace PPC\LinkGrowth\Submission;
 use PPC\LinkGrowth\Analysis\FormDetector;
 use PPC\LinkGrowth\Analysis\PageAnalyzer;
 use PPC\LinkGrowth\Container;
+use PPC\LinkGrowth\Content\ClaimsFilter;
 use PPC\LinkGrowth\Submission\Adapters\AdapterInterface;
 use PPC\LinkGrowth\Submission\Adapters\ConfiguredApiAdapter;
 use PPC\LinkGrowth\Submission\Adapters\GenericFormAdapter;
@@ -44,18 +45,22 @@ final class AdapterRegistry {
         }
         $list = [ new ManualPackageAdapter() ];
         try {
+            // The claims filter is the adapters' last check before anything is sent.
+            $claims = $this->c->has( ClaimsFilter::class ) ? $this->c->get( ClaimsFilter::class ) : null;
             $list[] = new GenericFormAdapter(
                 $this->c->get( Client::class ),
                 $this->c->get( PageAnalyzer::class ),
                 $this->c->get( RobotsTxt::class ),
                 $this->c->get( Settings::class ),
-                $this->c->get( Logger::class )
+                $this->c->get( Logger::class ),
+                $claims instanceof ClaimsFilter ? $claims : null
             );
             $list[] = new ConfiguredApiAdapter(
                 $this->c->get( Client::class ),
                 $this->c->get( Secrets::class ),
                 $this->c->get( Settings::class ),
-                $this->c->get( Logger::class )
+                $this->c->get( Logger::class ),
+                $claims instanceof ClaimsFilter ? $claims : null
             );
         } catch ( Throwable $e ) {
             // A missing dependency must never take the module down: manual packaging keeps working.

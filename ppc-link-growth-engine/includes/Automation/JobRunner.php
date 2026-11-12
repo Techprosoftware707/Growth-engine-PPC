@@ -51,6 +51,13 @@ final class JobRunner {
 
     private const FALLBACK_MAX_SECONDS = 20.0;
 
+    /**
+     * Lowest usable tick ceiling. The largest per-item need of a stage is 12 s (submit; evaluate and package
+     * need 8 s) plus RESERVE_SECONDS: a lower automation.max_execution_seconds would make those stages defer
+     * and re-queue on every run without ever doing work.
+     */
+    public const MIN_TICK_SECONDS = 15.0;
+
     /** Built-in job classes. @var array<int,class-string<JobInterface>> */
     private const BUILTIN = [
         DiscoverJob::class,
@@ -226,13 +233,21 @@ final class JobRunner {
         }
     }
 
-    /** Child budget: min(remaining - reserve, settings automation.max_execution_seconds), at least 1s. */
-    private function childSeconds( TimeBudget $budget ): float {
-        $max = (float) $this->settings->get( 'automation.max_execution_seconds', self::FALLBACK_MAX_SECONDS );
+    /**
+     * The tick/job time ceiling: settings automation.max_execution_seconds (20 s when unset), raised to
+     * MIN_TICK_SECONDS so that no stage is starved by a value below its per-item need.
+     */
+    public static function effectiveMaxSeconds( Settings $settings ): float {
+        $max = (float) $settings->get( 'automation.max_execution_seconds', self::FALLBACK_MAX_SECONDS );
         if ( $max <= 0 ) {
             $max = self::FALLBACK_MAX_SECONDS;
         }
-        return max( 1.0, min( $budget->remaining() - self::RESERVE_SECONDS, $max ) );
+        return max( self::MIN_TICK_SECONDS, $max );
+    }
+
+    /** Child budget: min(remaining - reserve, effective max seconds), at least 1s. */
+    private function childSeconds( TimeBudget $budget ): float {
+        return max( 1.0, min( $budget->remaining() - self::RESERVE_SECONDS, self::effectiveMaxSeconds( $this->settings ) ) );
     }
 
     /**

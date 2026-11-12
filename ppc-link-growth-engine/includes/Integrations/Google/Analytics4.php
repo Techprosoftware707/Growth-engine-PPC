@@ -15,8 +15,13 @@ use PPC\LinkGrowth\Support\Settings;
 
 final class Analytics4 {
 
-    private const SEARCH_ENGINE_SOURCES = '/(google|bing|yahoo|duckduckgo|baidu|yandex|ecosia|qwant|kagi|startpage|brave|search\.)/i';
-    private const SOCIAL_SOURCES = '/(facebook|instagram|twitter|t\.co|x\.com|linkedin|reddit|pinterest|tiktok|youtube|threads|snapchat)/i';
+    /**
+     * Search engines and social networks, matched as whole hostname labels (or a leading "search."
+     * label) so referring sites that merely contain these letters (trustpilot.com, dropbox.com,
+     * research.ca, bingoforum.com, ...) are kept. "google*" also covers Google's ad/app hosts.
+     */
+    private const SEARCH_ENGINE_SOURCES = '/(?<![a-z0-9-])(google[a-z0-9-]*|bing|yahoo|duckduckgo|baidu|yandex|ecosia|qwant|kagi|startpage|brave)(?![a-z0-9-])|(?<![a-z0-9-])search\./i';
+    private const SOCIAL_SOURCES = '/(?<![a-z0-9-])(facebook|instagram|twitter|linkedin|reddit|pinterest|tiktok|youtube|threads|snapchat)(?![a-z0-9-])|(?<![a-z0-9-])(t\.co|x\.com)(?![a-z0-9.-])/i';
 
     private string $lastError = '';
 

@@ -76,10 +76,13 @@ final class Mailer {
                 $error = $wpError->get_error_message();
             }
         };
-        $onInit = static function ( $phpmailer ) use ( $messageId ): void {
+        $headerId = '<' . $messageId . '>';
+        $used     = null;
+        $onInit   = static function ( $phpmailer ) use ( $headerId, &$used ): void {
             // PHPMailer generates its own Message-ID unless one is set here (a header would duplicate it).
             if ( is_object( $phpmailer ) && property_exists( $phpmailer, 'MessageID' ) ) {
-                $phpmailer->MessageID = '<' . $messageId . '>';
+                $phpmailer->MessageID = $headerId;
+                $used                 = $phpmailer;
             }
         };
         add_action( 'wp_mail_failed', $onFail, 10, 1 );
@@ -92,6 +95,7 @@ final class Mailer {
         } finally {
             remove_action( 'wp_mail_failed', $onFail, 10 );
             remove_action( 'phpmailer_init', $onInit, 99 );
+            $this->releaseMessageId( $used, $headerId );
         }
 
         $context = [
@@ -149,6 +153,20 @@ final class Mailer {
             return [ 'ok' => false, 'error' => mb_substr( $error, 0, 500 ) ];
         }
         return [ 'ok' => true, 'error' => '' ];
+    }
+
+    /**
+     * wp_mail() reuses one PHPMailer instance per request and never clears MessageID, so the outreach ID would
+     * otherwise be stamped on every later email of the same request (WooCommerce mails, alerts, the next
+     * outreach email). Cleared only while it still holds this message's ID.
+     */
+    private function releaseMessageId( mixed $used, string $headerId ): void {
+        global $phpmailer;
+        foreach ( [ $used, $phpmailer ?? null ] as $mailer ) {
+            if ( is_object( $mailer ) && property_exists( $mailer, 'MessageID' ) && $headerId === $mailer->MessageID ) {
+                $mailer->MessageID = '';
+            }
+        }
     }
 
     private function messageIdDomain(): string {

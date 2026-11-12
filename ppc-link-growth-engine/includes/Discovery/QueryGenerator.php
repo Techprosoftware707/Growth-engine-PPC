@@ -121,6 +121,20 @@ final class QueryGenerator {
         return $out;
     }
 
+    /**
+     * Moves the rotation cursor back to $query, so a query that could not run (provider error)
+     * and the ones after it are offered first on the next run.
+     */
+    public function rewindTo( string $query ): void {
+        $query = strtolower( trim( $query ) );
+        foreach ( $this->pool() as $i => $item ) {
+            if ( strtolower( $item['query'] ) === $query ) {
+                update_option( self::CURSOR_OPTION, $i, false );
+                return;
+            }
+        }
+    }
+
     /** Brand-mention queries. @return string[] */
     public function brandQueries(): array {
         $data   = $this->data();

@@ -35,10 +35,16 @@ interface AdapterInterface {
     /**
      * Perform (or decline) the submission.
      *
+     * Optional result keys: "sent" (bool) — whether a request actually reached the destination (the
+     * daily/weekly limit is spent only then; when omitted, every status but needs_manual counts as sent);
+     * "retry_after" (int seconds) — the delay the destination asked for on a retryable failure.
+     * Submission requests are not idempotent: report "retryable" only when the request provably never
+     * reached the destination, and return needs_manual when the outcome is unknown.
+     *
      * @param array<string,mixed> $submission Submission row.
      * @param array<string,mixed> $prospect   Prospect row.
      * @param array<string,mixed> $payload    Package built by PackageBuilder.
-     * @return array{status:string,response:array<string,mixed>,confirmation_ref:string,listing_url:string,error:string,retryable:bool}
+     * @return array{status:string,response:array<string,mixed>,confirmation_ref:string,listing_url:string,error:string,retryable:bool,sent?:bool,retry_after?:int}
      */
     public function submit( array $submission, array $prospect, array $payload ): array;
 }

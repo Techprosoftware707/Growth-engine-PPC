@@ -83,6 +83,37 @@ final class FactsRegistry {
         return isset( $all[ $key ] ) && $all[ $key ]['verified'] ? $all[ $key ]['statement'] : '';
     }
 
+    /**
+     * True when generated copy may assert this fact in a fixed (template) wording.
+     *
+     * The fact must be verified. With $phrases, the current statement must still contain every
+     * phrase (case-insensitive), so an owner edit that drops a detail ("cryptocurrency",
+     * "$299", "Janoshik") also retires the template sentences that state it. Without phrases,
+     * the statement must still read as the shipped default the template was written from.
+     */
+    public function supports( string $key, string ...$phrases ): bool {
+        $all = $this->all();
+        if ( ! isset( $all[ $key ] ) || ! $all[ $key ]['verified'] ) {
+            return false;
+        }
+        $statement = self::normalize( $all[ $key ]['statement'] );
+        if ( [] === $phrases ) {
+            $default = self::defaults()[ $key ]['statement'] ?? null;
+            return null === $default || self::normalize( $default ) === $statement;
+        }
+        foreach ( $phrases as $phrase ) {
+            $phrase = self::normalize( $phrase );
+            if ( '' === $phrase || ! str_contains( $statement, $phrase ) ) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static function normalize( string $text ): string {
+        return trim( (string) preg_replace( '/\s+/u', ' ', mb_strtolower( $text ) ) );
+    }
+
     /** @param array<string,array<string,mixed>> $facts */
     public function replace( array $facts ): void {
         $clean = [];

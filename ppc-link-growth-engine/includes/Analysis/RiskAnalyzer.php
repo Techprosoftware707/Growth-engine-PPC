@@ -74,14 +74,32 @@ final class RiskAnalyzer {
             $reasons[] = 'Very high ratio of external links to content.';
         }
 
-        // Many unrelated external niches (PBN / link farm footprint).
-        $nicheHits = 0;
+        // Many unrelated external niches (PBN / link farm footprint). Only outbound anchors count, matched as
+        // whole words (so "validating" is not "dating" and "Seoul" is not "SEO"), and the niches must point
+        // at more than one external domain.
+        $nicheHits   = 0;
+        $nicheHosts  = [];
+        $outAnchors  = [];
+        foreach ( $external as $l ) {
+            $anchor = mb_strtolower( (string) ( $l['anchor'] ?? '' ) );
+            if ( '' !== $anchor ) {
+                $outAnchors[] = [ $anchor, (string) ( $l['host'] ?? '' ) ];
+            }
+        }
         foreach ( [ 'casino', 'loan', 'crypto', 'essay', 'vape', 'cbd', 'dating', 'plumber', 'roofing', 'lawyer', 'real estate', 'seo', 'hosting', 'vpn', 'forex', 'betting', 'escort', 'pharmacy' ] as $niche ) {
-            if ( str_contains( $anchors, $niche ) ) {
+            $pattern = '/(?<![\p{L}\p{N}])' . preg_quote( $niche, '/' ) . '(?:s|es)?(?![\p{L}\p{N}])/u';
+            $matched = false;
+            foreach ( $outAnchors as [ $anchor, $host ] ) {
+                if ( preg_match( $pattern, $anchor ) ) {
+                    $matched             = true;
+                    $nicheHosts[ $host ] = true;
+                }
+            }
+            if ( $matched ) {
                 $nicheHits++;
             }
         }
-        if ( $nicheHits >= 4 ) {
+        if ( $nicheHits >= 4 && count( $nicheHosts ) >= 2 ) {
             $flags[]   = 'pbn_footprint';
             $risk     += 50;
             $reasons[] = 'Outbound anchors span many unrelated commercial niches (link farm / PBN pattern).';

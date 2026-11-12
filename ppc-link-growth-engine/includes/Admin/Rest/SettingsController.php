@@ -104,7 +104,17 @@ final class SettingsController extends Controller {
             '/settings/backups/(?P<file>[\w\-]+\.sql\.gz)',
             'GET',
             [ $this, 'downloadBackup' ],
-            [ 'file' => [ 'type' => 'string', 'required' => true, 'sanitize_callback' => 'sanitize_file_name' ] ]
+            [
+                'file' => [
+                    'type'              => 'string',
+                    'required'          => true,
+                    // Not sanitize_file_name(): core rewrites "name.sql.gz" to "name.sql_.gz" (sql is not an
+                    // allowed upload type), which then fails the strict check below. Validate instead; the
+                    // route regex, this check and the realpath containment check in downloadBackup() stop traversal.
+                    'validate_callback' => static fn( $value ): bool => is_string( $value ) && self::isBackupFileName( $value ),
+                    'sanitize_callback' => static fn( $value ): string => is_scalar( $value ) ? (string) $value : '',
+                ],
+            ]
         );
         $this->route( $namespace, '/settings/competitors/suggest', 'POST', [ $this, 'suggestCompetitors' ] );
     }
@@ -253,7 +263,7 @@ final class SettingsController extends Controller {
     /** GET /settings/backups/{file} @return \WP_REST_Response|\WP_Error */
     public function downloadBackup( WP_REST_Request $request ) {
         $file = (string) $request->get_param( 'file' );
-        if ( ! preg_match( '/^[\w\-]+\.sql\.gz$/', $file ) ) {
+        if ( ! self::isBackupFileName( $file ) ) {
             return $this->fail( 'ppclg_invalid_file', __( 'Invalid backup file name.', 'ppc-link-growth-engine' ), 400 );
         }
         $dir     = $this->c->get( Backup::class )->directory();
@@ -264,6 +274,11 @@ final class SettingsController extends Controller {
         }
         $this->audit( 'settings.backup_downloaded', 'backup', 0, [ 'file' => $file ] );
         return $this->rawFile( $real, 'application/gzip', $file );
+    }
+
+    /** A bare backup file name as Backup creates it ("20261111-234005-manual-AbCd1234.sql.gz"); no paths. */
+    public static function isBackupFileName( string $file ): bool {
+        return 1 === preg_match( '/^[\w\-]+\.sql\.gz$/D', $file );
     }
 
     /** POST /settings/competitors/suggest @return array<string,mixed>|\WP_Error */

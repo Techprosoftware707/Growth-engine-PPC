@@ -29,6 +29,13 @@ final class PackageBuilder {
     public const CONSENT_ALLOW = '/\b(terms|conditions|privacy|policy|policies|accura\w*|correct|true|agree\w*|confirm\w*|consent|authori[sz]e\w*|acknowledge\w*|certify|guidelines)\b/i';
     public const CONSENT_DENY  = '/\b(newsletter|subscribe|subscription|marketing|promotion\w*|offers|updates|mailing list|notify me|notifications|sms|text messages|partners?)\b/i';
 
+    /**
+     * Boxes that commit the business to money or a paid/sponsored placement (fees, charges, invoices,
+     * prices, featured/premium upgrades, orders). They are never ticked, even when they also say
+     * "agree"/"confirm": a required one stays unmapped, so the package is held for a person.
+     */
+    public const CONSENT_PAID = '/(\$|€|£|¥|\b(cad|usd|eur|gbp|aud)\b|\b\d+\s*(dollars?|euros?|pounds?)\b|\bfees?\b|\bpay(s|ing|ment|ments|able)?\b|\bpaid\b|\bcharg(e|es|ed|ing)\b|\binvoic\w*|\bbill(ed|ing)?\b|\bsponsor\w*|\bpremium\b|\bfeatured\b|\bupgrad\w*|\bpric(e|es|ed|ing)\b|\bpurchas\w*|\bcosts?\b|\bcheckout\b|\b(credit|debit) card\b|\brenew\w*|\bdonat\w*|\badvertis\w*|\b(my|this|your|the) order\b|\border (for|of)\b)/i';
+
     private const SCIENTIFIC_SITE_TYPES  = [ 'supplier_directory', 'publication', 'association', 'media' ];
     private const EDUCATIONAL_SITE_TYPES = [ 'educational', 'resource_page', 'government' ];
     private const RESOURCE_OPPORTUNITIES = [ 'resource_page', 'broken_link', 'educational_contribution', 'unlinked_mention' ];
@@ -275,6 +282,53 @@ final class PackageBuilder {
             $this->claims = new ClaimsFilter( $this->facts );
         }
         return $this->claims;
+    }
+
+    /**
+     * Fresh claims check of everything a package publishes or posts (content.* texts and field values),
+     * in the payload's "compliance" shape. Used right before a package is approved or sent.
+     *
+     * @param array<string,mixed> $payload
+     * @return array{clean:bool,violations:array<int,array{rule:string,match:string,message:string,field:string}>}
+     */
+    public function complianceOf( array $payload ): array {
+        $violations = self::claimsViolations( $this->claims(), $payload );
+        return [ 'clean' => [] === $violations, 'violations' => $violations ];
+    }
+
+    /**
+     * Claims-filter hits in content.* texts (one level of lists) and fields[].value.
+     *
+     * @param array<string,mixed> $payload
+     * @return array<int,array{rule:string,match:string,message:string,field:string}>
+     */
+    public static function claimsViolations( ClaimsFilter $filter, array $payload ): array {
+        $out   = [];
+        $check = static function ( string $field, mixed $value ) use ( &$out, $filter ): void {
+            $values = is_array( $value ) ? $value : [ $value ];
+            foreach ( $values as $k => $v ) {
+                if ( ! is_string( $v ) || '' === trim( $v ) ) {
+                    continue;
+                }
+                foreach ( $filter->check( $v ) as $hit ) {
+                    $out[] = [
+                        'rule'    => (string) $hit['rule'],
+                        'match'   => (string) $hit['match'],
+                        'message' => (string) $hit['message'],
+                        'field'   => is_array( $value ) ? $field . '.' . $k : $field,
+                    ];
+                }
+            }
+        };
+        foreach ( (array) ( $payload['content'] ?? [] ) as $k => $v ) {
+            $check( 'content.' . $k, $v );
+        }
+        foreach ( (array) ( $payload['fields'] ?? [] ) as $f ) {
+            if ( is_array( $f ) && isset( $f['name'] ) ) {
+                $check( 'fields.' . (string) $f['name'], $f['value'] ?? '' );
+            }
+        }
+        return $out;
     }
 
     private function style( string $siteType, string $oppType ): string {
@@ -584,7 +638,7 @@ final class PackageBuilder {
      * @param array<string,mixed> $business
      */
     private function toggleValue( string $semantic, string $label, array $business ): string {
-        if ( preg_match( self::CONSENT_DENY, $label ) ) {
+        if ( preg_match( self::CONSENT_DENY, $label ) || preg_match( self::CONSENT_PAID, $label ) ) {
             return '';
         }
         if ( 'consent' === $semantic ) {

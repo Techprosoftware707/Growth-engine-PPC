@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace PPC\LinkGrowth\Automation;
 
+use PPC\LinkGrowth\Automation\Jobs\EvaluateJob;
 use PPC\LinkGrowth\Container;
 use PPC\LinkGrowth\Monitoring\Notifier;
 use PPC\LinkGrowth\Repositories\Backlinks;
@@ -32,8 +33,6 @@ final class Pipeline {
 
     /** Stale "running" jobs older than this are re-queued on every tick. */
     private const STALE_SECONDS = 900;
-
-    private const FALLBACK_MAX_SECONDS = 20.0;
 
     public function __construct(
         private Jobs $jobs,
@@ -300,7 +299,9 @@ final class Pipeline {
         if ( ! $this->limits->allow( 'evaluations' ) ) {
             return false;
         }
-        return [] !== $this->container()->get( Prospects::class )->dueForEvaluation( 1 );
+        $prospects = $this->container()->get( Prospects::class );
+        // Machine-parked prospects (unreachable / evaluation error) also need the stage once their retry is due.
+        return [] !== $prospects->dueForEvaluation( 1 ) || [] !== EvaluateJob::retryDue( $prospects, 1 );
     }
 
     private function opportunitiesDue(): bool {
@@ -402,9 +403,9 @@ final class Pipeline {
         update_option( self::OPTION_STAGE_RUNS, $runs, false );
     }
 
+    /** Tick budget: the configured ceiling, never below what the stages need for one item (JobRunner::MIN_TICK_SECONDS). */
     private function maxSeconds(): float {
-        $max = (float) $this->settings->get( 'automation.max_execution_seconds', self::FALLBACK_MAX_SECONDS );
-        return $max > 0 ? $max : self::FALLBACK_MAX_SECONDS;
+        return JobRunner::effectiveMaxSeconds( $this->settings );
     }
 
     private function container(): Container {

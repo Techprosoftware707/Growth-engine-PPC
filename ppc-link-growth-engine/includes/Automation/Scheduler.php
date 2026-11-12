@@ -39,8 +39,18 @@ final class Scheduler {
         add_action( 'init', [ $this, 'maybeSchedule' ], 20 );
     }
 
-    /** Hook callback: runs one pipeline tick and never lets an exception escape into cron. */
-    public function onTick(): void {
+    /**
+     * Hook callback: runs one pipeline tick and never lets an exception escape into cron.
+     *
+     * Cron passes the event's arguments to the callback. They are not used, but they must be accepted:
+     * WP_Hook calls call_user_func_array(), which treats string keys as PHP 8 named arguments, so an
+     * event scheduled with associative args (e.g. a kick queued by an earlier version) would otherwise
+     * throw "Unknown named parameter" before this method's try/catch is reached.
+     *
+     * @param mixed ...$args Ignored cron event arguments.
+     */
+    public function onTick( mixed ...$args ): void {
+        unset( $args );
         try {
             $this->pipeline->tick();
         } catch ( Throwable $e ) {
@@ -182,8 +192,9 @@ final class Scheduler {
                     return true;
                 }
             }
-            // WP-Cron fallback: a unique argument sidesteps the 10-minute duplicate-event guard.
-            $scheduled = wp_schedule_single_event( time(), self::HOOK, [ 'kick' => (string) time() ] );
+            // WP-Cron fallback: a unique argument sidesteps the 10-minute duplicate-event guard. It must be a
+            // positional (list) argument: cron hands args to call_user_func_array(), where string keys are named arguments.
+            $scheduled = wp_schedule_single_event( time(), self::HOOK, [ time() ] );
             if ( false === $scheduled || is_wp_error( $scheduled ) ) {
                 return false;
             }

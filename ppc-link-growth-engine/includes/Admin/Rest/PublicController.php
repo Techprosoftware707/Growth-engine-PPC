@@ -1,8 +1,11 @@
 <?php
 /**
- * Unauthenticated endpoints: recipient unsubscribe (GET page, POST one-click) and the inbound email webhook.
+ * Unauthenticated endpoints: recipient unsubscribe (GET confirmation page, POST opt-out / RFC 8058 one-click)
+ * and the inbound email webhook.
  *
  * Every route is public by design; each one validates strictly and is rate limited per client address.
+ * A GET never changes state: mail-security gateways fetch every link in a message before the recipient
+ * reads it, so the opt-out only happens on POST (the page's button, or the List-Unsubscribe-Post one-click).
  *
  * @package PPC\LinkGrowth
  */
@@ -13,6 +16,7 @@ namespace PPC\LinkGrowth\Admin\Rest;
 
 use PPC\LinkGrowth\Outreach\InboundWebhook;
 use PPC\LinkGrowth\Outreach\Unsubscribe;
+use PPC\LinkGrowth\Repositories\OutreachMessages;
 use WP_REST_Request;
 
 final class PublicController extends Controller {
@@ -34,15 +38,23 @@ final class PublicController extends Controller {
         $this->route( $namespace, '/inbound', 'POST', [ $this, 'inbound' ], [], true );
     }
 
-    /** GET /unsubscribe?t= — processes the token and renders a confirmation page. */
+    /**
+     * GET /unsubscribe?t= — checks the token and renders a page whose button POSTs the opt-out.
+     * Nothing is changed here, so a link scanner that opens the URL does not unsubscribe anyone.
+     */
     public function unsubscribePage( WP_REST_Request $request ) {
         $limited = $this->rateLimit( $request, self::UNSUBSCRIBE_PER_MINUTE, 'ip' );
         if ( true !== $limited ) {
             return $this->raw( $this->plainPage( 'Too many requests', 'Please wait a minute and open the link again.' ), 'text/html; charset=utf-8', 429, [ 'Retry-After' => '60' ] );
         }
-        $result = $this->process( $request );
-        $html   = $this->c->get( Unsubscribe::class )->renderPage( $result );
-        return $this->raw( $html, 'text/html; charset=utf-8', ! empty( $result['ok'] ) ? 200 : 404, [ 'Cache-Control' => 'no-store, max-age=0', 'X-Robots-Tag' => 'noindex, nofollow' ] );
+        $headers = [ 'Cache-Control' => 'no-store, max-age=0', 'X-Robots-Tag' => 'noindex, nofollow', 'Referrer-Policy' => 'no-referrer' ];
+        $token   = $this->token( $request );
+        $message = '' !== $token ? $this->safe( fn(): ?array => $this->c->get( OutreachMessages::class )->findByToken( $token ), null, 'unsubscribe lookup' ) : null;
+        if ( null === $message ) {
+            $html = $this->c->get( Unsubscribe::class )->renderPage( [ 'ok' => false, 'email' => '' ] );
+            return $this->raw( $html, 'text/html; charset=utf-8', 404, $headers );
+        }
+        return $this->raw( $this->confirmPage( $token ), 'text/html; charset=utf-8', 200, $headers );
     }
 
     /** POST /unsubscribe — RFC 8058 one-click (form-encoded) or a confirmation form post. */
@@ -102,11 +114,17 @@ final class PublicController extends Controller {
 
     // ------------------------------------------------------------------
 
-    /** @return array{ok:bool,email:string} */
-    private function process( WP_REST_Request $request ): array {
+    /** The request's unsubscribe token when it is well formed, else ''. */
+    private function token( WP_REST_Request $request ): string {
         $token = $request->get_param( 't' );
         $token = is_scalar( $token ) ? strtolower( trim( (string) $token ) ) : '';
-        if ( ! preg_match( '/^[a-f0-9]{32}$/', $token ) ) {
+        return 1 === preg_match( '/^[a-f0-9]{32}$/D', $token ) ? $token : '';
+    }
+
+    /** @return array{ok:bool,email:string} */
+    private function process( WP_REST_Request $request ): array {
+        $token = $this->token( $request );
+        if ( '' === $token ) {
             return [ 'ok' => false, 'email' => '' ];
         }
         try {
@@ -115,6 +133,20 @@ final class PublicController extends Controller {
             $this->safe( fn() => $this->logger()->error( 'outreach', 'Unsubscribe processing failed: ' . $e->getMessage() ), null );
             return [ 'ok' => false, 'email' => '' ];
         }
+    }
+
+    /** Confirmation page: one button that POSTs the token back to this endpoint (no scripts, no tracking). */
+    private function confirmPage( string $token ): string {
+        $action = Unsubscribe::urlFor( $token );
+        $site   = function_exists( 'get_bloginfo' ) ? trim( (string) get_bloginfo( 'name' ) ) : '';
+        $text   = '' !== $site
+            ? 'Click the button below and ' . $site . ' will not email you again.'
+            : 'Click the button below and we will not email you again.';
+        return '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex, nofollow"><meta name="referrer" content="no-referrer"><title>Unsubscribe</title>'
+            . '<style>body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#f6f7f9;color:#1d2433}main{max-width:520px;margin:12vh auto;padding:32px;background:#fff;border:1px solid #e3e6eb;border-radius:12px}h1{font-size:1.4rem;margin:0 0 12px}p{line-height:1.5;margin:0 0 16px}button{font:inherit;font-weight:600;padding:10px 20px;border:0;border-radius:8px;background:#1d2433;color:#fff;cursor:pointer}</style></head>'
+            . '<body><main><h1>Unsubscribe</h1><p>' . esc_html( $text ) . '</p>'
+            . '<form method="post" action="' . esc_url( $action ) . '"><input type="hidden" name="t" value="' . esc_attr( $token ) . '"><button type="submit">Unsubscribe</button></form>'
+            . '</main></body></html>';
     }
 
     /** Minimal escaped HTML page used when the renderer cannot be reached (rate limits). */

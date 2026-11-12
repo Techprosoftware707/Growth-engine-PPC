@@ -15,12 +15,22 @@ use PPC\LinkGrowth\Analysis\Taxonomy;
 use PPC\LinkGrowth\Content\LinkableAssets;
 use PPC\LinkGrowth\Repositories\Opportunities;
 use PPC\LinkGrowth\Support\Http\Client;
+use PPC\LinkGrowth\Support\Http\Response;
 use PPC\LinkGrowth\Support\Logger;
 use PPC\LinkGrowth\Support\Str;
 use PPC\LinkGrowth\Support\TimeBudget;
 use PPC\LinkGrowth\Support\Url;
 
 final class BrokenLinkFinder {
+
+    /** Per-request timeout cap for link probes (seconds). */
+    private const PROBE_TIMEOUT = 10;
+
+    /** Shortest probe timeout worth trying (the HTTP client's own floor). */
+    private const MIN_PROBE_TIMEOUT = 3;
+
+    /** Pause before the confirming probe, plus room for the per-host crawl delay. */
+    private const CONFIRM_MARGIN = 2.5;
 
     public function __construct(
         private Client $client,
@@ -47,7 +57,12 @@ final class BrokenLinkFinder {
         );
         $seen = [];
         foreach ( $links as $link ) {
-            if ( $stats['checked'] >= $maxChecks || ! $budget->has( 4 ) ) {
+            if ( $stats['checked'] >= $maxChecks ) {
+                break;
+            }
+            // A probe is up to two requests (HEAD, then GET): size the timeout to the budget left.
+            $timeout = self::timeoutFor( $budget->remaining() - 0.5 );
+            if ( null === $timeout ) {
                 break;
             }
             $host = Url::registrableDomain( $link['url'] );
@@ -55,16 +70,21 @@ final class BrokenLinkFinder {
                 continue;
             }
             $seen[ $link['url'] ] = true;
-            $resp = $this->client->probe( $link['url'] );
+            $resp = $this->client->probe( $link['url'], [ 'timeout' => $timeout ] );
             $stats['checked']++;
-            $broken = in_array( $resp->status, [ 404, 410 ], true ) || ( $resp->error && in_array( $resp->errorCode, [ 'http_request_failed' ], true ) && preg_match( '/resolve|could not|no such host|connection refused|timed out/i', $resp->error ) );
-            if ( ! $broken ) {
+            if ( '' === self::failureKind( $resp ) ) {
                 continue;
             }
-            // Confirm once more to avoid transient failures.
+            // Confirm once more to avoid transient failures; leave it for the next scan when the
+            // budget cannot cover a second probe (never record an unconfirmed link).
+            $timeout = self::timeoutFor( $budget->remaining() - self::CONFIRM_MARGIN );
+            if ( null === $timeout ) {
+                break;
+            }
             usleep( 500000 );
-            $again = $this->client->probe( $link['url'] );
-            if ( ! ( in_array( $again->status, [ 404, 410 ], true ) || $again->error ) ) {
+            $again = $this->client->probe( $link['url'], [ 'timeout' => $timeout ] );
+            $kind  = self::failureKind( $again );
+            if ( '' === $kind ) {
                 continue;
             }
             $stats['broken']++;
@@ -82,6 +102,7 @@ final class BrokenLinkFinder {
                     'anchor'          => $link['anchor'],
                     'status'          => $again->status ?: ( $resp->status ?: 0 ),
                     'error'           => $again->error ?: $resp->error,
+                    'failure'         => $kind,
                     'suggested_url'   => $asset['url'],
                     'suggested_title' => $asset['title'],
                     'suggested_summary' => $asset['summary'],
@@ -95,6 +116,39 @@ final class BrokenLinkFinder {
             }
         }
         return $stats;
+    }
+
+    /**
+     * Why a probe shows the link is dead, or '' when it does not: only HTTP 404/410 and
+     * definitive DNS / connection-refused failures count. Timeouts, TLS errors, 5xx and
+     * rate limiting are not proof a link is dead, so they never become an opportunity
+     * (the outreach copy would otherwise tell a webmaster a live link "no longer resolves").
+     *
+     * @return ''|'not_found'|'gone'|'dns'|'refused'
+     */
+    private static function failureKind( Response $r ): string {
+        if ( 404 === $r->status ) {
+            return 'not_found';
+        }
+        if ( 410 === $r->status ) {
+            return 'gone';
+        }
+        if ( ! $r->error || 'http_request_failed' !== $r->errorCode || preg_match( '/timed?\s?out|timeout/i', $r->error ) ) {
+            return '';
+        }
+        if ( preg_match( '/could not resolve|no such host|name or service not known|name not resolved|nodename nor servname/i', $r->error ) ) {
+            return 'dns';
+        }
+        if ( preg_match( '/connection refused/i', $r->error ) ) {
+            return 'refused';
+        }
+        return '';
+    }
+
+    /** Per-request probe timeout for two requests within $seconds, or null when too little is left. */
+    private static function timeoutFor( float $seconds ): ?int {
+        $t = (int) min( self::PROBE_TIMEOUT, floor( $seconds / 2 ) );
+        return $t >= self::MIN_PROBE_TIMEOUT ? $t : null;
     }
 
     /** @param array{url:string,anchor:string} $link @param string[] $terms */

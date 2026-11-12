@@ -24,6 +24,18 @@ final class ClaimsFilter {
         'patient'       => [ 'regex' => '/\b(patients?|clients? taking|users? report)\b/i', 'message' => 'Implies clinical or consumer use' ],
     ];
 
+    /** Words that can negate the claim right after them ("not for human use", "no dosing guidance"). */
+    private const NEGATION = '(?:not|no|never|without|nor|neither|rather\h+than|instead\h+of)';
+
+    /**
+     * Words that end a negation's scope. A claim after one of them is a new assertion, not part of
+     * the negated phrase: "no known risks and heals…", "no joke, it cures…", "never fails to heal…".
+     */
+    private const SCOPE_BREAKERS = 'and|but|so|yet|then|also|plus|it|its|they|their|them|we|our|us|you|your|he|she|this|these|those|that|which|who|while|because|just|only|even|merely|simply|fail|fails|failed|doubt|joke|kidding|problem|problems|wonder|surprise|longer|more|less|matter|worries|worry|need|needs|needed|prescription|pressure|question|questions|risk|risks|side|hassle|wait|waiting|other|else';
+
+    /** Bytes of text before a hit that are searched for a governing negation. */
+    private const NEGATION_WINDOW = 60;
+
     public function __construct( private FactsRegistry $facts ) {}
 
     /**
@@ -34,9 +46,7 @@ final class ClaimsFilter {
         foreach ( self::RULES as $rule => $def ) {
             if ( preg_match_all( $def['regex'], $text, $m, PREG_OFFSET_CAPTURE ) ) {
                 foreach ( $m[0] as $hit ) {
-                    // Allow negated compliance statements ("not for human use", "does not provide dosing guidance", "not a supplement").
-                    $before = strtolower( substr( $text, max( 0, $hit[1] - 40 ), 40 ) );
-                    if ( preg_match( '/\b(not|no|never|without|nor|neither|rather than|instead of)\b[^.]*$/', $before ) ) {
+                    if ( self::isNegated( $text, (int) $hit[1] ) ) {
                         continue;
                     }
                     $violations[] = [ 'rule' => $rule, 'match' => $hit[0], 'message' => $def['message'], 'offset' => (int) $hit[1] ];
@@ -44,6 +54,32 @@ final class ClaimsFilter {
             }
         }
         return $violations;
+    }
+
+    /**
+     * True when the phrase at $offset is directly governed by a negation, as in compliance
+     * statements like "not for human use", "does not provide dosing, administration or protocol
+     * guidance", "not a supplement" or "neither a drug nor a supplement".
+     *
+     * Only text strictly before the match counts, so a negation inside the match ("no side
+     * effects") or later in the sentence ("cure disease, not just symptoms") never hides it.
+     * The negation must sit at most two words before the match within the same clause, and none
+     * of those words may start a new assertion (see SCOPE_BREAKERS). Punctuation other than a
+     * list comma, and line breaks, end the scope.
+     */
+    private static function isNegated( string $text, int $offset ): bool {
+        if ( $offset <= 0 ) {
+            return false;
+        }
+        $start  = max( 0, $offset - self::NEGATION_WINDOW );
+        $before = strtolower( substr( $text, $start, $offset - $start ) );
+        if ( $start > 0 && 1 === preg_match( '/[A-Za-z0-9\'\-]/', $text[ $start - 1 ] ) ) {
+            // The window starts mid-word ("cannot" → "not"); drop that partial word.
+            $before = (string) preg_replace( '/^[a-z0-9\'\-]*/', '', $before );
+        }
+        $word    = '(?!(?:' . self::SCOPE_BREAKERS . ')\b)[a-z][a-z0-9\'\-]*(?:,?\h+(?:(?:or|nor)\h+)?|\/)';
+        $pattern = '/(?<![a-z0-9\-])' . self::NEGATION . '\h+(?:' . $word . '){0,2}$/';
+        return 1 === preg_match( $pattern, $before );
     }
 
     public function isClean( string $text ): bool {

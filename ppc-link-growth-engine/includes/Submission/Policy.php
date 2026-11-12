@@ -5,7 +5,9 @@
  * A submission may run automatically only when every gate passes: the automation master switch,
  * per-prospect authorization (or a configured partner API), an automatable listing form (POST, no
  * CAPTCHA, no password, no required upload), robots.txt permission for the action URL, daily and
- * weekly limits, no duplicate submission to the same target and no required field left unmapped.
+ * weekly limits (checked when sending; packaging/approval may skip them so the item waits in the
+ * queue), no submission already sent to the same target or site, no required field left unmapped
+ * and package text that passes the claims filter.
  *
  * @package PPC\LinkGrowth
  */
@@ -47,11 +49,15 @@ final class Policy {
      * @param array<string,mixed>|null $form          Detected form (full or compact) or null.
      * @param string                   $targetUrl     Submission target page.
      * @param callable|null            $robotsFetcher fn(string $url): Response — robots check is skipped when null.
+     * @param bool                     $enforceLimits False when deciding whether a package may be queued: the queue
+     *                                                processor checks the daily/weekly limits before every send, so a
+     *                                                package created while the limit is used up waits in the queue
+     *                                                instead of being parked in review.
      * @return array{allowed:bool,mode:string,reasons:string[],hard:bool} "hard" is true when a structural blocker
      *                                                                     (form, CAPTCHA, robots, unmapped field…) exists,
      *                                                                     false when only authorization/limits block it.
      */
-    public function evaluate( array $prospect, array $payload, ?array $form, string $targetUrl, ?callable $robotsFetcher = null ): array {
+    public function evaluate( array $prospect, array $payload, ?array $form, string $targetUrl, ?callable $robotsFetcher = null, bool $enforceLimits = true ): array {
         $reasons = [];
         $hard    = false;
         $add     = static function ( string $reason, bool $isHard ) use ( &$reasons, &$hard ): void {
@@ -113,15 +119,27 @@ final class Policy {
         }
 
         // 6. Limits.
-        if ( ! $this->limits->allow( 'submissions' ) ) {
+        if ( $enforceLimits && ! $this->limits->allow( 'submissions' ) ) {
             $add( 'The daily or weekly submission limit has been reached.', false );
         }
 
-        // 7. Duplicate: a submission to this target already went out.
-        if ( '' !== $target ) {
-            $existing = $this->submissions->existsForTarget( (int) ( $prospect['id'] ?? 0 ), $target );
-            if ( $existing && in_array( (string) ( $existing['status'] ?? '' ), [ Submissions::STATUS_SUBMITTED, Submissions::STATUS_CONFIRMED ], true ) ) {
-                $add( sprintf( 'A submission to this target already exists (#%d, %s).', (int) $existing['id'], (string) $existing['status'] ), true );
+        // 7. Duplicate: a submission to this target (or another page of the same site) already went out.
+        // The row for this target is usually the one being evaluated, so "sent" is judged from submitted_at
+        // as well as the status: a sent submission that was later rejected/failed must never be posted again.
+        $pid      = (int) ( $prospect['id'] ?? 0 );
+        $existing = '' !== $target ? $this->submissions->existsForTarget( $pid, $target ) : null;
+        if ( null !== $existing && self::alreadySent( $existing ) ) {
+            $add( sprintf( 'A submission to this target was already sent (#%d, %s); sending it again would post a duplicate.', (int) $existing['id'], (string) $existing['status'] ), true );
+        }
+        if ( $pid > 0 ) {
+            foreach ( $this->submissions->findBy( [ 'prospect_id' => $pid ], 'id', 'ASC', 200 ) as $row ) {
+                if ( null !== $existing && (int) $row['id'] === (int) $existing['id'] ) {
+                    continue;
+                }
+                if ( self::alreadySent( $row ) ) {
+                    $add( sprintf( 'A listing was already submitted to this site (#%d, %s); a second automated submission would be a duplicate.', (int) $row['id'], (string) $row['status'] ), true );
+                    break;
+                }
             }
         }
 
@@ -137,6 +155,13 @@ final class Policy {
             $add( 'Required fields cannot be filled automatically: ' . implode( ', ', $unmapped ) . '.', true );
         }
 
+        // 9. Claims compliance: text the claims filter flags is never approved or posted automatically.
+        $compliance = is_array( $payload['compliance'] ?? null ) ? $payload['compliance'] : [];
+        if ( array_key_exists( 'clean', $compliance ) && ! $compliance['clean'] ) {
+            $count = is_array( $compliance['violations'] ?? null ) ? count( $compliance['violations'] ) : 0;
+            $add( sprintf( 'The package text fails the claims compliance check (%d issue(s)); edit the flagged text before it can be submitted.', max( 1, $count ) ), true );
+        }
+
         $allowed = [] === $reasons;
         return [
             'allowed' => $allowed,
@@ -144,6 +169,20 @@ final class Policy {
             'reasons' => $reasons,
             'hard'    => $hard,
         ];
+    }
+
+    /**
+     * True when the submission was already sent to the destination (by an adapter or by hand), whatever
+     * its current status: re-sending it would post the same listing twice.
+     *
+     * @param array<string,mixed> $sub
+     */
+    public static function alreadySent( array $sub ): bool {
+        if ( in_array( (string) ( $sub['status'] ?? '' ), [ Submissions::STATUS_SUBMITTED, Submissions::STATUS_CONFIRMED ], true ) ) {
+            return true;
+        }
+        $at = trim( (string) ( $sub['submitted_at'] ?? '' ) );
+        return '' !== $at && ! str_starts_with( $at, '0000-00-00' );
     }
 
     /** The configured submission mode, normalised to a known value. */

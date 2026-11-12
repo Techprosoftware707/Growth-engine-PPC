@@ -19,6 +19,11 @@ final class CompetitorBacklinkSource {
 
     public const LAST_RUN_OPTION = 'ppclg_competitor_scan_at';
 
+    /** After a scan in which every provider call failed: do not retry before this time. */
+    public const RETRY_OPTION = 'ppclg_competitor_scan_retry_at';
+
+    private const RETRY_SECONDS = 6 * HOUR_IN_SECONDS;
+
     public function __construct( private ProviderRegistry $registry, private Settings $settings, private Logger $logger ) {}
 
     /** @return string[] */
@@ -34,6 +39,10 @@ final class CompetitorBacklinkSource {
     }
 
     public function isDue( int $intervalDays = 7 ): bool {
+        $retry = (string) get_option( self::RETRY_OPTION, '' );
+        if ( '' !== $retry && (int) strtotime( $retry ) > time() ) {
+            return false;
+        }
         $last = (string) get_option( self::LAST_RUN_OPTION, '' );
         return '' === $last || strtotime( $last ) < time() - $intervalDays * DAY_IN_SECONDS;
     }
@@ -52,9 +61,17 @@ final class CompetitorBacklinkSource {
             return $stats;
         }
         $source = $sources[0]; // one provider is enough; avoid double credit spend.
+        $errors = [];
+        $anyOk  = false;
         foreach ( $comps as $comp ) {
             $stats['competitors']++;
             $links = $source->backlinks( $comp, $perCompetitor, 1 );
+            $error = method_exists( $source, 'lastError' ) ? (string) $source->lastError() : '';
+            if ( empty( $links ) && '' !== $error ) {
+                $errors[ $comp ] = $error; // the call failed: not "no backlinks"
+                continue;
+            }
+            $anyOk = true;
             $stats['backlinks'] += count( $links );
             foreach ( $links as $bl ) {
                 $src  = $bl['source_url'];
@@ -73,7 +90,16 @@ final class CompetitorBacklinkSource {
                 }
             }
         }
-        update_option( self::LAST_RUN_OPTION, gmdate( 'c' ), false );
+        if ( $anyOk ) {
+            // Only a scan that actually got data starts the weekly interval.
+            update_option( self::LAST_RUN_OPTION, gmdate( 'c' ), false );
+            delete_option( self::RETRY_OPTION );
+        } else {
+            update_option( self::RETRY_OPTION, gmdate( 'c', time() + self::RETRY_SECONDS ), false );
+        }
+        if ( [] !== $errors ) {
+            $stats['warning'] = sprintf( 'Backlink provider "%s" failed for %s: %s', $source->id(), implode( ', ', array_keys( $errors ) ), (string) reset( $errors ) );
+        }
         $this->logger->info( 'discovery', 'Competitor backlink scan finished.', $stats );
         return $stats;
     }

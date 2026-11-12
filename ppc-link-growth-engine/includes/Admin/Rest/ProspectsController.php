@@ -338,7 +338,14 @@ final class ProspectsController extends Controller {
         ];
     }
 
-    /** DELETE /prospects/{id} — removes the prospect and its dependent records (backlinks are kept, detached). @return array<string,mixed>|\WP_Error */
+    /**
+     * DELETE /prospects/{id} — removes the prospect and its dependent records (backlinks are kept, detached).
+     *
+     * Refused (409) once anything was sent to the site: those submission and outreach records are what
+     * stop a duplicate submission and a premature re-contact when the domain is discovered again.
+     *
+     * @return array<string,mixed>|\WP_Error
+     */
     public function destroy( WP_REST_Request $request ) {
         $id   = $this->id( $request );
         $repo = $this->c->get( Prospects::class );
@@ -347,6 +354,22 @@ final class ProspectsController extends Controller {
             return $this->notFound( __( 'Prospect', 'ppc-link-growth-engine' ) );
         }
         global $wpdb;
+        $history = $this->sentHistory( $id );
+        if ( $history['submissions'] > 0 || $history['messages'] > 0 ) {
+            $this->audit( 'prospect.delete_refused', 'prospect', $id, [ 'domain' => (string) $p['domain'], 'sent' => $history ] );
+            return $this->fail(
+                'ppclg_prospect_has_history',
+                sprintf(
+                    /* translators: 1: domain, 2: number of sent submissions, 3: number of sent emails */
+                    __( '%1$s cannot be deleted: %2$d submission(s) and %3$d outreach email(s) were already sent to it. Those records stop a duplicate submission or a too-early repeat contact if the site is found again. Use "Suppress domain" to block it permanently, or set its status to Rejected.', 'ppc-link-growth-engine' ),
+                    (string) $p['domain'],
+                    $history['submissions'],
+                    $history['messages']
+                ),
+                409,
+                [ 'sent_submissions' => $history['submissions'], 'sent_messages' => $history['messages'] ]
+            );
+        }
         $removed = [];
         foreach ( [ Opportunities::class, Submissions::class, Contacts::class, OutreachMessages::class ] as $class ) {
             $removed[ $class ] = $this->safe(
@@ -369,6 +392,37 @@ final class ProspectsController extends Controller {
     }
 
     // ------------------------------------------------------------------
+
+    /**
+     * Submissions and outreach messages that already went out to this prospect.
+     * A failed lookup counts as history so that the delete is refused rather than risked.
+     *
+     * @return array{submissions:int,messages:int}
+     */
+    private function sentHistory( int $id ): array {
+        global $wpdb;
+        $subs = $this->safe(
+            function () use ( $wpdb, $id ): int {
+                $sql = 'SELECT COUNT(*) FROM ' . $this->c->get( Submissions::class )->table() . ' WHERE prospect_id = %d AND (submitted_at IS NOT NULL OR status IN (%s, %s))';
+                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- table name from the repository, values prepared.
+                $n = $wpdb->get_var( $wpdb->prepare( $sql, $id, Submissions::STATUS_SUBMITTED, Submissions::STATUS_CONFIRMED ) );
+                return null === $n ? 1 : (int) $n;
+            },
+            1,
+            'sent submissions'
+        );
+        $msgs = $this->safe(
+            function () use ( $wpdb, $id ): int {
+                $sql = 'SELECT COUNT(*) FROM ' . $this->c->get( OutreachMessages::class )->table() . ' WHERE prospect_id = %d AND (sent_at IS NOT NULL OR status IN (%s, %s, %s))';
+                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- table name from the repository, values prepared.
+                $n = $wpdb->get_var( $wpdb->prepare( $sql, $id, OutreachMessages::STATUS_SENT, OutreachMessages::STATUS_REPLIED, OutreachMessages::STATUS_BOUNCED ) );
+                return null === $n ? 1 : (int) $n;
+            },
+            1,
+            'sent outreach'
+        );
+        return [ 'submissions' => (int) $subs, 'messages' => (int) $msgs ];
+    }
 
     /** @return array<string,mixed>|null */
     private function fresh( int $id ): ?array {

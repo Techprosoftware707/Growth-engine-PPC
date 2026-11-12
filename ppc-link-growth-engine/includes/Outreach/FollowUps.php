@@ -6,6 +6,10 @@
  * campaign opted in (settings.auto_follow_up) AND the automation master switch for outreach
  * auto-send is on. Nothing here sends email.
  *
+ * Candidates are filtered in SQL (follow-up cap, active contact, website not rejected/suppressed, campaign
+ * present / active / follow-ups enabled, nobody in the conversation answered), so rows that can never get a
+ * follow-up do not fill the oldest-first batch on every run and starve newer conversations.
+ *
  * @package PPC\LinkGrowth
  */
 
@@ -52,7 +56,7 @@ final class FollowUps {
         $max      = max( 1, min( 200, $max ) );
 
         try {
-            $due = $this->messages->awaitingFollowUp( $days, $max );
+            $due = $this->due( $days, 1 + $maxFollowUps, $max );
         } catch ( \Throwable $e ) {
             $out['errors']++;
             return $out;
@@ -143,6 +147,68 @@ final class FollowUps {
             }
         }
         return $out;
+    }
+
+    /**
+     * Sent messages that can get a follow-up now: sent $days+ days ago, below the follow-up cap, no next message
+     * in the conversation yet, nobody in it answered (or opted out / bounced / closed it), active contact, website
+     * not rejected or suppressed, and a campaign that still exists, is not archived/completed and has follow-ups
+     * enabled. Oldest first.
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    private function due( int $days, int $maxSequence, int $limit ): array {
+        global $wpdb;
+        $m      = $this->messages->table();
+        $sql    = "SELECT m.* FROM {$m} m"
+            . " INNER JOIN {$this->contacts()->table()} ct ON ct.id = m.contact_id AND ct.status = %s"
+            . " INNER JOIN {$this->prospects()->table()} p ON p.id = m.prospect_id AND p.status NOT IN (%s,%s)"
+            . " LEFT JOIN {$this->campaigns->table()} c ON c.id = m.campaign_id"
+            . " LEFT JOIN {$m} f ON f.contact_id = m.contact_id AND f.approach = m.approach AND f.sequence = m.sequence + 1"
+            . ' WHERE m.status = %s AND m.sent_at IS NOT NULL AND m.sent_at <= %s AND m.sequence < %d AND f.id IS NULL'
+            . ' AND ( m.campaign_id = 0 OR ( c.id IS NOT NULL AND c.status NOT IN (%s,%s) ) )'
+            . " AND NOT EXISTS ( SELECT 1 FROM {$m} r WHERE r.contact_id = m.contact_id AND r.approach = m.approach AND r.id <> m.id"
+            . ' AND ( r.replied_at IS NOT NULL OR r.status IN (%s,%s,%s,%s) ) )';
+        $params = [
+            Contacts::STATUS_ACTIVE,
+            Prospects::STATUS_REJECTED,
+            Prospects::STATUS_SUPPRESSED,
+            OutreachMessages::STATUS_SENT,
+            gmdate( 'Y-m-d H:i:s', time() - $days * DAY_IN_SECONDS ),
+            $maxSequence,
+            Campaigns::STATUS_ARCHIVED,
+            Campaigns::STATUS_COMPLETED,
+            OutreachMessages::STATUS_REPLIED,
+            OutreachMessages::STATUS_OPTED_OUT,
+            OutreachMessages::STATUS_BOUNCED,
+            OutreachMessages::STATUS_CLOSED,
+        ];
+        $off = $this->campaignsWithoutFollowUps();
+        if ( [] !== $off ) {
+            $sql   .= ' AND m.campaign_id NOT IN (' . implode( ',', array_fill( 0, count( $off ), '%d' ) ) . ')';
+            $params = array_merge( $params, $off );
+        }
+        $sql     .= ' ORDER BY m.sent_at ASC, m.id ASC LIMIT %d';
+        $params[] = max( 1, $limit );
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $rows = $wpdb->get_results( $wpdb->prepare( $sql, $params ), ARRAY_A );
+        return array_map( [ $this->messages, 'hydrate' ], is_array( $rows ) ? $rows : [] );
+    }
+
+    /**
+     * Ids of campaigns whose settings switch follow-ups off (same rule as the per-row check in generateDue()).
+     *
+     * @return int[]
+     */
+    private function campaignsWithoutFollowUps(): array {
+        $ids = [];
+        foreach ( $this->campaigns->findBy( [], 'id', 'ASC', 5000 ) as $c ) {
+            $cs = is_array( $c['settings'] ?? null ) ? $c['settings'] : [];
+            if ( isset( $cs['follow_ups'] ) && ! filter_var( $cs['follow_ups'], FILTER_VALIDATE_BOOLEAN ) ) {
+                $ids[] = (int) $c['id'];
+            }
+        }
+        return $ids;
     }
 
     /** Strips any existing "Following up:" / "Re:" prefixes so the follow-up subject does not stack them. */

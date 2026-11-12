@@ -6,6 +6,11 @@
  * (or an auto follow-up explicitly enabled by both the campaign and the automation switch),
  * (3) a passing Compliance::validate() and (4) a free slot in the daily/weekly limits.
  *
+ * Automation (user id 0) may approve an initial message only when outreach autosend is on AND the owner
+ * turned off "Require individual approval", and it never approves anything in a campaign a person paused.
+ * Every send first claims its row (approved/scheduled -> "sending" with a compare-and-set on status and
+ * updated_at), so a message that was sent, edited or rejected meanwhile is never sent from a stale copy.
+ *
  * @package PPC\LinkGrowth
  */
 
@@ -62,6 +67,18 @@ final class OutreachEngine {
     private const REQUIRES_OPPORTUNITY = [ 'broken_link', 'unlinked_mention' ];
 
     private const EDITABLE_STATUSES = [ OutreachMessages::STATUS_DRAFT, OutreachMessages::STATUS_APPROVED, OutreachMessages::STATUS_SCHEDULED, OutreachMessages::STATUS_REJECTED, OutreachMessages::STATUS_FAILED ];
+
+    /** Transient message status while one run owns the row and the email is being handed to wp_mail(). */
+    public const STATUS_SENDING = 'sending';
+
+    /** A claim older than this (seconds) belongs to a run that died mid-send. */
+    private const CLAIM_STALE_AFTER = 900;
+
+    /** States of an earlier message in the same conversation after which no follow-up may go out. */
+    private const THREAD_ENDED = [ OutreachMessages::STATUS_REPLIED, OutreachMessages::STATUS_OPTED_OUT, OutreachMessages::STATUS_BOUNCED, OutreachMessages::STATUS_CLOSED ];
+
+    /** Not-yet-sent states that a reply or a closed conversation cancels. */
+    private const PENDING = [ OutreachMessages::STATUS_DRAFT, OutreachMessages::STATUS_APPROVED, OutreachMessages::STATUS_SCHEDULED ];
 
     /** @var array<int,array<string,mixed>|null> */
     private array $campaignCache = [];
@@ -156,6 +173,11 @@ final class OutreachEngine {
     public function approveCampaign( int $id, int $userId ): bool {
         $c = $this->campaigns->find( $id );
         if ( ! $c ) {
+            return false;
+        }
+        if ( $userId <= 0 && Campaigns::STATUS_PAUSED === (string) $c['status'] ) {
+            // A pause is the owner's decision; only a person (resume / approve) may lift it.
+            $this->logger->info( 'outreach', 'Campaign #' . $id . ' stays paused: automation never re-approves a paused campaign.' );
             return false;
         }
         $sender = $this->compliance->senderReady();
@@ -367,6 +389,7 @@ final class OutreachEngine {
         if ( ! preg_match( '/^[a-f0-9]{32}$/', $token ) ) {
             $token = Crypto::randomToken( 16 );
         }
+        $body = Unsubscribe::refreshLinks( $body, $token );
         if ( ! $this->compliance->bodyHasFooter( $body, $token ) ) {
             $body = rtrim( $body ) . "\n\n" . $this->footer( $token );
         }
@@ -413,8 +436,19 @@ final class OutreachEngine {
         if ( $campaign && in_array( (string) $campaign['status'], [ Campaigns::STATUS_ARCHIVED, Campaigns::STATUS_COMPLETED ], true ) ) {
             return [ 'ok' => false, 'violations' => [ 'Campaign is ' . $campaign['status'] . '.' ] ];
         }
+        if ( $userId <= 0 ) {
+            // Automation approving on the owner's behalf (outreach autosend): honour the owner's settings.
+            if ( (bool) $this->settings->get( 'outreach.require_approval', true ) ) {
+                return [ 'ok' => false, 'violations' => [ 'Individual approval is required (Settings → Outreach → Require individual approval), so automation does not approve messages.' ] ];
+            }
+            if ( $campaign && Campaigns::STATUS_PAUSED === (string) $campaign['status'] ) {
+                return [ 'ok' => false, 'violations' => [ 'Campaign is paused; automation does not approve messages in it.' ] ];
+            }
+        }
+        $prospectId = (int) ( $m['prospect_id'] ?? 0 );
+        $prospect   = $prospectId > 0 ? $this->prospects->find( $prospectId ) : null;
         // The campaign's own approval is enforced at send time, so messages may be reviewed in any order.
-        $result = $this->compliance->validate( array_merge( $m, [ 'status' => OutreachMessages::STATUS_APPROVED ] ), $contact, null );
+        $result = $this->compliance->validate( array_merge( $m, [ 'status' => OutreachMessages::STATUS_APPROVED ] ), $contact, null, $prospect );
         if ( ! $result['ok'] ) {
             $this->messages->update( $id, [ 'last_error' => 'Not approved: ' . implode( ' ', $result['violations'] ), 'updated_at' => OutreachMessages::now() ] );
             return $result;
@@ -435,14 +469,15 @@ final class OutreachEngine {
         return true;
     }
 
-    /** Closes a conversation (after a reply was handled or when no answer is expected). */
+    /** Closes a conversation (after a reply was handled or when no answer is expected) and cancels its pending follow-ups. */
     public function closeMessage( int $id, int $userId ): bool {
         $m = $this->messages->find( $id );
         if ( ! $m || OutreachMessages::STATUS_CLOSED === (string) $m['status'] ) {
             return (bool) $m;
         }
         $this->messages->setStatus( $id, OutreachMessages::STATUS_CLOSED );
-        $this->audit->record( $this->actor( $userId ), 'outreach.message_closed', 'outreach_message', $id, [ 'previous_status' => $m['status'] ] );
+        $cancelled = $this->cancelLaterInThread( $m, 'Cancelled: the conversation was closed.' );
+        $this->audit->record( $this->actor( $userId ), 'outreach.message_closed', 'outreach_message', $id, [ 'previous_status' => $m['status'], 'follow_ups_cancelled' => $cancelled ] );
         return true;
     }
 
@@ -458,8 +493,33 @@ final class OutreachEngine {
             OutreachMessages::STATUS_REPLIED,
             [ 'replied_at' => ! empty( $m['replied_at'] ) ? $m['replied_at'] : OutreachMessages::now(), 'reply_summary' => $summary ]
         );
-        $this->audit->record( $this->actor( $userId ), 'outreach.reply_logged', 'outreach_message', $messageId, [ 'prospect_id' => (int) ( $m['prospect_id'] ?? 0 ) ] );
+        // Someone who answered must not get the "following up" email afterwards.
+        $cancelled = $this->cancelLaterInThread( $m, 'Cancelled: the recipient replied.' );
+        $this->audit->record( $this->actor( $userId ), 'outreach.reply_logged', 'outreach_message', $messageId, [ 'prospect_id' => (int) ( $m['prospect_id'] ?? 0 ), 'follow_ups_cancelled' => $cancelled ] );
         return true;
+    }
+
+    /**
+     * Closes the not-yet-sent later messages (follow-ups) of the conversation $m belongs to: same contact, same
+     * approach, higher sequence. Returns how many were cancelled.
+     *
+     * @param array<string,mixed> $m
+     */
+    private function cancelLaterInThread( array $m, string $why ): int {
+        $contactId = (int) ( $m['contact_id'] ?? 0 );
+        if ( $contactId <= 0 ) {
+            return 0;
+        }
+        $sequence = (int) ( $m['sequence'] ?? 1 );
+        $n        = 0;
+        foreach ( $this->messages->findBy( [ 'contact_id' => $contactId, 'approach' => (string) ( $m['approach'] ?? '' ), 'status' => self::PENDING ], 'sequence', 'ASC', 50 ) as $p ) {
+            if ( (int) $p['id'] === (int) $m['id'] || (int) ( $p['sequence'] ?? 1 ) <= $sequence ) {
+                continue;
+            }
+            $this->messages->setStatus( (int) $p['id'], OutreachMessages::STATUS_CLOSED, [ 'last_error' => $why ] );
+            $n++;
+        }
+        return $n;
     }
 
     public function addContact( int $prospectId, string $email, string $name, string $role, int $userId ): ?int {
@@ -529,7 +589,9 @@ final class OutreachEngine {
             $out['reasons'][ $reason ] = ( $out['reasons'][ $reason ] ?? 0 ) + $n;
         };
         try {
-            $ready = $this->messages->readyToSend( $max );
+            $this->releaseStaleClaims();
+            $autosend = (bool) $this->settings->get( 'automation.outreach_autosend', false );
+            $ready    = $this->sendCandidates( $max, $autosend );
             if ( [] === $ready ) {
                 return $out;
             }
@@ -541,7 +603,10 @@ final class OutreachEngine {
                 $skip( 'daily_limit_reached', count( $ready ) );
                 return $out;
             }
-            $autosend = (bool) $this->settings->get( 'automation.outreach_autosend', false );
+            if ( ! $this->compliance->senderReady()['ok'] ) {
+                $skip( 'sender_incomplete', count( $ready ) );
+                return $out;
+            }
             foreach ( $ready as $m ) {
                 if ( ! $budget->has( 2.0 ) ) {
                     $skip( 'time_budget' );
@@ -566,6 +631,109 @@ final class OutreachEngine {
             $this->logger->error( 'outreach', 'sendDue failed: ' . $e->getMessage() );
         }
         return $out;
+    }
+
+    /** Whether sendDue() would find a message it may send now (for deciding whether to queue the send job). */
+    public function hasSendable(): bool {
+        try {
+            return [] !== $this->sendCandidates( 1, (bool) $this->settings->get( 'automation.outreach_autosend', false ) );
+        } catch ( \Throwable $e ) {
+            return false;
+        }
+    }
+
+    /**
+     * Due messages that sendDue() may actually send: approved (and, with autosend on, scheduled) rows whose
+     * campaign is approved/sending and still under its own daily limit. Rows held back by a paused, archived or
+     * capped campaign are filtered out here instead of filling the batch on every run and starving the
+     * campaigns that could send (rows blocked by compliance are moved out of the ready set by deliver()).
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    private function sendCandidates( int $limit, bool $includeScheduled ): array {
+        global $wpdb;
+        $m        = $this->messages->table();
+        $c        = $this->campaigns->table();
+        $statuses = $includeScheduled ? [ OutreachMessages::STATUS_APPROVED, OutreachMessages::STATUS_SCHEDULED ] : [ OutreachMessages::STATUS_APPROVED ];
+        $sql      = "SELECT m.* FROM {$m} m LEFT JOIN {$c} c ON c.id = m.campaign_id"
+            . ' WHERE m.status IN (' . implode( ',', array_fill( 0, count( $statuses ), '%s' ) ) . ')'
+            . ' AND ( m.scheduled_at IS NULL OR m.scheduled_at <= %s )'
+            . ' AND ( m.campaign_id = 0 OR ( c.status IN (%s,%s)'
+            . " AND ( c.daily_limit = 0 OR ( SELECT COUNT(*) FROM {$m} s WHERE s.campaign_id = m.campaign_id AND s.sent_at >= %s ) < c.daily_limit ) ) )"
+            . ' ORDER BY m.sequence ASC, m.id ASC LIMIT %d';
+        $params   = array_merge( $statuses, [ OutreachMessages::now(), Campaigns::STATUS_APPROVED, Campaigns::STATUS_SENDING, gmdate( 'Y-m-d 00:00:00' ), max( 1, $limit ) ] );
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $rows = $wpdb->get_results( $wpdb->prepare( $sql, $params ), ARRAY_A );
+        return array_map( [ $this->messages, 'hydrate' ], is_array( $rows ) ? $rows : [] );
+    }
+
+    /**
+     * A run that died between claiming a row and recording the result leaves it "sending". After
+     * CLAIM_STALE_AFTER it is marked failed (never re-queued: the email may already have gone out).
+     */
+    private function releaseStaleClaims(): void {
+        global $wpdb;
+        $sql = "UPDATE {$this->messages->table()} SET status = %s, last_error = %s, updated_at = %s WHERE status = %s AND updated_at < %s";
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $wpdb->query( $wpdb->prepare( $sql, OutreachMessages::STATUS_FAILED, 'Sending was interrupted; the email may or may not have gone out. Check the mail log before approving it again.', OutreachMessages::now(), self::STATUS_SENDING, gmdate( 'Y-m-d H:i:s', time() - self::CLAIM_STALE_AFTER ) ) );
+    }
+
+    /**
+     * Compare-and-set update of a message row: applies only while the row still has the status and updated_at
+     * of the copy in $m (so a send, edit, rejection or approval that happened meanwhile is never overwritten).
+     *
+     * @param array<string,mixed>            $m      Row as read.
+     * @param array<string,string|int|null>  $fields Columns to set (fixed names from this class only).
+     */
+    private function transition( array $m, array $fields ): bool {
+        global $wpdb;
+        $fields['updated_at'] = OutreachMessages::now();
+        $set                  = [];
+        $params               = [];
+        foreach ( $fields as $col => $val ) {
+            if ( null === $val ) {
+                $set[] = $col . ' = NULL';
+                continue;
+            }
+            $set[]    = $col . ' = %s';
+            $params[] = (string) $val;
+        }
+        $where    = 'id = %d AND status = %s';
+        $params[] = (int) $m['id'];
+        $params[] = (string) ( $m['status'] ?? '' );
+        $updated  = trim( (string) ( $m['updated_at'] ?? '' ) );
+        if ( '' === $updated ) {
+            $where .= ' AND updated_at IS NULL';
+        } else {
+            $where   .= ' AND updated_at = %s';
+            $params[] = $updated;
+        }
+        $sql = "UPDATE {$this->messages->table()} SET " . implode( ', ', $set ) . ' WHERE ' . $where;
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $n = $wpdb->query( $wpdb->prepare( $sql, $params ) );
+        return 1 === (int) $n;
+    }
+
+    /**
+     * Whether an earlier message of the same conversation (contact + approach) was answered or ended, in which
+     * case a follow-up must not go out.
+     *
+     * @param array<string,mixed> $m
+     */
+    private function threadEnded( array $m ): bool {
+        $sequence = (int) ( $m['sequence'] ?? 1 );
+        if ( $sequence <= 1 ) {
+            return false;
+        }
+        foreach ( $this->messages->findBy( [ 'contact_id' => (int) ( $m['contact_id'] ?? 0 ), 'approach' => (string) ( $m['approach'] ?? '' ) ], 'sequence', 'ASC', 20 ) as $row ) {
+            if ( (int) $row['id'] === (int) $m['id'] || (int) ( $row['sequence'] ?? 1 ) >= $sequence ) {
+                continue;
+            }
+            if ( ! empty( $row['replied_at'] ) || in_array( (string) ( $row['status'] ?? '' ), self::THREAD_ENDED, true ) ) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -634,33 +802,64 @@ final class OutreachEngine {
             $this->messages->setStatus( $id, OutreachMessages::STATUS_FAILED, [ 'last_error' => 'Contact no longer exists' ] );
             return [ 'failed', 'Contact no longer exists.' ];
         }
-        $validation = $this->compliance->validate( $m, $contact, $campaign );
+        if ( $this->threadEnded( $m ) ) {
+            $this->transition( $m, [ 'status' => OutreachMessages::STATUS_CLOSED, 'last_error' => 'Not sent: the recipient already answered (or the conversation ended) before this follow-up went out.' ] );
+            return [ 'skipped', 'thread_answered' ];
+        }
+        $prospectId = (int) ( $m['prospect_id'] ?? 0 );
+        $prospect   = $prospectId > 0 ? $this->prospects->find( $prospectId ) : null;
+        if ( $prospect && Prospects::STATUS_ON_HOLD === (string) ( $prospect['status'] ?? '' ) ) {
+            $this->transition( $m, [ 'scheduled_at' => gmdate( 'Y-m-d H:i:s', time() + DAY_IN_SECONDS ), 'last_error' => 'Deferred: the website is on hold.' ] );
+            return [ 'skipped', 'prospect_on_hold' ];
+        }
+        $validation = $this->compliance->assess( $m, $contact, $campaign, $prospect );
         if ( ! $validation['ok'] ) {
-            $this->messages->update( $id, [ 'last_error' => 'Blocked: ' . implode( ' ', $validation['violations'] ), 'updated_at' => OutreachMessages::now() ] );
+            // Take the row out of the ready set so it cannot hold up every later message: a cool-down defers it
+            // until the cool-down ends, an incomplete sender identity (a settings fix) leaves it queued, anything
+            // else (contact, website or copy) fails it with the reason so the owner can edit / re-approve it.
+            $note = implode( ' ', $validation['violations'] );
+            if ( $validation['transient'] && null !== $validation['retry_at'] ) {
+                $this->transition( $m, [ 'scheduled_at' => gmdate( 'Y-m-d H:i:s', max( time() + MINUTE_IN_SECONDS, (int) $validation['retry_at'] ) ), 'last_error' => 'Deferred: ' . $note ] );
+            } elseif ( $validation['transient'] ) {
+                $this->transition( $m, [ 'last_error' => 'Blocked: ' . $note ] );
+            } else {
+                $this->transition( $m, [ 'status' => OutreachMessages::STATUS_FAILED, 'last_error' => 'Blocked: ' . $note ] );
+            }
             $this->logger->info( 'outreach', 'Message #' . $id . ' blocked by compliance.', [ 'violations' => $validation['violations'] ] );
             return [ 'skipped', 'compliance' ];
         }
-        $url = Unsubscribe::urlFor( (string) $m['unsubscribe_token'] );
-        $res = $this->mailer->send( $m, $contact, $url );
+        // Claim the row: only one run (cron batch or "Send now") gets past this, and only while the row is
+        // unchanged since it was read (not sent, edited or rejected meanwhile).
+        if ( ! $this->transition( $m, [ 'status' => self::STATUS_SENDING ] ) ) {
+            return [ 'skipped', 'changed' ];
+        }
+        $token = (string) $m['unsubscribe_token'];
+        $url   = Unsubscribe::urlFor( $token );
+        $body  = Unsubscribe::refreshLinks( (string) ( $m['body'] ?? '' ), $token );
+        try {
+            $res = $this->mailer->send( array_merge( $m, [ 'body' => $body ] ), $contact, $url );
+        } catch ( \Throwable $e ) {
+            $res = [ 'ok' => false, 'message_id' => '', 'error' => 'Sending failed: ' . $e->getMessage() ];
+        }
         if ( ! $res['ok'] ) {
             $this->messages->setStatus( $id, OutreachMessages::STATUS_FAILED, [ 'last_error' => $res['error'] ] );
             $this->audit->record( $this->actor( $userId ), 'outreach.send_failed', 'outreach_message', $id, [ 'error' => $res['error'], 'campaign_id' => $campaignId ] );
             $this->notify( 'outreach_failed', 'warning', 'Outreach email failed to send', sprintf( 'Message #%d could not be sent: %s', $id, $res['error'] ), [ 'message_id' => $id ] );
             return [ 'failed', $res['error'] ];
         }
-        $now = OutreachMessages::now();
-        $this->messages->setStatus( $id, OutreachMessages::STATUS_SENT, [ 'sent_at' => $now, 'message_id' => $res['message_id'], 'last_error' => '' ] );
+        $now  = OutreachMessages::now();
+        $sent = [ 'sent_at' => $now, 'message_id' => $res['message_id'], 'last_error' => '' ];
+        if ( $body !== (string) ( $m['body'] ?? '' ) ) {
+            $sent['body'] = $body; // the record keeps what was actually sent (refreshed unsubscribe link)
+        }
+        $this->messages->setStatus( $id, OutreachMessages::STATUS_SENT, $sent );
         $this->limits->spend( 'outreach_emails' );
         if ( $campaign && Campaigns::STATUS_APPROVED === (string) $campaign['status'] ) {
             $this->campaigns->setStatus( $campaignId, Campaigns::STATUS_SENDING );
             unset( $this->campaignCache[ $campaignId ] );
         }
-        $prospectId = (int) ( $m['prospect_id'] ?? 0 );
-        if ( $prospectId > 0 ) {
-            $p = $this->prospects->find( $prospectId );
-            if ( $p && in_array( (string) $p['status'], [ Prospects::STATUS_QUALIFIED, Prospects::STATUS_APPROVED ], true ) ) {
-                $this->prospects->setStatus( $prospectId, Prospects::STATUS_IN_PROGRESS );
-            }
+        if ( $prospect && in_array( (string) $prospect['status'], [ Prospects::STATUS_QUALIFIED, Prospects::STATUS_APPROVED ], true ) ) {
+            $this->prospects->setStatus( $prospectId, Prospects::STATUS_IN_PROGRESS );
         }
         $this->audit->record( $this->actor( $userId, 'system:outreach' ), 'outreach.sent', 'outreach_message', $id, [ 'campaign_id' => $campaignId, 'prospect_id' => $prospectId, 'contact_id' => (int) $contact['id'], 'approach' => $m['approach'] ?? '', 'sequence' => (int) ( $m['sequence'] ?? 1 ), 'message_id' => $res['message_id'] ] );
         return [ 'sent', '' ];

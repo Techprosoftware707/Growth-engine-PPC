@@ -20,6 +20,29 @@ final class PageAnalyzer {
 
     private const SOCIAL_HOSTS = [ 'facebook.com', 'twitter.com', 'x.com', 'linkedin.com', 'instagram.com', 'youtube.com', 'tiktok.com', 'threads.net', 'mastodon.social', 'bsky.app', 'pinterest.com' ];
 
+    /**
+     * Inline styles that hide an element. font-size and opacity only count when the value is exactly zero
+     * (0, 0px, 0.0em, 0 !important…), never 0.875rem or 0.5.
+     */
+    private const HIDDEN_STYLE_RE = '/(?<![\w-])(?:display\s*:\s*none|visibility\s*:\s*hidden|font-size\s*:\s*(?:0+(?:\.0*)?|\.0+)(?:px|em|rem|pt|pc|ex|ch|vw|vh|vmin|vmax|%)?\s*(?:;|!|$)|opacity\s*:\s*(?:0+(?:\.0*)?|\.0+)%?\s*(?:;|!|$))/';
+
+    /** WHATWG / legacy charset labels mbstring does not know, mapped to a name mbstring or iconv accepts. */
+    private const CHARSET_ALIASES = [
+        'iso-8859-8-i'    => 'ISO-8859-8',
+        'iso-8859-6-i'    => 'ISO-8859-6',
+        'iso-8859-6-e'    => 'ISO-8859-6',
+        'iso-8859-8-e'    => 'ISO-8859-8',
+        'ks_c_5601-1987'  => 'UHC',
+        'ks_c_5601-1989'  => 'UHC',
+        'x-sjis'          => 'SJIS',
+        'x-euc-jp'        => 'EUC-JP',
+        'tis-620'         => 'TIS-620',
+        'windows-874'     => 'TIS-620',
+        'latin1'          => 'ISO-8859-1',
+        'us-ascii'        => 'ASCII',
+        'x-user-defined'  => '',
+    ];
+
     public function fromResponse( Response $resp ): PageAnalysis {
         $a = $this->analyze( $resp->body, $resp->finalUrl ?: $resp->url, $resp->headers, $resp->status );
         $a->url = $resp->url;
@@ -196,7 +219,9 @@ final class PageAnalyzer {
         $a->internalPaths = array_values( array_unique( $a->internalPaths ) );
 
         // Main text (remove boilerplate elements).
-        $body = $xp->query( '//body' )->item( 0 );
+        $body        = $xp->query( '//body' )->item( 0 );
+        $boilerplate = []; // text of removed nav/header/footer/aside/form regions (searched for emails only)
+        $boilerLen   = 0;
         if ( $body instanceof DOMNode ) {
             $clone = $body->cloneNode( true );
             $cxp   = new DOMXPath( $clone->ownerDocument );
@@ -205,8 +230,17 @@ final class PageAnalyzer {
                 foreach ( $cxp->query( './/' . $tag, $clone ) as $n ) {
                     $nodes[] = $n;
                 }
+                $keep = in_array( $tag, [ 'nav', 'header', 'footer', 'aside', 'form' ], true );
                 foreach ( $nodes as $n ) {
                     if ( $n->parentNode ) {
+                        if ( $keep && $boilerLen < 60000 ) {
+                            $seg = html_entity_decode( $n->textContent, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+                            $seg = trim( preg_replace( '/\s+/u', ' ', $seg ) ?? $seg );
+                            if ( '' !== $seg ) {
+                                $boilerplate[] = $seg;
+                                $boilerLen    += strlen( $seg );
+                            }
+                        }
                         $n->parentNode->removeChild( $n );
                     }
                 }
@@ -221,12 +255,20 @@ final class PageAnalyzer {
         $a->text      = trim( mb_substr( $text, 0, 60000 ) );
         $a->wordCount = count( preg_split( '/\s+/u', $a->text, -1, PREG_SPLIT_NO_EMPTY ) ?: [] );
 
-        // Emails in text.
-        if ( preg_match_all( '/[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}/i', $a->text, $m ) ) {
+        // Emails in text, including plain-text addresses in the footer/header/sidebar/nav that the
+        // boilerplate-stripped main text no longer contains.
+        if ( preg_match_all( '/[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}/i', $a->text . "\n" . implode( "\n", $boilerplate ), $m ) ) {
             foreach ( array_unique( $m[0] ) as $email ) {
                 $email = strtolower( $email );
                 if ( is_email( $email ) && ! preg_match( '/\.(png|jpe?g|gif|webp|svg)$/i', $email ) ) {
-                    $a->emails[] = [ 'email' => $email, 'context' => $a->snippetAround( $email, 80 ), 'source' => 'text' ];
+                    $context = $a->snippetAround( $email, 80 );
+                    foreach ( $boilerplate as $seg ) {
+                        if ( '' !== $context ) {
+                            break;
+                        }
+                        $context = $this->snippetIn( $seg, $email, 80 );
+                    }
+                    $a->emails[] = [ 'email' => $email, 'context' => $context, 'source' => 'text' ];
                 }
             }
         }
@@ -250,16 +292,25 @@ final class PageAnalyzer {
         return $a;
     }
 
+    /**
+     * Returns $html as UTF-8 with every in-document charset declaration pointing at UTF-8, ready for
+     * DOMDocument::loadHTML( '<?xml encoding="UTF-8">' . $html ). For callers that parse a response body
+     * themselves (e.g. re-reading a form's controls before posting it).
+     */
+    public function utf8Html( string $html, string $contentType = '' ): string {
+        return '' === trim( $html ) ? $html : $this->toUtf8( $html, $contentType );
+    }
+
     private function toUtf8( string $html, string $contentType ): string {
         $charset = '';
-        if ( preg_match( '/charset=([\w\-]+)/i', $contentType, $m ) ) {
+        if ( preg_match( '/charset=["\']?([\w\-:.]+)/i', $contentType, $m ) ) {
             $charset = $m[1];
-        } elseif ( preg_match( '/<meta[^>]+charset=["\']?([\w\-]+)/i', $html, $m ) ) {
+        } elseif ( preg_match( '/<meta[^>]+charset=["\']?([\w\-:.]+)/i', $html, $m ) ) {
             $charset = $m[1];
         }
         $charset = strtolower( $charset );
         if ( '' !== $charset && ! in_array( $charset, [ 'utf-8', 'utf8' ], true ) ) {
-            $converted = @mb_convert_encoding( $html, 'UTF-8', $charset ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+            $converted = $this->convertCharset( $html, $charset );
             if ( is_string( $converted ) && '' !== $converted ) {
                 $html = $converted;
             }
@@ -267,7 +318,51 @@ final class PageAnalyzer {
         if ( ! mb_check_encoding( $html, 'UTF-8' ) ) {
             $html = mb_convert_encoding( $html, 'UTF-8', 'ISO-8859-1' );
         }
-        return $html;
+        // The bytes are UTF-8 now. libxml honours an in-document <meta charset> over the
+        // <?xml encoding="UTF-8"> hint, so a leftover legacy declaration would make it decode the
+        // UTF-8 bytes a second time (mojibake). Point every declaration at UTF-8.
+        return preg_replace( '/(<meta\b[^>]*?\bcharset\s*=\s*["\']?)[\w\-:.]+/i', '${1}utf-8', $html ) ?? $html;
+    }
+
+    /**
+     * Converts $html from $charset to UTF-8. mbstring throws ValueError for labels it does not know
+     * (windows-1250, iso-8859-8-i, x-user-defined…), so aliases and iconv are tried before giving up.
+     */
+    private function convertCharset( string $html, string $charset ): ?string {
+        $candidates = [];
+        if ( array_key_exists( $charset, self::CHARSET_ALIASES ) ) {
+            if ( '' !== self::CHARSET_ALIASES[ $charset ] ) {
+                $candidates[] = self::CHARSET_ALIASES[ $charset ];
+            }
+        } else {
+            $candidates[] = $charset;
+        }
+        foreach ( $candidates as $from ) {
+            try {
+                $converted = @mb_convert_encoding( $html, 'UTF-8', $from ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+                if ( is_string( $converted ) && '' !== $converted ) {
+                    return $converted;
+                }
+            } catch ( \ValueError $e ) {
+                // Unknown to mbstring; fall through to iconv.
+            }
+            if ( function_exists( 'iconv' ) ) {
+                $converted = @iconv( $from, 'UTF-8//IGNORE', $html ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+                if ( is_string( $converted ) && '' !== $converted ) {
+                    return $converted;
+                }
+            }
+        }
+        return null;
+    }
+
+    private function snippetIn( string $haystack, string $needle, int $radius ): string {
+        $pos = mb_stripos( $haystack, $needle );
+        if ( false === $pos ) {
+            return '';
+        }
+        $start = max( 0, $pos - $radius );
+        return trim( mb_substr( $haystack, $start, $radius * 2 + mb_strlen( $needle ) ) );
     }
 
     private function text( ?DOMNode $node ): string {
@@ -283,20 +378,27 @@ final class PageAnalyzer {
     }
 
     private function region( DOMNode $node ): string {
-        $n = $node;
-        $i = 0;
+        $n      = $node;
+        $i      = 0;
+        $widget = false; // inside a WordPress widget wrapper; sidebar unless a content container comes first
         while ( $n && $i++ < 25 ) {
             if ( $n instanceof DOMElement ) {
-                $tag = strtolower( $n->tagName );
-                $cls = strtolower( $n->getAttribute( 'class' ) . ' ' . $n->getAttribute( 'id' ) . ' ' . $n->getAttribute( 'role' ) );
+                $tag    = strtolower( $n->tagName );
+                $cls    = strtolower( $n->getAttribute( 'class' ) . ' ' . $n->getAttribute( 'id' ) . ' ' . $n->getAttribute( 'role' ) );
+                $tokens = preg_split( '/\s+/', $cls, -1, PREG_SPLIT_NO_EMPTY ) ?: [];
                 if ( 'nav' === $tag || str_contains( $cls, 'navigation' ) || preg_match( '/\b(nav|menu)\b/', $cls ) ) {
                     return 'nav';
                 }
                 if ( 'footer' === $tag || str_contains( $cls, 'footer' ) || str_contains( $cls, 'contentinfo' ) ) {
                     return 'footer';
                 }
-                if ( 'aside' === $tag || str_contains( $cls, 'sidebar' ) || str_contains( $cls, 'widget' ) ) {
+                if ( 'aside' === $tag || str_contains( $cls, 'sidebar' ) || in_array( 'complementary', $tokens, true ) || (bool) array_intersect( [ 'widget-area', 'widgets-area', 'widget-column' ], $tokens ) ) {
                     return 'sidebar';
+                }
+                // WordPress widget classes ("widget", "widget_text"…). Page-builder blocks (elementor-widget*,
+                // so-widget*, SiteOrigin "so-panel widget") are content and never start a token with "widget".
+                if ( ! in_array( 'so-panel', $tokens, true ) && preg_grep( '/^widgets?(?:$|[_-])/', $tokens ) ) {
+                    $widget = true;
                 }
                 if ( 'header' === $tag || str_contains( $cls, 'site-header' ) || str_contains( $cls, 'masthead' ) ) {
                     return 'header';
@@ -310,7 +412,7 @@ final class PageAnalyzer {
             }
             $n = $n->parentNode;
         }
-        return 'content';
+        return $widget ? 'sidebar' : 'content';
     }
 
     private function isHidden( DOMNode $node ): bool {
@@ -319,7 +421,7 @@ final class PageAnalyzer {
         while ( $n && $i++ < 8 ) {
             if ( $n instanceof DOMElement ) {
                 $style = strtolower( $n->getAttribute( 'style' ) );
-                if ( preg_match( '/display\s*:\s*none|visibility\s*:\s*hidden|font-size\s*:\s*0|opacity\s*:\s*0(?!\.)/', $style ) || 'true' === strtolower( $n->getAttribute( 'hidden' ) ) || $n->hasAttribute( 'hidden' ) ) {
+                if ( preg_match( self::HIDDEN_STYLE_RE, $style ) || 'true' === strtolower( $n->getAttribute( 'hidden' ) ) || $n->hasAttribute( 'hidden' ) ) {
                     return true;
                 }
             }

@@ -53,10 +53,26 @@ final class FormDetector {
     ];
 
     /**
+     * Comment, reply, forum and guestbook markers on the form's id/class/name/action.
+     * Such forms are never listing submissions (posting a listing into them is comment/forum spam).
+     */
+    private const COMMENT_FORM_RE = '/comment|(?<![a-z])repl(?:y|ies)(?![a-z])|(?<![a-z])respond|wpd_?comm|wpdiscuz|disqus|bbp[_-]|bbpress|guestbook|gwolle|discussion|forum|new[-_]?(?:post|topic|reply)|(?<![a-z])topics?(?![a-z])/';
+
+    /** Field name/id markers of comment, forum and guestbook systems (WordPress core, Drupal, wpDiscuz, bbPress, Gwolle…). */
+    private const COMMENT_FIELD_RE = '/^(?:comment|comment_?(?:body|content|text|post_?id|parent)(?:\[.*)?|replytocom)$|wc_comment|bbp_|reply_?content|gwolle_gb|guestbook|wpdiscuz|disqus/';
+
+    /** Hidden field values that route a POST to a comment/forum handler (e.g. bbPress action=bbp-new-reply). */
+    private const COMMENT_ACTION_RE = '/bbp-new-(?:reply|topic)|(?:add|new|post)[-_]?(?:comment|reply)/';
+
+    /** Ancestor id/class tokens that wrap comment, reply and forum forms. */
+    private const COMMENT_CONTAINER_RE = '/^(?:comments?(?:-(?:area|respond|wrap|wrapper|section|form|form-wrap|container))?|respond|comment-respond|disqus_thread|wpdiscuz[\w-]*|wpd-form[\w-]*|wpd-main-form[\w-]*|bbpress-forums|bbp-(?:reply|topic)-form|new-(?:reply|topic)-\d+|guestbook[\w-]*|gwolle[\w-]*)$/';
+
+    /**
      * @return array<int,array<string,mixed>>
      */
     public function detect( DOMDocument $dom, DOMXPath $xp, string $baseUrl ): array {
-        $forms = [];
+        $forms  = [];
+        $labels = $this->labelMap( $xp );
         foreach ( $xp->query( '//form' ) as $form ) {
             if ( ! $form instanceof DOMElement ) {
                 continue;
@@ -81,7 +97,7 @@ final class FormDetector {
                 if ( 'password' === $type ) {
                     $hasPassword = true;
                 }
-                $label = $this->labelFor( $xp, $el, $id );
+                $label = $this->labelFor( $labels, $el, $id );
                 $field = [
                     'name'        => $name,
                     'id'          => $id,
@@ -134,7 +150,7 @@ final class FormDetector {
 
     /** @param array<string,mixed> $field */
     public function semantic( array $field ): string {
-        $hay = strtolower( trim( ( $field['name'] ?? '' ) . ' ' . ( $field['id'] ?? '' ) . ' ' . ( $field['label'] ?? '' ) . ' ' . ( $field['placeholder'] ?? '' ) ) );
+        $hay  = $this->hay( $field );
         $type = $field['type'] ?? 'text';
         if ( 'password' === $type ) {
             return 'password';
@@ -172,12 +188,39 @@ final class FormDetector {
         return 'unknown';
     }
 
-    private function labelFor( DOMXPath $xp, DOMElement $el, string $id ): string {
-        if ( '' !== $id ) {
-            $lab = $xp->query( '//label[@for="' . addslashes( $id ) . '"]' )->item( 0 );
-            if ( $lab ) {
-                return trim( preg_replace( '/\s+/', ' ', $lab->textContent ) ?? '' );
+    /** @param array<string,mixed> $field */
+    private function hay( array $field ): string {
+        return strtolower( trim( ( $field['name'] ?? '' ) . ' ' . ( $field['id'] ?? '' ) . ' ' . ( $field['label'] ?? '' ) . ' ' . ( $field['placeholder'] ?? '' ) ) );
+    }
+
+    /**
+     * Text of each <label for="…">, keyed by its for attribute (first label in document order wins).
+     * Compared as plain strings so ids containing quotes or backslashes cannot break an XPath expression.
+     *
+     * @return array<string,string>
+     */
+    private function labelMap( DOMXPath $xp ): array {
+        $map   = [];
+        $nodes = $xp->query( '//label[@for]' );
+        if ( false === $nodes ) {
+            return $map;
+        }
+        foreach ( $nodes as $lab ) {
+            if ( ! $lab instanceof DOMElement ) {
+                continue;
             }
+            $for = $lab->getAttribute( 'for' );
+            if ( '' !== $for && ! isset( $map[ $for ] ) ) {
+                $map[ $for ] = trim( preg_replace( '/\s+/', ' ', $lab->textContent ) ?? '' );
+            }
+        }
+        return $map;
+    }
+
+    /** @param array<string,string> $labels */
+    private function labelFor( array $labels, DOMElement $el, string $id ): string {
+        if ( '' !== $id && isset( $labels[ $id ] ) ) {
+            return $labels[ $id ];
         }
         $p = $el->parentNode;
         $i = 0;
@@ -203,10 +246,19 @@ final class FormDetector {
             return self::KIND_SEARCH;
         }
         $attrs = strtolower( $form->getAttribute( 'id' ) . ' ' . $form->getAttribute( 'class' ) . ' ' . $form->getAttribute( 'action' ) );
-        if ( str_contains( $attrs, 'commentform' ) || str_contains( $attrs, 'wp-comments-post' ) ) {
+        if ( $this->isCommentLike( $fields, $form ) ) {
             return self::KIND_COMMENT;
         }
-        if ( isset( $cnt['website'] ) && ( isset( $cnt['business_name'] ) || isset( $cnt['description'] ) || isset( $cnt['category'] ) ) ) {
+        // A textarea with no descriptive name/label falls back to the "description" semantic; that alone
+        // (website + free text, the shape of every comment/reply form) is not evidence of a listing form.
+        $explicitDescription = false;
+        foreach ( $fields as $f ) {
+            if ( 'description' === ( $f['semantic'] ?? '' ) && preg_match( self::SEMANTICS['description'], $this->hay( $f ) ) ) {
+                $explicitDescription = true;
+                break;
+            }
+        }
+        if ( isset( $cnt['website'] ) && ( isset( $cnt['business_name'] ) || $explicitDescription || isset( $cnt['category'] ) ) ) {
             return self::KIND_LISTING;
         }
         if ( preg_match( '/listing|submit|add-?business|directory|register-?business/', $attrs ) && isset( $cnt['website'] ) ) {
@@ -219,5 +271,48 @@ final class FormDetector {
             return self::KIND_CONTACT;
         }
         return self::KIND_OTHER;
+    }
+
+    /**
+     * True for blog comment, reply, forum post and guestbook forms (WordPress core, wpDiscuz, bbPress,
+     * Disqus, Drupal, guestbooks…), detected from the form's own attributes, its field names, hidden
+     * routing values and the containers it sits in.
+     *
+     * @param array<int,array<string,mixed>> $fields
+     */
+    private function isCommentLike( array $fields, DOMElement $form ): bool {
+        $rawAction = $form->getAttribute( 'action' );
+        $parts     = parse_url( $rawAction );
+        $action    = is_array( $parts ) ? ( (string) ( $parts['path'] ?? '' ) . ' ' . (string) ( $parts['query'] ?? '' ) ) : $rawAction;
+        $attrs     = strtolower( $form->getAttribute( 'id' ) . ' ' . $form->getAttribute( 'class' ) . ' ' . $form->getAttribute( 'name' ) . ' ' . $action );
+        if ( preg_match( self::COMMENT_FORM_RE, $attrs ) ) {
+            return true;
+        }
+        foreach ( $fields as $f ) {
+            foreach ( [ (string) ( $f['name'] ?? '' ), (string) ( $f['id'] ?? '' ) ] as $key ) {
+                if ( '' !== $key && preg_match( self::COMMENT_FIELD_RE, strtolower( $key ) ) ) {
+                    return true;
+                }
+            }
+            if ( 'hidden' === ( $f['type'] ?? '' ) && '' !== (string) ( $f['value'] ?? '' ) && preg_match( self::COMMENT_ACTION_RE, strtolower( (string) $f['value'] ) ) ) {
+                return true;
+            }
+        }
+        $node  = $form->parentNode;
+        $depth = 0;
+        while ( $node instanceof DOMElement && $depth++ < 8 ) {
+            $tag = strtolower( $node->tagName );
+            if ( 'body' === $tag || 'html' === $tag ) {
+                break;
+            }
+            $tokens = preg_split( '/\s+/', strtolower( $node->getAttribute( 'id' ) . ' ' . $node->getAttribute( 'class' ) ), -1, PREG_SPLIT_NO_EMPTY ) ?: [];
+            foreach ( $tokens as $token ) {
+                if ( preg_match( self::COMMENT_CONTAINER_RE, $token ) ) {
+                    return true;
+                }
+            }
+            $node = $node->parentNode;
+        }
+        return false;
     }
 }

@@ -12,6 +12,7 @@ namespace PPC\LinkGrowth\Admin\Rest;
 use PPC\LinkGrowth\Automation\Pipeline;
 use PPC\LinkGrowth\Monitoring\BacklinkMonitor;
 use PPC\LinkGrowth\Repositories\Backlinks;
+use PPC\LinkGrowth\Repositories\DomainMetrics;
 use PPC\LinkGrowth\Repositories\Prospects;
 use WP_REST_Request;
 
@@ -20,6 +21,15 @@ final class BacklinksController extends Controller {
     private const INT_COLUMNS = [ 'prospect_id', 'http_status', 'is_indexable', 'quality_score', 'consecutive_failures' ];
 
     private const RUN_SECONDS = 25.0;
+
+    /** Provider authority (DR / DA / Authority Score, 0-100) at or above which a referring domain is "high-authority". */
+    private const HIGH_AUTHORITY_MIN = 30;
+
+    /** Monitor link-quality score (indexable, dofollow, placement, anchor, https) counted as a quality link. */
+    private const QUALITY_SCORE_MIN = 60;
+
+    /** Upper bound on referring domains examined for the authority count (keeps the summary query bounded). */
+    private const AUTHORITY_SCAN_MAX = 5000;
 
     public function register( string $namespace ): void {
         $this->route( $namespace, '/backlinks', 'GET', [ $this, 'index' ], $this->listArgs( [ 'status', 'rel', 'origin', 'placement', 'prospect_id' ] ) );
@@ -97,16 +107,18 @@ final class BacklinksController extends Controller {
 
     /** POST /backlinks {source_url, target_url} @return array<string,mixed>|\WP_Error */
     public function create( WP_REST_Request $request ) {
-        $source = $this->str( $request, 'source_url', '', 700 );
-        $target = $this->str( $request, 'target_url', '', 700 );
+        // URLs are read with url(), not str(): sanitize_text_field() deletes percent-encoded octets
+        // (caf%C3%A9 -> caf, a%2Fb -> ab), so the wrong page would be stored and monitored.
+        $source = $this->url( $request, 'source_url', '', 700 );
+        $target = $this->url( $request, 'target_url', '', 700 );
         if ( '' === $source ) {
+            if ( '' !== $this->str( $request, 'source_url', '', 700 ) ) {
+                return $this->fail( 'ppclg_invalid_backlink', __( 'The backlink could not be added: check that the source URL is valid and points to another site.', 'ppc-link-growth-engine' ), 422 );
+            }
             return $this->fail( 'ppclg_missing_source', __( 'The source URL (the page that links to you) is required.', 'ppc-link-growth-engine' ), 400 );
         }
-        if ( ! preg_match( '#^https?://#i', $source ) ) {
-            $source = 'https://' . ltrim( $source, '/' );
-        }
-        if ( '' !== $target && ! preg_match( '#^https?://#i', $target ) ) {
-            $target = 'https://' . ltrim( $target, '/' );
+        if ( '' === $target && '' !== $this->str( $request, 'target_url', '', 700 ) ) {
+            return $this->fail( 'ppclg_invalid_backlink', __( 'The backlink could not be added: check that the target URL is a valid http(s) address on your site.', 'ppc-link-growth-engine' ), 422 );
         }
         $id = $this->c->get( BacklinkMonitor::class )->addManual( $source, $target, $this->userId() );
         if ( $id <= 0 ) {
@@ -196,7 +208,11 @@ final class BacklinksController extends Controller {
             'new_30d'                => (int) $this->safe( static fn(): int => $repo->countSince( 'first_seen', $since30 ), 0, 'new 30d' ),
             'lost_30d'               => (int) $this->safe( static fn(): int => $repo->countSince( 'lost_at', $since30 ), 0, 'lost 30d' ),
             'referring_domains'      => (int) $this->safe( static fn(): int => $repo->referringDomainCount( Backlinks::STATUS_ACTIVE ), 0, 'referring domains' ),
-            'high_authority_domains' => (int) $this->safe( static fn(): int => $repo->highAuthorityDomainCount( 60 ), 0, 'high authority' ),
+            // Real provider authority (what the Backlinks page labels "Authority ≥ 30 on a configured provider"),
+            // not the monitor's link-quality score; that one is reported separately as quality_domains.
+            'high_authority_domains' => (int) $this->safe( fn(): int => $this->providerAuthorityDomainCount( self::HIGH_AUTHORITY_MIN ), 0, 'high authority' ),
+            'high_authority_min'     => self::HIGH_AUTHORITY_MIN,
+            'quality_domains'        => (int) $this->safe( static fn(): int => $repo->highAuthorityDomainCount( self::QUALITY_SCORE_MIN ), 0, 'quality domains' ),
             'rel_distribution'       => $rel,
             'anchor_distribution'    => $anchors,
             'origin_distribution'    => $origins,
@@ -204,5 +220,35 @@ final class BacklinksController extends Controller {
             'trend'                  => $this->safe( static fn(): array => $repo->weeklyTrend( 12 ), [], 'trend' ),
             'due_for_check'          => (int) $this->safe( static fn(): int => count( $repo->dueForCheck( 500 ) ), 0, 'due' ),
         ];
+    }
+
+    /**
+     * Distinct active referring domains whose cached provider metrics report an authority of at least $min
+     * on any configured provider. Domains without provider data are not counted.
+     */
+    private function providerAuthorityDomainCount( int $min ): int {
+        global $wpdb;
+        $table = $this->c->get( Backlinks::class )->table();
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        $domains = $wpdb->get_col( $wpdb->prepare( "SELECT DISTINCT source_domain FROM {$table} WHERE status = %s AND source_domain <> '' ORDER BY source_domain ASC LIMIT %d", Backlinks::STATUS_ACTIVE, self::AUTHORITY_SCAN_MAX ) );
+        $domains = array_values( array_unique( array_map( static fn( $d ): string => strtolower( (string) $d ), is_array( $domains ) ? $domains : [] ) ) );
+        if ( [] === $domains ) {
+            return 0;
+        }
+        $metrics = $this->c->get( DomainMetrics::class );
+        $high    = [];
+        foreach ( array_chunk( $domains, 200 ) as $chunk ) {
+            // Up to 20 providers per domain.
+            foreach ( $metrics->findBy( [ 'domain' => $chunk ], 'id', 'ASC', count( $chunk ) * 20 ) as $row ) {
+                $m = $row['metrics'] ?? null;
+                if ( ! is_array( $m ) || ! empty( $m['empty'] ) || ! isset( $m['authority'] ) || ! is_numeric( $m['authority'] ) ) {
+                    continue;
+                }
+                if ( (float) $m['authority'] >= $min ) {
+                    $high[ strtolower( (string) $row['domain'] ) ] = true;
+                }
+            }
+        }
+        return count( $high );
     }
 }

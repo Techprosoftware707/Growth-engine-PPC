@@ -68,8 +68,9 @@ final class SiteProfiler {
             $p->technologies[] = 'WordPress';
         }
 
-        // Extra pages: contact / about (max N fetches).
-        $extra = [];
+        // Extra pages: contact / about (max N fetches). The contact page is fetched first: it is where
+        // outreach addresses usually live, so about/team links listed before it must not crowd it out.
+        $about = [];
         foreach ( $home->links as $l ) {
             if ( $l['external'] ) {
                 continue;
@@ -77,12 +78,12 @@ final class SiteProfiler {
             $path = strtolower( Url::path( $l['url'] ) );
             if ( '' === $p->contactUrl && preg_match( '#/(contact|contact-us|contactus|get-in-touch)/?$#', $path ) ) {
                 $p->contactUrl = $l['url'];
-                $extra[]       = $l['url'];
-            } elseif ( preg_match( '#/(about|about-us|aboutus|who-we-are|our-team|team|editorial-team|staff)/?$#', $path ) && count( $extra ) < $maxExtraPages ) {
-                $extra[] = $l['url'];
+            } elseif ( preg_match( '#/(about|about-us|aboutus|who-we-are|our-team|team|editorial-team|staff)/?$#', $path ) ) {
+                $about[] = $l['url'];
             }
         }
-        foreach ( array_slice( array_unique( $extra ), 0, $maxExtraPages ) as $url ) {
+        $extra = array_values( array_unique( array_merge( '' !== $p->contactUrl ? [ $p->contactUrl ] : [], $about ) ) );
+        foreach ( array_slice( $extra, 0, max( 0, $maxExtraPages ) ) as $url ) {
             $resp = $this->client->crawl( $url, [ 'cache' => true ] );
             $p->fetches++;
             if ( $resp->ok() && $resp->isHtml() ) {
@@ -138,6 +139,61 @@ final class SiteProfiler {
         return $domain;
     }
 
+    /** ISO 3166-1 alpha-2 codes for full country names commonly used in schema.org addressCountry. */
+    private const COUNTRY_NAMES = [
+        'united states'            => 'US',
+        'united states of america' => 'US',
+        'usa'                      => 'US',
+        'u.s.a.'                   => 'US',
+        'u.s.'                     => 'US',
+        'united kingdom'           => 'GB',
+        'great britain'            => 'GB',
+        'britain'                  => 'GB',
+        'england'                  => 'GB',
+        'scotland'                 => 'GB',
+        'wales'                    => 'GB',
+        'northern ireland'         => 'GB',
+        'uk'                       => 'GB',
+        'ireland'                  => 'IE',
+        'australia'                => 'AU',
+        'new zealand'              => 'NZ',
+        'germany'                  => 'DE',
+        'france'                   => 'FR',
+        'switzerland'              => 'CH',
+        'austria'                  => 'AT',
+        'netherlands'              => 'NL',
+        'the netherlands'          => 'NL',
+        'belgium'                  => 'BE',
+        'spain'                    => 'ES',
+        'portugal'                 => 'PT',
+        'italy'                    => 'IT',
+        'sweden'                   => 'SE',
+        'norway'                   => 'NO',
+        'denmark'                  => 'DK',
+        'finland'                  => 'FI',
+        'poland'                   => 'PL',
+        'india'                    => 'IN',
+        'china'                    => 'CN',
+        'japan'                    => 'JP',
+        'south korea'              => 'KR',
+        'singapore'                => 'SG',
+        'mexico'                   => 'MX',
+        'brazil'                   => 'BR',
+        'south africa'             => 'ZA',
+        'israel'                   => 'IL',
+        'united arab emirates'     => 'AE',
+    ];
+
+    /** Maps a schema.org addressCountry value (ISO code or English name) to an ISO alpha-2 code, or '' when unknown. */
+    private function countryCode( string $value ): string {
+        $value = trim( $value );
+        if ( preg_match( '/^[A-Za-z]{2}$/', $value ) ) {
+            $code = strtoupper( $value );
+            return 'UK' === $code ? 'GB' : $code;
+        }
+        return self::COUNTRY_NAMES[ strtolower( preg_replace( '/\s+/', ' ', $value ) ?? $value ) ] ?? '';
+    }
+
     /**
      * @param PageAnalysis[] $pages
      * @return array{0:string,1:int}
@@ -152,9 +208,12 @@ final class SiteProfiler {
             $json = wp_json_encode( $ld );
             if ( preg_match( '/"addressCountry"\s*:\s*"(CA|Canada)"/i', (string) $json ) ) {
                 $score += 50;
-            } elseif ( preg_match( '/"addressCountry"\s*:\s*"([A-Z]{2}|[A-Za-z ]+)"/', (string) $json, $m ) && ! in_array( strtoupper( $m[1] ), [ 'CA', 'CANADA' ], true ) ) {
-                $other = strtoupper( substr( $m[1], 0, 2 ) );
-                return [ $other, 70 ];
+            } elseif ( preg_match( '/"addressCountry"\s*:\s*"([A-Z]{2}|[A-Za-z .]+)"/', (string) $json, $m ) && ! in_array( strtoupper( $m[1] ), [ 'CA', 'CANADA' ], true ) ) {
+                $other = $this->countryCode( $m[1] );
+                if ( '' !== $other ) {
+                    return [ $other, 70 ];
+                }
+                // Unrecognised country name: ignore it rather than truncating it into a wrong ISO code.
             }
         }
         $hits = preg_match_all( '/\b(canada|canadian|ontario|toronto|vancouver|montreal|calgary|ottawa|edmonton|winnipeg|halifax|quebec|british columbia|alberta|manitoba|saskatchewan|nova scotia)\b/u', $text );

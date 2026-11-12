@@ -136,7 +136,11 @@ final class AutomationController extends Controller {
         if ( ! class_exists( Scheduler::class ) ) {
             return $this->fail( 'ppclg_scheduler_unavailable', __( 'The scheduler is not available.', 'ppc-link-growth-engine' ), 503 );
         }
-        $ok = (bool) $this->c->get( Scheduler::class )->kick();
+        $scheduler = $this->c->get( Scheduler::class );
+        // Re-register the recurring tick first (as the dashboard promises), so a lost schedule is repaired now
+        // instead of after the hourly self-heal; the async kick queued afterwards cannot mask a missing recurrence.
+        $this->safe( static function () use ( $scheduler ): void { $scheduler->schedule(); }, null, 'schedule on kick' );
+        $ok = (bool) $scheduler->kick();
         $this->audit( 'automation.kicked', 'job', 0, [ 'ok' => $ok ] );
         return [
             'ok'        => $ok,

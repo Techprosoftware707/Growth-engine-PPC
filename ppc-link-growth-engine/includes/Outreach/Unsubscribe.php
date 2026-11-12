@@ -1,6 +1,8 @@
 <?php
 /**
- * Unsubscribe links and processing (one click, no login, no confirmation step).
+ * Unsubscribe links and processing (no login). The link opens a confirmation page whose single button POSTs
+ * the opt-out, and mailbox providers use the RFC 8058 one-click POST, so a link scanner that only GETs the URL
+ * never unsubscribes anyone (see Admin\Rest\PublicController).
  *
  * @package PPC\LinkGrowth
  */
@@ -43,6 +45,26 @@ final class Unsubscribe {
 
     public function url( string $token ): string {
         return self::urlFor( $token );
+    }
+
+    /**
+     * Rewrites every unsubscribe link for $token in $body to the current urlFor( $token ): a draft built while the
+     * site answered on another scheme or host, or with other permalink settings, still carries the token's link,
+     * just under the old URL. Compliance and the send path both use this, so they agree on whether a body has a
+     * working unsubscribe link. Bodies without a link for this token are returned unchanged.
+     */
+    public static function refreshLinks( string $body, string $token ): string {
+        $token = strtolower( trim( $token ) );
+        if ( ! preg_match( '/^[a-f0-9]{32}$/', $token ) || ! str_contains( $body, $token ) ) {
+            return $body;
+        }
+        $url = self::urlFor( $token );
+        if ( '' === $url ) {
+            return $body;
+        }
+        $re  = '~(?:https?:)?//[^\s<>"\'()\[\]]*?ppclg(?:/|%2F)v1(?:/|%2F)unsubscribe[^\s<>"\'()\[\]]*?[?&](?:amp;)?t=' . $token . '(?![a-f0-9])~i';
+        $out = preg_replace_callback( $re, static fn(): string => $url, $body );
+        return is_string( $out ) ? $out : $body;
     }
 
     /**

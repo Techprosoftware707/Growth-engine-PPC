@@ -15,7 +15,18 @@ use PPC\LinkGrowth\Support\Str;
 
 final class LinkableAssets {
 
+    private ?ClaimsFilter $claims = null;
+
     public function __construct( private Settings $settings, private Taxonomy $taxonomy ) {}
+
+    private function claims(): ClaimsFilter {
+        return $this->claims ??= new ClaimsFilter( new FactsRegistry( $this->settings ) );
+    }
+
+    /** Title and summary pass the claims filter, so the asset can be quoted in packages and outreach. */
+    public function isClean( array $asset ): bool {
+        return $this->claims()->isClean( trim( (string) ( $asset['title'] ?? '' ) . '. ' . (string) ( $asset['summary'] ?? '' ) ) );
+    }
 
     /** @return array<int,array{url:string,title:string,summary:string,topics:string[],kind:string}> */
     public static function defaults( string $home ): array {
@@ -27,7 +38,7 @@ final class LinkableAssets {
             [ 'url' => $home . '/hplc-testing-guide/', 'title' => 'HPLC Testing for Research Peptides: A Plain-English Guide', 'summary' => 'How reverse-phase HPLC purity analysis works and how to read a chromatogram.', 'topics' => [ 'hplc', 'chromatography', 'analytical chemistry', 'purity', 'testing', 'method' ], 'kind' => 'guide' ],
             [ 'url' => $home . '/peptide-storage-guide/', 'title' => 'Peptide Storage Guide: Handling Research Peptides', 'summary' => 'Storage, handling and reconstitution principles for lyophilized research peptides in the lab.', 'topics' => [ 'storage', 'handling', 'lyophilized', 'stability', 'lab practice', 'freeze-thaw' ], 'kind' => 'guide' ],
             [ 'url' => $home . '/research-peptides-canada/', 'title' => 'Research Peptides in Canada: What They Are and How to Verify Them', 'summary' => 'Overview of research peptides, Canadian supply, and how to verify documentation.', 'topics' => [ 'research peptides', 'canada', 'verification', 'overview', 'education' ], 'kind' => 'guide' ],
-            [ 'url' => $home . '/best-canadian-peptide-suppliers/', 'title' => 'How to Choose the Best Canadian Peptide Supplier', 'summary' => 'A checklist of verifiable supplier criteria: testing, documentation, shipping and payment.', 'topics' => [ 'supplier', 'canada', 'procurement', 'checklist', 'vendor evaluation' ], 'kind' => 'guide' ],
+            [ 'url' => $home . '/best-canadian-peptide-suppliers/', 'title' => 'How to Choose a Canadian Peptide Supplier', 'summary' => 'A checklist of verifiable supplier criteria: testing, documentation, shipping and payment.', 'topics' => [ 'supplier', 'canada', 'procurement', 'checklist', 'vendor evaluation' ], 'kind' => 'guide' ],
             [ 'url' => $home . '/education/', 'title' => 'Peptide Research Library', 'summary' => 'Educational articles on peptide research, analytical testing and laboratory handling.', 'topics' => [ 'education', 'research', 'library', 'articles', 'learning', 'students' ], 'kind' => 'resource' ],
             [ 'url' => $home . '/shipping-across-canada/', 'title' => 'Shipping Across Canada', 'summary' => 'Tracked domestic shipping to every province and territory from inside Canada.', 'topics' => [ 'shipping', 'canada', 'logistics', 'procurement' ], 'kind' => 'info' ],
             [ 'url' => $home . '/about/', 'title' => 'About Pure Peptides Canada', 'summary' => 'Who we are, how we approach quality and documentation, and what research-use-only means in practice.', 'topics' => [ 'about', 'company', 'canada', 'toronto', 'supplier' ], 'kind' => 'info' ],
@@ -61,7 +72,11 @@ final class LinkableAssets {
         $context = mb_strtolower( $context );
         $best    = null;
         $bestS   = -1.0;
-        foreach ( $this->all() as $asset ) {
+        $all     = $this->all();
+        // Never pick an asset whose own title or summary would trip the claims filter (it would be
+        // dropped from blurbs and block outreach); fall back to the full list only if none is clean.
+        $clean   = array_values( array_filter( $all, fn( array $a ): bool => $this->isClean( $a ) ) );
+        foreach ( [] !== $clean ? $clean : $all as $asset ) {
             $s = 0.0;
             foreach ( $asset['topics'] as $t ) {
                 $s += Str::countPhrase( $context, $t ) * ( str_contains( $t, ' ' ) ? 2.0 : 1.0 );
@@ -77,7 +92,7 @@ final class LinkableAssets {
                 $best  = $asset;
             }
         }
-        return $best ?? $this->all()[0];
+        return $best ?? $all[0];
     }
 
     public function home(): array {

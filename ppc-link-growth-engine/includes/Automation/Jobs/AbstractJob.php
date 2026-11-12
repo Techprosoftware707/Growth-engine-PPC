@@ -26,6 +26,9 @@ abstract class AbstractJob implements JobInterface {
     /** Upper bound on how many times one job may re-enqueue itself in a chain. */
     private const MAX_CONTINUATIONS = 100;
 
+    /** A warning is logged every time a job has been deferred this many times in a row. */
+    private const DEFERRAL_WARN_EVERY = 10;
+
     public static function priority(): int {
         return 5;
     }
@@ -38,6 +41,14 @@ abstract class AbstractJob implements JobInterface {
      * @return int|null Job id, or null when nothing was enqueued.
      */
     public function continueLater( Container $c, array $payload, int $delay = 60 ): ?int {
+        unset( $payload['deferrals'] ); // the run made progress: the consecutive-deferral count restarts
+        return $this->enqueueContinuation( $c, $payload, $delay );
+    }
+
+    /**
+     * @param array<string,mixed> $payload
+     */
+    private function enqueueContinuation( Container $c, array $payload, int $delay ): ?int {
         try {
             $jobs = $c->get( Jobs::class );
             if ( $jobs->count( [ 'type' => static::type(), 'status' => Jobs::STATUS_QUEUED ] ) > 0 ) {
@@ -85,8 +96,18 @@ abstract class AbstractJob implements JobInterface {
      * @return array<string,mixed>
      */
     protected function deferred( Container $c, array $payload, string $reason = 'time_budget', array $extra = [] ): array {
-        $id = $this->continueLater( $c, $payload, 60 );
-        return $this->skipped( $reason, array_merge( $extra, [ 'requeued' => null !== $id, 'requeued_job_id' => $id ] ) );
+        $deferrals             = max( 0, (int) ( $payload['deferrals'] ?? 0 ) ) + 1;
+        $payload['deferrals'] = $deferrals;
+        if ( 0 === $deferrals % self::DEFERRAL_WARN_EVERY ) {
+            // Starvation must be visible: a job that never gets enough time is otherwise recorded as "completed".
+            $this->logger( $c )->warning(
+                'jobs',
+                sprintf( 'The "%s" stage has been deferred %d times in a row (%s) without doing any work; check Settings → Automation → Max seconds per tick and the PHP time limit.', static::type(), $deferrals, $reason ),
+                [ 'type' => static::type(), 'deferrals' => $deferrals, 'reason' => $reason ]
+            );
+        }
+        $id = $this->enqueueContinuation( $c, $payload, 60 );
+        return $this->skipped( $reason, array_merge( $extra, [ 'requeued' => null !== $id, 'requeued_job_id' => $id, 'deferrals' => $deferrals ] ) );
     }
 
     /** @param array<string,mixed> $payload */

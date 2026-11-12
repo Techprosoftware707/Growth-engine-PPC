@@ -4,9 +4,11 @@
  *
  * Runs while the automation master switch is on, for prospects the policy authorises (explicitly
  * allowed, or in "auto" mode scored at or above the auto-queue threshold).
- * It re-fetches the page, re-detects the form, stops (needs_manual) when a CAPTCHA, password
- * or required upload appears or a required field cannot be mapped, never ticks newsletter boxes,
- * honours robots.txt for the action URL and stores only a redacted, tag-stripped response excerpt.
+ * It re-fetches the page, re-detects the same listing form (never a newsletter/contact form that
+ * shares its action URL), stops (needs_manual) when a CAPTCHA, password or required upload appears,
+ * a required field cannot be mapped or a value fails the claims filter, never ticks newsletter or
+ * fee/paid-placement boxes, honours robots.txt for the action URL, never re-posts after an
+ * ambiguous outcome and stores only a redacted, tag-stripped response excerpt.
  *
  * @package PPC\LinkGrowth
  */
@@ -19,6 +21,7 @@ use DOMDocument;
 use DOMElement;
 use DOMXPath;
 use PPC\LinkGrowth\Analysis\FormDetector;
+use PPC\LinkGrowth\Content\ClaimsFilter;
 use PPC\LinkGrowth\Analysis\PageAnalysis;
 use PPC\LinkGrowth\Analysis\PageAnalyzer;
 use PPC\LinkGrowth\Submission\PackageBuilder;
@@ -93,12 +96,16 @@ final class GenericFormAdapter implements AdapterInterface {
     private const CAPTCHA_HTML = '/g-recaptcha|grecaptcha|hcaptcha|h-captcha|turnstile|data-sitekey|cf-challenge/i';
     private const MAX_EXCERPT  = 2000;
 
+    /** True once the POST for the current submission has been handed to the HTTP client. */
+    private bool $dispatched = false;
+
     public function __construct(
         private Client $client,
         private PageAnalyzer $analyzer,
         private RobotsTxt $robots,
         private Settings $settings,
-        private Logger $logger
+        private Logger $logger,
+        private ?ClaimsFilter $claims = null
     ) {}
 
     public function id(): string {
@@ -122,11 +129,15 @@ final class GenericFormAdapter implements AdapterInterface {
 
     /** @inheritDoc */
     public function submit( array $submission, array $prospect, array $payload ): array {
-        $sid = (int) ( $submission['id'] ?? 0 );
+        $sid              = (int) ( $submission['id'] ?? 0 );
+        $this->dispatched = false;
         try {
             return $this->run( $sid, $submission, $prospect, $payload );
         } catch ( Throwable $e ) {
             $this->logger->error( 'submission', 'Generic form adapter error', [ 'submission_id' => $sid, 'error' => $e->getMessage() ] );
+            if ( $this->dispatched ) {
+                return $this->manual( 'Adapter error after the form was sent (' . $e->getMessage() . '); the outcome is unknown. Check the destination for the listing before submitting again.', [ 'outcome_unknown' => true ], true );
+            }
             return $this->failed( 'Adapter error: ' . $e->getMessage(), false );
         }
     }
@@ -181,6 +192,15 @@ final class GenericFormAdapter implements AdapterInterface {
         if ( null === $form ) {
             return $this->manual( 'The submission form could not be found on the page any more.' );
         }
+        // Only the listing form the policy approved may be posted (never a newsletter/contact form
+        // that happens to share its action URL).
+        $kind = (string) ( $form['kind'] ?? '' );
+        if ( FormDetector::KIND_LISTING !== $kind ) {
+            return $this->manual( sprintf( 'The matching form on the page is a "%s" form, not the listing submission form that was approved; manual review required.', '' !== $kind ? str_replace( '_', ' ', $kind ) : 'unknown' ) );
+        }
+        if ( ! $this->sharesPackagedFields( $form, $payload ) ) {
+            return $this->manual( 'The live form has none of the packaged fields any more; rebuild the package and review it.' );
+        }
         if ( ! empty( $form['has_captcha'] ) || preg_match( self::CAPTCHA_HTML, $resp->body ) ) {
             return $this->manual( 'A CAPTCHA protects this form; it is never bypassed.' );
         }
@@ -208,14 +228,84 @@ final class GenericFormAdapter implements AdapterInterface {
         if ( [] === $body ) {
             return $this->manual( 'No package field could be mapped onto the live form.' );
         }
+        $flagged = $this->claimsInBody( $form, $body );
+        if ( [] !== $flagged ) {
+            return $this->manual( 'The text for ' . implode( ', ', $flagged ) . ' fails the claims compliance check; edit it before submitting.' );
+        }
+
+        // Success phrases that are already part of the form page copy ("will be reviewed", "thank you
+        // for choosing…") prove nothing when the same form comes back after the POST.
+        $pageSuccess = $this->hits( mb_strtolower( trim( preg_replace( '/\s+/u', ' ', Str::clean( $resp->body ) ) ?? '' ) ), self::SUCCESS_MARKERS );
 
         // 4. Post.
-        $referer = $page->finalUrl ?: $pageUrl;
-        $origin  = (string) ( wp_parse_url( $referer, PHP_URL_SCHEME ) ?: 'https' ) . '://' . Url::host( $referer );
-        $post    = $this->client->postForm( $action, $body, [ 'Referer' => $referer, 'Origin' => $origin ], $resp->cookies );
+        $referer          = $page->finalUrl ?: $pageUrl;
+        $origin           = (string) ( wp_parse_url( $referer, PHP_URL_SCHEME ) ?: 'https' ) . '://' . Url::host( $referer );
+        $this->dispatched = true;
+        $post             = $this->client->postForm( $action, $body, [ 'Referer' => $referer, 'Origin' => $origin ], $resp->cookies );
         $this->logger->info( 'submission', 'Listing form posted', [ 'submission_id' => $sid, 'host' => Url::host( $action ), 'http_status' => $post->status, 'fields' => count( $body ) ] );
 
-        return $this->interpret( $post, $form, $body );
+        return $this->interpret( $post, $form, $body, $pageSuccess );
+    }
+
+    /**
+     * True when the live form still carries at least one field the package mapped (by name), so a
+     * different form that happens to match the stored action/id is never filled with listing data.
+     *
+     * @param array<string,mixed> $form
+     * @param array<string,mixed> $payload
+     */
+    private function sharesPackagedFields( array $form, array $payload ): bool {
+        $packaged = [];
+        foreach ( (array) ( $payload['fields'] ?? [] ) as $f ) {
+            if ( is_array( $f ) && '' !== (string) ( $f['name'] ?? '' ) && 'hidden' !== strtolower( (string) ( $f['type'] ?? '' ) ) ) {
+                $packaged[ (string) $f['name'] ] = true;
+            }
+        }
+        if ( [] === $packaged ) {
+            return true; // Nothing to compare against (older packages): the kind check above still applies.
+        }
+        foreach ( (array) ( $form['fields'] ?? [] ) as $f ) {
+            if ( is_array( $f ) && isset( $packaged[ (string) ( $f['name'] ?? '' ) ] ) ) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Names/labels of visible body values the claims filter flags (last check before anything is sent).
+     *
+     * @param array<string,mixed>  $form
+     * @param array<string,string> $body
+     * @return string[]
+     */
+    private function claimsInBody( array $form, array $body ): array {
+        if ( null === $this->claims ) {
+            return [];
+        }
+        $hidden = [];
+        $labels = [];
+        foreach ( (array) ( $form['fields'] ?? [] ) as $f ) {
+            if ( ! is_array( $f ) || '' === (string) ( $f['name'] ?? '' ) ) {
+                continue;
+            }
+            $name = (string) $f['name'];
+            if ( 'hidden' === strtolower( (string) ( $f['type'] ?? '' ) ) ) {
+                $hidden[ $name ] = true;
+            }
+            $label           = trim( (string) ( $f['label'] ?? '' ) );
+            $labels[ $name ] = '' !== $label ? $label : $name;
+        }
+        $out = [];
+        foreach ( $body as $name => $value ) {
+            if ( isset( $hidden[ $name ] ) || ! isset( $labels[ $name ] ) || '' === trim( (string) $value ) ) {
+                continue; // Hidden inputs and submit controls are the site's own values, not our text.
+            }
+            if ( [] !== $this->claims->check( (string) $value ) ) {
+                $out[] = '"' . $labels[ $name ] . '"';
+            }
+        }
+        return array_values( array_unique( $out ) );
     }
 
     /**
@@ -225,6 +315,8 @@ final class GenericFormAdapter implements AdapterInterface {
     private function locateForm( PageAnalysis $page, array $summary ): array {
         $action     = Url::normalize( (string) ( $summary['action'] ?? '' ) );
         $id         = (string) ( $summary['id'] ?? '' );
+        $byAction   = null;
+        $actionIdx  = -1;
         $listing    = null;
         $listingIdx = -1;
         $listings   = 0;
@@ -232,21 +324,28 @@ final class GenericFormAdapter implements AdapterInterface {
             if ( ! is_array( $f ) ) {
                 continue;
             }
-            if ( '' !== $action && Url::normalize( (string) ( $f['action'] ?? '' ) ) === $action ) {
-                return [ $f, (int) $i ];
-            }
+            // 1. The stored form id identifies the element itself (its kind is checked by the caller).
             if ( '' !== $id && $id === (string) ( $f['id'] ?? '' ) ) {
                 return [ $f, (int) $i ];
             }
-            if ( FormDetector::KIND_LISTING === ( $f['kind'] ?? '' ) ) {
-                $listings++;
-                if ( null === $listing ) {
-                    $listing    = $f;
-                    $listingIdx = (int) $i;
-                }
+            if ( FormDetector::KIND_LISTING !== ( $f['kind'] ?? '' ) ) {
+                continue; // Newsletter/contact/search forms often post to the same page URL.
+            }
+            // 2. A listing form posting to the stored action.
+            if ( null === $byAction && '' !== $action && Url::normalize( (string) ( $f['action'] ?? '' ) ) === $action ) {
+                $byAction  = $f;
+                $actionIdx = (int) $i;
+            }
+            $listings++;
+            if ( null === $listing ) {
+                $listing    = $f;
+                $listingIdx = (int) $i;
             }
         }
-        // Fallback: the only listing form on the page (action URLs may carry rotating tokens).
+        if ( null !== $byAction ) {
+            return [ $byAction, $actionIdx ];
+        }
+        // 3. Fallback: the only listing form on the page (action URLs may carry rotating tokens).
         if ( null !== $listing && 1 === $listings ) {
             return [ $listing, $listingIdx ];
         }
@@ -423,9 +522,9 @@ final class GenericFormAdapter implements AdapterInterface {
         return $body;
     }
 
-    /** Consent boxes are decided from the live label: terms/privacy/accuracy yes, newsletters never. */
+    /** Consent boxes are decided from the live label: terms/privacy/accuracy yes, newsletters and fees/paid placements never. */
     private function shouldTick( string $semantic, string $label, ?string $mapped ): bool {
-        if ( preg_match( PackageBuilder::CONSENT_DENY, $label ) ) {
+        if ( preg_match( PackageBuilder::CONSENT_DENY, $label ) || preg_match( PackageBuilder::CONSENT_PAID, $label ) ) {
             return false;
         }
         if ( 'consent' === $semantic ) {
@@ -547,9 +646,10 @@ final class GenericFormAdapter implements AdapterInterface {
     /**
      * @param array<string,mixed>  $form
      * @param array<string,string> $body
+     * @param string[]             $pageSuccess Success markers already present on the form page before the POST.
      * @return array<string,mixed>
      */
-    private function interpret( Response $post, array $form, array $body ): array {
+    private function interpret( Response $post, array $form, array $body, array $pageSuccess = [] ): array {
         $clean   = trim( preg_replace( '/\s+/u', ' ', Str::clean( $post->body ) ) ?? '' );
         $lower   = mb_strtolower( $clean );
         $excerpt = Redactor::redactString( mb_substr( $clean, 0, self::MAX_EXCERPT ) );
@@ -566,6 +666,8 @@ final class GenericFormAdapter implements AdapterInterface {
         $errorHits   = $this->hits( $lower, self::ERROR_MARKERS );
         $toSuccess   = $post->redirected() && (bool) preg_match( self::SUCCESS_URL, $post->finalUrl );
         $formAgain   = null !== $page && $this->formRedisplayed( $page, $form );
+        // A re-displayed form only counts as accepted with a confirmation that was not already part of the page.
+        $newSuccess  = array_values( array_diff( $successHits, $pageSuccess ) );
 
         $response = [
             'adapter'          => $this->id(),
@@ -574,32 +676,50 @@ final class GenericFormAdapter implements AdapterInterface {
             'elapsed'          => round( $post->elapsed, 2 ),
             'posted_fields'    => array_keys( $body ),
             'success_markers'  => $successHits,
+            'page_markers'     => array_values( $pageSuccess ),
             'error_markers'    => $errorHits,
             'form_redisplayed' => $formAgain,
             'excerpt'          => $excerpt,
             'at'               => gmdate( 'c' ),
         ];
 
+        // A listing POST is not idempotent: repeat it automatically only when it provably never
+        // reached the destination; any other failure after sending leaves the outcome unknown.
         if ( null !== $post->error ) {
-            return $this->failed( 'Posting the form failed: ' . $post->error, $this->isTransient( $post ), $response );
+            if ( Delivery::neverSent( $post ) ) {
+                return $this->failed( 'Posting the form failed before anything was sent: ' . $post->error, $this->isTransient( $post ), $response, false );
+            }
+            $response['outcome_unknown'] = true;
+            return $this->manual( 'Posting the form failed after the request was sent (' . $post->error . '); the outcome is unknown. Check the destination for the listing before submitting again.', $response, true );
         }
-        if ( $post->status >= 500 || 429 === $post->status ) {
-            return $this->failed( sprintf( 'The destination returned HTTP %d.', $post->status ), true, $response );
+        if ( 429 === $post->status ) {
+            $wait = Delivery::retryAfter( $post );
+            if ( null !== $wait ) {
+                $result                = $this->failed( 'The destination is rate limiting requests (HTTP 429); retrying after the delay it asked for.', true, $response, true );
+                $result['retry_after'] = $wait;
+                return $result;
+            }
+            return $this->manual( 'The destination is rate limiting requests (HTTP 429) without saying when to retry; submit it by hand later.', $response, true );
+        }
+        if ( $post->status >= 500 ) {
+            $response['outcome_unknown'] = true;
+            return $this->manual( sprintf( 'The destination returned HTTP %d after the form was sent; the outcome is unknown. Check the destination for the listing before submitting again.', $post->status ), $response, true );
         }
         if ( $post->status >= 400 ) {
-            return $this->failed( sprintf( 'The destination rejected the request (HTTP %d).', $post->status ), false, $response );
+            return $this->failed( sprintf( 'The destination rejected the request (HTTP %d).', $post->status ), false, $response, true );
         }
 
-        $ok = ( [] !== $successHits && ( [] === $errorHits || ! $formAgain ) ) || ( $toSuccess && [] === $errorHits );
+        $confirmed = $formAgain ? $newSuccess : $successHits;
+        $ok        = ( [] !== $confirmed && ( [] === $errorHits || ! $formAgain ) ) || ( $toSuccess && [] === $errorHits );
         if ( ! $ok ) {
             if ( [] !== $errorHits ) {
                 $why = 'The destination reported a problem (' . implode( ', ', array_slice( $errorHits, 0, 4 ) ) . ').';
             } elseif ( $formAgain ) {
-                $why = 'The form was displayed again without a confirmation message.';
+                $why = 'The form was displayed again without a new confirmation message.';
             } else {
                 $why = 'No confirmation message was found in the response; check the destination before retrying.';
             }
-            return $this->failed( $why, false, $response );
+            return $this->failed( $why, false, $response, true );
         }
 
         return [
@@ -609,6 +729,7 @@ final class GenericFormAdapter implements AdapterInterface {
             'listing_url'      => null !== $page ? $this->listingUrl( $page, $post ) : '',
             'error'            => '',
             'retryable'        => false,
+            'sent'             => true,
         ];
     }
 
@@ -692,7 +813,7 @@ final class GenericFormAdapter implements AdapterInterface {
      * @param array<string,mixed> $response
      * @return array<string,mixed>
      */
-    private function manual( string $why, array $response = [] ): array {
+    private function manual( string $why, array $response = [], bool $sent = false ): array {
         return [
             'status'           => self::STATUS_NEEDS_MANUAL,
             'response'         => array_merge( [ 'adapter' => $this->id(), 'at' => gmdate( 'c' ) ], $response ),
@@ -700,6 +821,7 @@ final class GenericFormAdapter implements AdapterInterface {
             'listing_url'      => '',
             'error'            => $why,
             'retryable'        => false,
+            'sent'             => $sent,
         ];
     }
 
@@ -707,7 +829,7 @@ final class GenericFormAdapter implements AdapterInterface {
      * @param array<string,mixed> $response
      * @return array<string,mixed>
      */
-    private function failed( string $why, bool $retryable, array $response = [] ): array {
+    private function failed( string $why, bool $retryable, array $response = [], bool $sent = false ): array {
         return [
             'status'           => self::STATUS_FAILED,
             'response'         => array_merge( [ 'adapter' => $this->id(), 'at' => gmdate( 'c' ) ], $response ),
@@ -715,6 +837,7 @@ final class GenericFormAdapter implements AdapterInterface {
             'listing_url'      => '',
             'error'            => $why,
             'retryable'        => $retryable,
+            'sent'             => $sent,
         ];
     }
 }

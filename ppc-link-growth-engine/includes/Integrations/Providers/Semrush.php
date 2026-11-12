@@ -38,10 +38,10 @@ final class Semrush extends AbstractProvider implements MetricsProvider, Backlin
         if ( count( $lines ) < 2 || str_starts_with( $lines[0], 'ERROR' ) ) {
             return [];
         }
-        $header = str_getcsv( $lines[0], ';' );
+        $header = str_getcsv( $lines[0], ';', '"', '\\' );
         $rows   = [];
         foreach ( array_slice( $lines, 1 ) as $line ) {
-            $vals = str_getcsv( $line, ';' );
+            $vals = str_getcsv( $line, ';', '"', '\\' );
             if ( count( $vals ) !== count( $header ) ) {
                 continue;
             }

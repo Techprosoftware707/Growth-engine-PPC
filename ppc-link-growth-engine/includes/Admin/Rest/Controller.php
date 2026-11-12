@@ -23,6 +23,9 @@ abstract class Controller {
     /** Write requests (POST/PUT/PATCH/DELETE) allowed per user per minute. */
     public const RATE_LIMIT_PER_MINUTE = 60;
 
+    /** HTTP methods that count against the per-user write rate limit. */
+    private const WRITE_METHODS = [ 'POST', 'PUT', 'PATCH', 'DELETE' ];
+
     /** Maximum length of raw response excerpts returned to the UI. */
     public const RESPONSE_EXCERPT_MAX = 2000;
 
@@ -53,13 +56,16 @@ abstract class Controller {
         return true;
     }
 
-    /** Capability check plus per-user rate limit for write routes. */
+    /**
+     * Capability check for write routes.
+     *
+     * Kept free of side effects: WordPress also calls every handler's permission_callback while building
+     * the Allow header (rest_send_allow_header), so counting here would charge each write twice and each
+     * GET on a path that shares a write handler once. The per-user write rate limit is applied exactly
+     * once per dispatched write request in {@see wrap()}.
+     */
     public function permissionWrite( WP_REST_Request $request ): bool|WP_Error {
-        $allowed = $this->permission( $request );
-        if ( true !== $allowed ) {
-            return $allowed;
-        }
-        return $this->rateLimit( $request, self::RATE_LIMIT_PER_MINUTE, 'user' );
+        return $this->permission( $request );
     }
 
     /**
@@ -93,7 +99,7 @@ abstract class Controller {
     // ------------------------------------------------------------------
 
     /**
-     * Registers one route. Write methods get the rate-limited permission callback;
+     * Registers one route. Admin write methods are rate limited per user (once per dispatched request);
      * every handler is wrapped so an exception becomes a logged 500 instead of a fatal.
      *
      * @param string|string[]     $methods
@@ -102,7 +108,7 @@ abstract class Controller {
     protected function route( string $namespace, string $route, string|array $methods, callable $callback, array $args = [], bool $public = false ): void {
         $list  = is_array( $methods ) ? $methods : array_map( 'trim', explode( ',', $methods ) );
         $list  = array_values( array_filter( array_map( 'strtoupper', $list ) ) );
-        $write = [] !== array_intersect( $list, [ 'POST', 'PUT', 'PATCH', 'DELETE' ] );
+        $write = [] !== array_intersect( $list, self::WRITE_METHODS );
         if ( $public ) {
             $permission = '__return_true';
         } else {
@@ -114,7 +120,7 @@ abstract class Controller {
             [
                 [
                     'methods'             => implode( ', ', $list ),
-                    'callback'            => $this->wrap( $callback ),
+                    'callback'            => $this->wrap( $callback, $write && ! $public ),
                     'permission_callback' => $permission,
                     'args'                => $args,
                 ],
@@ -122,9 +128,18 @@ abstract class Controller {
         );
     }
 
-    private function wrap( callable $callback ): \Closure {
-        return function ( WP_REST_Request $request ) use ( $callback ) {
+    /**
+     * @param bool $rateLimitWrites apply the per-user write limit when the dispatched method is a write.
+     */
+    private function wrap( callable $callback, bool $rateLimitWrites = false ): \Closure {
+        return function ( WP_REST_Request $request ) use ( $callback, $rateLimitWrites ) {
             try {
+                if ( $rateLimitWrites && in_array( strtoupper( (string) $request->get_method() ), self::WRITE_METHODS, true ) ) {
+                    $limited = $this->rateLimit( $request, self::RATE_LIMIT_PER_MINUTE, 'user' );
+                    if ( true !== $limited ) {
+                        return $limited;
+                    }
+                }
                 $result = $callback( $request );
                 if ( $result instanceof WP_REST_Response || $result instanceof WP_Error ) {
                     return $result;
@@ -299,6 +314,62 @@ abstract class Controller {
             return $default;
         }
         $clean = trim( sanitize_textarea_field( (string) $value ) );
+        return '' === $clean ? $default : mb_substr( $clean, 0, $max );
+    }
+
+    /**
+     * Absolute http(s) URL input ('' / $default when absent or invalid).
+     *
+     * sanitize_text_field() must not be used for URLs: it deletes every percent-encoded octet
+     * (%C3%A9, %20, %2F), which silently turns the address into a different one. This reads the raw
+     * value, rejects control characters, assumes https:// when no scheme is given, percent-encodes
+     * literal spaces and runs esc_url_raw() restricted to http/https. Over-long URLs are rejected
+     * rather than truncated, because a cut-off URL is a different URL.
+     */
+    protected function url( WP_REST_Request $request, string $key, string $default = '', int $max = 2048 ): string {
+        $value = $request->get_param( $key );
+        if ( null === $value || ! is_string( $value ) ) {
+            return $default;
+        }
+        $url = trim( $value );
+        if ( '' === $url || preg_match( '/[\x00-\x1F\x7F]/', $url ) ) {
+            return $default;
+        }
+        if ( preg_match( '#^([a-z][a-z0-9+\-.]*)://#i', $url, $m ) ) {
+            if ( ! in_array( strtolower( $m[1] ), [ 'http', 'https' ], true ) ) {
+                return $default;
+            }
+        } else {
+            $url = 'https://' . ltrim( $url, '/' );
+        }
+        $url   = str_replace( ' ', '%20', $url );
+        $clean = esc_url_raw( $url, [ 'http', 'https' ] );
+        if ( '' === $clean || ! preg_match( '#^https?://[^/?\#\s]+#i', $clean ) || strlen( $clean ) > $max ) {
+            return $default;
+        }
+        return $clean;
+    }
+
+    /**
+     * Free text that the service layer sanitises itself (e.g. outreach copy via OutreachEngine::cleanBody()).
+     *
+     * Unlike sanitize_text_field()/sanitize_textarea_field() this keeps percent-encoded octets, so URLs quoted
+     * in the text (".../Lab%20Safety%20Manual.pdf", "utm_source=ppc%2Bnews") are not altered. Invalid UTF-8 is
+     * scrubbed, control characters other than tab/newline are removed, line endings are normalised and the
+     * result is trimmed and length-capped. Single-line values have all whitespace runs collapsed.
+     */
+    protected function rawText( WP_REST_Request $request, string $key, string $default = '', int $max = 20000, bool $multiline = true ): string {
+        $value = $request->get_param( $key );
+        if ( null === $value || is_array( $value ) || is_object( $value ) ) {
+            return $default;
+        }
+        $clean = mb_scrub( (string) $value, 'UTF-8' );
+        $clean = str_replace( [ "\r\n", "\r" ], "\n", $clean );
+        $clean = preg_replace( '/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $clean ) ?? '';
+        if ( ! $multiline ) {
+            $clean = preg_replace( '/\s+/u', ' ', $clean ) ?? $clean;
+        }
+        $clean = trim( $clean );
         return '' === $clean ? $default : mb_substr( $clean, 0, $max );
     }
 

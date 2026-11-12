@@ -21,6 +21,12 @@ final class LogsController extends Controller {
 
     private const SUPPRESSION_TYPES = [ 'domain', 'email', 'email_domain' ];
 
+    /**
+     * Audit object-type filter values offered by the UI that are recorded under another name.
+     * Every outreach send/approval/rejection/reply/opt-out is audited as 'outreach_message'.
+     */
+    private const OBJECT_TYPE_ALIASES = [ 'message' => [ 'outreach_message', 'message' ] ];
+
     public function register( string $namespace ): void {
         $this->route( $namespace, '/logs', 'GET', [ $this, 'logs' ], $this->listArgs( [ 'level', 'channel', 'since' ] ) );
         $this->route( $namespace, '/audit', 'GET', [ $this, 'auditLog' ], $this->listArgs( [ 'action', 'object_type', 'object_id', 'actor' ] ) );
@@ -75,7 +81,7 @@ final class LogsController extends Controller {
         }
         $objectType = sanitize_key( $this->str( $request, 'object_type', '', 40 ) );
         if ( '' !== $objectType ) {
-            $where['object_type'] = $objectType;
+            $where['object_type'] = self::OBJECT_TYPE_ALIASES[ $objectType ] ?? $objectType;
         }
         $objectId = $this->int( $request, 'object_id', 0 );
         if ( $objectId > 0 ) {
@@ -152,9 +158,21 @@ final class LogsController extends Controller {
         if ( '' === $value ) {
             return $this->fail( 'ppclg_invalid_value', __( 'The value is not a valid domain or email address.', 'ppc-link-growth-engine' ), 400 );
         }
-        $repo  = $this->c->get( Suppression::class );
-        $added = $repo->add( $type, $value, '' !== $reason ? $reason : 'Added by reviewer' );
-        $row   = $repo->findOneBy( [ 'type' => $type, 'value' => $value ] );
+        $repo = $this->c->get( Suppression::class );
+        try {
+            $added = $repo->add( $type, $value, '' !== $reason ? $reason : 'Added by reviewer' );
+        } catch ( \RuntimeException $e ) {
+            $this->logger()->error( 'rest', 'Suppression entry could not be stored: ' . $e->getMessage(), [ 'type' => $type ] );
+            return $this->fail(
+                'ppclg_suppression_not_stored',
+                'email_domain' === $type
+                    ? __( 'The email-domain entry could not be saved because the suppression table on this site does not accept that entry type yet (database update pending). Add it as a "domain" entry instead: that also blocks every email address at the domain.', 'ppc-link-growth-engine' )
+                    : __( 'The suppression entry could not be saved. Check the plugin logs for details.', 'ppc-link-growth-engine' ),
+                422,
+                [ 'type' => $type ]
+            );
+        }
+        $row = $repo->findOneBy( [ 'type' => $type, 'value' => $value ] );
         if ( $added ) {
             $this->audit( 'suppression.added', 'suppression', (int) ( $row['id'] ?? 0 ), [ 'type' => $type, 'value' => $value, 'reason' => $reason ] );
         }

@@ -109,7 +109,8 @@ final class RelevanceScorer {
     /** @param PageAnalysis[] $pages */
     private function geoScore( string $country, int $confidence, array $pages ): int {
         if ( 'CA' === $country ) {
-            return max( 60, min( 100, 50 + $confidence / 2 ) );
+            // intdiv keeps the result an int for odd confidences (strict_types return type).
+            return max( 60, min( 100, 50 + intdiv( max( 0, $confidence ), 2 ) ) );
         }
         if ( '' === $country ) {
             $hits = 0;

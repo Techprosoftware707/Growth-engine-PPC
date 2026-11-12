@@ -5,3 +5,4 @@
 /bin/phpunit.phar
 *.log
 .DS_Store
+/bin/.phpunit.result.cache

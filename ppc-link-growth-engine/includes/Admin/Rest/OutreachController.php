@@ -19,6 +19,7 @@ use PPC\LinkGrowth\Repositories\Prospects;
 use PPC\LinkGrowth\Repositories\Repository;
 use PPC\LinkGrowth\Repositories\Suppression;
 use PPC\LinkGrowth\Support\Settings;
+use PPC\LinkGrowth\Support\TimeBudget;
 use WP_REST_Request;
 
 final class OutreachController extends Controller {
@@ -40,6 +41,18 @@ final class OutreachController extends Controller {
         Contacts::STATUS_SUPPRESSED,
         Contacts::STATUS_INVALID,
     ];
+
+    /** Suppression reason prefix written when a reviewer changes a contact's status. */
+    private const REVIEWER_REASON_PREFIX = 'Set by reviewer (';
+
+    /**
+     * Seconds a POST /outreach/campaigns/{id}/drafts request may spend drafting before it returns the rest
+     * as `remaining` (well under Cloudflare's 100 s proxy timeout; AI personalisation is one call per prospect).
+     */
+    private const DRAFT_SECONDS = 20.0;
+
+    /** Prospects drafted per batch between time-budget checks (AI drafting is checked after every prospect). */
+    private const DRAFT_BATCH = 25;
 
     public function register( string $namespace ): void {
         $this->route( $namespace, '/outreach/campaigns', 'GET', [ $this, 'campaigns' ], $this->listArgs( [ 'status', 'approach' ] ) );
@@ -141,16 +154,33 @@ final class OutreachController extends Controller {
         $engine = $this->c->get( OutreachEngine::class );
         $method = self::CAMPAIGN_ACTIONS[ $action ];
         $ok     = (bool) $engine->{$method}( $id, $this->userId() );
-        $out    = [ 'ok' => $ok, 'action' => $action, 'campaign' => $this->campaignDetail( $id ) ];
-        if ( ! $ok ) {
-            $out['message'] = 'approve' === $action
-                ? __( 'The campaign could not be approved. Complete the sender identity (Settings → Outreach) and make sure the campaign is pending approval.', 'ppc-link-growth-engine' )
-                : __( 'The action is not available for the current campaign status.', 'ppc-link-growth-engine' );
-            if ( 'approve' === $action ) {
-                $out['sender'] = $this->safe( fn(): array => $this->c->get( Compliance::class )->senderReady(), [], 'sender readiness' );
-            }
+        if ( $ok ) {
+            return [ 'ok' => true, 'action' => $action, 'campaign' => $this->campaignDetail( $id ) ];
         }
-        return $out;
+        // A refused action is an error response (409), so the admin UI shows the reason instead of a success toast.
+        $data   = [ 'ok' => false, 'action' => $action, 'campaign' => $this->campaignDetail( $id ) ];
+        $sender = null;
+        if ( in_array( $action, [ 'approve', 'resume' ], true ) ) {
+            $sender         = $this->safe( fn(): array => $this->c->get( Compliance::class )->senderReady(), [], 'sender readiness' );
+            $data['sender'] = $sender;
+        }
+        $senderMissing = is_array( $sender ) && false === ( $sender['ok'] ?? true );
+        if ( 'approve' === $action ) {
+            $message = __( 'The campaign could not be approved. Complete the sender identity (Settings → Outreach) and make sure the campaign is pending approval.', 'ppc-link-growth-engine' );
+        } elseif ( 'resume' === $action && $senderMissing ) {
+            $message = __( 'The campaign could not be resumed: the sender identity is incomplete. Complete it under Settings → Outreach first.', 'ppc-link-growth-engine' );
+        } else {
+            $message = __( 'The action is not available for the current campaign status.', 'ppc-link-growth-engine' );
+        }
+        if ( $senderMissing && is_array( $sender['missing'] ?? null ) && [] !== $sender['missing'] ) {
+            $message .= ' ' . sprintf(
+                /* translators: %s: comma-separated list of missing sender fields */
+                __( 'Missing: %s.', 'ppc-link-growth-engine' ),
+                implode( ', ', array_map( 'strval', $sender['missing'] ) )
+            );
+        }
+        $data['message'] = $message;
+        return $this->fail( 'ppclg_campaign_action_failed', $message, 409, $data );
     }
 
     /** POST /outreach/campaigns/{id}/drafts {prospect_ids[], use_ai} @return array<string,mixed>|\WP_Error */
@@ -163,12 +193,44 @@ final class OutreachController extends Controller {
         if ( [] === $ids ) {
             return $this->fail( 'ppclg_missing_prospects', __( 'Select at least one prospect.', 'ppc-link-growth-engine' ), 400 );
         }
-        $result = $this->c->get( OutreachEngine::class )->buildDrafts( $id, $ids, $this->userId(), $this->bool( $request, 'use_ai', false ) );
+        $useAi = $this->bool( $request, 'use_ai', false );
+        /**
+         * Filters the seconds one draft-building request may spend before returning the rest as `remaining`.
+         *
+         * @param float $seconds
+         */
+        $budget    = TimeBudget::seconds( max( 0.0, (float) apply_filters( 'ppclg_rest_drafts_seconds', self::DRAFT_SECONDS ) ) );
+        $engine    = $this->c->get( OutreachEngine::class );
+        $created   = 0;
+        $skipped   = [];
+        $remaining = [];
+        $chunks    = array_chunk( $ids, $useAi ? 1 : self::DRAFT_BATCH );
+        foreach ( $chunks as $i => $chunk ) {
+            // Always make progress on the first batch; afterwards stop before the proxy/PHP time limit.
+            if ( $i > 0 && $budget->expired() ) {
+                foreach ( array_slice( $chunks, $i ) as $rest ) {
+                    foreach ( $rest as $pid ) {
+                        $remaining[] = (int) $pid;
+                    }
+                }
+                break;
+            }
+            $result   = $engine->buildDrafts( $id, $chunk, $this->userId(), $useAi );
+            $created += (int) ( $result['created'] ?? 0 );
+            foreach ( is_array( $result['skipped'] ?? null ) ? $result['skipped'] : [] as $pid => $reason ) {
+                $skipped[ $pid ] = $reason;
+            }
+        }
+        foreach ( $remaining as $pid ) {
+            $skipped[ $pid ] = __( 'Not processed yet: the request time limit was reached. Build drafts again for this prospect to continue.', 'ppc-link-growth-engine' );
+        }
         return [
-            'ok'       => true,
-            'created'  => (int) ( $result['created'] ?? 0 ),
-            'skipped'  => is_array( $result['skipped'] ?? null ) ? $result['skipped'] : [],
-            'campaign' => $this->campaignDetail( $id ),
+            'ok'        => true,
+            'created'   => $created,
+            'skipped'   => $skipped,
+            'remaining' => $remaining,
+            'partial'   => [] !== $remaining,
+            'campaign'  => $this->campaignDetail( $id ),
         ];
     }
 
@@ -244,8 +306,10 @@ final class OutreachController extends Controller {
         if ( null === $repo->find( $id ) ) {
             return $this->notFound( __( 'Message', 'ppc-link-growth-engine' ) );
         }
-        $subject = $this->str( $request, 'subject', '', 255 );
-        $body    = $this->text( $request, 'body', '', 20000 );
+        // Read raw: OutreachEngine::updateMessage() sanitises subject and body itself (tags stripped, UTF-8
+        // checked). sanitize_text(area)_field() would also delete %XX octets and corrupt quoted URLs.
+        $subject = $this->rawText( $request, 'subject', '', 255, false );
+        $body    = $this->rawText( $request, 'body', '', 20000 );
         if ( '' === $subject || '' === $body ) {
             return $this->fail( 'ppclg_missing_fields', __( 'Subject and body are required.', 'ppc-link-growth-engine' ), 400 );
         }
@@ -344,13 +408,31 @@ final class OutreachController extends Controller {
         if ( ! in_array( $status, self::CONTACT_STATUSES, true ) ) {
             return $this->fail( 'ppclg_invalid_status', __( 'Unknown contact status.', 'ppc-link-growth-engine' ), 400 );
         }
-        $repo->update( $id, [ 'status' => $status, 'updated_at' => Repository::now() ] );
         $email = (string) ( $c['email'] ?? '' );
+        if ( Contacts::STATUS_ACTIVE === $status && '' !== $email ) {
+            // Opt-outs are honoured permanently (COMPLIANCE.md): never lift one from the status dropdown.
+            $blocker = $this->reactivationBlocker( $c, $email );
+            if ( null !== $blocker ) {
+                return $this->fail(
+                    'ppclg_contact_opted_out',
+                    sprintf(
+                        /* translators: 1: email address, 2: suppression reason */
+                        __( '%1$s opted out or is on the suppression list (%2$s). Opt-outs are permanent, so the contact cannot be reactivated here. Only if the recipient has explicitly asked to be contacted again, remove the entry under Logs → Suppression list first (the removal is audited).', 'ppc-link-growth-engine' ),
+                        $email,
+                        '' !== (string) ( $blocker['reason'] ?? '' ) ? (string) $blocker['reason'] : __( 'no reason recorded', 'ppc-link-growth-engine' )
+                    ),
+                    409,
+                    [ 'suppression' => [ 'id' => (int) ( $blocker['id'] ?? 0 ), 'reason' => (string) ( $blocker['reason'] ?? '' ) ] ]
+                );
+            }
+        }
+        $repo->update( $id, [ 'status' => $status, 'updated_at' => Repository::now() ] );
         if ( '' !== $email ) {
             $suppression = $this->c->get( Suppression::class );
             if ( in_array( $status, [ Contacts::STATUS_OPTED_OUT, Contacts::STATUS_SUPPRESSED ], true ) ) {
-                $this->safe( static fn(): bool => $suppression->add( 'email', $email, 'Set by reviewer (' . $status . ')' ), false, 'suppress email' );
+                $this->safe( static fn(): bool => $suppression->add( 'email', $email, self::REVIEWER_REASON_PREFIX . $status . ')' ), false, 'suppress email' );
             } elseif ( Contacts::STATUS_ACTIVE === $status ) {
+                // Only reached when reactivationBlocker() found nothing or just the reviewer's own "suppressed" marker.
                 $this->safe( static function () use ( $suppression, $email ): void { $suppression->remove( 'email', $email ); }, null, 'unsuppress email' );
             }
         }
@@ -404,6 +486,55 @@ final class OutreachController extends Controller {
     }
 
     // ------------------------------------------------------------------
+
+    /**
+     * The email suppression entry that must survive reactivating this contact, or null when reactivating is allowed.
+     *
+     * Only the reviewer's own "suppressed" marker (an internal do-not-contact decision) may be lifted from the
+     * status dropdown, and only while nothing records an opt-out by the recipient (contact status or an
+     * opted-out message for any contact with this address). Every other entry — unsubscribe link, opt-out reply,
+     * reviewer-recorded opt-out, manual entry — is removed deliberately via DELETE /suppression/{id} (audited).
+     * Fails closed: if the check itself fails, reactivation is refused.
+     *
+     * @param array<string,mixed> $contact
+     * @return array<string,mixed>|null
+     */
+    private function reactivationBlocker( array $contact, string $email ): ?array {
+        $fallback = [ 'id' => 0, 'reason' => __( 'the suppression list could not be checked', 'ppc-link-growth-engine' ) ];
+        return $this->safe(
+            function () use ( $contact, $email ): ?array {
+                $normalized = Suppression::normalizeValue( 'email', $email );
+                if ( '' === $normalized ) {
+                    return null;
+                }
+                $entry = $this->c->get( Suppression::class )->findOneBy( [ 'type' => 'email', 'value' => $normalized ] );
+                if ( null === $entry ) {
+                    return null;
+                }
+                if ( self::REVIEWER_REASON_PREFIX . Contacts::STATUS_SUPPRESSED . ')' !== (string) ( $entry['reason'] ?? '' ) ) {
+                    return $entry;
+                }
+                if ( Contacts::STATUS_OPTED_OUT === (string) ( $contact['status'] ?? '' ) ) {
+                    return $entry;
+                }
+                $ids = [];
+                foreach ( $this->c->get( Contacts::class )->findBy( [ 'email' => $normalized ], 'id', 'ASC', 200 ) as $row ) {
+                    if ( Contacts::STATUS_OPTED_OUT === (string) ( $row['status'] ?? '' ) ) {
+                        return $entry;
+                    }
+                    $ids[] = (int) $row['id'];
+                }
+                $ids[] = (int) ( $contact['id'] ?? 0 );
+                $ids   = array_values( array_unique( array_filter( $ids ) ) );
+                if ( [] !== $ids && $this->c->get( OutreachMessages::class )->count( [ 'contact_id' => $ids, 'status' => OutreachMessages::STATUS_OPTED_OUT ] ) > 0 ) {
+                    return $entry;
+                }
+                return null;
+            },
+            $fallback,
+            'opt-out check'
+        );
+    }
 
     /** @return array<string,mixed>|null */
     private function campaignDetail( int $id ): ?array {

@@ -38,6 +38,25 @@ final class BacklinkImporter {
     /** GA4 sources that are not referring websites. */
     private const IGNORED_SOURCES = [ '(direct)', '(not set)', '(none)', 'localhost' ];
 
+    /**
+     * Registrable domains of payment, checkout and webmail services. Shoppers returning from a payment
+     * page or clicking a link in an email show up as GA4 "referral" sessions, but these sites do not
+     * link to the store, so they are never imported as backlinks. Filter: ppclg_ignored_referral_domains.
+     */
+    private const TRANSACTIONAL_DOMAINS = [
+        'paypal.com', 'paypal.me', 'stripe.com', 'klarna.com', 'afterpay.com', 'clearpay.co.uk', 'affirm.com',
+        'sezzle.com', 'zip.co', 'squareup.com', 'interac.ca', 'moneris.com', 'bambora.com', 'helcim.com',
+        'authorize.net', 'braintreegateway.com', 'cardinalcommerce.com', 'paysafe.com', 'skrill.com',
+        'payoneer.com', 'venmo.com', 'cash.app', 'coinbase.com', 'nowpayments.io',
+        'live.com', 'outlook.com', 'office.com', 'office365.com', 'hotmail.com',
+    ];
+
+    /** Hosts of payment services on otherwise ordinary domains. */
+    private const TRANSACTIONAL_HOSTS = [ 'pay.amazon.com', 'payments.amazon.com', 'pay.amazon.ca', 'payments.amazon.ca' ];
+
+    /** Leading host labels of webmail front ends (mail.example.com, webmail.example.ca). */
+    private const WEBMAIL_LABELS = [ 'mail', 'webmail' ];
+
     public function __construct(
         private Backlinks $backlinks,
         private Prospects $prospects,
@@ -317,7 +336,21 @@ final class BacklinkImporter {
         if ( filter_var( $host, FILTER_VALIDATE_IP ) ) {
             return '';
         }
+        if ( $this->isTransactionalHost( $host ) ) {
+            return '';
+        }
         return $host;
+    }
+
+    /** Payment gateway, checkout or webmail host: its referral sessions are not backlinks. */
+    private function isTransactionalHost( string $host ): bool {
+        if ( in_array( $host, self::TRANSACTIONAL_HOSTS, true ) || in_array( explode( '.', $host )[0], self::WEBMAIL_LABELS, true ) ) {
+            return true;
+        }
+        /** @var mixed $domains Registrable domains whose GA4 referrals are never imported as backlinks. */
+        $domains = apply_filters( 'ppclg_ignored_referral_domains', self::TRANSACTIONAL_DOMAINS );
+        $domains = array_map( static fn( $d ): string => strtolower( trim( (string) $d ) ), is_array( $domains ) ? $domains : self::TRANSACTIONAL_DOMAINS );
+        return in_array( Url::registrableDomain( $host ), $domains, true );
     }
 
     private function siteDomain(): string {

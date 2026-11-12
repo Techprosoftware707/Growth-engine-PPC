@@ -5,7 +5,9 @@
  *
  * Outcomes per check:
  *  - robots.txt disallow      -> status unverified, re-check in 30 days, no strike
- *  - network error / 5xx      -> transient: note only, re-check tomorrow, no strike
+ *  - robots.txt unreachable   -> transient (the page is not crawled): note only, re-check tomorrow
+ *  - network error / 5xx      -> transient: note only, re-check tomorrow, no strike; a domain that
+ *                                no longer resolves (DNS) for 14+ days counts as a strike
  *  - HTTP 404/410             -> strike; "broken" once strikes reach the threshold
  *  - page OK, link missing    -> strike; "lost" once strikes reach the threshold
  *  - redirect to other domain -> status redirected
@@ -25,6 +27,7 @@ use PPC\LinkGrowth\Repositories\Backlinks;
 use PPC\LinkGrowth\Repositories\Repository;
 use PPC\LinkGrowth\Support\Http\Client;
 use PPC\LinkGrowth\Support\Http\Response;
+use PPC\LinkGrowth\Support\Http\RobotsTxt;
 use PPC\LinkGrowth\Support\Limits;
 use PPC\LinkGrowth\Support\Logger;
 use PPC\LinkGrowth\Support\Settings;
@@ -55,6 +58,15 @@ final class BacklinkMonitor {
 
     private const STRIKE_RETRY_DAYS = 1;
 
+    /** A linking domain that does not resolve and was last reached this many days ago counts as a strike. */
+    private const DNS_STRIKE_DAYS = 14;
+
+    /** Timeout (seconds) of the robots.txt re-read that tells "unreachable" apart from "disallowed". */
+    private const ROBOTS_PROBE_TIMEOUT = 5;
+
+    /** How long (seconds) a robots.txt re-read is reused for other links on the same host. */
+    private const ROBOTS_PROBE_TTL = 300;
+
     /** Origins whose links were created by a bulk import and may never have existed as real links. */
     private const BULK_ORIGINS = [ 'provider:seranking', 'provider:ahrefs', 'provider:semrush', 'provider:moz', 'ga4_referral', 'mention_scan' ];
 
@@ -68,6 +80,9 @@ final class BacklinkMonitor {
     private const GENERIC_ANCHORS = [ 'click here', 'here', 'link', 'this link', 'website', 'web site', 'site', 'read more', 'more', 'learn more', 'visit', 'visit website', 'visit site', 'go', 'source', 'url', 'homepage', 'home page', 'home', 'this', 'page', 'view', 'open', 'details', 'info', 'www', 'http', 'https', '>>', '->', '→', 'continue', 'continue reading', 'see more', 'check it out' ];
 
     private Limits $limits;
+
+    /** @var array<string,array{at:int,error:string,status:int,body:string}> robots.txt re-reads by origin */
+    private array $robotsProbes = [];
 
     public function __construct(
         private Backlinks $backlinks,
@@ -116,10 +131,10 @@ final class BacklinkMonitor {
             $n       = min( max( 0, $max ), $allowed );
             if ( $n <= 0 ) {
                 $out['note']     = $allowed <= 0 ? 'Daily backlink check limit reached.' : 'No checks requested.';
-                $out['more_due'] = ! empty( $this->backlinks->dueForCheck( 1 ) );
+                $out['more_due'] = ! empty( $this->dueRows( 1 ) );
                 return $out;
             }
-            $rows = $this->backlinks->dueForCheck( $n );
+            $rows = $this->dueRows( $n );
             $need = min( 12.0, $this->timeout() + 2.0 );
             foreach ( $rows as $row ) {
                 if ( ! $budget->has( $need ) ) {
@@ -139,7 +154,7 @@ final class BacklinkMonitor {
                     ++$out['recovered'];
                 }
             }
-            $out['more_due'] = ! empty( $this->backlinks->dueForCheck( 1 ) );
+            $out['more_due'] = ! empty( $this->dueRows( 1 ) );
             if ( '' === $out['note'] && empty( $rows ) ) {
                 $out['note'] = 'No backlinks due for a check.';
             }
@@ -149,6 +164,42 @@ final class BacklinkMonitor {
             $this->logger->error( 'monitoring', 'Backlink check run failed', [ 'error' => $e->getMessage() ] );
         }
         return $out;
+    }
+
+    /**
+     * Rows due for a check: Backlinks::dueForCheck() plus "unverified" rows whose robots.txt re-check
+     * date has passed. dueForCheck() leaves out every unverified row, so without this the 30-day robots
+     * re-check would never run. Unverified rows with next_check_at NULL (monitoring stopped) stay out.
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    private function dueRows( int $limit ): array {
+        $limit = max( 1, $limit );
+        $rows  = $this->backlinks->dueForCheck( $limit );
+        if ( count( $rows ) >= $limit ) {
+            return $rows;
+        }
+        $seen = [];
+        foreach ( $rows as $row ) {
+            $seen[ (int) ( $row['id'] ?? 0 ) ] = true;
+        }
+        $page = $this->backlinks->paginate(
+            [ 'status' => Backlinks::STATUS_UNVERIFIED ],
+            '',
+            [],
+            1,
+            $limit - count( $rows ),
+            'next_check_at',
+            'ASC',
+            'next_check_at IS NOT NULL AND next_check_at <= %s',
+            [ Repository::now() ]
+        );
+        foreach ( (array) ( $page['items'] ?? [] ) as $row ) {
+            if ( is_array( $row ) && ! isset( $seen[ (int) ( $row['id'] ?? 0 ) ] ) ) {
+                $rows[] = $row;
+            }
+        }
+        return $rows;
     }
 
     /**
@@ -242,31 +293,36 @@ final class BacklinkMonitor {
 
         $resp = $this->client->crawl( $sourceUrl, [ 'timeout' => $this->timeout() ] );
 
-        // 1. robots.txt forbids crawling: never guess, never count as a failure.
-        if ( 'robots_disallow' === $resp->errorCode ) {
-            if ( $prev !== Backlinks::STATUS_UNVERIFIED ) {
-                $changes[] = $this->change( 'status', $prev, Backlinks::STATUS_UNVERIFIED, $now );
+        // 1. The crawler refused the page because of robots.txt. It also refuses when robots.txt itself
+        //    cannot be fetched (network error, DNS failure, 5xx): that is an outage, not a Disallow, so
+        //    robots.txt is re-read once to tell the two apart. The page itself is never fetched here.
+        if ( in_array( (string) $resp->errorCode, [ 'robots_disallow', 'robots_unavailable' ], true ) ) {
+            $robots = $this->robotsVerdict( $sourceUrl );
+            if ( 'disallow' === $robots['verdict'] ) {
+                if ( $prev !== Backlinks::STATUS_UNVERIFIED ) {
+                    $changes[] = $this->change( 'status', $prev, Backlinks::STATUS_UNVERIFIED, $now );
+                }
+                return $this->finish(
+                    $backlink,
+                    [ 'status' => Backlinks::STATUS_UNVERIFIED, 'last_checked' => $now, 'next_check_at' => $this->inDays( self::ROBOTS_RETRY_DAYS ) ],
+                    $changes,
+                    $result,
+                    'robots.txt disallows crawling this page; verification skipped for 30 days.',
+                    $prev !== Backlinks::STATUS_UNVERIFIED ? 'unverified' : ''
+                );
             }
-            return $this->finish(
-                $backlink,
-                [ 'status' => Backlinks::STATUS_UNVERIFIED, 'last_checked' => $now, 'next_check_at' => $this->inDays( self::ROBOTS_RETRY_DAYS ) ],
-                $changes,
-                $result,
-                'robots.txt disallows crawling this page; verification skipped for 30 days.',
-                $prev !== Backlinks::STATUS_UNVERIFIED ? 'unverified' : ''
-            );
+            $note = 'unavailable' === $robots['verdict']
+                ? sprintf( 'robots.txt of the linking site could not be fetched (%s), so the page was not crawled.', $robots['error'] )
+                : 'robots.txt of the linking site was briefly unavailable, so the page was not crawled.';
+            return $this->transient( $backlink, $resp, $robots['dns'], $note, $changes, $result );
         }
 
         // 2. Transient problems (network errors, timeouts, 5xx, rate limiting): note only.
         if ( null !== $resp->error || $this->isTransientStatus( $resp->status ) ) {
-            $note   = null !== $resp->error
+            $note = null !== $resp->error
                 ? 'Temporary fetch error: ' . $resp->error
                 : sprintf( 'Temporary HTTP %d from the linking page.', $resp->status );
-            $update = [ 'last_checked' => $now, 'next_check_at' => $this->inDays( self::TRANSIENT_RETRY_DAYS ) ];
-            if ( $resp->status > 0 ) {
-                $update['http_status'] = $resp->status;
-            }
-            return $this->finish( $backlink, $update, $changes, $result, $note . ' Not counted as a failure; retrying tomorrow.', '' );
+            return $this->transient( $backlink, $resp, null !== $resp->error && $this->isDnsFailure( $resp->error ), $note, $changes, $result );
         }
 
         // 3. Page gone.
@@ -488,6 +544,86 @@ final class BacklinkMonitor {
         $this->notifier->notify( 'backlink', $severity, 'Backlink lost', $message, $this->notificationData( $backlink, [ 'failures' => $failures, 'http_status' => $resp->status, 'new_status' => $lostStatus, 'confirmed_before' => $confirmed ] ) );
 
         return $result;
+    }
+
+    /**
+     * Temporary failure (network error, timeout, 5xx, robots.txt unreachable): note only, retry tomorrow.
+     * A domain that does not resolve although the link was last reached DNS_STRIKE_DAYS or more ago is
+     * treated as gone and counts as a strike, so links on dead or expired domains still reach "broken".
+     *
+     * @param array<string,mixed> $backlink
+     * @param array<int,array<string,mixed>> $changes
+     * @param array{status:string,changed:bool,lost:bool,recovered:bool,note:string} $result
+     * @return array{status:string,changed:bool,lost:bool,recovered:bool,note:string}
+     */
+    private function transient( array $backlink, Response $resp, bool $dnsFailure, string $note, array $changes, array $result ): array {
+        if ( $dnsFailure ) {
+            $days = $this->daysSinceReached( $backlink );
+            if ( $days >= self::DNS_STRIKE_DAYS ) {
+                $reason = sprintf( 'The domain of the linking site does not resolve, and the link has not been confirmed for %d days.', (int) floor( $days ) );
+                return $this->strike( $backlink, $resp, Backlinks::STATUS_BROKEN, $reason, $changes, $result );
+            }
+        }
+        $update = [ 'last_checked' => Repository::now(), 'next_check_at' => $this->inDays( self::TRANSIENT_RETRY_DAYS ) ];
+        if ( $resp->status > 0 ) {
+            $update['http_status'] = $resp->status;
+        }
+        return $this->finish( $backlink, $update, $changes, $result, rtrim( $note, '.' ) . '. Not counted as a failure; retrying tomorrow.', '' );
+    }
+
+    /**
+     * Re-reads robots.txt after the crawler refused a page. Returns "unavailable" when robots.txt cannot
+     * be fetched (network error, DNS failure, 5xx), "disallow" when it loads and disallows the page, and
+     * "allow" when a fresh copy allows it (4xx = no robots.txt, or 200 without a matching Disallow): the
+     * refusal then came from a cached failure. Only "disallow" stops monitoring for 30 days; the page is
+     * not fetched in any case.
+     *
+     * @return array{verdict:string,error:string,dns:bool}
+     */
+    private function robotsVerdict( string $url ): array {
+        $scheme = (string) ( wp_parse_url( $url, PHP_URL_SCHEME ) ?: 'https' );
+        $origin = $scheme . '://' . Url::host( $url );
+        $probe  = $this->robotsProbes[ $origin ] ?? null;
+        if ( null === $probe || $probe['at'] < time() - self::ROBOTS_PROBE_TTL ) {
+            $r     = $this->client->rawRequest( 'GET', $origin . '/robots.txt', [ 'timeout' => self::ROBOTS_PROBE_TIMEOUT ] );
+            $probe = [ 'at' => time(), 'error' => (string) ( $r->error ?? '' ), 'status' => $r->status, 'body' => 200 === $r->status ? $r->body : '' ];
+            $this->robotsProbes[ $origin ] = $probe;
+        }
+        if ( '' !== $probe['error'] || 0 === $probe['status'] || $probe['status'] >= 500 ) {
+            return [
+                'verdict' => 'unavailable',
+                'error'   => '' !== $probe['error'] ? $probe['error'] : sprintf( 'HTTP %d', $probe['status'] ),
+                'dns'     => $this->isDnsFailure( $probe['error'] ),
+            ];
+        }
+        if ( 200 !== $probe['status'] ) {
+            return [ 'verdict' => 'allow', 'error' => '', 'dns' => false ];
+        }
+        $path  = Url::path( $url );
+        $query = wp_parse_url( $url, PHP_URL_QUERY );
+        if ( is_string( $query ) && '' !== $query ) {
+            $path .= '?' . $query;
+        }
+        $rules   = RobotsTxt::parse( $probe['body'] )['rules'];
+        $allowed = RobotsTxt::evaluate( $rules[ RobotsTxt::BOT_TOKEN ] ?? $rules['*'] ?? [], $path );
+        return [ 'verdict' => $allowed ? 'allow' : 'disallow', 'error' => '', 'dns' => false ];
+    }
+
+    /** Whether a transport error means the host name does not resolve (as opposed to a timeout or refusal). */
+    private function isDnsFailure( string $error ): bool {
+        return '' !== $error && 1 === preg_match( '/could not resolve host|name or service not known|nodename nor servname|no address associated with hostname|getaddrinfo .*failed|nxdomain/i', $error );
+    }
+
+    /**
+     * Days since the link was last confirmed live, or since monitoring started when it never was.
+     *
+     * @param array<string,mixed> $backlink
+     */
+    private function daysSinceReached( array $backlink ): float {
+        $seen    = $this->timestamp( (string) ( $backlink['last_seen_live'] ?? '' ) );
+        $created = $this->timestamp( (string) ( $backlink['created_at'] ?? '' ) );
+        $ref     = max( $seen, $created );
+        return 0 === $ref ? 0.0 : ( time() - $ref ) / self::DAY;
     }
 
     /**

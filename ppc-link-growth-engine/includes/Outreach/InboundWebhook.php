@@ -6,6 +6,11 @@
  * time against the encrypted "inbound_webhook_secret". Matching order: In-Reply-To / References
  * → "ppclg-{token}" anywhere in headers or text → sender address → latest sent message.
  *
+ * Opt-out intent is read from the new text of the reply: quoted history (">" lines, the "On … wrote:"
+ * attribution, Outlook's original-message block, HTML blockquotes) and the plugin's own footer are removed,
+ * while text written below or between quoted blocks (bottom-posting, inline replies) is kept. A plain reply
+ * cancels the conversation's pending follow-ups.
+ *
  * @package PPC\LinkGrowth
  */
 
@@ -26,6 +31,15 @@ use PPC\LinkGrowth\Support\Str;
 final class InboundWebhook {
 
     private const UNSUBSCRIBE_RE = '/\b(unsubscribe|opt[\s\-]?out|remove (me|us)|stop (emailing|contacting|sending|messaging)|do not (email|contact) (me|us)|take (me|us) off|no more emails?)\b/i';
+
+    /**
+     * Our own footer sentence (Personalizer::FOOTER_TEMPLATE) wherever the recipient's client wrapped or quoted
+     * it: any run of whitespace and ">" quote markers may separate the words.
+     */
+    private const FOOTER_RE = '/If[\s>]+you(?:\'|’)?d[\s>]+rather[\s>]+not[\s>]+hear[\s>]+from[\s>]+us[\s>]+again,?[\s>]+reply[\s>]+with[\s>]+["“”]?unsubscribe["“”]?[\s>]+or[\s>]+use[\s>]+this[\s>]+link:?/iu';
+
+    /** Our unsubscribe links, also when a client broke them across lines. */
+    private const OWN_LINK_RE = '~\S*(?:ppclg(?:/|%2F)v1(?:/|%2F)unsubscribe|unsubscribe\?t=[a-f0-9]*)\S*~i';
 
     private const BOUNCE_RE = '/\b(undeliverable|undelivered mail|delivery (status notification|failure|has failed|failed)|mail delivery failed|returned mail|failure notice|address rejected|mailbox (unavailable|not found|full)|user unknown)\b/i';
 
@@ -76,7 +90,7 @@ final class InboundWebhook {
      * @return array{from_email:string,subject:string,text:string,new_text:string,in_reply_to:string,references:string,message_id:string,headers:array<string,string>,blob:string}
      */
     private function normalize( array $payload ): array {
-        $headers = $this->headers( $payload['headers'] ?? [] );
+        $headers = $this->headers( $payload['headers'] ?? $payload['Headers'] ?? [] );
         $pick    = static function ( array $src, array $keys ): string {
             foreach ( $keys as $k ) {
                 if ( isset( $src[ $k ] ) && '' !== $src[ $k ] && null !== $src[ $k ] ) {
@@ -97,7 +111,7 @@ final class InboundWebhook {
         $text    = $pick( $payload, [ 'text', 'body', 'plain', 'text_body', 'stripped-text', 'body-plain', 'TextBody', 'content' ] );
         if ( '' === $text ) {
             $html = $pick( $payload, [ 'html', 'body_html', 'HtmlBody', 'body-html' ] );
-            $text = '' !== $html ? Str::clean( $html ) : '';
+            $text = '' !== $html ? $this->htmlToText( $html ) : '';
         }
         $inReplyTo = $pick( $payload, [ 'in_reply_to', 'in-reply-to', 'inReplyTo', 'In-Reply-To' ] );
         $inReplyTo = '' !== $inReplyTo ? $inReplyTo : ( $headers['in-reply-to'] ?? '' );
@@ -116,7 +130,7 @@ final class InboundWebhook {
             'from_email'  => $this->extractEmail( $from ),
             'subject'     => $this->oneLine( $subject, 255 ),
             'text'        => $text,
-            'new_text'    => $this->stripQuoted( $text ),
+            'new_text'    => $this->stripQuoted( $this->withoutOwnFooter( $text ) ),
             'in_reply_to' => $inReplyTo,
             'references'  => $refs,
             'message_id'  => $messageId,
@@ -157,8 +171,9 @@ final class InboundWebhook {
         }
         foreach ( $raw as $k => $v ) {
             if ( is_int( $k ) && is_array( $v ) ) {
-                $name  = (string) ( $v['name'] ?? $v['key'] ?? $v[0] ?? '' );
-                $value = $v['value'] ?? $v[1] ?? '';
+                // [{name,value}], Postmark's [{Name,Value}], [{key,value}] or [[name, value]].
+                $name  = (string) ( $v['name'] ?? $v['Name'] ?? $v['key'] ?? $v['Key'] ?? $v[0] ?? '' );
+                $value = $v['value'] ?? $v['Value'] ?? $v[1] ?? '';
                 $add( $name, $value );
             } elseif ( is_string( $k ) ) {
                 $add( $k, $v );
@@ -175,18 +190,36 @@ final class InboundWebhook {
         return '';
     }
 
-    /** Removes quoted history and our own footer so intent detection only sees the new text. */
+    /**
+     * The new text of a reply: quoted lines (">"), the "On … wrote:" attribution and our own footer are dropped,
+     * text written after or between quoted blocks (bottom-posting, inline answers) is kept. An attribution that is
+     * followed by unquoted text, or an Outlook "Original Message" / "From:" block, starts the history: the rest
+     * is dropped.
+     */
     private function stripQuoted( string $text ): string {
         $lines = explode( "\n", $text );
         $kept  = [];
         $count = count( $lines );
         for ( $i = 0; $i < $count; $i++ ) {
             $t = trim( $lines[ $i ] );
-            if ( preg_match( '/^(-{2,}\s*Original Message\s*-{2,}|_{10,}|From:\s.+|On .{3,120} wrote:|Le .{3,120} a écrit\s?:|Am .{3,120} schrieb .+:|>+)/iu', $t ) ) {
-                break;
+            if ( str_starts_with( $t, '>' ) ) {
+                continue; // quoted history; keep looking for new text below it
             }
+            $attribution = (bool) preg_match( '/^(On .{3,160} wrote:|Le .{3,160} a écrit\s?:|Am .{3,160} schrieb .+:)/iu', $t );
             // "On <date>, <name>" on one line with "wrote:" wrapped onto the next.
-            if ( preg_match( '/^On .{3,160}$/i', $t ) && isset( $lines[ $i + 1 ] ) && str_contains( $lines[ $i + 1 ], 'wrote:' ) ) {
+            $wrapped = ! $attribution && preg_match( '/^On .{3,160}$/i', $t ) && isset( $lines[ $i + 1 ] ) && str_contains( $lines[ $i + 1 ], 'wrote:' );
+            if ( $attribution || $wrapped ) {
+                $next = $i + ( $wrapped ? 2 : 1 );
+                while ( $next < $count && '' === trim( $lines[ $next ] ) ) {
+                    $next++;
+                }
+                if ( $next < $count && ! str_starts_with( trim( $lines[ $next ] ), '>' ) ) {
+                    break; // the history that follows is not quoted line by line
+                }
+                $i = $next - 1;
+                continue;
+            }
+            if ( preg_match( '/^(-{2,}\s*Original Message\s*-{2,}|_{10,}|From:\s.+)/iu', $t ) ) {
                 break;
             }
             if ( false !== stripos( $t, 'rather not hear from us again' ) || false !== stripos( $t, 'List-Unsubscribe' ) ) {
@@ -195,6 +228,69 @@ final class InboundWebhook {
             $kept[] = $lines[ $i ];
         }
         return trim( implode( "\n", $kept ) );
+    }
+
+    /** Removes the plugin's own footer sentence and unsubscribe links (they quote the word "unsubscribe"). */
+    private function withoutOwnFooter( string $text ): string {
+        $text = preg_replace( self::FOOTER_RE, '', $text ) ?? $text;
+        return preg_replace( self::OWN_LINK_RE, '', $text ) ?? $text;
+    }
+
+    /**
+     * What opt-out detection reads: the subject plus the new text or, when no new text could be separated (the
+     * whole reply is quoted), the full text without quote markers. Our own footer and links never count, and
+     * URLs are ignored.
+     *
+     * @param array{subject:string,text:string,new_text:string} $n
+     */
+    private function intentText( array $n ): string {
+        $body = $n['new_text'];
+        if ( '' === trim( $body ) ) {
+            $body = $this->withoutOwnFooter( $n['text'] );
+            $body = preg_replace( '/^[ \t]*(?:>[ \t]?)+/m', '', $body ) ?? $body;
+        }
+        $text = $this->withoutOwnFooter( $n['subject'] ) . "\n" . $body;
+        $text = preg_replace( '~<?\b(?:https?://|www\.)\S+~i', ' ', $text ) ?? $text;
+        return preg_replace( '/List-Unsubscribe(?:-Post)?/i', ' ', $text ) ?? $text;
+    }
+
+    /**
+     * Plain text of an HTML-only email, keeping line structure: block elements become line breaks and the
+     * content of <blockquote> (quoted history) becomes ">"-prefixed lines, so stripQuoted() can tell new text
+     * from history. Entities are decoded once, at the end.
+     */
+    private function htmlToText( string $html ): string {
+        $html = preg_replace( '#<(script|style|head|title)\b[^>]*>.*?</\1\s*>#is', ' ', $html ) ?? $html;
+        $inner = '#<blockquote\b[^>]*>((?:(?!<blockquote\b).)*?)</blockquote\s*>#is';
+        for ( $i = 0; $i < 20 && preg_match( $inner, $html ); $i++ ) {
+            $next = preg_replace_callback(
+                $inner,
+                function ( array $m ): string {
+                    $lines = explode( "\n", $this->blockText( $m[1] ) );
+                    return "\n" . implode( "\n", array_map( static fn( string $l ): string => '> ' . $l, $lines ) ) . "\n";
+                },
+                $html
+            );
+            if ( ! is_string( $next ) ) {
+                break;
+            }
+            $html = $next;
+        }
+        $text = html_entity_decode( $this->blockText( $html ), ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+        $text = str_replace( "\u{00A0}", ' ', $text );
+        $text = preg_replace( '/[ \t]+$/m', '', $text ) ?? $text;
+        return trim( preg_replace( "/\n{3,}/", "\n\n", $text ) ?? $text );
+    }
+
+    /** Tags to text with line breaks for <br>, block elements and <hr> (an Outlook-style separator). */
+    private function blockText( string $html ): string {
+        $html = preg_replace( '#<br\s*/?>#i', "\n", $html ) ?? $html;
+        $html = preg_replace( '#<hr\b[^>]*>#i', "\n__________\n", $html ) ?? $html;
+        $html = preg_replace( '#</?(p|div|li|tr|h[1-6]|table|tbody|thead|ul|ol|pre|section|article|header|footer)\b[^>]*>#i', "\n", $html ) ?? $html;
+        $text = wp_strip_all_tags( $html, false );
+        $text = preg_replace( '/[ \t]+/u', ' ', $text ) ?? $text;
+        $text = preg_replace( '/ *\n */', "\n", $text ) ?? $text;
+        return trim( preg_replace( "/\n{3,}/", "\n\n", $text ) ?? $text );
     }
 
     // --- Matching -----------------------------------------------------------
@@ -275,7 +371,7 @@ final class InboundWebhook {
             return;
         }
 
-        $wantsOut = (bool) preg_match( self::UNSUBSCRIBE_RE, $n['subject'] . "\n" . $n['new_text'] );
+        $wantsOut = (bool) preg_match( self::UNSUBSCRIBE_RE, $this->intentText( $n ) );
         $extra    = [ 'replied_at' => ! empty( $message['replied_at'] ) ? $message['replied_at'] : $now, 'reply_summary' => $summary ];
         $this->messages->setStatus( $messageId, $wantsOut ? OutreachMessages::STATUS_OPTED_OUT : OutreachMessages::STATUS_REPLIED, $extra );
 
@@ -297,9 +393,31 @@ final class InboundWebhook {
             return;
         }
 
+        // A person who answered must not receive the conversation's "following up" email afterwards.
+        $this->cancelLaterInThread( $message, 'Cancelled: the recipient replied.' );
         $this->notify( 'outreach_reply', 'success', 'Reply received', sprintf( 'Reply to "%s" from %s.', mb_substr( (string) ( $message['subject'] ?? '' ), 0, 80 ), $fromDomain ?: $this->domainOf( $email ) ?: 'unknown domain' ), [ 'message_id' => $messageId, 'prospect_id' => $prospectId, 'summary' => mb_substr( $summary, 0, 200 ) ] );
         $this->audit->record( 'system:inbound', 'outreach.replied', 'outreach_message', $messageId, [ 'contact_id' => $contactId, 'prospect_id' => $prospectId, 'subject' => $n['subject'] ] );
         $this->logger->info( 'outreach', 'Reply matched to message #' . $messageId, [ 'prospect_id' => $prospectId ] );
+    }
+
+    /**
+     * Closes the not-yet-sent later messages (follow-ups) of the conversation: same contact, same approach,
+     * higher sequence than the message that was answered.
+     *
+     * @param array<string,mixed> $message
+     */
+    private function cancelLaterInThread( array $message, string $why ): void {
+        $contactId = (int) ( $message['contact_id'] ?? 0 );
+        if ( $contactId <= 0 ) {
+            return;
+        }
+        $sequence = (int) ( $message['sequence'] ?? 1 );
+        $pending  = $this->messages->findBy( [ 'contact_id' => $contactId, 'approach' => (string) ( $message['approach'] ?? '' ), 'status' => [ OutreachMessages::STATUS_DRAFT, OutreachMessages::STATUS_APPROVED, OutreachMessages::STATUS_SCHEDULED ] ], 'sequence', 'ASC', 50 );
+        foreach ( $pending as $p ) {
+            if ( (int) $p['id'] !== (int) $message['id'] && (int) ( $p['sequence'] ?? 1 ) > $sequence ) {
+                $this->messages->setStatus( (int) $p['id'], OutreachMessages::STATUS_CLOSED, [ 'last_error' => $why ] );
+            }
+        }
     }
 
     private function summary( string $subject, string $text ): string {

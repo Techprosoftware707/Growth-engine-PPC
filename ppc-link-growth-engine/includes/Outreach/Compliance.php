@@ -15,6 +15,7 @@ use PPC\LinkGrowth\Content\ClaimsFilter;
 use PPC\LinkGrowth\Repositories\Campaigns;
 use PPC\LinkGrowth\Repositories\Contacts;
 use PPC\LinkGrowth\Repositories\OutreachMessages;
+use PPC\LinkGrowth\Repositories\Prospects;
 use PPC\LinkGrowth\Repositories\Suppression;
 use PPC\LinkGrowth\Support\Settings;
 
@@ -23,6 +24,9 @@ final class Compliance {
     public const CONSENT_BASES = [ 'conspicuous_publication', 'existing_relationship', 'express' ];
 
     public const BLOCKED_ROLES = [ 'support', 'noreply' ];
+
+    /** Prospect states in which the owner decided the website must not be contacted ("on hold" only defers sending). */
+    public const BLOCKED_PROSPECT_STATUSES = [ Prospects::STATUS_REJECTED, Prospects::STATUS_SUPPRESSED ];
 
     public function __construct(
         private Settings $settings,
@@ -73,19 +77,44 @@ final class Compliance {
      * @param array<string,mixed>      $message  Message row (status may be overridden by the caller).
      * @param array<string,mixed>      $contact  Contact row.
      * @param array<string,mixed>|null $campaign Campaign row when the message belongs to one.
+     * @param array<string,mixed>|null $prospect Prospect row (the website) when the caller has it.
      * @return array{ok:bool,violations:string[]}
      */
-    public function validate( array $message, array $contact, ?array $campaign ): array {
-        $v = [];
+    public function validate( array $message, array $contact, ?array $campaign, ?array $prospect = null ): array {
+        $r = $this->assess( $message, $contact, $campaign, $prospect );
+        return [ 'ok' => $r['ok'], 'violations' => $r['violations'] ];
+    }
+
+    /**
+     * validate() plus how lasting the problems are: "transient" is true when every violation clears by itself
+     * or by a settings change (incomplete sender identity, the contact cool-down), and "retry_at" is the Unix
+     * time the cool-down ends. Anything else (contact, website, copy) needs the owner to act on the message.
+     *
+     * @param array<string,mixed>      $message
+     * @param array<string,mixed>      $contact
+     * @param array<string,mixed>|null $campaign
+     * @param array<string,mixed>|null $prospect
+     * @return array{ok:bool,violations:string[],transient:bool,retry_at:int|null}
+     */
+    public function assess( array $message, array $contact, ?array $campaign, ?array $prospect = null ): array {
+        $v         = [];
+        $transient = 0;
+        $retryAt   = null;
 
         $sender = $this->senderReady();
         if ( ! $sender['ok'] ) {
             $v[] = 'Sender identity incomplete: ' . implode( ', ', $sender['missing'] ) . ' (set under Settings → Outreach).';
+            $transient++;
         }
 
         $contactCheck = $this->contactAllowed( $contact );
         foreach ( $contactCheck['reasons'] as $r ) {
             $v[] = $r;
+        }
+        if ( null !== $prospect ) {
+            foreach ( $this->prospectAllowed( $prospect )['reasons'] as $r ) {
+                $v[] = $r;
+            }
         }
 
         $subject  = trim( (string) ( $message['subject'] ?? '' ) );
@@ -136,6 +165,8 @@ final class Compliance {
                     $sentAt = strtotime( (string) $last['sent_at'] . ' UTC' );
                     if ( false !== $sentAt && $sentAt > time() - $days * DAY_IN_SECONDS ) {
                         $v[] = sprintf( 'This website was contacted on %s; the minimum interval between contacts is %d days.', gmdate( 'Y-m-d', $sentAt ), $days );
+                        $transient++;
+                        $retryAt = $sentAt + $days * DAY_IN_SECONDS;
                     }
                 }
             }
@@ -153,7 +184,39 @@ final class Compliance {
             $v[] = 'Message is not approved (status: ' . ( '' !== $ms ? $ms : 'unknown' ) . ').';
         }
 
-        return [ 'ok' => [] === $v, 'violations' => array_values( array_unique( $v ) ) ];
+        return [
+            'ok'         => [] === $v,
+            'violations' => array_values( array_unique( $v ) ),
+            'transient'  => [] !== $v && count( $v ) === $transient,
+            'retry_at'   => $retryAt,
+        ];
+    }
+
+    /**
+     * Website-level checks: the owner has not rejected or suppressed the prospect (status, including the automatic
+     * rejection below the keep score), and the prospect's own domain is not on the suppression list (the contact
+     * may use another domain, e.g. gmail.com). "On hold" is handled by the send path as a deferral.
+     *
+     * @param array<string,mixed> $prospect
+     * @return array{ok:bool,reasons:string[]}
+     */
+    public function prospectAllowed( array $prospect ): array {
+        $r      = [];
+        $status = (string) ( $prospect['status'] ?? '' );
+        if ( in_array( $status, self::BLOCKED_PROSPECT_STATUSES, true ) ) {
+            $r[] = 'The website is marked "' . $status . '"; it must not be contacted.';
+        }
+        $domain = strtolower( trim( (string) ( $prospect['domain'] ?? '' ) ) );
+        if ( '' !== $domain ) {
+            try {
+                if ( $this->suppression->isSuppressed( 'domain', $domain ) ) {
+                    $r[] = 'The website\'s domain is on the suppression list.';
+                }
+            } catch ( \Throwable $e ) {
+                $r[] = 'Suppression list could not be checked.';
+            }
+        }
+        return [ 'ok' => [] === $r, 'reasons' => $r ];
     }
 
     /**
@@ -262,12 +325,14 @@ final class Compliance {
 
     // --- Helpers ------------------------------------------------------------
 
+    /**
+     * The same rule the send path applies: the body carries this token's unsubscribe link, either the current URL
+     * or one built under an earlier site URL / permalink setting, which Unsubscribe::refreshLinks() rewrites to the
+     * current URL before sending (so approval never passes a body that the mailer would then refuse).
+     */
     private function bodyHasUnsubscribe( string $body, string $token ): bool {
         $url = Unsubscribe::urlFor( $token );
-        if ( '' !== $url && str_contains( $body, $url ) ) {
-            return true;
-        }
-        return str_contains( $body, $token ) && false !== stripos( $body, 'unsubscribe' );
+        return '' !== $url && str_contains( Unsubscribe::refreshLinks( $body, $token ), $url );
     }
 
     private function containsNormalized( string $haystack, string $needle ): bool {

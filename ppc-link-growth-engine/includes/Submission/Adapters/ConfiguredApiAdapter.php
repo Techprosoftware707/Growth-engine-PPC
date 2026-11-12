@@ -8,6 +8,9 @@
  * payload.destination and {{api_key}}), success_path (dot path that must be non-empty in the
  * JSON response), listing_url_path and optional confirmation_path (dot paths).
  *
+ * Package text that fails the claims filter is never sent, and a call is repeated automatically only
+ * when it provably never reached the partner (an ambiguous timeout or 5xx goes to a person instead).
+ *
  * @package PPC\LinkGrowth
  */
 
@@ -15,6 +18,8 @@ declare(strict_types=1);
 
 namespace PPC\LinkGrowth\Submission\Adapters;
 
+use PPC\LinkGrowth\Content\ClaimsFilter;
+use PPC\LinkGrowth\Submission\PackageBuilder;
 use PPC\LinkGrowth\Submission\Policy;
 use PPC\LinkGrowth\Support\Http\Client;
 use PPC\LinkGrowth\Support\Http\Response;
@@ -32,11 +37,15 @@ final class ConfiguredApiAdapter implements AdapterInterface {
     private const MAX_EXCERPT = 2000;
     private const TIMEOUT     = 20;
 
+    /** True once the request for the current submission has been handed to the HTTP client. */
+    private bool $dispatched = false;
+
     public function __construct(
         private Client $client,
         private Secrets $secrets,
         private Settings $settings,
-        private Logger $logger
+        private Logger $logger,
+        private ?ClaimsFilter $claims = null
     ) {}
 
     public function id(): string {
@@ -56,11 +65,15 @@ final class ConfiguredApiAdapter implements AdapterInterface {
     /** @inheritDoc */
     public function submit( array $submission, array $prospect, array $payload ): array {
         $sid = (int) ( $submission['id'] ?? 0 );
-        $pid = (int) ( $prospect['id'] ?? 0 );
+        $pid              = (int) ( $prospect['id'] ?? 0 );
+        $this->dispatched = false;
         try {
             return $this->run( $sid, $pid, $prospect, $payload );
         } catch ( Throwable $e ) {
             $this->logger->error( 'submission', 'Partner API adapter error', [ 'submission_id' => $sid, 'error' => $e->getMessage() ] );
+            if ( $this->dispatched ) {
+                return $this->manual( 'Adapter error after the API request was sent (' . $e->getMessage() . '); the outcome is unknown. Check with the partner before submitting again.', [ 'outcome_unknown' => true ], true );
+            }
             return $this->failed( 'Adapter error: ' . $e->getMessage(), false );
         }
     }
@@ -84,6 +97,13 @@ final class ConfiguredApiAdapter implements AdapterInterface {
         }
         if ( ! Policy::validEndpoint( $cfg['endpoint'] ) ) {
             return $this->manual( 'The partner API endpoint is not a valid public https:// URL.' );
+        }
+        if ( null !== $this->claims ) {
+            $flagged = PackageBuilder::claimsViolations( $this->claims, $payload );
+            if ( [] !== $flagged ) {
+                $fields = array_values( array_unique( array_map( static fn( array $v ): string => (string) $v['field'], $flagged ) ) );
+                return $this->manual( 'The package text fails the claims compliance check (' . implode( ', ', $fields ) . '); edit it before submitting.' );
+            }
         }
 
         $apiKey   = $pid > 0 ? $this->secrets->get( 'partner_api_' . $pid ) : '';
@@ -125,7 +145,8 @@ final class ConfiguredApiAdapter implements AdapterInterface {
             ];
         }
 
-        $resp = $this->client->api( $cfg['method'], $cfg['endpoint'], $headers, $body, self::TIMEOUT );
+        $this->dispatched = true;
+        $resp             = $this->client->api( $cfg['method'], $cfg['endpoint'], $headers, $body, self::TIMEOUT );
         $this->logger->info( 'submission', 'Partner API called', [ 'submission_id' => $sid, 'host' => Url::host( $cfg['endpoint'] ), 'http_status' => $resp->status ] );
 
         return $this->interpret( $resp, $cfg );
@@ -146,20 +167,35 @@ final class ConfiguredApiAdapter implements AdapterInterface {
             'at'            => gmdate( 'c' ),
         ];
 
+        // Repeat automatically only when the request provably never reached the partner.
         if ( null !== $resp->error ) {
-            return $this->failed( 'API request failed: ' . $resp->error, 'invalid_url' !== (string) $resp->errorCode, $response );
+            if ( Delivery::neverSent( $resp ) ) {
+                return $this->failed( 'API request failed before anything was sent: ' . $resp->error, 'invalid_url' !== (string) $resp->errorCode, $response, false );
+            }
+            $response['outcome_unknown'] = true;
+            return $this->manual( 'The API request failed after it was sent (' . $resp->error . '); the outcome is unknown. Check with the partner before submitting again.', $response, true );
         }
-        if ( $resp->status >= 500 || 429 === $resp->status ) {
-            return $this->failed( sprintf( 'The partner API returned HTTP %d.', $resp->status ), true, $response );
+        if ( 429 === $resp->status ) {
+            $wait = Delivery::retryAfter( $resp );
+            if ( null !== $wait ) {
+                $result                = $this->failed( 'The partner API is rate limiting requests (HTTP 429); retrying after the delay it asked for.', true, $response, true );
+                $result['retry_after'] = $wait;
+                return $result;
+            }
+            return $this->manual( 'The partner API is rate limiting requests (HTTP 429) without saying when to retry; submit it by hand later.', $response, true );
+        }
+        if ( $resp->status >= 500 ) {
+            $response['outcome_unknown'] = true;
+            return $this->manual( sprintf( 'The partner API returned HTTP %d after the request was sent; the outcome is unknown. Check with the partner before submitting again.', $resp->status ), $response, true );
         }
         if ( $resp->status >= 400 ) {
-            return $this->failed( sprintf( 'The partner API rejected the request (HTTP %d).', $resp->status ), false, $response );
+            return $this->failed( sprintf( 'The partner API rejected the request (HTTP %d).', $resp->status ), false, $response, true );
         }
 
         $json         = $resp->json();
         $successValue = '' !== $cfg['success_path'] ? self::dot( $json, $cfg['success_path'] ) : true;
         if ( empty( $successValue ) ) {
-            return $this->failed( sprintf( 'The API response did not contain a non-empty "%s" value.', $cfg['success_path'] ), false, $response );
+            return $this->failed( sprintf( 'The API response did not contain a non-empty "%s" value.', $cfg['success_path'] ), false, $response, true );
         }
         $response['success_value'] = is_scalar( $successValue ) ? $successValue : '[object]';
 
@@ -175,6 +211,7 @@ final class ConfiguredApiAdapter implements AdapterInterface {
             'listing_url'      => $listing,
             'error'            => '',
             'retryable'        => false,
+            'sent'             => true,
         ];
     }
 
@@ -288,7 +325,7 @@ final class ConfiguredApiAdapter implements AdapterInterface {
      * @param array<string,mixed> $response
      * @return array<string,mixed>
      */
-    private function manual( string $why, array $response = [] ): array {
+    private function manual( string $why, array $response = [], bool $sent = false ): array {
         return [
             'status'           => self::STATUS_NEEDS_MANUAL,
             'response'         => array_merge( [ 'adapter' => $this->id(), 'at' => gmdate( 'c' ) ], $response ),
@@ -296,6 +333,7 @@ final class ConfiguredApiAdapter implements AdapterInterface {
             'listing_url'      => '',
             'error'            => $why,
             'retryable'        => false,
+            'sent'             => $sent,
         ];
     }
 
@@ -303,7 +341,7 @@ final class ConfiguredApiAdapter implements AdapterInterface {
      * @param array<string,mixed> $response
      * @return array<string,mixed>
      */
-    private function failed( string $why, bool $retryable, array $response = [] ): array {
+    private function failed( string $why, bool $retryable, array $response = [], bool $sent = false ): array {
         return [
             'status'           => self::STATUS_FAILED,
             'response'         => array_merge( [ 'adapter' => $this->id(), 'at' => gmdate( 'c' ) ], $response ),
@@ -311,6 +349,7 @@ final class ConfiguredApiAdapter implements AdapterInterface {
             'listing_url'      => '',
             'error'            => $why,
             'retryable'        => $retryable,
+            'sent'             => $sent,
         ];
     }
 }
