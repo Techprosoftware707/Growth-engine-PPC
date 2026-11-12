@@ -24,7 +24,11 @@ final class Url {
         'github.io', 'netlify.app', 'vercel.app', 'wordpress.com', 'blogspot.com', 'wixsite.com', 'squarespace.com', 'weebly.com', 'tumblr.com', 'medium.com', 'substack.com',
     ];
 
-    private const TRACKING_PARAMS = [ 'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'fbclid', 'gclid', 'msclkid', 'mc_cid', 'mc_eid', 'ref', 'yclid' ];
+    /**
+     * Pure analytics/click-id parameters dropped by normalize(). "ref" is not listed: sites use it functionally
+     * (branch, referrer program, directory section), so removing it can fetch a different page.
+     */
+    private const TRACKING_PARAMS = [ 'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'fbclid', 'gclid', 'msclkid', 'mc_cid', 'mc_eid', 'yclid' ];
 
     public static function normalize( string $url ): string {
         $url = trim( $url );
@@ -52,20 +56,37 @@ final class Url {
         if ( '' === $path ) {
             $path = '/';
         }
-        $query = '';
-        if ( ! empty( $parts['query'] ) ) {
-            parse_str( $parts['query'], $params );
-            foreach ( self::TRACKING_PARAMS as $tp ) {
-                unset( $params[ $tp ] );
-            }
-            ksort( $params );
-            $query = http_build_query( $params, '', '&', PHP_QUERY_RFC3986 );
-        }
+        $query = isset( $parts['query'] ) ? self::normalizeQuery( (string) $parts['query'] ) : '';
         $out = $scheme . '://' . $host . ( $port ? ':' . $port : '' ) . $path;
         if ( '' !== $query ) {
             $out .= '?' . $query;
         }
         return $out;
+    }
+
+    /**
+     * Canonical query string: tracking parameters dropped, pairs sorted by key, each key and value
+     * re-encoded (RFC 3986). The pairs are split by hand rather than with parse_str(), which renames keys
+     * ("cat.id" becomes "cat_id"), adds "=" to bare keys, keeps only the last of repeated keys and re-indexes
+     * "tags[]", so the server would receive a different query.
+     */
+    private static function normalizeQuery( string $query ): string {
+        $pairs = [];
+        foreach ( explode( '&', $query ) as $piece ) {
+            if ( '' === $piece ) {
+                continue;
+            }
+            $eq  = strpos( $piece, '=' );
+            $key = false === $eq ? $piece : substr( $piece, 0, $eq );
+            if ( in_array( urldecode( $key ), self::TRACKING_PARAMS, true ) ) {
+                continue;
+            }
+            $key     = rawurlencode( urldecode( $key ) );
+            $pairs[] = [ $key, false === $eq ? $key : $key . '=' . rawurlencode( urldecode( substr( $piece, $eq + 1 ) ) ) ];
+        }
+        // usort() is stable (PHP 8), so repeated keys keep their order.
+        usort( $pairs, static fn( array $a, array $b ): int => strcmp( $a[0], $b[0] ) );
+        return implode( '&', array_column( $pairs, 1 ) );
     }
 
     public static function host( string $url ): string {
@@ -123,12 +144,20 @@ final class Url {
         if ( str_starts_with( $href, '?' ) ) {
             return self::normalize( $scheme . '://' . $host . $port . ( $b['path'] ?? '/' ) . $href );
         }
+        // The query (and fragment) of a relative reference is not part of its path.
+        $suffix = '';
+        $cut    = strcspn( $href, '?#' );
+        if ( $cut < strlen( $href ) ) {
+            $suffix = substr( $href, $cut );
+            $href   = substr( $href, 0, $cut );
+        }
         $path = $b['path'] ?? '/';
         $dir  = substr( $path, 0, (int) strrpos( $path, '/' ) + 1 );
         $full = $dir . $href;
         // Resolve ./ and ../ segments.
         $segments = [];
-        foreach ( explode( '/', $full ) as $seg ) {
+        $parts    = explode( '/', $full );
+        foreach ( $parts as $seg ) {
             if ( '.' === $seg || '' === $seg ) {
                 continue;
             }
@@ -138,7 +167,13 @@ final class Url {
             }
             $segments[] = $seg;
         }
-        return self::normalize( $scheme . '://' . $host . $port . '/' . implode( '/', $segments ) );
+        // RFC 3986 5.2.4: "submit/", "./" and ".." resolve to a directory, so the trailing slash stays.
+        $last     = (string) end( $parts );
+        $resolved = '/' . implode( '/', $segments );
+        if ( [] !== $segments && in_array( $last, [ '', '.', '..' ], true ) ) {
+            $resolved .= '/';
+        }
+        return self::normalize( $scheme . '://' . $host . $port . $resolved . $suffix );
     }
 
     public static function hash( string $url ): string {

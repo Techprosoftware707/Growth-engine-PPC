@@ -93,12 +93,13 @@ export default async function render( root, ctx ) {
         const auditList = listView( {
             fetch: ( p ) => api.get( '/audit', p ),
             defaultSort: { key: 'id', dir: 'desc' },
-            initial: { filters: { action: params.action || '', object_type: params.object_type || '', q: params.q || '' } },
+            // Outreach messages are audited as 'outreach_message'; an old #object_type=message link maps onto it.
+            initial: { filters: { action: params.action || '', object_type: params.object_type === 'message' ? 'outreach_message' : ( params.object_type || '' ), q: params.q || '' } },
             rowKey: ( r ) => r.id,
             empty: { title: 'No audit entries', message: 'Every approval, status change, submission and send is recorded here.', iconName: 'shield' },
             filters: [
                 { name: 'action', label: 'Action', type: 'text', placeholder: 'e.g. prospect.evaluated', width: '200px' },
-                { name: 'object_type', label: 'Object type', type: 'select', options: { prospect: 'Prospect', opportunity: 'Opportunity', submission: 'Submission', campaign: 'Campaign', message: 'Message', contact: 'Contact', backlink: 'Backlink', settings: 'Settings', job: 'Job', suppression: 'Suppression' }, allLabel: 'All objects' },
+                { name: 'object_type', label: 'Object type', type: 'select', options: { prospect: 'Prospect', opportunity: 'Opportunity', submission: 'Submission', campaign: 'Campaign', outreach_message: 'Outreach message', contact: 'Contact', backlink: 'Backlink', settings: 'Settings', job: 'Job', suppression: 'Suppression' }, allLabel: 'All objects' },
                 { name: 'q', label: 'Search', type: 'search', placeholder: 'Details…' },
             ],
             expandable: ( r ) => el( 'div', {}, el( 'div', { class: 'ppclg-field-label', style: { marginBottom: '6px' } }, 'Details' ), contextBlock( r.details ) ),

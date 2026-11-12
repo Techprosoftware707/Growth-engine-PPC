@@ -9,6 +9,7 @@ import {
     labelize, truncate, pageHeader, scoreRing, scoreClass, kindFor, drawer, tabs, dataTable, formField, formModal, confirm, prompt, toast, extLink,
     listView, progressBar, switchRow, details, card, linkButton, copyButton, isObject,
 } from '../ui.js';
+import { reportRun } from './outcome.js';
 
 const STATUSES = [ 'discovered', 'evaluating', 'qualified', 'approved', 'in_progress', 'acquired', 'rejected', 'on_hold', 'suppressed' ];
 const CLASSES = { exceptional: 'Exceptional (90+)', high: 'High (80–89)', good: 'Good (70–79)', moderate: 'Moderate (50–69)', reject: 'Reject (< 50)' };
@@ -79,6 +80,37 @@ function authorityCell( prospect ) {
     const scores = obj( m.authority_scores );
     const sub = Object.keys( scores ).map( ( p ) => `${ labels[ p ] || labelize( p ) } ${ fmtNumber( scores[ p ] ) }` ).join( ' · ' );
     return el( 'span', {}, el( 'strong', {}, fmtNumber( m.authority ) ), sub ? el( 'span', { class: 'ppclg-cell-sub' }, sub ) : null );
+}
+
+const SUBMISSION_MODES = { auto: 'Auto', authorized_only: 'Authorized only', manual: 'Manual' };
+
+/**
+ * Effective automated-submission status of one prospect under the configured submission mode, mirroring
+ * Policy::evaluate()'s authorisation step (the structural gates — form, CAPTCHA, login, robots.txt — still apply).
+ */
+export function submissionModeNotice( p, automation, hasApi = false ) {
+    const a = isObject( automation ) ? automation : {};
+    const mode = Object.prototype.hasOwnProperty.call( SUBMISSION_MODES, a.submission_mode ) ? a.submission_mode : 'auto';
+    const modeLabel = `Submission mode: ${ SUBMISSION_MODES[ mode ] }`;
+    const min = Number.isFinite( Number( a.min_score_auto_queue ) ) && a.min_score_auto_queue !== null && a.min_score_auto_queue !== '' ? Number( a.min_score_auto_queue ) : 70;
+    const score = p.score === null || p.score === undefined || p.score === '' || ! Number.isFinite( Number( p.score ) ) ? null : Number( p.score );
+    const allowed = Number( p.automation_allowed ) === 1;
+    if ( a.submissions !== true ) {
+        return callout( 'info', modeLabel, 'The global “Automated submissions” stage is off, so nothing is submitted to this site without you.' );
+    }
+    if ( [ 'on_hold', 'rejected', 'suppressed' ].includes( p.status ) ) {
+        return callout( 'info', modeLabel, `This site is ${ labelize( p.status ).toLowerCase() }, so every automated stage skips it.` );
+    }
+    if ( allowed || hasApi ) {
+        return callout( 'warning', modeLabel, `This site is authorised for automated submission (${ allowed ? 'the switch below is on' : 'a partner API is configured' }).` );
+    }
+    if ( mode === 'auto' ) {
+        if ( score !== null && score >= min ) {
+            return callout( 'warning', modeLabel, `This site scores ${ score }, at or above the auto-queue threshold (${ min }), so the engine may submit to it automatically even though the switch below is off. To keep it manual, put it on hold or reject it, or change the mode to “Authorized only” under Settings → Automation.` );
+        }
+        return callout( 'info', modeLabel, `Sites scoring ${ min } or more are submitted automatically even when the switch below is off. This site (${ score === null ? 'not scored yet' : `score ${ score }` }) does not qualify at the moment; it will once it reaches ${ min }.` );
+    }
+    return callout( 'info', modeLabel, 'Only sites with the switch below turned on (or a partner API) are submitted automatically, so packages for this site wait for your approval.' );
 }
 
 export default async function render( root, ctx ) {
@@ -429,7 +461,7 @@ export default async function render( root, ctx ) {
             refresh();
         } } );
         return el( 'div', { class: 'ppclg-stack' },
-            el( 'div', { class: 'ppclg-row ppclg-row--between' }, el( 'p', { style: { margin: 0 } }, 'Listing packages built for this site. Packages wait for your approval unless the site is explicitly allowed for automation.' ), packageBtn ),
+            el( 'div', { class: 'ppclg-row ppclg-row--between' }, el( 'p', { style: { margin: 0 } }, 'Listing packages built for this site. A package is submitted without your review only while “Automated submissions” is on and the site qualifies under the submission mode (see the Actions tab); in “auto” mode a site scoring at or above the auto-queue threshold qualifies even when it is not marked “automation allowed”. Everything else waits for your approval.' ), packageBtn ),
             dataTable( {
                 dense: true,
                 rows: submissions,
@@ -494,11 +526,8 @@ export default async function render( root, ctx ) {
                 el( 'p', {}, 'Fetches the site again, re-profiles it, refreshes provider metrics (within daily limits) and recomputes the score. Takes up to 25 seconds.' ),
                 button( 'Evaluate now', { kind: 'primary', iconName: 'refresh', onClick: async () => {
                     const res = await api.post( `/prospects/${ p.id }/evaluate`, {} );
-                    if ( res && res.job_id && ( ! res.result || obj( res.result ).queued ) ) {
-                        toast( `Evaluation queued as job #${ res.job_id } (runner busy).`, 'info' );
-                    } else {
-                        toast( 'Evaluation finished.', 'success' );
-                    }
+                    // Skipped (daily limit, suppressed), failed and already-queued runs are reported as such, not as "finished".
+                    reportRun( res, 'Evaluation' );
                     await refresh();
                 } } ),
             ],
@@ -534,7 +563,7 @@ export default async function render( root, ctx ) {
         const cfg = obj( obj( p.submission_config ).api );
         const allowSwitch = switchRow( {
             label: 'Allow automated form submission on this site',
-            description: 'When this is on AND the global “Automated submissions” stage is enabled, the engine may POST the generated listing to this site’s submission form without a manual review. Only enable it for directories whose terms permit automated listings and that have no CAPTCHA or login. Everything else always waits for your approval.',
+            description: 'Authorises this site for automated submission in every submission mode while the global “Automated submissions” stage is on: the engine may then POST the generated listing to the site’s form without a manual review. Only enable it for directories whose terms permit automated listings. Turning it off is not an opt-out in “auto” mode, where any site scoring at or above the auto-queue threshold qualifies by itself; to keep the engine away from this site, put it on hold or reject it.',
             checked: Number( p.automation_allowed ) === 1,
             badgeNode: Number( p.automation_allowed ) === 1 ? badge( 'On', 'warning' ) : null,
             onChange: async ( next ) => {
@@ -543,10 +572,27 @@ export default async function render( root, ctx ) {
                 }
                 await api.post( `/prospects/${ p.id }/automation`, { automation_allowed: next } );
                 toast( next ? 'Automation allowed for this site.' : 'Automation disabled for this site.', 'success' );
+                p.automation_allowed = next ? 1 : 0;
+                drawMode();
                 list.reload();
                 return true;
             },
         } );
+        // What the switch actually means under the current submission mode (Policy::evaluate): in "auto"
+        // mode a high enough score authorises the site whatever automation_allowed says.
+        const modeHost = el( 'div' );
+        let automationCfg = null;
+        const drawMode = () => {
+            if ( automationCfg ) {
+                replace( modeHost, submissionModeNotice( p, automationCfg, Boolean( cfg.endpoint ) ) );
+            }
+        };
+        api.get( '/settings', {}, { silent: true } )
+            .then( ( d ) => {
+                automationCfg = obj( obj( obj( d ).settings ).automation );
+                drawMode();
+            } )
+            .catch( () => replace( modeHost ) );
         const apiFields = [
             formField( { type: 'url', name: 'endpoint', label: 'API endpoint', value: cfg.endpoint || '', placeholder: 'https://partner.example/api/listings', full: true } ),
             formField( { type: 'select', name: 'method', label: 'Method', options: [ 'POST', 'PUT', 'PATCH' ], value: ( cfg.method || 'POST' ).toUpperCase() } ),
@@ -561,6 +607,7 @@ export default async function render( root, ctx ) {
             title: 'Automation & partner API',
             body: [
                 callout( 'warning', 'Compliance gate', 'Nothing is submitted while the global “Automated submissions” switch is off. CAPTCHA, login walls and robots.txt disallow rules always stop automation regardless of this setting.' ),
+                modeHost,
                 allowSwitch,
                 details( 'Configured API (optional, for partners that offer a listing API)', el( 'div', { class: 'ppclg-stack' },
                     el( 'div', { class: 'ppclg-form-grid' }, apiFields.map( ( f ) => f.el ) ),

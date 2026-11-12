@@ -16,13 +16,19 @@ final class RobotsTxt {
 
     public const BOT_TOKEN = 'ppclinkgrowthbot';
 
-    /** @var array<string,array{status:int,rules:array<string,array<int,array{allow:bool,path:string}>>,delay:?float}> */
+    /**
+     * Statuses that mean "robots.txt is temporarily unavailable": 5xx, 429 Too Many Requests and 408 Request
+     * Timeout. Like Google, the crawler then treats the whole host as disallowed until it can re-read robots.txt.
+     */
+    private const RETRY_STATUSES = [ 408, 429 ];
+
+    /** @var array<string,array{status:int,rules:array<string,array<int,array{allow:bool,path:string}>>,delay:?float,error?:?string}> */
     private array $memory = [];
 
     public function __construct( private Logger $logger ) {}
 
     /**
-     * Whether our bot may fetch $url. 5xx robots responses are treated as "disallow for now".
+     * Whether our bot may fetch $url. Unavailable robots.txt (network error, 5xx, 429, 408) means "disallow for now".
      */
     public function isAllowed( string $url, callable $fetcher ): bool {
         $host = Url::host( $url );
@@ -30,7 +36,7 @@ final class RobotsTxt {
             return false;
         }
         $data = $this->load( $url, $fetcher );
-        if ( $data['status'] >= 500 ) {
+        if ( self::unavailable( $data['status'] ) ) {
             return false;
         }
         if ( 200 !== $data['status'] ) {
@@ -48,6 +54,20 @@ final class RobotsTxt {
     public function crawlDelay( string $url, callable $fetcher ): ?float {
         $data = $this->load( $url, $fetcher );
         return $data['delay'];
+    }
+
+    /**
+     * The transport error (DNS failure, connection refused, timeout...) that stopped robots.txt for $url's host
+     * from being fetched, or null when the server answered (whatever the status).
+     */
+    public function fetchError( string $url, callable $fetcher ): ?string {
+        $data  = $this->load( $url, $fetcher );
+        $error = $data['error'] ?? null;
+        return is_string( $error ) && '' !== $error ? $error : null;
+    }
+
+    private static function unavailable( int $status ): bool {
+        return $status >= 500 || in_array( $status, self::RETRY_STATUSES, true );
     }
 
     /**
@@ -89,7 +109,7 @@ final class RobotsTxt {
     }
 
     /**
-     * @return array{status:int,rules:array<string,array<int,array{allow:bool,path:string}>>,delay:?float}
+     * @return array{status:int,rules:array<string,array<int,array{allow:bool,path:string}>>,delay:?float,error?:?string}
      */
     private function load( string $url, callable $fetcher ): array {
         $host   = Url::host( $url );
@@ -106,18 +126,36 @@ final class RobotsTxt {
         }
         /** @var Response $resp */
         $resp = $fetcher( $key . '/robots.txt' );
-        $data = [ 'status' => $resp->status, 'rules' => [], 'delay' => null ];
+        $data = [ 'status' => $resp->status, 'rules' => [], 'delay' => null, 'error' => null ];
         if ( $resp->error ) {
             $data['status'] = 503;
+            $data['error']  = (string) $resp->error;
         } elseif ( 200 === $resp->status && $resp->body !== '' ) {
             $parsed        = self::parse( $resp->body );
             $data['rules'] = $parsed['rules'];
             $data['delay'] = $parsed['delay'];
         }
-        $ttl = $data['status'] >= 500 ? HOUR_IN_SECONDS : DAY_IN_SECONDS;
+        $ttl = DAY_IN_SECONDS;
+        if ( self::unavailable( $data['status'] ) ) {
+            // Re-check within the hour, but never before the host's Retry-After (capped at a day).
+            $ttl = (int) min( DAY_IN_SECONDS, max( HOUR_IN_SECONDS, self::retryAfter( $resp ) ) );
+        }
         set_transient( $tkey, $data, $ttl );
         $this->memory[ $key ] = $data;
         return $data;
+    }
+
+    /** Seconds from a Retry-After header (delta-seconds or HTTP-date); 0 when absent or unparseable. */
+    private static function retryAfter( Response $resp ): int {
+        $value = trim( $resp->header( 'retry-after' ) );
+        if ( '' === $value ) {
+            return 0;
+        }
+        if ( ctype_digit( $value ) ) {
+            return (int) min( (float) $value, (float) YEAR_IN_SECONDS );
+        }
+        $at = strtotime( $value );
+        return false === $at ? 0 : max( 0, $at - time() );
     }
 
     /**

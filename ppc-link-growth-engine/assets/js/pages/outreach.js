@@ -8,6 +8,7 @@ import {
     el, replace, badge, statusBadge, button, callout, kv, loading, errorState, emptyState, timeEl, fmtNumber, fmtDate, labelize, truncate,
     pageHeader, drawer, tabs, dataTable, formField, formModal, modal, confirm, prompt, toast, extLink, listView, normalizeList, card, linkButton, isObject, icon, debounce, switchRow,
 } from '../ui.js';
+import { reportAction } from './outcome.js';
 
 const MESSAGE_STATUSES = [ 'draft', 'approved', 'scheduled', 'sent', 'failed', 'replied', 'bounced', 'opted_out', 'closed', 'rejected' ];
 const CONTACT_STATUSES = [ 'active', 'opted_out', 'bounced', 'suppressed', 'invalid' ];
@@ -104,7 +105,7 @@ export default async function render( root, ctx ) {
     replace( root,
         pageHeader( {
             title: 'Outreach',
-            description: 'Personalised, CASL/CAN-SPAM-compliant email outreach. Every message is reviewed and approved before it is sent; recipients can opt out with one click.',
+            description: 'Personalised, CASL/CAN-SPAM-compliant email outreach. Messages are sent only after approval: by you, or automatically when “Outreach autosend” is on (Automation), which approves auto-drafted first emails to qualified prospects and auto-approve follow-ups without review. Recipients can opt out with one click.',
             actions: button( 'New campaign', { kind: 'primary', iconName: 'plus', onClick: () => createCampaign() } ),
         } ),
         bannerHost,
@@ -127,6 +128,7 @@ export default async function render( root, ctx ) {
             replace( bannerHost,
                 sender && sender.ok === false ? callout( 'danger', 'Sender identity incomplete — sending is blocked', `Missing: ${ missing.join( ', ' ) }. Anti-spam law requires the sender name, a working address and a postal address in every message.`, { actions: linkButton( 'Complete sender settings', settingsUrl, { small: true, kind: 'primary' } ) } ) : null,
                 warnings.length ? callout( 'info', 'Sender identity notes', el( 'ul', {}, warnings.map( ( w ) => el( 'li', {}, String( w ) ) ) ) ) : null,
+                sender && sender.autosend === true ? callout( 'warning', 'Outreach autosend is on', 'Auto-drafted first emails to qualified prospects and follow-ups in auto-approve campaigns are approved and sent in your name without individual review (inside the send window and limits). Switch it off on the Automation page to review every message.', { actions: linkButton( 'Open automation', ctx.pageUrl( 'automation' ), { small: true } ) } ) : null,
             );
         } catch ( e ) {
             replace( bannerHost );
@@ -235,8 +237,17 @@ export default async function render( root, ctx ) {
             if ( confirmText && ! ( await confirm( confirmText, { confirmText: labelize( action ) } ) ) ) {
                 return;
             }
-            await api.post( `/outreach/campaigns/${ c.id }/${ action }`, {} );
-            toast( `Campaign ${ action === 'submit' ? 'submitted for approval' : action + 'd' }.`, 'success' );
+            let res;
+            try {
+                res = await api.post( `/outreach/campaigns/${ c.id }/${ action }`, {} );
+            } catch ( e ) {
+                // A refused action (409, e.g. incomplete sender identity) was already shown as an error toast.
+                res = false;
+            }
+            if ( res !== false ) {
+                // An older server answers a refusal with HTTP 200 and ok: false; never report it as done.
+                reportAction( res, `Campaign ${ action === 'submit' ? 'submitted for approval' : action + 'd' }.`, { refusedText: 'The campaign action was refused.' } );
+            }
             await campaigns( true );
             view.refresh( 'campaigns' );
         };

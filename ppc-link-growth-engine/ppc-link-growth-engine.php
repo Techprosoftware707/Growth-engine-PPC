@@ -28,7 +28,7 @@ if ( defined( 'PPCLG_VERSION' ) ) {
 }
 
 define( 'PPCLG_VERSION', '1.0.0' );
-define( 'PPCLG_DB_VERSION', '1.0.0' );
+define( 'PPCLG_DB_VERSION', '1.0.1' ); // 1.0.1: suppression.type widened to varchar(20) for 'email_domain'.
 define( 'PPCLG_FILE', __FILE__ );
 define( 'PPCLG_DIR', plugin_dir_path( __FILE__ ) );
 define( 'PPCLG_URL', plugin_dir_url( __FILE__ ) );

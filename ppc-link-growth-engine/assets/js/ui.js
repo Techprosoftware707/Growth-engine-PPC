@@ -550,7 +550,8 @@ export function button( label, { kind = 'secondary', onClick, iconName, small = 
     }, iconName ? icon( iconName, small ? 13 : 15 ) : null, label );
     if ( onClick ) {
         btn.addEventListener( 'click', async ( event ) => {
-            if ( btn.disabled ) {
+            if ( btn.disabled || isBusy( btn ) ) {
+                event.preventDefault();
                 return;
             }
             const result = onClick( event, btn );
@@ -575,13 +576,47 @@ export function iconButton( iconName, label, { onClick, small = false, attrs = {
     return btn;
 }
 
+/**
+ * Marks a button busy while its async action runs. Busy is expressed with aria-disabled plus a click
+ * guard, not the `disabled` property: a disabled button cannot take focus back when a confirm()/prompt()
+ * it opened closes (focus would drop to <body>, outside an open drawer), and setting `disabled` here
+ * would overwrite a disabled state the action itself chose (Settings' Save after a successful save).
+ */
 export function setBusy( btn, busy ) {
     if ( ! btn ) {
         return;
     }
-    btn.classList.toggle( 'ppclg-btn--busy', Boolean( busy ) );
-    btn.setAttribute( 'aria-busy', busy ? 'true' : 'false' );
-    btn.disabled = Boolean( busy );
+    const on = Boolean( busy );
+    btn.classList.toggle( 'ppclg-btn--busy', on );
+    btn.setAttribute( 'aria-busy', on ? 'true' : 'false' );
+    if ( on ) {
+        if ( ! isBusy( btn ) ) {
+            btn.dataset.ppclgBusy = btn.hasAttribute( 'aria-disabled' ) ? String( btn.getAttribute( 'aria-disabled' ) ) : '';
+        }
+        btn.setAttribute( 'aria-disabled', 'true' );
+        // Capture-phase guard so clicks (mouse, Enter/Space) on a busy element never reach its handlers.
+        btn.addEventListener( 'click', busyClickGuard, true );
+    } else if ( isBusy( btn ) ) {
+        const previous = btn.dataset.ppclgBusy;
+        delete btn.dataset.ppclgBusy;
+        if ( previous === '' ) {
+            btn.removeAttribute( 'aria-disabled' );
+        } else {
+            btn.setAttribute( 'aria-disabled', previous );
+        }
+    }
+}
+
+/** True while setBusy( btn, true ) is in effect. */
+export function isBusy( btn ) {
+    return Boolean( btn && btn.dataset && btn.dataset.ppclgBusy !== undefined );
+}
+
+function busyClickGuard( event ) {
+    if ( isBusy( event.currentTarget ) ) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+    }
 }
 
 export function linkButton( label, href, { kind = 'secondary', iconName, small = false, external = false } = {} ) {
@@ -915,6 +950,43 @@ function focusable( container ) {
         .filter( ( n ) => n.offsetParent !== null || n === document.activeElement );
 }
 
+/** Moves focus back to `node` after an overlay closes, or into the overlay that is now on top. */
+function restoreFocus( node ) {
+    if ( node && typeof node.focus === 'function' && node.isConnected ) {
+        node.focus();
+    }
+    const top = overlayStack[ overlayStack.length - 1 ];
+    if ( top && ! top.panel.contains( document.activeElement ) ) {
+        // The opener is gone or cannot take focus: keep focus inside the aria-modal overlay still open.
+        top.panel.focus();
+    }
+}
+
+/** Sets `hidden` and mirrors it inline: author rules such as .ppclg-count{display:inline-flex} beat the UA [hidden] rule. */
+function setHidden( node, hidden ) {
+    node.hidden = Boolean( hidden );
+    node.style.display = hidden ? 'none' : '';
+}
+
+/** True when an actions value (node, array of nodes/nulls) has something to show. */
+function hasContent( value ) {
+    if ( Array.isArray( value ) ) {
+        return value.some( ( v ) => hasContent( v ) );
+    }
+    return value !== null && value !== undefined && value !== false && value !== '';
+}
+
+/** Closes every open drawer/modal (topmost first), e.g. before the page re-renders for a new URL fragment. */
+export function closeOverlays() {
+    for ( const entry of overlayStack.slice().reverse() ) {
+        try {
+            entry.close();
+        } catch ( e ) {
+            // Keep closing the others.
+        }
+    }
+}
+
 function pushOverlay( entry ) {
     overlayStack.push( entry );
     if ( overlayStack.length === 1 ) {
@@ -958,10 +1030,12 @@ function overlayKeydown( event ) {
         }
         const first = nodes[ 0 ];
         const last = nodes[ nodes.length - 1 ];
-        if ( event.shiftKey && ( document.activeElement === first || ! top.panel.contains( document.activeElement ) ) ) {
+        const inside = top.panel.contains( document.activeElement );
+        if ( event.shiftKey && ( document.activeElement === first || ! inside ) ) {
             event.preventDefault();
             last.focus();
-        } else if ( ! event.shiftKey && document.activeElement === last ) {
+        } else if ( ! event.shiftKey && ( document.activeElement === last || ! inside ) ) {
+            // Plain Tab from outside the panel (focus fell to <body>) goes back in, not to the page behind.
             event.preventDefault();
             first.focus();
         }
@@ -979,7 +1053,8 @@ export function drawer( title, content, { subtitle = null, width = '', onClose =
     const titleEl = el( 'h2', { class: 'ppclg-drawer-title', id: titleId }, title );
     const subEl = el( 'div', { class: 'ppclg-drawer-sub' }, subtitle );
     const body = el( 'div', { class: 'ppclg-drawer-body' }, content );
-    const foot = el( 'div', { class: 'ppclg-drawer-foot', hidden: ! actions }, actions );
+    const foot = el( 'div', { class: 'ppclg-drawer-foot' }, actions );
+    setHidden( foot, ! hasContent( actions ) );
     const panel = el( 'div', { class: [ 'ppclg-drawer', width ? `ppclg-drawer--${ width }` : '' ], role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': titleId, tabindex: '-1' },
         el( 'div', { class: 'ppclg-drawer-head' },
             el( 'div', { class: 'ppclg-grow' }, titleEl, subEl ),
@@ -1009,9 +1084,7 @@ export function drawer( title, content, { subtitle = null, width = '', onClose =
                 // Ignore listener failures on close.
             }
         }
-        if ( previouslyFocused && typeof previouslyFocused.focus === 'function' && previouslyFocused.isConnected ) {
-            previouslyFocused.focus();
-        }
+        restoreFocus( previouslyFocused );
     }
 
     overlayHost().appendChild( root );
@@ -1034,7 +1107,7 @@ export function drawer( title, content, { subtitle = null, width = '', onClose =
         },
         setActions: ( a ) => {
             replace( foot, a );
-            foot.hidden = ! a || ( Array.isArray( a ) && a.filter( Boolean ).length === 0 );
+            setHidden( foot, ! hasContent( a ) );
         },
     };
 }
@@ -1076,9 +1149,7 @@ export function modal( { title, content, actions = [], width = '', onClose = nul
                 // Ignore listener failures on close.
             }
         }
-        if ( previouslyFocused && typeof previouslyFocused.focus === 'function' && previouslyFocused.isConnected ) {
-            previouslyFocused.focus();
-        }
+        restoreFocus( previouslyFocused );
     }
 
     const setActions = ( list ) => {
@@ -1088,7 +1159,7 @@ export function modal( { title, content, actions = [], width = '', onClose = nul
             attrs: a.autofocus ? { 'data-autofocus': '1' } : {},
             onClick: () => a.onClick ? a.onClick( close, panel ) : close(),
         } ) ) );
-        foot.hidden = ! list || list.length === 0;
+        setHidden( foot, ! list || list.length === 0 );
     };
     setActions( actions );
 
@@ -1734,7 +1805,7 @@ export function tabs( { items = [], active = null, onChange = null, pills = fals
         setCount: ( id, n ) => {
             if ( counts[ id ] ) {
                 counts[ id ].textContent = n === null || n === undefined ? '' : fmtNumber( n );
-                counts[ id ].hidden = n === null || n === undefined;
+                setHidden( counts[ id ], n === null || n === undefined );
             }
         },
         refresh: ( id ) => {
@@ -1792,7 +1863,8 @@ export function tabs( { items = [], active = null, onChange = null, pills = fals
     items.forEach( ( item ) => {
         const tabId = `${ listId }-tab-${ item.id }`;
         const panelId = `${ listId }-panel-${ item.id }`;
-        const count = el( 'span', { class: 'ppclg-count', hidden: item.count === undefined || item.count === null }, item.count === undefined || item.count === null ? '' : fmtNumber( item.count ) );
+        const count = el( 'span', { class: 'ppclg-count' }, item.count === undefined || item.count === null ? '' : fmtNumber( item.count ) );
+        setHidden( count, item.count === undefined || item.count === null );
         counts[ item.id ] = count;
         const btn = el( 'button', { type: 'button', class: 'ppclg-tab', role: 'tab', id: tabId, 'aria-selected': 'false', 'aria-controls': panelId, tabindex: '-1' }, item.iconName ? icon( item.iconName, 14 ) : null, item.label, count );
         btn.addEventListener( 'click', () => select( item.id, false ) );
@@ -1857,8 +1929,11 @@ export function normalizeList( data ) {
  * @param {{fetch: Function, columns: Array, filters?: Array|null, initial?: object, onRowClick?: Function, sortable?: boolean, defaultSort?: {key: string, dir: string},
  *          perPage?: number, rowKey?: Function, rowAttrs?: Function, empty?: any, toolbar?: any, expandable?: Function, onLoaded?: Function, dense?: boolean}} spec
  * fetch(params, state) must resolve with a list payload. Returns { el, reload, state, items, total, setFilters, filterBar }.
+ * Only columns marked `sortable: true` get a sort button (unless `sortable: true` is passed for the whole
+ * table): the REST endpoints sort by a per-table whitelist and silently fall back to id for anything else.
+ * When the payload echoes the effective `orderby`/`order`, the header shows that instead of the request.
  */
-export function listView( { fetch, columns, filters = null, initial = {}, onRowClick = null, sortable = true, defaultSort = { key: 'id', dir: 'desc' }, perPage = 25, rowKey = null, rowAttrs = null, empty = null, toolbar = null, expandable = null, onLoaded = null, dense = false } ) {
+export function listView( { fetch, columns, filters = null, initial = {}, onRowClick = null, sortable = false, defaultSort = { key: 'id', dir: 'desc' }, perPage = 25, rowKey = null, rowAttrs = null, empty = null, toolbar = null, expandable = null, onLoaded = null, dense = false } ) {
     const state = {
         filters: { ...( initial.filters || {} ) },
         page: Number( initial.page ) || 1,
@@ -1933,7 +2008,11 @@ export function listView( { fetch, columns, filters = null, initial = {}, onRowC
         } ) : null );
     }
 
-    async function reload() {
+    function reload() {
+        return load( true );
+    }
+
+    async function load( mayClampPage ) {
         requestId += 1;
         const id = requestId;
         renderTable( true );
@@ -1944,11 +2023,23 @@ export function listView( { fetch, columns, filters = null, initial = {}, onRowC
                 return;
             }
             const list = normalizeList( result );
+            if ( mayClampPage && list.items.length === 0 && list.total > 0 && state.page > list.pages ) {
+                // Rows left the result set (approved, deleted, filtered) and the page we were on no longer
+                // exists: show the last page that does instead of "No records found" for 26–25 of 25.
+                state.page = Math.max( 1, list.pages );
+                return load( false );
+            }
             items = list.items;
             total = list.total;
             pages = list.pages;
             if ( list.page > 0 ) {
                 state.page = list.page;
+            }
+            if ( result && ! Array.isArray( result ) && typeof result === 'object' && typeof result.orderby === 'string' && result.orderby !== '' ) {
+                state.orderby = result.orderby;
+                if ( typeof result.order === 'string' && result.order !== '' ) {
+                    state.order = result.order.toLowerCase() === 'asc' ? 'asc' : 'desc';
+                }
             }
             renderTable( false );
             renderPager();
@@ -1959,7 +2050,7 @@ export function listView( { fetch, columns, filters = null, initial = {}, onRowC
             if ( id !== requestId ) {
                 return;
             }
-            replace( tableHost, errorState( { title: 'Could not load data', message: e && e.message ? e.message : '', retry: reload } ) );
+            replace( tableHost, errorState( { title: 'Could not load data', message: e && e.message ? e.message : '', retry: () => reload() } ) );
             replace( pagerHost );
         }
     }
@@ -1990,7 +2081,7 @@ export default {
     el, svg, append, replace, clear, text, fragment, escapeHtml, icon, nextId, setLocale, normalizeList, listView,
     fmtNumber, fmtCompact, fmtPercent, fmtBytes, fmtDate, fmtDuration, parseDate, timeAgo, timeEl, labelize, truncate, debounce, sleep,
     isObject, deepClone, deepEqual, getPath, setPath, STATUS_KIND, kindFor, scoreClass,
-    badge, statusBadge, button, iconButton, setBusy, linkButton, extLink, copyButton, spinner, loading, skeletonRows, emptyState, errorState, callout,
+    badge, statusBadge, button, iconButton, setBusy, isBusy, linkButton, extLink, copyButton, spinner, loading, skeletonRows, emptyState, errorState, callout,
     card, cardBody, pageHeader, kv, pre, details, progressBar, meter, scoreRing, statTile, chipList, checklist,
-    toast, overlayHost, drawer, modal, confirm, prompt, formModal, formField, collect, switchRow, filterBar, dataTable, pagination, tabs,
+    toast, overlayHost, closeOverlays, drawer, modal, confirm, prompt, formModal, formField, collect, switchRow, filterBar, dataTable, pagination, tabs,
 };

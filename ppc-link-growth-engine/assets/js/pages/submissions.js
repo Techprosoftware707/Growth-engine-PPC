@@ -9,6 +9,7 @@ import {
     el, replace, badge, statusBadge, button, callout, kv, pre, loading, errorState, emptyState, timeEl, fmtNumber, fmtDate, labelize, truncate,
     pageHeader, drawer, tabs, dataTable, formField, formModal, confirm, prompt, toast, extLink, listView, normalizeList, card, checklist, copyButton, isObject, icon, linkButton,
 } from '../ui.js';
+import { reportAction } from './outcome.js';
 
 const TABS = [
     { id: 'all', label: 'All', status: '' },
@@ -278,15 +279,14 @@ export default async function render( root, ctx ) {
                     if ( reason === null ) {
                         return;
                     }
-                    await api.post( `/submissions/${ s.id }/reject`, { reason } );
-                    toast( 'Submission rejected.', 'success' );
+                    reportAction( await api.post( `/submissions/${ s.id }/reject`, { reason } ), 'Submission rejected.' );
                     await refresh();
                 } } ) );
             }
             if ( [ 'failed', 'rejected' ].includes( s.status ) ) {
                 actions.push( button( 'Retry', { iconName: 'refresh', onClick: async () => {
-                    await api.post( `/submissions/${ s.id }/retry`, {} );
-                    toast( 'Submission re-queued for review.', 'success' );
+                    // A refused retry (policy no longer allows it) answers ok: false with the reason.
+                    reportAction( await api.post( `/submissions/${ s.id }/retry`, {} ), 'Submission re-queued for review.' );
                     await refresh();
                 } } ) );
             }
@@ -295,8 +295,8 @@ export default async function render( root, ctx ) {
                     if ( ! ( await confirm( 'Rebuild the package from the current site profile and settings? Your edits to the generated content will be replaced.', { confirmText: 'Rebuild' } ) ) ) {
                         return;
                     }
-                    await api.post( `/submissions/${ s.id }/rebuild`, {} );
-                    toast( 'Package rebuilt.', 'success' );
+                    // rebuildPackage() returns false when the crawl fails or the submission is locked: ok false + message.
+                    reportAction( await api.post( `/submissions/${ s.id }/rebuild`, {} ), 'Package rebuilt.' );
                     await refresh();
                 } } ) );
             }
@@ -311,10 +311,9 @@ export default async function render( root, ctx ) {
                         { type: 'textarea', name: 'note', label: 'Note', rows: 3 },
                     ],
                     onSubmit: async ( values ) => {
-                        await api.post( `/submissions/${ s.id }/mark-submitted`, values );
-                        toast( 'Marked as submitted. Verification is scheduled.', 'success' );
+                        const accepted = reportAction( await api.post( `/submissions/${ s.id }/mark-submitted`, values ), 'Marked as submitted. Verification is scheduled.' );
                         await refresh();
-                        return true;
+                        return accepted;
                     },
                 } ) } ) );
             }

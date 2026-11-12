@@ -9,6 +9,7 @@ import {
     pageHeader, drawer, dataTable, formModal, confirm, toast, extLink, listView, card, statTile, isObject, copyButton,
 } from '../ui.js';
 import { barChart, lineChart, segmentedBar } from '../charts.js';
+import { reportRun } from './outcome.js';
 
 const STATUSES = [ 'pending', 'active', 'lost', 'broken', 'redirected', 'unverified' ];
 const RELS = [ 'dofollow', 'nofollow', 'sponsored', 'ugc' ];
@@ -68,15 +69,16 @@ export default async function render( root, ctx ) {
                     return;
                 }
                 const res = await api.post( '/backlinks/import', {} );
-                const r = obj( res && res.result ? res.result : res );
-                if ( res && res.job_id && ( ! res.result || obj( res.result ).queued ) ) {
-                    toast( `Import queued as job #${ res.job_id } (runner busy).`, 'info' );
-                } else {
+                // Queued, skipped and failed imports, and the job's errors[] (provider limit reached, provider or
+                // analytics import failed), are reported as such instead of as a successful import.
+                const outcome = reportRun( res, 'Import', { summary: ( r ) => {
                     const prov = obj( r.providers );
                     const ga = obj( r.analytics );
-                    const summary = [ prov.records !== undefined ? `${ fmtNumber( prov.records ) } provider records (${ fmtNumber( prov.new ) } new)` : '', ga.sources !== undefined ? `${ fmtNumber( ga.sources ) } referral sources (${ fmtNumber( ga.new ) } new)` : '', r.records !== undefined && prov.records === undefined ? `${ fmtNumber( r.records ) } records (${ fmtNumber( r.new ) } new)` : '' ].filter( Boolean ).join( ', ' );
-                    toast( summary ? `Import finished: ${ summary }.` : 'Import finished.', 'success', { timeout: 7000 } );
-                    const warning = prov.warning || ga.warning || r.warning;
+                    return [ prov.records !== undefined ? `${ fmtNumber( prov.records ) } provider records (${ fmtNumber( prov.new ) } new)` : '', ga.sources !== undefined ? `${ fmtNumber( ga.sources ) } referral sources (${ fmtNumber( ga.new ) } new)` : '', r.records !== undefined && prov.records === undefined ? `${ fmtNumber( r.records ) } records (${ fmtNumber( r.new ) } new)` : '' ].filter( Boolean ).join( ', ' );
+                } } );
+                if ( outcome.state === 'finished' ) {
+                    const r = outcome.result;
+                    const warning = obj( r.providers ).warning || obj( r.analytics ).warning || r.warning;
                     if ( warning ) {
                         toast( String( warning ), 'warning', { timeout: 8000 } );
                     }

@@ -19,6 +19,73 @@ const ASSET_KINDS = [ 'guide', 'resource', 'info', 'home', 'tool', 'page' ];
 const obj = ( v ) => ( isObject( v ) ? v : {} );
 const arr = ( v ) => ( Array.isArray( v ) ? v : [] );
 
+/**
+ * Automation flags owned by POST /automation/toggle. The form applies them there (with the same confirmation
+ * as the Automation page for the gated ones) instead of inside POST /settings, so a save can neither skip that
+ * confirmation nor carry a flag the owner did not touch in this tab.
+ */
+const TOGGLE_FLAGS = [ 'enabled', 'submissions', 'outreach_autosend' ];
+const CONFIRM_FLAGS = {
+    submissions: { title: 'Enable automated submissions', text: 'Enable automated submissions? In auto mode the engine submits by itself to high-scoring sites whenever every safety gate passes (public listing form, no CAPTCHA or login, robots.txt allows it). Every submission is logged in the audit trail.' },
+    outreach_autosend: { title: 'Enable outreach autosend', text: 'Enable outreach autosend? Initial cold emails that the engine drafts for qualified prospects (score at or above the auto-queue threshold, with a known contact) will be approved and sent to those third parties in your name without your review, together with follow-ups in campaigns marked “auto-approve”. Sending stays inside the send window and the outreach email limits, and every message includes the unsubscribe link.' },
+};
+const LIMIT_GROUPS = { daily_limits: 'Daily', weekly_limits: 'Weekly' };
+
+/**
+ * The leaves of draft that differ from original, as a nested partial (lists and scalars are sent whole).
+ * Saving only these means a tab opened before a change made elsewhere (another tab, the Automation page)
+ * does not write its stale copy of the untouched siblings back over it.
+ */
+export function changedLeaves( draft, original ) {
+    const out = {};
+    for ( const key of Object.keys( obj( draft ) ) ) {
+        const d = draft[ key ];
+        const o = isObject( original ) ? original[ key ] : undefined;
+        if ( isObject( d ) && isObject( o ) ) {
+            const sub = changedLeaves( d, o );
+            if ( Object.keys( sub ).length ) {
+                out[ key ] = sub;
+            }
+        } else if ( ! deepEqual( d, o ) ) {
+            out[ key ] = deepClone( d );
+        }
+    }
+    return out;
+}
+
+/** Moves the toggle-owned automation flags out of a changedLeaves() partial: [[flag, value], …]. */
+export function takeToggleFlags( changed ) {
+    const flags = [];
+    const automation = changed && isObject( changed.automation ) ? changed.automation : null;
+    if ( ! automation ) {
+        return flags;
+    }
+    for ( const flag of TOGGLE_FLAGS ) {
+        if ( Object.prototype.hasOwnProperty.call( automation, flag ) ) {
+            flags.push( [ flag, Boolean( automation[ flag ] ) ] );
+            delete automation[ flag ];
+        }
+    }
+    if ( ! Object.keys( automation ).length ) {
+        delete changed.automation;
+    }
+    return flags;
+}
+
+/** Rate limits a changedLeaves() partial switches to 0 (= no cap), as labels like "Daily submissions". */
+export function limitsRemoved( changed ) {
+    const out = [];
+    const automation = obj( obj( changed ).automation );
+    for ( const [ group, label ] of Object.entries( LIMIT_GROUPS ) ) {
+        for ( const [ key, value ] of Object.entries( obj( automation[ group ] ) ) ) {
+            if ( Number( value ) === 0 ) {
+                out.push( `${ label } ${ labelize( key ).toLowerCase() }` );
+            }
+        }
+    }
+    return out;
+}
+
 function providerBadge( p ) {
     if ( ! p ) {
         return null;
@@ -96,8 +163,9 @@ export default async function render( root, ctx ) {
             value: current,
             onChange: ( v ) => {
                 let next = v;
-                if ( spec.type === 'number' ) {
-                    next = v === null ? ( spec.default !== undefined ? spec.default : 0 ) : v;
+                if ( spec.type === 'number' && v === null ) {
+                    // An emptied number field leaves the saved value alone: 0 would mean "unlimited" for the rate limits.
+                    next = getPath( state.original, path, getPath( obj( obj( state.data ).defaults ), path, spec.default !== undefined ? spec.default : 0 ) );
                 }
                 setPath( state.draft, path, next );
                 markDirty();
@@ -105,7 +173,7 @@ export default async function render( root, ctx ) {
         } );
     }
 
-    async function load() {
+    async function load( { keepSecrets = {} } = {} ) {
         try {
             state.data = await api.get( '/settings' );
         } catch ( e ) {
@@ -115,7 +183,8 @@ export default async function render( root, ctx ) {
         const d = state.data || {};
         state.original = deepClone( obj( d.settings ) );
         state.draft = deepClone( state.original );
-        state.pendingSecrets = {};
+        // Secrets the server refused are kept in their fields so the owner can correct them.
+        state.pendingSecrets = { ...obj( keepSecrets ) };
         state.factsRows = Object.entries( obj( d.facts ) ).map( ( [ key, f ] ) => ( { key, statement: String( obj( f ).statement || '' ), verified: Boolean( obj( f ).verified ), source: String( obj( f ).source || '' ), group: String( obj( f ).group || 'custom' ) } ) );
         state.factsDirty = false;
         state.seedsKnown = Array.isArray( d.custom_seeds );
@@ -125,12 +194,25 @@ export default async function render( root, ctx ) {
         drawTabs();
     }
 
+    function secretLabel( key ) {
+        return obj( obj( obj( state.data ).secrets )[ key ] ).label || labelize( key );
+    }
+
     async function save() {
         const body = {};
-        const changed = {};
-        for ( const key of Object.keys( state.draft ) ) {
-            if ( ! deepEqual( state.draft[ key ], state.original[ key ] ) ) {
-                changed[ key ] = state.draft[ key ];
+        // Leaf-level diff: untouched settings are never re-sent from this (possibly stale) tab.
+        const changed = changedLeaves( state.draft, state.original );
+        const flagChanges = takeToggleFlags( changed );
+        const removed = limitsRemoved( changed );
+        if ( removed.length && ! ( await confirm( `Remove these rate limits? ${ removed.join( ', ' ) } will have no cap (0 = unlimited).`, { title: 'Remove rate limits', confirmText: 'Remove limits', danger: true } ) ) ) {
+            toast( 'Nothing was saved.', 'info' );
+            return;
+        }
+        for ( const [ flag, value ] of flagChanges ) {
+            const gate = CONFIRM_FLAGS[ flag ];
+            if ( value && gate && ! ( await confirm( gate.text, { title: gate.title, confirmText: 'Enable', danger: true } ) ) ) {
+                toast( 'Nothing was saved.', 'info' );
+                return;
             }
         }
         if ( Object.keys( changed ).length ) {
@@ -152,13 +234,40 @@ export default async function render( root, ctx ) {
         if ( state.seedsDirty ) {
             body.custom_seeds = state.customSeeds.filter( ( s ) => String( s.url || '' ).trim() !== '' );
         }
-        if ( ! Object.keys( body ).length ) {
+        if ( ! Object.keys( body ).length && ! flagChanges.length ) {
             toast( 'Nothing to save.', 'info' );
             return;
         }
-        await api.post( '/settings', body );
-        toast( 'Settings saved.', 'success' );
-        await load();
+        const res = Object.keys( body ).length ? await api.post( '/settings', body ) : null;
+        for ( const [ flag, value ] of flagChanges ) {
+            await api.post( '/automation/toggle', value && CONFIRM_FLAGS[ flag ] ? { key: flag, value, confirm: true } : { key: flag, value } );
+        }
+
+        // POST /settings answers 200 even when it stored none of some secrets: report them, keep the input.
+        const secretResult = obj( obj( res ).secrets );
+        const rejected = arr( secretResult.rejected ).map( String );
+        const locked = arr( secretResult.locked ).map( String );
+        const keepSecrets = {};
+        for ( const key of rejected ) {
+            if ( typeof state.pendingSecrets[ key ] === 'string' && state.pendingSecrets[ key ] !== '__clear__' ) {
+                keepSecrets[ key ] = state.pendingSecrets[ key ];
+            }
+        }
+        const secretsSaved = arr( secretResult.updated ).length + arr( secretResult.cleared ).length;
+        const otherSaved = Boolean( body.settings || body.facts || body.custom_seeds || flagChanges.length || secretsSaved );
+        if ( rejected.length ) {
+            const why = rejected.includes( 'google_service_account_json' )
+                ? 'A Google service-account key must be the JSON key file Google issues (with client_email and private_key); other values must be at most 20,000 characters.'
+                : 'The value is invalid or longer than 20,000 characters.';
+            toast( `Not saved: ${ rejected.map( secretLabel ).join( ', ' ) }. ${ why } Your input is kept so you can correct it.`, 'error', { timeout: 12000 } );
+        }
+        if ( locked.length ) {
+            toast( `${ locked.map( secretLabel ).join( ', ' ) } ${ locked.length === 1 ? 'is' : 'are' } defined in wp-config.php and cannot be changed here.`, 'warning', { timeout: 9000 } );
+        }
+        if ( otherSaved ) {
+            toast( rejected.length || locked.length ? 'Your other changes were saved.' : 'Settings saved.', 'success' );
+        }
+        await load( { keepSecrets } );
     }
 
     // ------------------------------------------------------------------
@@ -234,7 +343,7 @@ export default async function render( root, ctx ) {
         ];
         const limitKeys = [ 'discovery_queries', 'evaluations', 'submissions', 'outreach_emails', 'backlink_checks', 'provider_lookups' ];
         return el( 'div', { class: 'ppclg-stack' },
-            callout( 'info', 'Live switches', 'These are the same flags as on the Automation page. Enabling “Automated submissions” or “Outreach autosend” there asks for confirmation; here they are saved with the rest of the form.' ),
+            callout( 'info', 'Live switches', 'These are the same flags as on the Automation page. The master switch, “Automated submissions” and “Outreach autosend” are applied through the Automation page’s switch when you save, and enabling either of the last two asks for confirmation here as well. Only the settings you change in this tab are saved.' ),
             card( { title: 'Stage flags', body: flags.map( ( [ key, label, hint ] ) => bind( `automation.${ key }`, { type: 'toggle', label, hint } ).el ) } ),
             card( { title: 'Daily limits', subtitle: '0 = unlimited', body: grid( limitKeys.map( ( k ) => bind( `automation.daily_limits.${ k }`, { type: 'number', label: labelize( k ), min: 0, default: 0 } ) ), 3 ) } ),
             card( { title: 'Weekly limits', subtitle: '0 = unlimited', body: grid( [ 'discovery_queries', 'submissions', 'outreach_emails' ].map( ( k ) => bind( `automation.weekly_limits.${ k }`, { type: 'number', label: labelize( k ), min: 0, default: 0 } ) ), 3 ) } ),

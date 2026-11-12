@@ -8,14 +8,15 @@ import {
     el, replace, badge, statusBadge, button, callout, kv, pre, loading, errorState, emptyState, timeEl, fmtNumber, fmtDate, fmtDuration, labelize, truncate,
     pageHeader, dataTable, confirm, toast, card, switchRow, meter, details, isObject, modal, formField,
 } from '../ui.js';
+import { reportRun } from './outcome.js';
 
 const FLAGS = [
     { key: 'discovery', label: 'Discovery', desc: 'Search-engine queries, the seed catalog, competitor backlink mining and brand-mention scans to find new candidate sites. Bounded by the daily query limit.' },
     { key: 'evaluation', label: 'Evaluation', desc: 'Crawls due prospects (robots.txt aware, throttled), fetches provider metrics and recomputes the 100-point score.' },
     { key: 'opportunities', label: 'Opportunity finding', desc: 'Creates concrete placement opportunities for qualified sites and scans resource pages for broken outbound links.' },
-    { key: 'packaging', label: 'Packaging', desc: 'Builds listing packages for open opportunities above the auto-queue score. Packages still wait for your review unless a site is explicitly allowed for automation.' },
+    { key: 'packaging', label: 'Packaging', desc: 'Builds listing packages for open opportunities above the auto-queue score. A package is queued for automated submission only when the site qualifies under the submission mode (in “auto” mode a score at or above the auto-queue threshold is enough; otherwise the site must be marked “automation allowed”); the rest wait for your review.' },
     { key: 'submissions', label: 'Automated submissions', desc: 'Submits packages to directory forms or partner APIs without a manual click. In “auto” mode (Settings → Automation) any site scoring at or above the auto-queue threshold qualifies; in “authorized only” mode a prospect must be individually marked “automation allowed”. Never through CAPTCHAs, logins or robots.txt-disallowed URLs.', gated: true, confirmText: 'Enable automated submissions? In auto mode the engine submits by itself to high-scoring sites whenever every safety gate passes (public listing form, no CAPTCHA or login, robots.txt allows it). Every submission is logged in the audit trail.' },
-    { key: 'outreach_autosend', label: 'Outreach autosend', desc: 'Sends auto-generated follow-ups that a campaign marked “auto-approve” without individual review. Initial messages always require approval.', gated: true, confirmText: 'Enable outreach autosend? Follow-up emails in campaigns with auto-approval will be sent inside the send window without a manual review.' },
+    { key: 'outreach_autosend', label: 'Outreach autosend', desc: 'Approves and sends outreach without individual review once the sender identity is complete: first-contact emails that the “Auto outreach drafts” stage writes for qualified editorial prospects (their evergreen “Auto” campaigns are approved automatically) and follow-ups in campaigns marked “auto-approve”. Emails go out in your name to third parties, inside the send window and the outreach email limits. Messages you draft in your own campaigns still need your approval.', gated: true, confirmText: 'Enable outreach autosend? Initial cold emails that the engine drafts for qualified prospects (score at or above the auto-queue threshold, with a known contact) will be approved and sent to those third parties in your name without your review, together with follow-ups in campaigns marked “auto-approve”. Sending stays inside the send window and the outreach email limits, and every message includes the unsubscribe link.' },
     { key: 'monitoring', label: 'Backlink monitoring', desc: 'Re-checks known backlinks on their schedule, records anchor/rel/placement changes and alerts on losses.' },
     { key: 'imports', label: 'Provider imports', desc: 'Imports backlinks from SE Ranking / Ahrefs / Semrush and referral sources from GA4 on the configured interval.' },
 ];
@@ -83,7 +84,7 @@ export default async function render( root, ctx ) {
     replace( root,
         pageHeader( {
             title: 'Automation',
-            description: 'Background stages run on a schedule within the configured limits. Risky stages (automated submissions, outreach autosend) are off by default and ask for confirmation.',
+            description: 'Background stages run on a schedule within the configured limits. Risky stages (automated submissions, outreach autosend) ask for confirmation before they are switched on; check their current state below.',
             actions: [ refreshToggle.el, button( 'Refresh', { iconName: 'refresh', onClick: () => load() } ) ],
         } ),
         content,
@@ -250,11 +251,10 @@ export default async function render( root, ctx ) {
                     }
                     const res = await api.post( '/automation/run', { stage: type, options: {} } );
                     const r = obj( res );
-                    if ( r.job_id && ( r.result === undefined || r.result === null || obj( r.result ).queued ) ) {
-                        toast( `${ def.label } queued as job #${ r.job_id } (runner busy).`, 'info' );
-                    } else {
-                        toast( `${ def.label } finished.`, 'success' );
-                        replace( resultHost, details( el( 'span', { class: 'ppclg-row' }, 'Result', badge( 'just now', 'success' ) ), pre( r.result !== undefined ? r.result : r ), { open: true } ) );
+                    // Failed, skipped and already-queued runs are reported as such, not as "finished".
+                    const outcome = reportRun( res, def.label );
+                    if ( outcome.state !== 'queued' ) {
+                        replace( resultHost, details( el( 'span', { class: 'ppclg-row' }, 'Result', badge( 'just now', outcome.kind === 'success' ? 'success' : ( outcome.kind === 'error' ? 'danger' : 'warning' ) ) ), pre( r.result !== undefined ? r.result : r ), { open: true } ) );
                     }
                     await load( { quiet: true } );
                 } } ) ],

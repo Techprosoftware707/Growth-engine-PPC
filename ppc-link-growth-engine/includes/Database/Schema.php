@@ -250,7 +250,7 @@ final class Schema {
 
             "CREATE TABLE {$t('suppression')} (
   id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-  type varchar(10) NOT NULL DEFAULT 'domain',
+  type varchar(20) NOT NULL DEFAULT 'domain',
   value varchar(190) NOT NULL,
   reason varchar(190) NOT NULL DEFAULT '',
   created_at datetime NOT NULL,

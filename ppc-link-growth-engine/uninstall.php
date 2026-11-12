@@ -44,6 +44,15 @@ foreach ( $ppclg_tables as $ppclg_table ) {
     $wpdb->query( "DROP TABLE IF EXISTS `{$ppclg_full}`" );
 }
 
+// Pre-migration backups (gzipped SQL dumps of every plugin table, including contacts, outreach messages and
+// the suppression list) live in a random directory under uploads. Remove them before ppclg_backup_dir (which
+// names that directory) is deleted below; leftover ppclg-backups-* directories are removed as well.
+if ( ! class_exists( \PPC\LinkGrowth\Database\Backup::class, false ) ) {
+    require_once __DIR__ . '/includes/Database/Backup.php';
+}
+$ppclg_uploads = wp_upload_dir( null, false );
+\PPC\LinkGrowth\Database\Backup::removeAll( (string) ( $ppclg_uploads['basedir'] ?? '' ), (string) get_option( 'ppclg_backup_dir', '' ) );
+
 // Every option the plugin writes uses the ppclg_ prefix (settings, secrets, counters, facts, custom seeds,
 // stage runs/results, schedule interval, digest/import timestamps, provider errors, locks); delete them all.
 // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching

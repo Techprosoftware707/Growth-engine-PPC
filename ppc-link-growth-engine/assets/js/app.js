@@ -4,8 +4,13 @@
  * the page module named by #ppclg-app[data-page].
  */
 
-import * as api from './api.js';
-import { el, replace, icon, iconButton, toast, drawer, button, badge, timeEl, errorState, loading, emptyState, setLocale, fmtNumber } from './ui.js';
+// api.js and ui.js are loaded with dynamic import() from start() rather than static imports: a static
+// import that fails to link (a cached copy of ui.js from an older release that lacks an export this
+// app.js needs) stops the whole module graph before any code runs and leaves #ppclg-app blank. Loaded
+// dynamically, the failure is caught and the operator is told to reload. The specifiers stay plain
+// relative paths so the page modules' own '../ui.js' imports resolve to the same module instance, and
+// so the versioned import map Assets prints for every sibling module applies to all of them alike.
+const loadCore = () => Promise.all( [ import( './api.js' ), import( './ui.js' ) ] );
 
 const PAGES = {
     overview: () => import( './pages/overview.js' ),
@@ -119,6 +124,29 @@ function buildHash( params ) {
     return parts.length ? `#${ parts.join( '&' ) }` : '';
 }
 
+/**
+ * True for fragments in the k=v&k=v form buildHash() writes, and for "no fragment at all" (Back to the
+ * first view). False for plain in-page anchors (#wpbody-content) and for a bare '#' from an href="#" link.
+ */
+function isParamHash( hash, href ) {
+    const raw = String( hash || '' ).replace( /^#/, '' );
+    if ( raw === '' ) {
+        return ! String( href || '' ).endsWith( '#' );
+    }
+    return raw.includes( '=' );
+}
+
+/** True when `url` points at the current document (same origin, path and query; the fragment may differ). */
+function isSameDocument( url ) {
+    try {
+        const target = new URL( url, window.location.href );
+        const here = new URL( window.location.href );
+        return target.origin === here.origin && target.pathname === here.pathname && target.search === here.search;
+    } catch ( e ) {
+        return false;
+    }
+}
+
 function readTheme() {
     try {
         const stored = window.localStorage.getItem( THEME_KEY );
@@ -151,11 +179,65 @@ function logoSvg() {
     return node;
 }
 
-function boot() {
+/**
+ * Shown when api.js / ui.js (or the bootstrap itself) cannot be loaded. Plain DOM only: ui.js is
+ * exactly what may have failed, and nothing here may use innerHTML.
+ */
+function renderLoadFailure( mount, error ) {
+    const box = document.createElement( 'div' );
+    box.className = 'notice notice-error ppclg-load-failure';
+    box.setAttribute( 'role', 'alert' );
+    const title = document.createElement( 'p' );
+    const strong = document.createElement( 'strong' );
+    strong.textContent = 'The Link Growth dashboard could not load.';
+    title.appendChild( strong );
+    const hint = document.createElement( 'p' );
+    hint.textContent = 'This usually means the browser or a CDN cache (e.g. Cloudflare) is still serving a script from an older plugin version. Reload the page; if the problem persists, do a hard refresh (Ctrl+Shift+R / Cmd+Shift+R) or purge the CDN cache.';
+    const actions = document.createElement( 'p' );
+    const reload = document.createElement( 'button' );
+    reload.type = 'button';
+    reload.className = 'button button-primary';
+    reload.textContent = 'Reload the page';
+    reload.addEventListener( 'click', () => window.location.reload() );
+    actions.appendChild( reload );
+    box.append( title, hint, actions );
+    const detail = error && error.message ? String( error.message ) : '';
+    if ( detail ) {
+        const code = document.createElement( 'p' );
+        const small = document.createElement( 'code' );
+        small.textContent = detail;
+        code.appendChild( small );
+        box.appendChild( code );
+    }
+    while ( mount.firstChild ) {
+        mount.removeChild( mount.firstChild );
+    }
+    mount.appendChild( box );
+}
+
+async function start() {
     const mount = document.getElementById( 'ppclg-app' );
     if ( ! mount ) {
         return;
     }
+    let core;
+    try {
+        core = await loadCore();
+    } catch ( e ) {
+        renderLoadFailure( mount, e );
+        return;
+    }
+    try {
+        boot( mount, core[ 0 ], core[ 1 ] );
+    } catch ( e ) {
+        // A shell that throws half-way (e.g. ui.js from another release with a changed signature)
+        // must not leave a blank or half-drawn screen either.
+        renderLoadFailure( mount, e );
+    }
+}
+
+function boot( mount, api, ui ) {
+    const { el, replace, icon, iconButton, toast, drawer, button, badge, timeEl, errorState, loading, emptyState, setLocale, fmtNumber, closeOverlays } = ui;
     const wrap = mount.closest( '.ppclg-wrap' ) || mount;
     const config = normalizeConfig( readConfig(), mount );
     api.configure( config );
@@ -254,7 +336,18 @@ function boot() {
             return ( config.pageUrls[ page ] || '#' ) + buildHash( params );
         },
         navigate( page, params ) {
-            window.location.href = ctx.pageUrl( page, params );
+            const target = ctx.pageUrl( page, params );
+            if ( page === config.page && isSameDocument( target ) ) {
+                // Only the fragment would change: the browser would neither reload nor tell the page,
+                // so re-render the current page with the new parameters ourselves (a history entry is
+                // pushed so Back returns to the previous view).
+                if ( window.history && window.history.pushState ) {
+                    window.history.pushState( null, '', `${ window.location.pathname }${ window.location.search }${ buildHash( params ) }` );
+                }
+                rerender();
+                return;
+            }
+            window.location.href = target;
         },
         setHash( params ) {
             const next = buildHash( params );
@@ -266,6 +359,40 @@ function boot() {
             ctx.params = parseHash();
         },
     };
+
+    // Same-document links built with ctx.pageUrl() (e.g. "Campaign #3" inside an Outreach drawer) and
+    // Back/Forward between them only change the fragment, which neither reloads the page nor re-reads
+    // ctx.params. Re-render the current page when the parameters really changed. setHash() keeps
+    // ctx.params in step (replaceState fires no event anyway), and plain anchors such as WordPress's
+    // "Skip to main content" (#wpbody-content) are not parameter fragments and are left alone.
+    const onLocationChange = () => {
+        if ( ! isParamHash( window.location.hash, window.location.href ) ) {
+            return;
+        }
+        if ( buildHash( parseHash() ) === buildHash( ctx.params ) ) {
+            return;
+        }
+        rerender();
+    };
+    window.addEventListener( 'hashchange', onLocationChange );
+    window.addEventListener( 'popstate', onLocationChange );
+
+    function rerender() {
+        const target = window.location.hash;
+        if ( typeof closeOverlays === 'function' ) {
+            // Drawers of the old view close first; their onClose handlers may call setHash() with the
+            // old view's state, so the fragment being navigated to is put back afterwards.
+            closeOverlays();
+        }
+        if ( window.location.hash !== target && window.history && window.history.replaceState ) {
+            window.history.replaceState( null, '', `${ window.location.pathname }${ window.location.search }${ target }` );
+        }
+        ctx.params = parseHash();
+        if ( typeof main.focus === 'function' ) {
+            main.focus( { preventScroll: true } );
+        }
+        loadPage( config.page );
+    }
 
     // ----- Notifications drawer --------------------------------------
     let notificationsDrawer = null;
@@ -312,16 +439,27 @@ function boot() {
     }
 
     // ----- Page module ------------------------------------------------
+    let loadSeq = 0;
     loadPage( config.page );
 
     async function loadPage( page ) {
+        // A newer loadPage() (re-render after a fragment navigation) supersedes one still importing.
+        loadSeq += 1;
+        const seq = loadSeq;
         replace( main, loading( `Loading ${ config.pages[ page ] || page }…` ) );
         document.title = `${ config.pages[ page ] || page } – Link Growth`;
         let module;
         try {
             module = await PAGES[ page ]();
         } catch ( e ) {
-            replace( main, errorState( { title: 'This page could not be loaded', message: `The script for "${ page }" failed to load. ${ e && e.message ? e.message : '' }`, retry: () => loadPage( page ) } ) );
+            if ( seq !== loadSeq ) {
+                return;
+            }
+            const detail = e && e.message ? String( e.message ).replace( /([^.!?])$/, '$1.' ) + ' ' : '';
+            replace( main, errorState( { title: 'This page could not be loaded', message: `The script for "${ page }" failed to load. ${ detail }If this keeps happening after a plugin update, reload the page (hard refresh: Ctrl+Shift+R / Cmd+Shift+R).`, retry: () => loadPage( page ) } ) );
+            return;
+        }
+        if ( seq !== loadSeq ) {
             return;
         }
         const render = module && ( module.default || module.render );
@@ -340,7 +478,7 @@ function boot() {
 }
 
 if ( document.readyState === 'loading' ) {
-    document.addEventListener( 'DOMContentLoaded', boot, { once: true } );
+    document.addEventListener( 'DOMContentLoaded', start, { once: true } );
 } else {
-    boot();
+    start();
 }

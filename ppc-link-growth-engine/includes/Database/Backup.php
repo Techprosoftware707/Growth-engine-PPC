@@ -13,6 +13,9 @@ use PPC\LinkGrowth\Support\Logger;
 
 final class Backup {
 
+    /** Prefix of the (randomly suffixed) backup directory inside uploads. */
+    public const DIR_PREFIX = 'ppclg-backups-';
+
     public function __construct( private Schema $schema, private Logger $logger ) {}
 
     /**
@@ -23,7 +26,7 @@ final class Backup {
         $uploads = wp_upload_dir( null, false );
         $base    = trailingslashit( $uploads['basedir'] );
         if ( '' === $dir || ! is_dir( $base . $dir ) ) {
-            $dir = 'ppclg-backups-' . wp_generate_password( 16, false, false );
+            $dir = self::DIR_PREFIX . wp_generate_password( 16, false, false );
             update_option( 'ppclg_backup_dir', $dir, false );
         }
         $path = $base . $dir;
@@ -69,17 +72,12 @@ final class Backup {
             do {
                 // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
                 $rows = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM `{$table}` LIMIT %d OFFSET %d", $batch, $offset ), ARRAY_A );
+                if ( ! is_array( $rows ) ) {
+                    $rows = [];
+                }
                 foreach ( $rows as $row ) {
                     $cols   = array_map( static fn( $c ) => '`' . $c . '`', array_keys( $row ) );
-                    $values = array_map(
-                        static function ( $v ) use ( $wpdb ) {
-                            if ( null === $v ) {
-                                return 'NULL';
-                            }
-                            return "'" . esc_sql( (string) $v ) . "'";
-                        },
-                        array_values( $row )
-                    );
+                    $values = array_map( static fn( $v ) => self::sqlValue( $v, $wpdb ), array_values( $row ) );
                     gzwrite( $gz, sprintf( "INSERT INTO `%s` (%s) VALUES (%s);\n", $table, implode( ',', $cols ), implode( ',', $values ) ) );
                 }
                 $offset += $batch;
@@ -92,6 +90,61 @@ final class Backup {
         $this->logger->info( 'backup', 'Plugin tables backed up before migration.', [ 'file' => basename( $file ), 'tables' => count( $tables ) ] );
         $this->prune( 10 );
         return $file;
+    }
+
+    /**
+     * One value as an SQL literal for the dump file.
+     *
+     * esc_sql() replaces every "%" with wpdb's per-request placeholder hash; that hash is only turned back
+     * into "%" when the string goes through $wpdb->query(). The dump is written to a file instead, so the
+     * placeholder is removed here or every percent sign (percent-encoded URLs, "100%" in copy) would be
+     * restored as a random hash.
+     */
+    private static function sqlValue( mixed $v, object $wpdb ): string {
+        if ( null === $v ) {
+            return 'NULL';
+        }
+        $escaped = (string) esc_sql( (string) $v );
+        if ( method_exists( $wpdb, 'remove_placeholder_escape' ) ) {
+            $escaped = (string) $wpdb->remove_placeholder_escape( $escaped );
+        }
+        return "'" . $escaped . "'";
+    }
+
+    /**
+     * Deletes every backup directory (and the dumps in it) under $uploadsBase. Used on uninstall when the
+     * owner chose "Delete all data": the dumps hold contacts, outreach messages and the suppression list.
+     * Directories are matched by their fixed "ppclg-backups-" prefix, so one whose random name was lost with
+     * the ppclg_backup_dir option is removed too.
+     *
+     * @return int Number of directories removed.
+     */
+    public static function removeAll( string $uploadsBase, string $namedDir = '' ): int {
+        $uploadsBase = rtrim( $uploadsBase, '/\\' );
+        if ( '' === $uploadsBase || ! is_dir( $uploadsBase ) ) {
+            return 0;
+        }
+        $dirs = glob( $uploadsBase . '/' . self::DIR_PREFIX . '*', GLOB_ONLYDIR ) ?: [];
+        if ( 1 === preg_match( '/^' . preg_quote( self::DIR_PREFIX, '/' ) . '[A-Za-z0-9]+$/', $namedDir ) ) {
+            $dirs[] = $uploadsBase . '/' . $namedDir;
+        }
+        $removed = 0;
+        foreach ( array_unique( $dirs ) as $dir ) {
+            if ( is_link( $dir ) || ! is_dir( $dir ) ) {
+                continue; // never follow a symlink out of uploads
+            }
+            foreach ( scandir( $dir ) ?: [] as $entry ) {
+                $path = $dir . '/' . $entry;
+                if ( '.' !== $entry && '..' !== $entry && ( is_file( $path ) || is_link( $path ) ) ) {
+                    wp_delete_file( $path );
+                }
+            }
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir
+            if ( @rmdir( $dir ) ) {
+                $removed++;
+            }
+        }
+        return $removed;
     }
 
     /** Keep only the newest $keep backups. */

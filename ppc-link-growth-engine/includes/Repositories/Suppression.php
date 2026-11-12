@@ -13,6 +13,9 @@ use PPC\LinkGrowth\Support\Url;
 
 final class Suppression extends Repository {
 
+    /** Every suppression type the plugin stores (must fit the varchar(20) `type` column). */
+    public const TYPES = [ 'domain', 'email', 'email_domain' ];
+
     protected string $table = 'suppression';
 
     protected array $sortable = [ 'id', 'type', 'value', 'created_at' ];
