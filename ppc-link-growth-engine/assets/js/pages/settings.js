@@ -133,6 +133,27 @@ function providerBadge( p ) {
     return badge( st.label, st.kind, { dot: true, title: st.title } );
 }
 
+/** Text of the "hand owner tasks to a staff member" card (kept in one place for the docs and tests). */
+export const SUBMITTER_CARD_TEXT = 'Hand owner tasks to a staff member or assistant: create a WordPress user with the Link Growth Submitter role. They see only the owner-task queue and can mark listings submitted; they cannot change settings, send email or see your data.';
+
+/**
+ * Card that tells the owner how to hand the owner tasks (listings that need a real person) to someone else.
+ * Links to Users → Add New (config.newUserUrl, an http(s) admin URL); nothing is created or sent from here.
+ * Returns null when the URL is missing (e.g. for a submitter-only user, who never sees Settings anyway).
+ */
+export function submitterRoleCard( config ) {
+    const url = typeof obj( config ).newUserUrl === 'string' ? config.newUserUrl.trim() : '';
+    if ( ! /^https?:\/\/[^\s/]+/i.test( url ) ) {
+        return null;
+    }
+    return el( 'div', { class: 'ppclg-submitter-role-card', style: { marginBottom: '14px' } }, card( {
+        title: 'Hand owner tasks to a staff member',
+        subtitle: 'Listings that need a real person: an account on the site, a phone call or a postcard',
+        body: el( 'p', {}, SUBMITTER_CARD_TEXT ),
+        footer: [ linkButton( 'Add a user', url, { iconName: 'plus' } ) ],
+    } ) );
+}
+
 export default async function render( root, ctx ) {
     const params = ctx.params || {};
     const state = {
@@ -160,6 +181,7 @@ export default async function render( root, ctx ) {
 
     replace( root,
         pageHeader( { title: 'Settings', description: 'Configure the business profile, automation limits, discovery inputs, integrations, outreach identity and monitoring. Secrets are encrypted at rest and never shown again in full.' } ),
+        submitterRoleCard( ctx.config ),
         content,
         saveBar,
     );

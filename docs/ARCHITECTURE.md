@@ -80,6 +80,7 @@ Weighted sum of seven components (see README). Component details are stored in `
 ## Security model
 
 - Admin REST routes require `ppclg_manage` (granted to administrators) and the WordPress REST nonce; POSTs are rate limited per user.
+- Three routes are also open to `ppclg_submit_listings` (the *Link Growth Submitter* role): `GET /submissions`, `GET /submissions/{id}` and `POST /submissions/{id}/mark-submitted`. A controller opts a route in with `route( …, $public = false, $submitter = true )`, and the handler then limits the data to the owner-task queue (`Capabilities::submitOnly()`); every other route stays admin-only by default. `SubmitterRoleTest` walks every registered route to keep it that way.
 - Secrets: AES-GCM/XSalsa20 encrypted with a key derived from the site salts, or wp-config constants; never serialised to the client.
 - Outbound requests use `reject_unsafe_urls` (no private networks), size limits, timeouts and TLS verification.
 - Logs and audit entries pass through the redactor.

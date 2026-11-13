@@ -64,9 +64,18 @@ function readConfig() {
     }
 }
 
+/** Pages a submitter-only user (the "Link Growth Submitter" role) sees: the owner-task queue only. */
+const SUBMITTER_PAGES = [ 'submissions' ];
+
 function normalizeConfig( raw, mount ) {
     const adminUrl = typeof raw.adminUrl === 'string' && raw.adminUrl !== '' ? raw.adminUrl : `${ window.location.origin }/wp-admin/`;
-    const pages = raw.pages && typeof raw.pages === 'object' && Object.keys( raw.pages ).length > 0 ? raw.pages : DEFAULT_PAGES;
+    const capabilities = raw.capabilities && typeof raw.capabilities === 'object' ? raw.capabilities : {};
+    const submitOnly = capabilities.submitOnly === true;
+    let pages = raw.pages && typeof raw.pages === 'object' && Object.keys( raw.pages ).length > 0 ? raw.pages : DEFAULT_PAGES;
+    if ( submitOnly ) {
+        // The server already sends only the owner-task page; never show another tab even if it did not.
+        pages = { submissions: typeof pages.submissions === 'string' && pages.submissions !== '' ? pages.submissions : 'Owner tasks' };
+    }
     const pageUrls = {};
     for ( const key of Object.keys( pages ) ) {
         if ( raw.pageUrls && typeof raw.pageUrls[ key ] === 'string' ) {
@@ -75,7 +84,7 @@ function normalizeConfig( raw, mount ) {
             pageUrls[ key ] = `${ adminUrl.replace( /\/+$/, '' ) }/admin.php?page=${ key === 'overview' ? 'ppclg' : `ppclg-${ key }` }`;
         }
     }
-    const requested = ( mount && mount.dataset.page ) || raw.page || 'overview';
+    const requested = submitOnly ? SUBMITTER_PAGES[ 0 ] : ( ( mount && mount.dataset.page ) || raw.page || 'overview' );
     return {
         restRoot: typeof raw.restRoot === 'string' ? raw.restRoot : '',
         nonce: typeof raw.nonce === 'string' ? raw.nonce : '',
@@ -90,7 +99,9 @@ function normalizeConfig( raw, mount ) {
         pluginUrl: typeof raw.pluginUrl === 'string' ? raw.pluginUrl : '',
         homeUrl: typeof raw.homeUrl === 'string' ? raw.homeUrl : '',
         automationEnabled: Boolean( raw.automationEnabled ),
-        capabilities: raw.capabilities && typeof raw.capabilities === 'object' ? raw.capabilities : {},
+        capabilities,
+        submitOnly,
+        newUserUrl: typeof raw.newUserUrl === 'string' ? raw.newUserUrl : '',
         unreadNotifications: Number( raw.unreadNotifications ) || 0,
         locale: typeof raw.locale === 'string' ? raw.locale : '',
         timezone: typeof raw.timezone === 'string' ? raw.timezone : '',
@@ -281,7 +292,8 @@ function boot( mount, api, ui ) {
                 el( 'span', { class: 'ppclg-brand-sub' }, config.siteDomain ? `${ config.brand } · ${ config.siteDomain }` : config.brand ),
             ),
         ),
-        el( 'div', { class: 'ppclg-header-actions' }, pill, themeBtn, bellBtn ),
+        // A submitter-only user has no automation settings or notifications to open (both are admin-only routes).
+        el( 'div', { class: 'ppclg-header-actions' }, config.submitOnly ? null : pill, themeBtn, config.submitOnly ? null : bellBtn ),
     );
 
     // ----- Sub navigation ---------------------------------------------
@@ -297,7 +309,9 @@ function boot( mount, api, ui ) {
     const main = el( 'main', { class: 'ppclg-main', id: 'ppclg-main', tabindex: '-1' } );
     const footer = el( 'div', { class: 'ppclg-footer' },
         el( 'span', {}, `PPC Link Growth Engine${ config.version ? ' v' + config.version : '' }` ),
-        el( 'span', {}, 'Compliance-first: nothing is submitted or emailed without the gates configured under Automation and Outreach.' ),
+        el( 'span', {}, config.submitOnly
+            ? 'You see the owner-task queue only. Submit each listing by hand, then mark it submitted.'
+            : 'Compliance-first: nothing is submitted or emailed without the gates configured under Automation and Outreach.' ),
     );
     replace( mount, el( 'div', { class: 'ppclg-shell' }, header, nav, main, footer ) );
 
@@ -317,6 +331,9 @@ function boot( mount, api, ui ) {
         },
         openNotifications,
         refreshUnread: async () => {
+            if ( config.submitOnly ) {
+                return;
+            }
             try {
                 const res = await api.get( '/notifications', { per_page: 1 }, { silent: true } );
                 if ( res && res.unread !== undefined ) {
@@ -400,7 +417,7 @@ function boot( mount, api, ui ) {
     // ----- Notifications drawer --------------------------------------
     let notificationsDrawer = null;
     async function openNotifications() {
-        if ( notificationsDrawer && notificationsDrawer.isOpen() ) {
+        if ( config.submitOnly || ( notificationsDrawer && notificationsDrawer.isOpen() ) ) {
             return;
         }
         const body = el( 'div', {}, loading( 'Loading notifications…', true ) );

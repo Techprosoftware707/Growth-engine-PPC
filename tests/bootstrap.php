@@ -123,7 +123,7 @@ class WP_REST_Response {
 }
 class WP_REST_Server { const READABLE = 'GET'; const CREATABLE = 'POST'; const EDITABLE = 'POST, PUT, PATCH'; const DELETABLE = 'DELETE'; const ALLMETHODS = 'GET, POST, PUT, PATCH, DELETE'; }
 class WP_Http_Cookie { public string $name; public string $value; public function __construct( array $data ) { $this->name = (string) ( $data['name'] ?? '' ); $this->value = (string) ( $data['value'] ?? '' ); } }
-class WP_Role { public array $capabilities = []; public function add_cap( string $cap ): void { $this->capabilities[ $cap ] = true; } public function remove_cap( string $cap ): void { unset( $this->capabilities[ $cap ] ); } public function has_cap( string $cap ): bool { return ! empty( $this->capabilities[ $cap ] ); } }
+class WP_Role { public string $name = ''; public array $capabilities = []; public function __construct( string $name = '', array $capabilities = [] ) { $this->name = $name; $this->capabilities = $capabilities; } public function add_cap( string $cap ): void { $this->capabilities[ $cap ] = true; } public function remove_cap( string $cap ): void { unset( $this->capabilities[ $cap ] ); } public function has_cap( string $cap ): bool { return ! empty( $this->capabilities[ $cap ] ); } }
 
 // ---------------------------------------------------------------- hooks
 function add_action( string $hook, callable $cb, int $priority = 10, int $args = 1 ): bool { $GLOBALS['ppclg_test_actions'][ $hook ][] = $cb; return true; }
@@ -275,8 +275,14 @@ function get_current_user_id(): int { return (int) $GLOBALS['ppclg_test_user_id'
 function current_user_can( string $cap, mixed ...$args ): bool { return ! empty( $GLOBALS['ppclg_test_caps'][ $cap ] ); }
 function wp_get_current_user(): object { return (object) [ 'ID' => get_current_user_id(), 'display_name' => 'Test Admin', 'user_email' => 'admin@purepeptidescanada.test', 'user_login' => 'admin' ]; }
 function get_userdata( int $id ): object|false { return $id > 0 ? (object) [ 'ID' => $id, 'display_name' => 'User ' . $id, 'user_email' => 'user' . $id . '@purepeptidescanada.test' ] : false; }
-function get_role( string $role ): ?WP_Role { $GLOBALS['ppclg_test_roles'][ $role ] ??= new WP_Role(); return $GLOBALS['ppclg_test_roles'][ $role ]; }
-function wp_roles(): object { return (object) [ 'roles' => [] ]; }
+// Roles: the core roles exist on demand; any other role exists only after add_role() (like a real site).
+function get_role( string $role ): ?WP_Role { if ( ! isset( $GLOBALS['ppclg_test_roles'][ $role ] ) && in_array( $role, [ 'administrator', 'editor', 'author', 'contributor', 'subscriber' ], true ) ) { $GLOBALS['ppclg_test_roles'][ $role ] = new WP_Role( $role ); } return $GLOBALS['ppclg_test_roles'][ $role ] ?? null; }
+function add_role( string $role, string $display_name, array $capabilities = [] ): ?WP_Role { if ( isset( $GLOBALS['ppclg_test_roles'][ $role ] ) ) { return null; } $GLOBALS['ppclg_test_role_names'][ $role ] = $display_name; $GLOBALS['ppclg_test_roles'][ $role ] = new WP_Role( $role, array_filter( $capabilities ) ); return $GLOBALS['ppclg_test_roles'][ $role ]; }
+function remove_role( string $role ): void { unset( $GLOBALS['ppclg_test_roles'][ $role ], $GLOBALS['ppclg_test_role_names'][ $role ] ); }
+function wp_roles(): object { return (object) [ 'roles' => array_fill_keys( array_keys( $GLOBALS['ppclg_test_roles'] ?? [] ), [] ), 'role_names' => $GLOBALS['ppclg_test_role_names'] ?? [] ]; }
+/** Capabilities of another user come from $GLOBALS['ppclg_test_user_caps'][id]; the current user's from ppclg_test_caps. */
+function user_can( mixed $user, string $cap, mixed ...$args ): bool { $id = is_object( $user ) ? (int) ( $user->ID ?? 0 ) : (int) $user; if ( isset( $GLOBALS['ppclg_test_user_caps'][ $id ] ) ) { return ! empty( $GLOBALS['ppclg_test_user_caps'][ $id ][ $cap ] ); } return $id > 0 && $id === get_current_user_id() && current_user_can( $cap ); }
+function get_user_locale( mixed $user = 0 ): string { return 'en_CA'; }
 function load_plugin_textdomain( string $d, mixed $a = false, mixed $p = false ): bool { return true; }
 function deactivate_plugins( mixed $p ): void {}
 function wp_die( mixed $m = '', mixed $t = '', mixed $a = [] ): void { throw new RuntimeException( 'wp_die: ' . ( is_string( $m ) ? $m : 'died' ) ); }
@@ -311,8 +317,8 @@ if ( ! function_exists( 'rest_authorization_required_code' ) ) {
 }
 function register_rest_route( string $ns, string $route, array $args = [], bool $override = false ): bool { $GLOBALS['ppclg_test_routes'][ $ns . $route ][] = $args; return true; }
 function rest_get_server(): object { return (object) []; }
-function add_menu_page( mixed ...$a ): string { return 'ppclg'; }
-function add_submenu_page( mixed ...$a ): string|false { return 'ppclg'; }
+function add_menu_page( mixed ...$a ): string { $GLOBALS['ppclg_test_menu'][] = [ 'menu', ...$a ]; return 'ppclg'; }
+function add_submenu_page( mixed ...$a ): string|false { $GLOBALS['ppclg_test_menu'][] = [ 'submenu', ...$a ]; return 'ppclg'; }
 function wp_enqueue_style( mixed ...$a ): void {}
 function wp_enqueue_script( mixed ...$a ): void {}
 function wp_register_script( mixed ...$a ): bool { return true; }

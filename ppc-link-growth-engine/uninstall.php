@@ -12,6 +12,14 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
     exit;
 }
 
+// Permissions are removed on every uninstall (data only when opted in below): the "Link Growth Submitter"
+// role and both plugin capabilities (ppclg_manage, ppclg_submit_listings) on every role. Users who had the
+// submitter role keep their account; the role comes back if the plugin is installed again.
+if ( ! class_exists( \PPC\LinkGrowth\Admin\Capabilities::class, false ) ) {
+    require_once __DIR__ . '/includes/Admin/Capabilities.php';
+}
+( new \PPC\LinkGrowth\Admin\Capabilities() )->remove();
+
 $ppclg_settings = get_option( 'ppclg_settings', [] );
 $ppclg_delete   = is_array( $ppclg_settings ) && ! empty( $ppclg_settings['advanced']['delete_on_uninstall'] );
 
@@ -68,11 +76,6 @@ $wpdb->query( "DELETE FROM {$wpdb->options} WHERE option_name LIKE '\\_transient
 // Per-user dismissed admin notices.
 delete_metadata( 'user', 0, 'ppclg_dismissed_notices', '', true );
 wp_cache_flush();
-
-$ppclg_role = get_role( 'administrator' );
-if ( $ppclg_role ) {
-    $ppclg_role->remove_cap( 'ppclg_manage' );
-}
 
 if ( function_exists( 'as_unschedule_all_actions' ) ) {
     as_unschedule_all_actions( 'ppclg_tick' );

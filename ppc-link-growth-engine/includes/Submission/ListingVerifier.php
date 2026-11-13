@@ -89,6 +89,9 @@ final class ListingVerifier {
                 $candidates[] = $dest;
             }
         }
+        // A page on this site links to this site by definition; it never proves a listing elsewhere.
+        $own        = '' !== $site ? Url::registrableDomain( $site ) : '';
+        $candidates = array_values( array_filter( $candidates, static fn( string $u ): bool => '' === $own || Url::registrableDomain( $u ) !== $own ) );
         foreach ( array_unique( $candidates ) as $url ) {
             $checked[ $url ] = true;
             $hit             = $this->checkPage( $url, $site );

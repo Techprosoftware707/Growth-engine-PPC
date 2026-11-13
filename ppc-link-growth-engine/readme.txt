@@ -23,6 +23,7 @@ PPC Link Growth Engine discovers websites that could legitimately link to Pure P
 * Storefront compliance check: pauses automated submissions and outreach sending while the storefront presents products for consumer use.
 * On-site SEO: read-only site audit, IndexNow notifications and internal-link suggestions that are applied only when you click Apply.
 * Verified opportunities: 595 researched listing and outreach opportunities bundled with the plugin, imported as owner tasks.
+* Link Growth Submitter role: hand the owner tasks to a staff member or assistant who sees only that queue.
 * Dashboard: Overview, Prospects, Submissions, Outreach, Backlinks, On-site SEO, Automation, Settings, Logs.
 
 == Installation ==
@@ -39,6 +40,8 @@ PPC Link Growth Engine discovers websites that could legitimately link to Pure P
 * New: On-site SEO page with a read-only site audit, IndexNow submissions (production sites only) and internal-link suggestions applied only by an explicit Apply click (the previous version is kept as a revision first).
 * New: the bundled verified opportunity database is imported as owner tasks (manual submissions with a listing kit), with tier, kind and condition filters on the Submissions page.
 * Evaluation order: prospects that did not come from the verified opportunity import (new discoveries, due re-reviews and automatic re-checks) are evaluated before imported ones; imported prospects are evaluated after them.
+* New: "Link Growth Submitter" role for handing owner tasks to a staff member or assistant. It has only the read and ppclg_submit_listings capabilities and sees one menu item, Link Submissions: the open owner tasks and the ones that user marked submitted in the last 14 days. It can mark a task submitted (listing URL and note; recorded in the audit log with the user id) and nothing else; every other page and REST route refuses it. Settings has a card with a link to add such a user. Uninstalling removes the role and the plugin capabilities. Tasks that need the owner's decision are not shown to this role: a rejected, suppressed or on-hold site, text that fails the claims check, a listing that may already have been sent or would be a duplicate, and outreach pitches. Its listing URL must be on the task's site. The role is created on the first page load after an update, even when the plugin was not reactivated.
+* Mark submitted: the listing URL must be an http(s) address; anything else is refused instead of being stored. A listing URL on the site's own domain is refused, and listing verification ignores one, because a page on the own site always links to it.
 * Settings: new seo, compliance and growth sections. The storefront acknowledgement and the IndexNow key cannot be changed through the settings form; turning the storefront gate off asks for confirmation.
 
 = 1.0.0 =

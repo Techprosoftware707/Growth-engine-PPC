@@ -8,6 +8,11 @@
  * "Open submission page" and "Copy listing kit" buttons, the steps, the storefront gate note and a
  * "Mark submitted" form that uses the existing mark-submitted action (the listing is then verified by the
  * verify_listings stage). Nothing on this page submits a listing or contacts a site by itself.
+ *
+ * A submitter-only user (the "Link Growth Submitter" role, ctx.config.submitOnly) sees the owner-task queue
+ * only: open tasks and the ones they marked submitted, read-only kits and the "Mark submitted" form. The
+ * approve / reject / retry / rebuild / edit controls, the storefront banner and the verified-database card are
+ * not shown (their routes are admin-only on the server).
  */
 
 import * as api from '../api.js';
@@ -29,6 +34,11 @@ const TABS = [
     { id: 'failed', label: 'Failed', status: 'failed' },
     { id: 'rejected', label: 'Rejected', status: 'rejected' },
 ];
+/** Tabs of the submitter-only view (the server limits the list to these rows anyway). */
+export const SUBMITTER_TABS = [
+    { id: 'needs_manual', label: 'To do', status: 'needs_manual' },
+    { id: 'done', label: 'Marked submitted', status: 'submitted,confirmed' },
+];
 const METHODS = { manual: 'Manual', form: 'Form', api: 'API' };
 const CONTENT_FIELDS = [
     { key: 'tagline', label: 'Tagline', rows: 2 },
@@ -49,6 +59,9 @@ const CONDITIONAL = { yes: 'Conditional only', no: 'Without conditions' };
 
 /** Statuses in which an owner task can still be marked as submitted from its card. */
 const OPEN_TASK_STATUSES = [ 'needs_manual', 'pending_review', 'failed' ];
+
+/** The only status a submitter-only user can mark submitted (the server refuses the others). */
+const SUBMITTER_OPEN_STATUSES = [ 'needs_manual' ];
 
 /** Why the verified import skipped items (VerifiedOpportunities skip reasons and DomainFilter reasons). */
 const SKIP_REASONS = {
@@ -152,7 +165,7 @@ async function copyText( text, label ) {
  * @param {object}   pkg      payload.package.
  * @param {Function} onMarked Called after the server accepted "Mark submitted".
  */
-export function ownerTaskCard( s, pkg, { onMarked = null } = {} ) {
+export function ownerTaskCard( s, pkg, { onMarked = null, submitOnly = false } = {} ) {
     const p = obj( pkg );
     const target = safeHttpUrl( s.target_url ) || safeHttpUrl( p.target_url );
     const registration = safeHttpUrl( p.registration_url );
@@ -161,14 +174,19 @@ export function ownerTaskCard( s, pkg, { onMarked = null } = {} ) {
 
     stack.appendChild( el( 'div', { class: 'ppclg-row', style: { flexWrap: 'wrap', gap: '6px' } }, ownerTaskBadges( p ), p.link_attribute ? badge( `Link: ${ truncate( String( p.link_attribute ), 60 ) }`, 'neutral', { outline: true, title: String( p.link_attribute ) } ) : null ) );
 
-    if ( p.outreach ) {
+    if ( p.outreach && submitOnly ) {
+        // The server keeps outreach tasks with the owner; this only guards an older or changed server.
+        stack.appendChild( callout( 'warning', 'Outreach: leave this for the site owner', 'This is a pitch to a person, not a listing. Whether to contact this site is the owner\'s decision, so leave this task open.' ) );
+    } else if ( p.outreach ) {
         stack.appendChild( callout( 'info', 'Outreach opportunity: your decision', [
             el( 'div', {}, 'This is a pitch to a person, not a form. The plugin never drafts or sends outreach for this site; if you decide to pitch, write the message yourself, once, as a real named person.' ),
             contactEmail ? el( 'div', { style: { marginTop: '6px' } }, 'Contact address the site lists: ', el( 'span', { class: 'ppclg-mono' }, contactEmail ) ) : null,
         ] ) );
     }
     if ( p.conditional ) {
-        stack.appendChild( callout( 'warning', 'Conditional', 'Proceed only when the conditions in the steps below are met. If they are not, reject this task instead of submitting.' ) );
+        stack.appendChild( callout( 'warning', 'Conditional', submitOnly
+            ? 'Proceed only when the conditions in the steps below are met. If they are not, leave this task open and tell the site owner.'
+            : 'Proceed only when the conditions in the steps below are met. If they are not, reject this task instead of submitting.' ) );
     }
     if ( p.gate_note ) {
         stack.appendChild( callout( 'warning', 'Storefront consistency', String( p.gate_note ) ) );
@@ -220,7 +238,7 @@ export function ownerTaskCard( s, pkg, { onMarked = null } = {} ) {
     buttons.push( button( 'Copy listing kit', { iconName: 'copy', onClick: () => copyText( kitText, 'listing kit' ) } ) );
     stack.appendChild( el( 'div', { class: 'ppclg-row', style: { flexWrap: 'wrap', gap: '8px' } }, buttons ) );
 
-    if ( OPEN_TASK_STATUSES.includes( String( s.status ) ) ) {
+    if ( ! ( submitOnly && p.outreach ) && ( submitOnly ? SUBMITTER_OPEN_STATUSES : OPEN_TASK_STATUSES ).includes( String( s.status ) ) ) {
         const urlInput = el( 'input', { type: 'url', class: 'ppclg-input', placeholder: 'https://directory.example/listing/your-business', 'aria-label': 'Listing URL' } );
         const noteInput = el( 'textarea', { class: 'ppclg-textarea', rows: 2, 'aria-label': 'Note (optional)' } );
         const markBtn = button( 'Mark submitted', { kind: 'success', iconName: 'send', onClick: async () => {
@@ -286,6 +304,100 @@ function verifiedSummaryCard( status, { onImport, onShowTasks } ) {
     } );
 }
 
+/** "Mark submitted" button with the manual-submission form (listing URL, confirmation reference, note). */
+function markSubmittedButton( s, refresh ) {
+    return button( 'Mark submitted', { kind: 'primary', iconName: 'send', onClick: () => formModal( {
+        title: 'Mark as submitted manually',
+        description: 'Record that you submitted this listing by hand. Verification will look for the live listing starting now.',
+        submitText: 'Mark submitted',
+        fields: [
+            { type: 'url', name: 'listing_url', label: 'Listing URL (if known)', placeholder: 'https://directory.example/listing/pure-peptides-canada' },
+            { type: 'text', name: 'confirmation_ref', label: 'Confirmation reference' },
+            { type: 'textarea', name: 'note', label: 'Note', rows: 3 },
+        ],
+        onSubmit: async ( values ) => {
+            const listing = String( values.listing_url || '' ).trim();
+            if ( listing !== '' && ! safeHttpUrl( listing ) && ! /^[^\s:/]+\.[^\s]+$/.test( listing ) ) {
+                toast( 'The listing URL must start with http:// or https://.', 'error' );
+                return false;
+            }
+            const accepted = reportAction( await api.post( `/submissions/${ s.id }/mark-submitted`, values ), 'Marked as submitted. Verification is scheduled.' );
+            await refresh();
+            return accepted;
+        },
+    } ) } );
+}
+
+/**
+ * Read-only kit cards for a submitter-only user on a package that is not a verified-database owner task:
+ * business details, the generated text and the steps, each with a copy button. No edit or save controls.
+ */
+export function submitterKitCards( payload, id ) {
+    const p = obj( payload );
+    const business = obj( p.business );
+    const content = obj( p.content );
+    const text = ( v ) => ( Array.isArray( v ) ? v.join( ', ' ) : ( v === null || v === undefined ? '' : String( v ) ) );
+    const cards = [];
+    if ( arr( p.unmapped_required ).length ) {
+        cards.push( callout( 'warning', 'Fill these by hand', `The form also asks for: ${ arr( p.unmapped_required ).map( labelize ).join( ', ' ) }. Ask the site owner if you do not have the answer.` ) );
+    }
+    cards.push( card( {
+        title: 'Business details',
+        subtitle: 'Use these exact details',
+        actions: copyButton( () => Object.entries( business ).map( ( [ k, v ] ) => `${ labelize( k ) }: ${ text( v ) }` ).join( '\n' ), 'Copy all' ),
+        body: Object.keys( business ).length ? kv( Object.entries( business ).map( ( [ k, v ] ) => [ labelize( k ), ( k === 'website' || k === 'logo_url' ) && safeHttpUrl( v ) ? extLink( String( v ) ) : ( text( v ) || null ) ] ), { compact: true } ) : emptyState( { title: 'No business fields in this package', compact: true } ),
+    } ) );
+    const rows = [
+        ...CONTENT_FIELDS,
+        { key: 'category_suggestions', label: 'Category suggestions' },
+        { key: 'keywords', label: 'Keywords' },
+    ].filter( ( f ) => text( content[ f.key ] ).trim() !== '' );
+    cards.push( card( {
+        title: 'Listing text',
+        subtitle: 'Use the text as written; it stays research-use-only',
+        actions: copyButton( () => rows.map( ( f ) => `${ f.label }\n${ text( content[ f.key ] ) }` ).join( '\n\n' ), 'Copy text' ),
+        body: rows.length ? kv( rows.map( ( f ) => [ f.label, el( 'span', {}, text( content[ f.key ] ) ) ] ), { compact: true } ) : emptyState( { title: 'No listing text in this package', compact: true } ),
+    } ) );
+    // The values the package prepared for each field of the site's form (hidden tokens are not sent).
+    const fields = arr( p.fields ).filter( ( f ) => isObject( f ) && String( f.type || 'text' ) !== 'hidden' );
+    if ( fields.length ) {
+        const fieldValue = ( f ) => {
+            if ( isObject( f.matched_option ) ) {
+                return `Select: ${ text( f.matched_option.text || f.matched_option.value ) }`;
+            }
+            if ( [ 'checkbox', 'radio' ].includes( String( f.type ) ) ) {
+                return text( f.value ) === '1' ? 'Tick it' : ( text( f.value ) === '' ? '' : text( f.value ) );
+            }
+            return text( f.value );
+        };
+        cards.push( card( {
+            title: 'Form fields',
+            subtitle: 'What to put in each field of the site\'s form',
+            actions: copyButton( () => fields.map( ( f ) => `${ f.label || f.name }: ${ fieldValue( f ) }` ).join( '\n' ), 'Copy fields' ),
+            body: dataTable( {
+                dense: true,
+                plain: true,
+                rows: fields,
+                columns: [
+                    { key: 'label', label: 'Field', render: ( f ) => el( 'span', { class: 'ppclg-cell-title' }, text( f.label || f.name ) ) },
+                    { key: 'value', label: 'Value', render: ( f ) => {
+                        const v = fieldValue( f );
+                        if ( isObject( f.matched_option ) ) {
+                            return badge( v, 'success' );
+                        }
+                        return v === '' ? el( 'span', { class: 'ppclg-muted' }, f.required ? 'Fill by hand (required)' : '—' ) : el( 'span', {}, v );
+                    } },
+                    { key: 'required', label: 'Required', render: ( f ) => ( f.required ? 'Yes' : 'No' ) },
+                ],
+            } ),
+        } ) );
+    }
+    if ( arr( p.instructions ).length ) {
+        cards.push( card( { title: 'Submission steps', subtitle: 'Tick steps as you complete them (saved in this browser only)', body: checklist( arr( p.instructions ).map( String ), { storageKey: `ppclg_sub_steps_${ id }` } ) } ) );
+    }
+    return cards;
+}
+
 async function fetchSubmissions( params ) {
     const res = await api.get( '/submissions', params );
     const list = normalizeList( res );
@@ -304,8 +416,10 @@ async function fetchSubmissions( params ) {
 
 export default async function render( root, ctx ) {
     const params = ctx.params || {};
-    const initialTab = TABS.some( ( t ) => t.id === params.tab ) ? params.tab : 'all';
-    const initialTabDef = TABS.find( ( t ) => t.id === initialTab );
+    const submitOnly = Boolean( ctx.config && ctx.config.submitOnly );
+    const tabDefs = submitOnly ? SUBMITTER_TABS : TABS;
+    const initialTab = tabDefs.some( ( t ) => t.id === params.tab ) ? params.tab : tabDefs[ 0 ].id;
+    const initialTabDef = tabDefs.find( ( t ) => t.id === initialTab );
     const bannerHost = el( 'div', { class: 'ppclg-compliance-host' } );
     const verifiedHost = el( 'div' );
 
@@ -314,25 +428,38 @@ export default async function render( root, ctx ) {
         defaultSort: { key: 'id', dir: 'desc' },
         initial: { filters: {
             status: initialTabDef.status,
-            method: params.method || '',
+            method: submitOnly ? '' : ( params.method || '' ),
             q: params.q || '',
-            source: initialTabDef.source || ( params.source === VERIFIED_SOURCE ? VERIFIED_SOURCE : '' ),
+            source: submitOnly ? '' : ( initialTabDef.source || ( params.source === VERIFIED_SOURCE ? VERIFIED_SOURCE : '' ) ),
             tier: TIERS[ params.tier ] ? String( params.tier ) : '',
             kind: KINDS[ params.kind ] ? params.kind : '',
             conditional: CONDITIONAL[ params.conditional ] ? params.conditional : '',
         } },
         onRowClick: ( row ) => openSubmission( Number( row.id ) ),
         rowKey: ( row ) => row.id,
-        empty: { title: 'No submissions in this state', message: 'Packages are created from approved prospects (Prospects → Actions → Create package) or automatically by the packaging stage.', iconName: 'package' },
+        empty: submitOnly
+            ? { title: 'No owner tasks here', message: 'New owner tasks appear here when the site owner adds them.', iconName: 'package' }
+            : { title: 'No submissions in this state', message: 'Packages are created from approved prospects (Prospects → Actions → Create package) or automatically by the packaging stage.', iconName: 'package' },
         filters: [
-            { name: 'method', label: 'Method', type: 'select', options: METHODS, allLabel: 'All methods' },
-            { name: 'source', label: 'Source', type: 'select', options: { [ VERIFIED_SOURCE ]: 'Verified database' }, allLabel: 'All sources' },
+            submitOnly ? null : { name: 'method', label: 'Method', type: 'select', options: METHODS, allLabel: 'All methods' },
+            submitOnly ? null : { name: 'source', label: 'Source', type: 'select', options: { [ VERIFIED_SOURCE ]: 'Verified database' }, allLabel: 'All sources' },
             { name: 'tier', label: 'Tier', type: 'select', options: TIERS, allLabel: 'All tiers' },
-            { name: 'kind', label: 'Kind', type: 'select', options: KINDS, allLabel: 'Listings and outreach' },
+            submitOnly ? null : { name: 'kind', label: 'Kind', type: 'select', options: KINDS, allLabel: 'Listings and outreach' },
             { name: 'conditional', label: 'Conditions', type: 'select', options: CONDITIONAL, allLabel: 'Any' },
             { name: 'q', label: 'Search', type: 'search', placeholder: 'Target URL…' },
-        ],
-        columns: [
+        ].filter( Boolean ),
+        columns: submitOnly ? [
+            { key: 'id', label: '#', sortable: true, render: ( r ) => `#${ r.id }` },
+            { key: 'prospect', label: 'Site', render: ( r ) => el( 'span', {}, el( 'span', { class: 'ppclg-cell-title' }, r.prospect_name || r.prospect_domain || '' ), el( 'span', { class: 'ppclg-cell-sub' }, r.prospect_domain || '' ) ) },
+            { key: 'target_url', label: 'Submission page', render: ( r ) => extLink( r.target_url, truncate( String( r.target_url || '' ).replace( /^https?:\/\//, '' ), 48 ) ) },
+            { key: 'owner_task', label: 'Owner task', render: ( r ) => {
+                const pkg = ownerTaskPackage( r.payload );
+                return pkg ? el( 'span', { class: 'ppclg-row', style: { flexWrap: 'wrap', gap: '4px' } }, ownerTaskBadges( pkg ) ) : null;
+            } },
+            { key: 'status', label: 'Status', sortable: true, render: ( r ) => statusBadge( r.status ) },
+            { key: 'submitted_at', label: 'Submitted', sortable: true, render: ( r ) => ( r.submitted_at ? timeEl( r.submitted_at ) : null ) },
+            { key: 'updated_at', label: 'Updated', sortable: true, render: ( r ) => timeEl( r.updated_at ) },
+        ] : [
             { key: 'id', label: '#', sortable: true, render: ( r ) => `#${ r.id }` },
             { key: 'prospect', label: 'Prospect', render: ( r ) => el( 'span', {}, el( 'span', { class: 'ppclg-cell-title' }, r.prospect_name || r.prospect_domain || `Prospect #${ r.prospect_id }` ), el( 'span', { class: 'ppclg-cell-sub' }, r.prospect_domain || '' ) ) },
             { key: 'target_url', label: 'Target', render: ( r ) => extLink( r.target_url, truncate( String( r.target_url || '' ).replace( /^https?:\/\//, '' ), 48 ) ) },
@@ -351,6 +478,17 @@ export default async function render( root, ctx ) {
         ],
         onLoaded: ( { total, state } ) => {
             const f = state.filters;
+            if ( submitOnly ) {
+                const own = SUBMITTER_TABS.find( ( t ) => t.status === ( f.status || '' ) );
+                if ( own && view.active !== own.id ) {
+                    view.select( own.id, { silent: true } );
+                }
+                if ( own && ! f.tier && ! f.kind && ! f.conditional && ! f.q ) {
+                    view.setCount( own.id, total );
+                }
+                ctx.setHash( { tab: own ? own.id : '', q: f.q, tier: f.tier, kind: f.kind, conditional: f.conditional } );
+                return;
+            }
             const ownerTab = f.status === 'needs_manual' && f.source === VERIFIED_SOURCE;
             const tab = ownerTab ? TABS.find( ( t ) => t.id === 'owner_tasks' ) : TABS.find( ( t ) => ! t.source && t.status === ( f.status || '' ) );
             if ( tab && view.active !== tab.id ) {
@@ -366,9 +504,9 @@ export default async function render( root, ctx ) {
     const view = tabs( {
         pills: true,
         active: initialTab,
-        items: TABS.map( ( t ) => ( { id: t.id, label: t.label } ) ),
+        items: tabDefs.map( ( t ) => ( { id: t.id, label: t.label } ) ),
         onChange: ( id ) => {
-            const tab = TABS.find( ( t ) => t.id === id );
+            const tab = tabDefs.find( ( t ) => t.id === id );
             const next = { status: tab ? tab.status : '' };
             if ( tab && tab.source ) {
                 next.source = tab.source;
@@ -464,19 +602,28 @@ export default async function render( root, ctx ) {
     }
 
     replace( root,
-        pageHeader( {
-            title: 'Submissions',
-            description: 'Listing packages generated for directories and resource pages. Review the content, approve or hand-submit, and track confirmations.',
-            actions: button( 'Refresh', { iconName: 'refresh', onClick: () => list.reload() } ),
-        } ),
-        bannerHost,
-        verifiedHost,
+        submitOnly
+            ? pageHeader( {
+                title: 'Owner tasks',
+                description: 'Listings that need a real person. Open the submission page, fill it in with the listing kit, then mark the task submitted. The plugin checks later that the listing went live.',
+                actions: button( 'Refresh', { iconName: 'refresh', onClick: () => list.reload() } ),
+            } )
+            : pageHeader( {
+                title: 'Submissions',
+                description: 'Listing packages generated for directories and resource pages. Review the content, approve or hand-submit, and track confirmations.',
+                actions: button( 'Refresh', { iconName: 'refresh', onClick: () => list.reload() } ),
+            } ),
+        submitOnly ? null : bannerHost,
+        submitOnly ? null : verifiedHost,
         el( 'div', { style: { marginBottom: '14px' } }, view.el ),
         list.el,
     );
     list.reload();
-    loadBanner();
-    loadVerified();
+    if ( ! submitOnly ) {
+        // Storefront compliance and the verified-database import are admin-only routes.
+        loadBanner();
+        loadVerified();
+    }
 
     if ( params.open ) {
         openSubmission( Number( params.open ) );
@@ -530,13 +677,21 @@ export default async function render( root, ctx ) {
                 stack.appendChild( callout( 'danger', 'Claims filter flagged the generated content', el( 'ul', {}, arr( compliance.violations ).map( ( v ) => el( 'li', {}, isObject( v ) ? `${ v.message || v.rule }: “${ v.match || '' }”` : String( v ) ) ) ) ) );
             }
 
+            const blockers = arr( data.submitter_blockers ).map( String ).filter( Boolean );
+            if ( ! submitOnly && blockers.length ) {
+                stack.appendChild( callout( 'info', 'Kept out of the Link Growth Submitter queue', [
+                    el( 'div', {}, 'A staff member with the submitter role does not see this task until this is cleared:' ),
+                    el( 'ul', { style: { margin: '6px 0 0', paddingLeft: '18px' } }, blockers.map( ( b ) => el( 'li', {}, b ) ) ),
+                ] ) );
+            }
+
             if ( ownerPkg ) {
-                stack.appendChild( ownerTaskCard( s, ownerPkg, { onMarked: refresh } ) );
+                stack.appendChild( ownerTaskCard( s, ownerPkg, { onMarked: refresh, submitOnly } ) );
             }
 
             stack.appendChild( card( { title: 'Status & timeline', body: kv( [
-                [ 'Prospect', prospect.id ? el( 'a', { href: ctx.pageUrl( 'prospects', { open: prospect.id } ) }, `${ prospect.name || prospect.domain } ` ) : null ],
-                [ 'Opportunity', opportunity.id ? el( 'span', {}, badge( labelize( opportunity.type || '' ), 'brand' ), ' ', opportunity.title || '', opportunity.url ? [ ' ', extLink( opportunity.url, 'page' ) ] : null ) : null ],
+                [ submitOnly ? 'Site' : 'Prospect', submitOnly ? ( prospect.name || prospect.domain || null ) : ( prospect.id ? el( 'a', { href: ctx.pageUrl( 'prospects', { open: prospect.id } ) }, `${ prospect.name || prospect.domain } ` ) : null ) ],
+                [ 'Opportunity', ( opportunity.id || opportunity.title || safeHttpUrl( opportunity.url ) ) ? el( 'span', {}, badge( labelize( opportunity.type || '' ), 'brand' ), ' ', opportunity.title || '', safeHttpUrl( opportunity.url ) ? [ ' ', extLink( opportunity.url, 'page' ) ] : null ) : null ],
                 [ 'Target page', extLink( s.target_url ) ],
                 [ 'Category', s.category || null ],
                 [ 'Attempts', fmtNumber( s.attempts ) ],
@@ -546,12 +701,17 @@ export default async function render( root, ctx ) {
                 [ 'Next verification', s.next_verify_at ? fmtDate( s.next_verify_at ) : null ],
                 [ 'Confirmation ref', s.confirmation_ref || null ],
                 [ 'Listing URL', s.listing_url ? extLink( s.listing_url ) : null ],
-                [ 'Reviewed by', s.reviewed_by ? `User #${ s.reviewed_by }` : null ],
+                [ 'Reviewed by', ! submitOnly && s.reviewed_by ? `User #${ s.reviewed_by }` : null ],
                 [ 'Created', fmtDate( s.created_at ) ],
             ], { compact: true } ) } ) );
 
             // Generic package cards (owner tasks show their kit in the owner-task card instead).
-            if ( ! ownerPkg ) {
+            if ( ! ownerPkg && submitOnly ) {
+                // Read-only kit: the submitter copies these details into the site's form; editing is for the owner.
+                for ( const c of submitterKitCards( payload, s.id ) ) {
+                    stack.appendChild( c );
+                }
+            } else if ( ! ownerPkg ) {
                 // Business fields
                 const business = obj( payload.business );
                 stack.appendChild( card( {
@@ -644,6 +804,19 @@ export default async function render( root, ctx ) {
 
             // Actions
             const actions = [];
+            if ( submitOnly ) {
+                // The submitter marks open tasks submitted; approve / reject / retry / rebuild are admin-only.
+                if ( ! ownerPkg && SUBMITTER_OPEN_STATUSES.includes( String( s.status ) ) ) {
+                    actions.push( markSubmittedButton( s, refresh ) );
+                }
+                const page = safeHttpUrl( s.target_url );
+                if ( page ) {
+                    actions.push( linkButton( 'Open submission page', page, { iconName: 'external', external: true } ) );
+                }
+                dr.setActions( actions );
+                dr.setContent( stack );
+                return;
+            }
             if ( ! ownerPkg && [ 'pending_review', 'needs_manual' ].includes( s.status ) ) {
                 actions.push( button( 'Approve', { kind: 'success', iconName: 'check', onClick: async () => {
                     if ( ! ( await confirm( 'Approve this package? If automated submission is permitted for this site it will be queued; otherwise it stays as a manual kit.', { confirmText: 'Approve' } ) ) ) {
@@ -685,21 +858,7 @@ export default async function render( root, ctx ) {
                 } } ) );
             }
             if ( ! ( ownerPkg && OPEN_TASK_STATUSES.includes( String( s.status ) ) ) && ! [ 'confirmed', 'rejected', 'duplicate' ].includes( s.status ) ) {
-                actions.push( button( 'Mark submitted', { kind: 'primary', iconName: 'send', onClick: () => formModal( {
-                    title: 'Mark as submitted manually',
-                    description: 'Record that you submitted this listing by hand. Verification will look for the live listing starting now.',
-                    submitText: 'Mark submitted',
-                    fields: [
-                        { type: 'url', name: 'listing_url', label: 'Listing URL (if known)', placeholder: 'https://directory.example/listing/pure-peptides-canada' },
-                        { type: 'text', name: 'confirmation_ref', label: 'Confirmation reference' },
-                        { type: 'textarea', name: 'note', label: 'Note', rows: 3 },
-                    ],
-                    onSubmit: async ( values ) => {
-                        const accepted = reportAction( await api.post( `/submissions/${ s.id }/mark-submitted`, values ), 'Marked as submitted. Verification is scheduled.' );
-                        await refresh();
-                        return accepted;
-                    },
-                } ) } ) );
+                actions.push( markSubmittedButton( s, refresh ) );
             }
             if ( ownerPkg ) {
                 const page = safeHttpUrl( s.target_url );

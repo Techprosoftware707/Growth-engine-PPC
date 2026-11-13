@@ -57,6 +57,23 @@ abstract class Controller {
     }
 
     /**
+     * Capability check for the few owner-task routes a "Link Growth Submitter" may use (list, read one, mark
+     * submitted). The handlers limit what such a user sees and changes ({@see Capabilities::submitOnly()});
+     * every other route stays on {@see permission()}, so a new route is closed to submitters by default.
+     */
+    public function permissionSubmit( WP_REST_Request $request ): bool|WP_Error {
+        unset( $request );
+        if ( ! Capabilities::userCanSubmit() ) {
+            return new WP_Error(
+                'ppclg_forbidden',
+                __( 'You are not allowed to use the Link Growth Engine.', 'ppc-link-growth-engine' ),
+                [ 'status' => rest_authorization_required_code() ]
+            );
+        }
+        return true;
+    }
+
+    /**
      * Capability check for write routes.
      *
      * Kept free of side effects: WordPress also calls every handler's permission_callback while building
@@ -104,13 +121,17 @@ abstract class Controller {
      *
      * @param string|string[]     $methods
      * @param array<string,mixed> $args
+     * @param bool                $submitter Also open to the "Link Growth Submitter" role ({@see permissionSubmit()});
+     *                                       the handler must then limit the result to the owner-task queue.
      */
-    protected function route( string $namespace, string $route, string|array $methods, callable $callback, array $args = [], bool $public = false ): void {
+    protected function route( string $namespace, string $route, string|array $methods, callable $callback, array $args = [], bool $public = false, bool $submitter = false ): void {
         $list  = is_array( $methods ) ? $methods : array_map( 'trim', explode( ',', $methods ) );
         $list  = array_values( array_filter( array_map( 'strtoupper', $list ) ) );
         $write = [] !== array_intersect( $list, self::WRITE_METHODS );
         if ( $public ) {
             $permission = '__return_true';
+        } elseif ( $submitter ) {
+            $permission = [ $this, 'permissionSubmit' ];
         } else {
             $permission = $write ? [ $this, 'permissionWrite' ] : [ $this, 'permission' ];
         }

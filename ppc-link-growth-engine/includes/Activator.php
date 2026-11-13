@@ -30,7 +30,7 @@ final class Activator {
 
         $plugin->get( Settings::class )->ensureDefaults();
         $plugin->get( Migrator::class )->migrate( true );
-        $plugin->get( Capabilities::class )->ensure();
+        $plugin->get( Capabilities::class )->ensure( true );
         $plugin->get( Scheduler::class )->schedule();
 
         update_option( 'ppclg_activated_at', gmdate( 'c' ), false );

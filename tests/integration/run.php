@@ -424,6 +424,9 @@ IT::step( 'Scheduler tick, limits and backups', static function (): void {
 // "Grow now" release: storefront compliance, growth run, verified opportunities, on-site SEO.
 require __DIR__ . '/growth.php';
 
+// "Link Growth Submitter" role: owner tasks handed to a staff member or assistant.
+require __DIR__ . '/submitter.php';
+
 echo "\n==============================\n";
 printf( "Passed: %d  Failed: %d\n", IT::$pass, IT::$fail );
 foreach ( IT::$failures as $f ) {

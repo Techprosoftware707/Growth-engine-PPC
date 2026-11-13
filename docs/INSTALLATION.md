@@ -21,11 +21,11 @@ Then in WordPress: **Plugins → Add New → Upload Plugin**, choose `dist/ppc-l
 
 1. Creates the plugin tables (`wp_ppclg_*`: prospects, opportunities, submissions, contacts, campaigns, outreach_messages, backlinks, suppression, notifications, audit_log, logs, jobs, domain_metrics, search_log). When the plugin is later upgraded, the existing tables are backed up to a gzipped SQL file in a randomly named folder under `wp-content/uploads/` **before** the schema migration runs.
 2. Stores default settings (business profile seeded from purepeptidescanada.com, conservative limits, automation **on** in the default *auto* submission mode, *Outreach autosend* **off**).
-3. Grants the `ppclg_manage` capability to the Administrator role.
+3. Grants the `ppclg_manage` capability to the Administrator role and creates the *Link Growth Submitter* role (`read` + `ppclg_submit_listings`) for staff who do owner tasks by hand.
 4. Schedules the `ppclg_tick` background action.
 5. Redirects you to **Link Growth → Overview**.
 
-Deactivation removes the schedule and locks but keeps all data. Uninstalling removes data only when **Settings → Advanced → Delete all data on uninstall** was enabled.
+Deactivation removes the schedule and locks but keeps all data. Uninstalling removes data only when **Settings → Advanced → Delete all data on uninstall** was enabled. The *Link Growth Submitter* role and the plugin capabilities are removed on every uninstall (user accounts stay).
 
 ## Coexistence with the live site
 

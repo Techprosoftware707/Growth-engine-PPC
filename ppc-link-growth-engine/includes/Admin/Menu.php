@@ -29,6 +29,8 @@ final class Menu {
         add_action( 'admin_menu', [ $this, 'addMenu' ] );
         add_action( 'admin_init', [ $this, 'maybeRedirect' ] );
         add_filter( 'admin_body_class', [ $this, 'bodyClass' ] );
+        // WooCommerce sends users without edit_posts out of wp-admin; the submitter role needs its one screen.
+        add_filter( 'woocommerce_prevent_admin_access', [ $this, 'allowSubmitterAdmin' ] );
     }
 
     /** @return array<string,string> page key => label */
@@ -44,6 +46,18 @@ final class Menu {
             'settings'    => __( 'Settings', 'ppc-link-growth-engine' ),
             'logs'        => __( 'Logs', 'ppc-link-growth-engine' ),
         ];
+    }
+
+    /**
+     * Pages a user sees: all of them with full access; only the owner-task queue for the submitter role.
+     *
+     * @return array<string,string> page key => label
+     */
+    public static function pagesFor( bool $submitOnly ): array {
+        if ( $submitOnly ) {
+            return [ 'submissions' => __( 'Owner tasks', 'ppc-link-growth-engine' ) ];
+        }
+        return self::pages();
     }
 
     /** Admin menu slug for a page key: "ppclg" for the overview, "ppclg-{page}" otherwise. */
@@ -81,6 +95,13 @@ final class Menu {
     }
 
     public function addMenu(): void {
+        if ( Capabilities::submitOnly() ) {
+            // The submitter role gets one top-level item: the owner-task queue. No other plugin page is
+            // registered for them, so opening another plugin URL directly is refused by WordPress.
+            $label = __( 'Link Submissions', 'ppc-link-growth-engine' );
+            add_menu_page( $label, $label, Capabilities::SUBMIT_CAP, self::slugFor( 'submissions' ), [ $this, 'render' ], 'dashicons-admin-links', 58 );
+            return;
+        }
         $label  = __( 'Link Growth', 'ppc-link-growth-engine' );
         $unread = $this->unreadCount();
         $title  = $label;
@@ -140,14 +161,26 @@ final class Menu {
         return $classes;
     }
 
+    /**
+     * `woocommerce_prevent_admin_access` filter: lets a submitter-only user reach wp-admin (their role has
+     * only `read`, which WooCommerce otherwise redirects to My Account). Everyone else is unchanged.
+     */
+    public function allowSubmitterAdmin( mixed $prevent ): mixed {
+        return Capabilities::submitOnly() ? false : $prevent;
+    }
+
     /** Renders the application container and the JSON configuration consumed by assets/js/app.js. */
     public function render(): void {
-        if ( ! Capabilities::userCan() ) {
+        $submitOnly = Capabilities::submitOnly();
+        if ( ! Capabilities::userCan() && ! $submitOnly ) {
             wp_die( esc_html__( 'You do not have permission to access this page.', 'ppc-link-growth-engine' ), 403 );
         }
         $page = self::currentPage();
         if ( '' === $page ) {
             $page = 'overview';
+        }
+        if ( $submitOnly && ! array_key_exists( $page, self::pagesFor( true ) ) ) {
+            wp_die( esc_html__( 'You do not have permission to access this page.', 'ppc-link-growth-engine' ), 403 );
         }
         $json = wp_json_encode( $this->config( $page ), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE );
         if ( ! is_string( $json ) ) {
@@ -164,12 +197,46 @@ final class Menu {
      * @return array<string,mixed>
      */
     public function config( string $page ): array {
-        $user  = wp_get_current_user();
-        $urls  = [];
-        $slugs = [];
-        foreach ( self::pages() as $key => $label ) {
+        $user       = wp_get_current_user();
+        $submitOnly = Capabilities::submitOnly();
+        $pages      = self::pagesFor( $submitOnly );
+        $urls       = [];
+        $slugs      = [];
+        foreach ( $pages as $key => $label ) {
             $urls[ $key ]  = esc_url_raw( self::url( $key ) );
             $slugs[ $key ] = self::slugFor( $key );
+        }
+        if ( $submitOnly ) {
+            // Only what the owner-task queue needs: no settings, automation state or notification counts.
+            return [
+                'restRoot'            => esc_url_raw( rest_url( 'ppclg/v1' ) ),
+                'nonce'               => wp_create_nonce( 'wp_rest' ),
+                'page'                => 'submissions',
+                'siteDomain'          => $this->settings->siteDomain(),
+                'brand'               => (string) $this->settings->get( 'site.brand_name', 'Pure Peptides Canada' ),
+                'pages'               => $pages,
+                'version'             => defined( 'PPCLG_VERSION' ) ? PPCLG_VERSION : '',
+                'user'                => [
+                    'name' => (string) $user->display_name,
+                    'id'   => (int) $user->ID,
+                ],
+                'adminUrl'            => esc_url_raw( admin_url() ),
+                'pluginUrl'           => esc_url_raw( defined( 'PPCLG_URL' ) ? PPCLG_URL : '' ),
+                'automationEnabled'   => false,
+                'capabilities'        => [
+                    'manage'         => false,
+                    'manage_options' => false,
+                    'submit'         => true,
+                    'submitOnly'     => true,
+                ],
+                'dashboardUrl'        => esc_url_raw( self::url( 'submissions' ) ),
+                'pageUrls'            => $urls,
+                'menuSlugs'           => $slugs,
+                'unreadNotifications' => 0,
+                'homeUrl'             => esc_url_raw( home_url( '/' ) ),
+                'locale'              => get_user_locale(),
+                'timezone'            => wp_timezone_string(),
+            ];
         }
         return [
             'restRoot'            => esc_url_raw( rest_url( 'ppclg/v1' ) ),
@@ -177,7 +244,7 @@ final class Menu {
             'page'                => $page,
             'siteDomain'          => $this->settings->siteDomain(),
             'brand'               => (string) $this->settings->get( 'site.brand_name', 'Pure Peptides Canada' ),
-            'pages'               => self::pages(),
+            'pages'               => $pages,
             'version'             => defined( 'PPCLG_VERSION' ) ? PPCLG_VERSION : '',
             'user'                => [
                 'name' => (string) $user->display_name,
@@ -189,6 +256,14 @@ final class Menu {
             'capabilities'        => [
                 'manage'         => current_user_can( Capabilities::CAP ),
                 'manage_options' => current_user_can( 'manage_options' ),
+                'submit'         => true,
+                'submitOnly'     => false,
+            ],
+            // Settings → "Hand owner tasks to a staff member": where to create a user with the submitter role.
+            'newUserUrl'          => esc_url_raw( admin_url( 'user-new.php' ) ),
+            'submitterRole'       => [
+                'slug' => Capabilities::SUBMITTER_ROLE,
+                'name' => Capabilities::submitterRoleName(),
             ],
             'dashboardUrl'        => esc_url_raw( self::url( 'overview' ) ),
             'pageUrls'            => $urls,

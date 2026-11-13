@@ -40,6 +40,7 @@ Consent basis is recorded per contact. Review the drafts: the plugin personalise
 - Limits are checked when a request is about to be sent, not when a package is built or approved, and only requests that actually reached a destination count against them.
 - Every submission records what was sent and the response excerpt.
 - The verified opportunity database is imported as owner tasks only: the plugin prepares the listing kit and steps, and a person submits each listing (the plugin never creates accounts, logs in or completes verification steps). The import makes no HTTP requests and contacts nobody.
+- Owner tasks can be handed to a real staff member or assistant with the *Link Growth Submitter* role. That person creates each account themselves, under their own name, and discloses that they work for the business where the platform asks (personal-profile platforms). The role sees only the owner-task queue and can only mark tasks submitted; it cannot send email or see contacts, outreach, settings or logs. Tasks the owner must decide on never reach it: sites the owner rejected, suppressed or put on hold, text that fails the claims check, listings that may already have been sent or would be a duplicate, and outreach pitches to a person. Each mark is in the audit log with the user's id.
 
 ## Site content
 
@@ -56,7 +57,7 @@ Consent basis is recorded per contact. Review the drafts: the plugin personalise
 
 ## Data protection
 
-- Contact details are stored only for business outreach and shown only to administrators.
+- Contact details are stored only for business outreach and shown only to administrators (never to the *Link Growth Submitter* role).
 - Logs redact email addresses and credentials.
 - Credentials are encrypted at rest; wp-config constants are supported.
 - Data is deleted on uninstall only when you opt in.
