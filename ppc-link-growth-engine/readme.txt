@@ -38,6 +38,7 @@ PPC Link Growth Engine discovers websites that could legitimately link to Pure P
 * New: storefront compliance check (daily, on growth runs and when products, product terms or menus change). While it blocks and the gate is on, automated submissions become owner tasks and outreach sending pauses; the owner may acknowledge the exact findings.
 * New: On-site SEO page with a read-only site audit, IndexNow submissions (production sites only) and internal-link suggestions applied only by an explicit Apply click (the previous version is kept as a revision first).
 * New: the bundled verified opportunity database is imported as owner tasks (manual submissions with a listing kit), with tier, kind and condition filters on the Submissions page.
+* Evaluation order: prospects that did not come from the verified opportunity import (new discoveries, due re-reviews and automatic re-checks) are evaluated before imported ones; imported prospects are evaluated after them.
 * Settings: new seo, compliance and growth sections. The storefront acknowledgement and the IndexNow key cannot be changed through the settings form; turning the storefront gate off asks for confirmation.
 
 = 1.0.0 =

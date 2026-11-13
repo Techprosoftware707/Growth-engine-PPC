@@ -118,11 +118,7 @@ final class EvaluateJob extends AbstractJob {
                 return $this->skipped( 'evaluation_limit_reached', [ 'limits' => $limits->snapshot()['evaluations'] ?? null ] );
             }
             $limit = max( 1, min( (int) ( $payload['limit'] ?? self::DEFAULT_LIMIT ), self::MAX_LIMIT, $remaining ) );
-            $batch = $prospects->dueForEvaluation( $limit );
-            if ( count( $batch ) < $limit ) {
-                // Machine-parked rows (unreachable / evaluation error / interrupted) whose retry date has come.
-                $batch = array_merge( $batch, self::retryDue( $prospects, $limit - count( $batch ) ) );
-            }
+            $batch = self::dueBatch( $prospects, $limit );
             // Prospects whose previous evaluation died with the worker are parked instead of being retried at once.
             $interrupted = $this->recoverInterrupted( $c, $prospects, array_map( static fn( array $r ): int => (int) $r['id'], $batch ) );
             if ( [] !== $interrupted ) {
@@ -185,44 +181,86 @@ final class EvaluateJob extends AbstractJob {
     }
 
     /**
+     * The next prospects to evaluate, at most $limit, each once. Prospects that were not created by the verified
+     * opportunity import come first: new discoveries, then due re-reviews (by id), then machine-parked rows
+     * (unreachable / evaluation error / interrupted) whose retry date has come. Imported prospects follow in the
+     * same order, so a large import cannot starve newly discovered sites, re-reviews or retries.
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    public static function dueBatch( Prospects $prospects, int $limit ): array {
+        $batch = [];
+        $seen  = [];
+        foreach ( [ false, true ] as $imported ) {
+            foreach ( [ 'due', 'retry' ] as $kind ) {
+                $need = $limit - count( $batch );
+                if ( $need <= 0 ) {
+                    break 2;
+                }
+                $rows = 'due' === $kind ? $prospects->dueForEvaluation( $need, $imported ) : self::retryDue( $prospects, $need, $imported );
+                foreach ( $rows as $row ) {
+                    $id = (int) $row['id'];
+                    if ( ! isset( $seen[ $id ] ) && count( $batch ) < $limit ) {
+                        $seen[ $id ] = true;
+                        $batch[]     = $row;
+                    }
+                }
+            }
+        }
+        return $batch;
+    }
+
+    /**
      * Prospects parked by the machine (not by a person) whose automatic re-check is due:
      * rejected because the site was unreachable, put on hold after an evaluation error, or
      * left in the legacy transient "evaluating" status by a worker that died.
      *
      * Human decisions are never selected: an owner's rejection keeps the previous recommended
      * action (not "Do not pursue"), and an owner's hold keeps a non-empty recommended action.
+     * Prospects created by the verified opportunity import come after the others.
      *
+     * @param bool|null $imported null: all; false: only prospects not created by the import; true: only imported ones.
      * @return array<int,array<string,mixed>>
      */
-    public static function retryDue( Prospects $prospects, int $limit ): array {
+    public static function retryDue( Prospects $prospects, int $limit, ?bool $imported = null ): array {
         global $wpdb;
-        if ( $limit <= 0 ) {
+        $filter = Prospects::importedCondition( $imported );
+        if ( $limit <= 0 || null === $filter ) {
             return [];
         }
-        $now   = Prospects::now();
-        $stale = gmdate( 'Y-m-d H:i:s', time() - self::INFLIGHT_STALE_SECONDS );
-        $sql   = "SELECT id FROM {$prospects->table()} WHERE"
+        $source = Prospects::importedSource();
+        $now    = Prospects::now();
+        $stale  = gmdate( 'Y-m-d H:i:s', time() - self::INFLIGHT_STALE_SECONDS );
+        $params = [
+            $now,
+            Prospects::STATUS_REJECTED,
+            self::DO_NOT_PURSUE,
+            $wpdb->esc_like( self::UNREACHABLE_REASON_PREFIX ) . '%',
+            Prospects::STATUS_ON_HOLD,
+            '',
+            $wpdb->esc_like( self::ERROR_REASON_PREFIX ) . '%',
+            Prospects::STATUS_EVALUATING,
+            $stale,
+        ];
+        if ( '' !== $filter ) {
+            $params[] = $source;
+        }
+        $order = '';
+        if ( '' === $filter && '' !== $source ) {
+            // Unfiltered: imported prospects sort last.
+            $order    = '(discovered_via = %s) ASC, ';
+            $params[] = $source;
+        }
+        $params[] = $limit;
+        $sql      = "SELECT id FROM {$prospects->table()} WHERE ("
             . ' ( next_review IS NOT NULL AND next_review <= %s AND ('
             . ' ( status = %s AND recommended_action = %s AND rejection_reason LIKE %s )'
             . ' OR ( status = %s AND recommended_action = %s AND rejection_reason LIKE %s ) ) )'
-            . ' OR ( status = %s AND updated_at <= %s )'
-            . ' ORDER BY next_review ASC, id ASC LIMIT %d';
+            . ' OR ( status = %s AND updated_at <= %s ) )'
+            . $filter
+            . " ORDER BY {$order}next_review ASC, id ASC LIMIT %d";
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        $ids = $wpdb->get_col(
-            $wpdb->prepare(
-                $sql,
-                $now,
-                Prospects::STATUS_REJECTED,
-                self::DO_NOT_PURSUE,
-                $wpdb->esc_like( self::UNREACHABLE_REASON_PREFIX ) . '%',
-                Prospects::STATUS_ON_HOLD,
-                '',
-                $wpdb->esc_like( self::ERROR_REASON_PREFIX ) . '%',
-                Prospects::STATUS_EVALUATING,
-                $stale,
-                $limit
-            )
-        );
+        $ids = $wpdb->get_col( $wpdb->prepare( $sql, $params ) );
         $ids = array_values( array_unique( array_map( 'intval', (array) $ids ) ) );
         if ( [] === $ids ) {
             return [];

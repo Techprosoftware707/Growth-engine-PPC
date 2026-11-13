@@ -20,6 +20,7 @@
 
 declare(strict_types=1);
 
+use PPC\LinkGrowth\Automation\Jobs\EvaluateJob;
 use PPC\LinkGrowth\Compliance\StorefrontAudit;
 use PPC\LinkGrowth\Discovery\VerifiedOpportunities;
 use PPC\LinkGrowth\Growth\GrowthRun;
@@ -200,6 +201,27 @@ IT::step( 'Growth (a): one-click run while the storefront blocks', static functi
     IT::check( 0 === $verifiedDrafts, 'no outreach drafts for verified-database prospects (the owner decides whether to pitch)', (string) $verifiedDrafts );
     $paidTasks = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->prefix}ppclg_submissions WHERE status = %s AND payload LIKE %s", 'needs_manual', '%"item_id":"ec40093b4f8ac1ef"%' ) ); // phpcs:ignore
     IT::check( 0 === $paidTasks && (int) ( $vo['skip_reasons']['paid_only'] ?? 0 ) > 0, 'paid-only items (e.g. EIN Presswire) are skipped, not owner tasks', $paidTasks . ' / ' . (string) wp_json_encode( $vo['skip_reasons'] ?? null ) );
+
+    // Evaluation order: a prospect discovered after the import is evaluated before the imported backlog.
+    $repo        = ppclg()->get( Prospects::class );
+    [ $orderId ] = $repo->upsertDiscovered( 'it-evaluation-order.test', [ 'discovered_via' => 'search' ] );
+    try {
+        $fifo    = (int) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM {$repo->table()} WHERE status = %s ORDER BY id ASC LIMIT 1", Prospects::STATUS_DISCOVERED ) ); // phpcs:ignore
+        $fifoVia = (string) ( $repo->find( $fifo )['discovered_via'] ?? '' );
+        IT::check( VerifiedOpportunities::SOURCE === $fifoVia && $fifo < $orderId, 'imported prospects are still waiting for evaluation, and the oldest discovered row is an imported one', $fifo . ' ' . $fifoVia );
+        $next = $repo->dueForEvaluation( 1 )[0] ?? [];
+        IT::check( VerifiedOpportunities::SOURCE !== (string) ( $next['discovered_via'] ?? VerifiedOpportunities::SOURCE ), 'the next prospect due for evaluation is not an imported one', (string) wp_json_encode( [ $next['id'] ?? null, $next['discovered_via'] ?? null ] ) );
+        $batch = EvaluateJob::dueBatch( $repo, 50 );
+        $ids   = array_map( static fn( array $r ): int => (int) $r['id'], $batch );
+        $flags = array_map( static fn( array $r ): bool => VerifiedOpportunities::SOURCE === (string) $r['discovered_via'], $batch );
+        $first = array_search( true, $flags, true );
+        $tail  = false === $first ? [] : array_slice( $flags, (int) $first );
+        $pos   = array_search( $orderId, $ids, true );
+        IT::check( count( $ids ) <= 50 && count( $ids ) === count( array_unique( $ids ) ) && ! in_array( false, $tail, true ), 'the evaluation batch has no duplicates and lists every non-imported prospect before any imported one', (string) wp_json_encode( [ count( $ids ), $first ] ) );
+        IT::check( false !== $pos && ( false === $first || $pos < $first ), 'the newly discovered prospect is evaluated before the imported backlog', (string) wp_json_encode( [ $pos, $first, $orderId ] ) );
+    } finally {
+        $repo->delete( $orderId );
+    }
 
     // IndexNow (mocked endpoint) and the key file.
     $key = (string) $settings->get( 'seo.indexnow_key', '' );

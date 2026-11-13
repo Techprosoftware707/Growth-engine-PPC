@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace PPC\LinkGrowth\Repositories;
 
+use PPC\LinkGrowth\Discovery\VerifiedOpportunities;
 use PPC\LinkGrowth\Support\Url;
 
 final class Prospects extends Repository {
@@ -106,14 +107,57 @@ final class Prospects extends Repository {
     }
 
     /**
-     * Prospects waiting for (re-)evaluation.
+     * The discovered_via value of prospects created by the verified opportunity import, or '' when that
+     * importer is not available (then no prospect counts as imported).
+     */
+    public static function importedSource(): string {
+        return class_exists( VerifiedOpportunities::class ) ? VerifiedOpportunities::SOURCE : '';
+    }
+
+    /**
+     * SQL condition (with one %s placeholder, the value is importedSource()) that keeps only imported
+     * prospects ($imported true) or only the others ($imported false); '' when no condition applies.
+     * Returns null when the selection can match nothing (imported rows asked for, but no importer).
+     */
+    public static function importedCondition( ?bool $imported ): ?string {
+        if ( null === $imported ) {
+            return '';
+        }
+        if ( '' === self::importedSource() ) {
+            return $imported ? null : '';
+        }
+        return $imported ? ' AND discovered_via = %s' : ' AND discovered_via <> %s';
+    }
+
+    /**
+     * Prospects waiting for (re-)evaluation: new discoveries first, then due re-reviews, each by id.
+     * Prospects created by the verified opportunity import come after every other due prospect.
      *
+     * @param bool|null $imported null: all due prospects; false: only prospects not created by the import;
+     *                            true: only prospects created by the import.
      * @return array<int,array<string,mixed>>
      */
-    public function dueForEvaluation( int $limit ): array {
-        $sql = "SELECT * FROM {$this->table()} WHERE status = %s OR (status IN (%s,%s,%s) AND next_review IS NOT NULL AND next_review <= %s) ORDER BY (status = %s) DESC, id ASC LIMIT %d";
+    public function dueForEvaluation( int $limit, ?bool $imported = null ): array {
+        $filter = self::importedCondition( $imported );
+        if ( null === $filter || $limit <= 0 ) {
+            return [];
+        }
+        $source = self::importedSource();
+        $params = [ self::STATUS_DISCOVERED, self::STATUS_QUALIFIED, self::STATUS_APPROVED, self::STATUS_ACQUIRED, self::now() ];
+        if ( '' !== $filter ) {
+            $params[] = $source;
+        }
+        $order = '';
+        if ( '' === $filter && '' !== $source ) {
+            // Unfiltered: imported prospects sort last.
+            $order    = '(discovered_via = %s) ASC, ';
+            $params[] = $source;
+        }
+        $params[] = self::STATUS_DISCOVERED;
+        $params[] = $limit;
+        $sql      = "SELECT * FROM {$this->table()} WHERE (status = %s OR (status IN (%s,%s,%s) AND next_review IS NOT NULL AND next_review <= %s)){$filter} ORDER BY {$order}(status = %s) DESC, id ASC LIMIT %d";
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-        $rows = $this->db()->get_results( $this->db()->prepare( $sql, self::STATUS_DISCOVERED, self::STATUS_QUALIFIED, self::STATUS_APPROVED, self::STATUS_ACQUIRED, self::now(), self::STATUS_DISCOVERED, $limit ), ARRAY_A );
+        $rows = $this->db()->get_results( $this->db()->prepare( $sql, $params ), ARRAY_A );
         return array_map( [ $this, 'hydrate' ], $rows ?: [] );
     }
 
