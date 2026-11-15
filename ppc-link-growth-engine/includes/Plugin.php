@@ -345,7 +345,7 @@ final class Plugin {
         $c->singleton( Capabilities::class, static fn() => new Capabilities() );
         $c->singleton( Menu::class, static fn( Container $c ) => new Menu( $c->get( Settings::class ), $c->get( Notifications::class ) ) );
         $c->singleton( Assets::class, static fn( Container $c ) => new Assets( $c->get( Settings::class ) ) );
-        $c->singleton( Notices::class, static fn( Container $c ) => new Notices( $c->get( Settings::class ), $c->get( ProviderRegistry::class ) ) );
+        $c->singleton( Notices::class, static fn( Container $c ) => new Notices( $c->get( Settings::class ), $c->get( ProviderRegistry::class ), $c->get( Compliance::class ) ) );
         $c->singleton( RestApi::class, static fn( Container $c ) => new RestApi( $c ) );
     }
 }

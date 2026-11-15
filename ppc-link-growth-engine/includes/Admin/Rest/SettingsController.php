@@ -232,6 +232,11 @@ final class SettingsController extends Controller {
         if ( false === ( $clean['compliance']['storefront_gate'] ?? null ) && (bool) $settings->get( 'compliance.storefront_gate', true ) ) {
             $enabling[] = 'storefront_gate_off';
         }
+        // Automatic internal links edit published pages without review, so switching them on (outside Autopilot,
+        // whose own confirmation already covers them) needs the same explicit confirmation.
+        if ( true === ( $clean['seo']['auto_apply_links'] ?? null ) && ! (bool) $settings->get( 'seo.auto_apply_links', false ) && true !== $autopilotWanted && ! $autopilot->isOn() ) {
+            $enabling[] = 'auto_apply_links';
+        }
         if ( [] !== $enabling && ! $this->bool( $request, 'confirm', false ) ) {
             return $this->fail(
                 'ppclg_confirmation_required',
@@ -260,14 +265,20 @@ final class SettingsController extends Controller {
             $settings->update( $clean );
             $changed = self::diffKeys( $before, $settings->all() );
         }
+        $approvedNow = null;
         if ( null !== $autopilotWanted ) {
             if ( $autopilotWanted ) {
                 $autopilot->enable( $this->userId() );
-                AutomationController::approveWaitingNow( $this->c );
+                $approvedNow = AutomationController::approveWaitingNow( $this->c );
             } else {
                 $autopilot->disable( $this->userId() );
             }
             $changed = array_values( array_unique( array_merge( $changed, self::diffKeys( $before, $settings->all() ) ) ) );
+        }
+        // A sender fix (outreach.* or the business address under site.*) can unblock approval: approve what waited
+        // for it now instead of at the next daily outreach run.
+        if ( null === $approvedNow && $autopilot->autoApproveMessages() && [] !== array_filter( $changed, static fn( string $k ): bool => str_starts_with( $k, 'outreach.' ) || str_starts_with( $k, 'site.' ) ) ) {
+            $approvedNow = AutomationController::approveWaitingNow( $this->c );
         }
 
         $secretsIn    = $request->get_param( 'secrets' );
@@ -326,6 +337,7 @@ final class SettingsController extends Controller {
             'secrets'       => $secretResult,
             'facts_updated' => $factsUpdated,
             'seeds_updated' => $seedsUpdated,
+            'approved_now'  => $approvedNow,
             'settings'      => $settings->all(),
             'secret_status' => $this->safe( fn(): array => $this->c->get( Secrets::class )->status(), [], 'secret status' ),
             'providers'     => $this->safe( fn(): array => $this->c->get( ProviderRegistry::class )->status(), [], 'provider status' ),
@@ -337,10 +349,18 @@ final class SettingsController extends Controller {
         if ( 'autopilot' === $key ) {
             return Autopilot::policyText();
         }
+        if ( 'auto_apply_links' === $key ) {
+            return self::autoLinksConfirmationText();
+        }
         if ( 'storefront_gate_off' === $key ) {
             return __( 'Turning off the storefront compliance gate lets automated submissions and outreach sending continue while the storefront check finds consumer-use wording that contradicts the research-use-only listings. How the store presents itself is your legal decision. Confirm to proceed.', 'ppc-link-growth-engine' );
         }
         return AutomationController::confirmationMessage( $key );
+    }
+
+    /** What switching automatic internal links on does (the settings page shows the same text before saving). */
+    public static function autoLinksConfirmationText(): string {
+        return __( 'Turn on automatic internal links? Every day the engine will edit your published pages and posts without asking you first, adding the best internal-link suggestions (highest relevance first, up to the daily number under Settings → Automation → On-site SEO). WordPress keeps a revision of every page it changes, and “Undo automatic links” on the On-site SEO page removes them. Confirm to proceed.', 'ppc-link-growth-engine' );
     }
 
     /**

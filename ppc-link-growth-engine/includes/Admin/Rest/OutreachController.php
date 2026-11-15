@@ -156,7 +156,7 @@ final class OutreachController extends Controller {
         $fill   = $this->safe( fn(): array => $this->c->get( CampaignFiller::class )->fill( $id, $budget, $this->userId() ), [ 'drafted' => 0, 'adopted' => 0, 'eligible' => 0, 'remaining' => 0, 'approved' => 0, 'campaign_approved' => false, 'reasons' => [], 'explanation' => '' ], 'campaign fill' );
         $queued = false;
         if ( (int) ( $fill['remaining'] ?? 0 ) > 0 ) {
-            $queued = null !== $this->safe( fn(): ?int => $this->c->get( Pipeline::class )->enqueueStage( 'auto_outreach', [ 'campaign_id' => $id ], 4, true ), null, 'queue campaign fill' );
+            $queued = null !== $this->safe( fn(): ?int => $this->c->get( Pipeline::class )->enqueueStage( 'auto_outreach', [ 'campaign_id' => $id, 'fill_only' => true ], 4 ), null, 'queue campaign fill' );
         }
         return [
             'ok'          => true,

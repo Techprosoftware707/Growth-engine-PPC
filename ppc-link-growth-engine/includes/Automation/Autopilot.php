@@ -181,7 +181,7 @@ final class Autopilot {
         if ( $this->replyTracking() ) {
             return 'Follow-ups are sent automatically: reply tracking is set up, so anyone who answered is never followed up.';
         }
-        return 'Follow-ups are not sent automatically: reply tracking (the inbound webhook secret under Settings → Outreach) is not set up, so the engine could follow up someone who already replied. They wait as drafts until reply tracking is configured.';
+        return 'Follow-ups are not sent automatically: reply tracking (the inbound webhook secret under Settings → Integrations → Email, RDAP & inbound replies) is not set up, so the engine could follow up someone who already replied. They wait as drafts for your approval; once reply tracking is set up, Autopilot approves and sends the waiting ones too.';
     }
 
     // ------------------------------------------------------------------

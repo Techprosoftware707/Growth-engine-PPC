@@ -470,6 +470,23 @@ final class SubmissionFixesTest extends TestCase {
         $this->assertSame( Submissions::STATUS_APPROVED, $this->subs()->find( $sid )['status'] );
     }
 
+    public function testPackagesThatWaitedForReviewAreQueuedOnceAutopilotIsOn(): void {
+        Container::get( Settings::class )->set( 'automation.submission_mode', 'manual' );
+        $sid = (int) $this->engine()->packageProspect( $this->prospect(), 1 );
+        HttpFixtures::add( 'https://smalldir.test/add-listing/', str_replace( 'labdirectory.test', 'smalldir.test', $this->page() ) );
+        HttpFixtures::add( 'https://smalldir.test/robots.txt', "User-agent: *\nAllow: /\n" );
+        $low = (int) $this->engine()->packageProspect( $this->prospect( 'smalldir.test', 60 ), 1 );
+        $this->assertSame( Submissions::STATUS_PENDING_REVIEW, $this->subs()->find( $sid )['status'] );
+        $this->assertSame( Submissions::STATUS_PENDING_REVIEW, $this->subs()->find( $low )['status'] );
+
+        Container::get( Settings::class )->set( 'automation.autopilot', true );
+        $res = Container::get( \PPC\LinkGrowth\Automation\JobRunner::class )->runType( 'package', [ 'manual' => true ], TimeBudget::seconds( 60 ) );
+
+        $this->assertSame( 1, $res['queued_review'] ?? null, json_encode( $res ) );
+        $this->assertSame( Submissions::STATUS_APPROVED, $this->subs()->find( $sid )['status'], 'now passes every check: submitted by the queue' );
+        $this->assertSame( Submissions::STATUS_PENDING_REVIEW, $this->subs()->find( $low )['status'], 'below the auto-queue score: still waits for a person, never downgraded' );
+    }
+
     // ------------------------------------------------------------------ submission-9
 
     public function testLimitIsSpentOnlyWhenARequestWasSent(): void {

@@ -54,7 +54,14 @@ final class CampaignFiller {
     private const OPEN = [ OutreachMessages::STATUS_DRAFT, OutreachMessages::STATUS_APPROVED, OutreachMessages::STATUS_SCHEDULED, OutreachMessages::STATUS_SENDING ];
 
     /** last_error prefixes of drafts a person has to edit first; automation does not retry approving them. */
-    private const NEEDS_EDIT = [ 'Needs editing', 'Not approved:' ];
+    public const NEEDS_EDIT = [ 'Needs editing', 'Not approved:' ];
+
+    /**
+     * "Not approved:" notes that 1.2.0 builds wrote for problems that clear without editing the draft (the sender
+     * identity, the contact cool-down). New notes of that kind use OutreachEngine::WAITING_PREFIX; these older ones
+     * are retried too instead of being left for a person forever.
+     */
+    public const TRANSIENT_NOT_APPROVED = [ 'Not approved: The sender email domain', 'Not approved: Sender identity incomplete', 'Not approved: This website was contacted on' ];
 
     /** Most candidates looked at per fill. */
     private const MAX_CANDIDATES = 200;
@@ -103,7 +110,9 @@ final class CampaignFiller {
             if ( ! $auto ) {
                 $out['adopted'] = $this->adoptAutoDrafts( $campaignId, $approach );
             }
-            $minScore = $auto ? (int) $this->settings()->get( 'automation.min_score_auto_queue', 70 ) : 0;
+            // Engine-drafted cold email that nobody reviews goes only to sites at or above the auto-queue score: the
+            // "Auto:" campaigns always, the owner's campaigns while Autopilot approves them.
+            $minScore = $auto || $this->autopilot()->autoApproveOwnerCampaigns() ? $this->autoQueueScore() : 0;
             $ids      = $this->candidateIds( $approach, $minScore, self::MAX_CANDIDATES );
             $out['eligible'] = count( $ids ) + $out['adopted'];
 
@@ -125,12 +134,15 @@ final class CampaignFiller {
                 }
                 $out['remaining'] += count( $chunks[ $i ] ) - count( $chunk );
             }
-            // Approval needs a complete sender identity; without one the campaign waits (nextStep() says why) and
-            // AutoOutreachJob approves it once the sender is fixed.
-            if ( $this->mayApproveCampaign( $campaign ) && $this->compliance()->senderReady()['ok'] ) {
+            // Approval needs a sender that is ready (identity complete, a domain that receives mail); without one the
+            // campaign and its drafts wait (nextStep() says why) and are approved once the sender is fixed. Drafts
+            // are approved only where automation approves them by itself (the "Auto:" campaigns, or the owner's
+            // under Autopilot): without Autopilot the owner's drafts wait for the owner, as before 1.2.0.
+            $senderOk = $this->compliance()->senderReady()['ok'];
+            if ( $senderOk && $this->mayApproveCampaign( $campaign ) ) {
                 $out['campaign_approved'] = $this->approveCampaign( $campaignId );
             }
-            if ( $this->autopilot()->autoApproveMessages() ) {
+            if ( $senderOk && $this->autoApprovesIn( $campaign ) ) {
                 $out['approved'] = $this->approveDrafts( $campaignId, $budget );
             }
             if ( 0 === $out['eligible'] ) {
@@ -180,6 +192,8 @@ final class CampaignFiller {
      */
     public function approveWaiting( TimeBudget $budget, int $max = 50 ): array {
         $out = [ 'campaigns' => 0, 'messages' => 0 ];
+        // The approval policy as stored now (this run may have started before the owner switched Autopilot off).
+        $this->settings()->refresh();
         if ( ! $this->compliance()->senderReady()['ok'] ) {
             return $out;
         }
@@ -204,16 +218,27 @@ final class CampaignFiller {
     }
 
     /**
-     * Approves (as automation) the first-contact drafts of one campaign that do not need editing.
+     * Approves (as automation) the drafts of one campaign that do not need editing: first contacts to sites at or
+     * above the auto-queue score, and follow-ups only under Autopilot with reply tracking (without it a follow-up
+     * could reach someone who already replied).
      */
     public function approveDrafts( int $campaignId, TimeBudget $budget, int $max = 50 ): int {
-        $n = 0;
-        foreach ( $this->messages()->findBy( [ 'campaign_id' => $campaignId, 'status' => OutreachMessages::STATUS_DRAFT, 'sequence' => 1 ], 'id', 'ASC', max( 1, $max ) ) as $m ) {
-            if ( ! $budget->has( 1.0 ) ) {
+        $n         = 0;
+        $criteria  = [ 'campaign_id' => $campaignId, 'status' => OutreachMessages::STATUS_DRAFT ];
+        $followUps = $this->autoApprovesFollowUps();
+        if ( ! $followUps ) {
+            $criteria['sequence'] = 1;
+        }
+        $scores = [];
+        foreach ( $this->messages()->findBy( $criteria, 'id', 'ASC', 500 ) as $m ) {
+            if ( $n >= $max || ! $budget->has( 1.0 ) ) {
                 break;
             }
             if ( self::needsEdit( (string) ( $m['last_error'] ?? '' ) ) ) {
                 continue;
+            }
+            if ( (int) ( $m['sequence'] ?? 1 ) <= 1 && $this->belowAutoBar( (int) ( $m['prospect_id'] ?? 0 ), $scores ) ) {
+                continue; // waits for the owner (nextStep() says so)
             }
             $r = $this->engine()->approveMessage( (int) $m['id'], 0 );
             if ( ! empty( $r['ok'] ) ) {
@@ -326,10 +351,17 @@ final class CampaignFiller {
         $drafts  = (int) ( $counts[ OutreachMessages::STATUS_DRAFT ] ?? 0 );
         $ready   = (int) ( $counts[ OutreachMessages::STATUS_APPROVED ] ?? 0 ) + (int) ( $counts[ OutreachMessages::STATUS_SCHEDULED ] ?? 0 );
         $total   = (int) array_sum( $counts );
-        $edit    = $drafts > 0 ? $this->needsEditCount( $id ) : 0;
-        $waiting = $drafts - $edit;
+        $kinds   = $drafts > 0 ? $this->draftKinds( $id ) : [ 'edit' => 0, 'follow_ups' => 0, 'below_bar' => 0 ];
+        $edit    = $kinds['edit'];
+        $waiting = max( 0, $drafts - $edit );
         $auto    = $this->autoApprovesIn( $campaign );
-        $out     = static fn( string $state, string $text ) => [ 'state' => $state, 'text' => $text, 'waiting' => $auto ? 0 : $waiting, 'needs_edit' => $edit ];
+        // Under automatic approval some drafts still wait for the owner: follow-ups without reply tracking (under
+        // Autopilot) and first contacts to sites below the auto-queue score. They are named, never hidden.
+        $heldFollowUps = $auto && ! $this->autoApprovesFollowUps() ? $kinds['follow_ups'] : 0;
+        $heldBelowBar  = $auto ? $kinds['below_bar'] : 0;
+        $held          = $heldFollowUps + $heldBelowBar;
+        $autoWaiting   = max( 0, $waiting - $held );
+        $out           = static fn( string $state, string $text ) => [ 'state' => $state, 'text' => $text, 'waiting' => $auto ? $held : $waiting, 'needs_edit' => $edit, 'follow_ups_waiting' => $heldFollowUps, 'below_bar' => $heldBelowBar ];
 
         if ( Campaigns::STATUS_ARCHIVED === $status ) {
             return $out( 'archived', 'Archived: nothing more is drafted or sent.' );
@@ -342,7 +374,10 @@ final class CampaignFiller {
         }
         $sender = $this->compliance()->senderReady();
         if ( empty( $sender['ok'] ) ) {
-            $why = in_array( 'sender_email_domain', (array) $sender['missing'], true ) ? 'the sender email domain cannot receive mail' : 'the sender identity is incomplete (' . implode( ', ', array_map( static fn( $m ): string => str_replace( '_', ' ', (string) $m ), (array) $sender['missing'] ) ) . ')';
+            $missing = (array) $sender['missing'];
+            $why     = in_array( 'sender_email_domain', $missing, true ) ? 'the sender email domain cannot receive mail'
+                : ( in_array( 'reply_to_domain', $missing, true ) ? 'the Reply-To address is on a domain that cannot receive mail'
+                : 'the sender identity is incomplete (' . implode( ', ', array_map( static fn( $m ): string => str_replace( '_', ' ', (string) $m ), $missing ) ) . ')' );
             return $out( 'blocked', 'Paused: ' . $why . '. Fix it under Settings → Outreach; nothing is sent until then.' );
         }
         $storefront = $this->storefrontPause();
@@ -358,14 +393,22 @@ final class CampaignFiller {
             $text .= $waiting > 0 ? sprintf( ' and its %d %s', $waiting, 1 === $waiting ? 'draft' : 'drafts' ) : '';
             return $out( 'waiting', $text . ' so the engine can send them.' );
         }
+        if ( $auto && in_array( $status, [ Campaigns::STATUS_DRAFT, Campaigns::STATUS_PENDING_APPROVAL ], true ) ) {
+            // Nothing is sent from a campaign that is not approved yet; say so instead of "Sending automatically".
+            return $out( 'approving', 'Not approved yet: automation approves this campaign and its drafts on the next outreach run, then sends them inside the send window and the daily limits.' );
+        }
         if ( ! $auto && $waiting > 0 ) {
             return $out( 'waiting', sprintf( '%d %s waiting for your approval.', $waiting, 1 === $waiting ? 'draft is' : 'drafts are' ) );
         }
-        if ( $ready > 0 || ( $auto && $waiting > 0 ) ) {
-            return $out( 'sending', $this->sendingText( $campaign ) );
+        $heldText = $this->heldText( $heldFollowUps, $heldBelowBar );
+        if ( $ready > 0 || ( $auto && $autoWaiting > 0 ) ) {
+            return $out( 'sending', $this->sendingText( $campaign ) . ( '' !== $heldText ? ' ' . $heldText : '' ) );
+        }
+        if ( $held > 0 ) {
+            return $out( 'waiting', $heldText );
         }
         if ( $edit > 0 ) {
-            return $out( 'needs_edit', sprintf( '%d %s the claims filter flagged; edit %s so %s can be sent.', $edit, 1 === $edit ? 'draft' : 'drafts', 1 === $edit ? 'it' : 'them', 1 === $edit ? 'it' : 'they' ) );
+            return $out( 'needs_edit', self::needsEditText( $edit ) );
         }
         return $out( 'idle', $this->autopilot()->isOn() || self::isAutoCampaign( $campaign )
             ? 'Nothing waiting to send; new drafts are added as the engine finds matching prospects.'
@@ -521,23 +564,79 @@ final class CampaignFiller {
         return $this->engine()->approveCampaign( $id, 0 );
     }
 
-    private function needsEditCount( int $campaignId ): int {
-        $n = 0;
-        foreach ( $this->messages()->findBy( [ 'campaign_id' => $campaignId, 'status' => OutreachMessages::STATUS_DRAFT ], 'id', 'ASC', 500 ) as $m ) {
-            if ( self::needsEdit( (string) ( $m['last_error'] ?? '' ) ) ) {
-                $n++;
-            }
-        }
-        return $n;
+    /** "2 drafts need editing (the claims filter or a compliance check flagged them) before they can be sent." */
+    public static function needsEditText( int $edit ): string {
+        return sprintf( '%d %s editing (the claims filter or a compliance check flagged %s) before %s can be sent.', $edit, 1 === $edit ? 'draft needs' : 'drafts need', 1 === $edit ? 'it' : 'them', 1 === $edit ? 'it' : 'they' );
     }
 
-    private static function needsEdit( string $lastError ): bool {
+    /** What still waits for the owner while automation approves the rest ('' when nothing does). */
+    private function heldText( int $followUps, int $belowBar ): string {
+        $parts = [];
+        if ( $followUps > 0 ) {
+            $parts[] = sprintf( '%d follow-up %s for you: Autopilot sends follow-ups only once reply tracking is set up (the inbound webhook secret under Settings → Integrations → Email, RDAP & inbound replies), or approve %s yourself.', $followUps, 1 === $followUps ? 'draft waits' : 'drafts wait', 1 === $followUps ? 'it' : 'them' );
+        }
+        if ( $belowBar > 0 ) {
+            $parts[] = sprintf( '%d %s to sites scoring below the auto-queue score (%d) %s for you: automation only emails sites at or above it without review.', $belowBar, 1 === $belowBar ? 'draft' : 'drafts', $this->autoQueueScore(), 1 === $belowBar ? 'waits' : 'wait' );
+        }
+        return implode( ' ', $parts );
+    }
+
+    /**
+     * Drafts of one campaign by kind: needing an edit, follow-ups, and first contacts to sites below the
+     * auto-queue score (both of the latter only among the drafts that do not need an edit).
+     *
+     * @return array{edit:int,follow_ups:int,below_bar:int}
+     */
+    private function draftKinds( int $campaignId ): array {
+        $out    = [ 'edit' => 0, 'follow_ups' => 0, 'below_bar' => 0 ];
+        $scores = [];
+        foreach ( $this->messages()->findBy( [ 'campaign_id' => $campaignId, 'status' => OutreachMessages::STATUS_DRAFT ], 'id', 'ASC', 500 ) as $m ) {
+            if ( self::needsEdit( (string) ( $m['last_error'] ?? '' ) ) ) {
+                $out['edit']++;
+            } elseif ( (int) ( $m['sequence'] ?? 1 ) > 1 ) {
+                $out['follow_ups']++;
+            } elseif ( $this->belowAutoBar( (int) ( $m['prospect_id'] ?? 0 ), $scores ) ) {
+                $out['below_bar']++;
+            }
+        }
+        return $out;
+    }
+
+    /** Whether a draft's last_error means a person has to edit it before it can be approved. */
+    public static function needsEdit( string $lastError ): bool {
+        foreach ( self::TRANSIENT_NOT_APPROVED as $prefix ) {
+            if ( str_starts_with( $lastError, $prefix ) ) {
+                return false;
+            }
+        }
         foreach ( self::NEEDS_EDIT as $prefix ) {
             if ( str_starts_with( $lastError, $prefix ) ) {
                 return true;
             }
         }
         return false;
+    }
+
+    private function autoQueueScore(): int {
+        return max( 0, (int) $this->settings()->get( 'automation.min_score_auto_queue', 70 ) );
+    }
+
+    /** Follow-up drafts are approved automatically only under Autopilot with reply tracking. */
+    private function autoApprovesFollowUps(): bool {
+        return $this->autopilot()->isOn() && $this->autopilot()->replyTracking();
+    }
+
+    /** Whether the website of a first-contact draft scores below the auto-queue score. @param array<int,int> $scores */
+    private function belowAutoBar( int $prospectId, array &$scores ): bool {
+        $bar = $this->autoQueueScore();
+        if ( $bar <= 0 || $prospectId <= 0 ) {
+            return false;
+        }
+        if ( ! array_key_exists( $prospectId, $scores ) ) {
+            $p                     = $this->prospects()->find( $prospectId );
+            $scores[ $prospectId ] = null !== $p && isset( $p['score'] ) ? (int) $p['score'] : 0;
+        }
+        return $scores[ $prospectId ] < $bar;
     }
 
     private function storefrontPause(): string {

@@ -325,7 +325,7 @@ final class OverviewController extends Controller {
             function () use ( &$out ): void {
                 $sender = $this->c->get( Compliance::class )->senderReady();
                 if ( empty( $sender['ok'] ) ) {
-                    $out[] = __( 'Outreach sender identity is incomplete (sender name, sender email, postal address): outreach emails cannot be sent.', 'ppc-link-growth-engine' );
+                    $out[] = Compliance::senderProblemText( $sender );
                 }
             },
             null,

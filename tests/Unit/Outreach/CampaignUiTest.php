@@ -89,7 +89,26 @@ final class CampaignUiTest extends TestCase {
         $this->assertNull( $h['bannerOff'] );
         $this->assertSame( 'Evaluated in Toronto time (America/Toronto, from your business region, because WordPress is set to UTC)', $h['zone'] );
         $this->assertStringContainsString( 'Autopilot is on', $h['growAutopilot'] );
+        // Sending paused: the toast repeats the card instead of promising automatic sending.
+        $this->assertSame( 'warning', $h['createdBlocked']['kind'] );
+        $this->assertStringContainsString( 'Nothing is sent yet. Paused: the sender email domain cannot receive mail', $h['createdBlocked']['text'] );
+        $this->assertStringNotContainsString( 'sends them automatically', $h['createdBlocked']['text'] );
+        // Grow panel tiles follow the live switch, not the stored run.
+        $this->assertSame( [ 'autopilot' => false, 'autoLinks' => false, 'changed' => true ], $h['modesAfterOff'] );
+        $this->assertSame( [ 'autopilot' => true, 'autoLinks' => true, 'changed' => false ], $h['modesNoPolicy'] );
+        // Automation page: under Autopilot the autosend stage no longer claims the owner's drafts need approval.
+        $this->assertStringContainsString( 'Your own campaigns and their first-contact drafts are approved and sent automatically', $h['stageOn'] );
+        $this->assertStringNotContainsString( 'Autopilot is on', $h['stageOff'] );
         $this->assertSame( [], $h['errors'] );
+    }
+
+    public function testUsingTheSuggestedSenderReloadsTheCampaignCards(): void {
+        $r = $this->browser( 'useSuggestion' );
+        $this->assertStringContainsString( 'Paused: the sender email domain cannot receive mail', (string) $r['before'] );
+        $this->assertStringContainsString( 'Sending automatically', (string) $r['after'], 'the card no longer says Paused' );
+        $this->assertStringNotContainsString( 'Paused: the sender', (string) $r['after'] );
+        $this->assertStringContainsString( '2 waiting drafts were approved', implode( ' ', array_column( $r['toasts'], 'text' ) ) );
+        $this->assertSame( [], $r['errors'] );
     }
 
     // ------------------------------------------------------------------ harness runner

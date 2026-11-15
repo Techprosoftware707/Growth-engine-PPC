@@ -228,6 +228,36 @@ await scenario( 'autopilotSwitch', async () => {
     return out;
 } );
 
+// "Use <site email>" in the paused-sender banner: the campaign cards are reloaded too, not only the banner.
+await scenario( 'useSuggestion', async () => {
+    let fixed = false;
+    const card = () => ( { id: 7, name: 'Run 3', status: fixed ? 'approved' : 'draft', approach: 'resource_page', settings: { daily_limit: 5 }, stats: {}, counts: fixed ? { approved: 2 } : { draft: 2 },
+        next_step: fixed ? { state: 'sending', text: 'Sending automatically: 0 of 5 today; next send window Monday 09:00 Toronto time.', waiting: 0, needs_edit: 0 } : { state: 'blocked', text: 'Paused: the sender email domain cannot receive mail. Fix it under Settings → Outreach; nothing is sent until then.', waiting: 0, needs_edit: 0 } } );
+    const s = await open( 'outreach', ( m, p ) => {
+        if ( p === '/outreach/sender' ) {
+            return fixed ? { ...LIVE_SENDER, autopilot: true, auto_approve: true } : { ...LIVE_SENDER, ok: false, missing: [ 'sender_email_domain' ], problems: [ 'The sender email domain purepeptidescanada.ca cannot receive mail.' ], suggestion: { sender_email: 'hi@purepeptidescanada.com', reason: 'Use hi@purepeptidescanada.com (your site email): its domain has a mail server (MX record).' }, autopilot: true, auto_approve: true };
+        }
+        if ( p === '/outreach/approaches' ) {
+            return { approaches: { resource_page: 'Resource page inclusion' }, descriptions: {}, variants: {} };
+        }
+        if ( p === '/outreach/campaigns' && m === 'GET' ) {
+            return { items: [ card() ], total: 1, page: 1, per_page: 100, pages: 1 };
+        }
+        if ( p === '/settings' && m === 'POST' ) {
+            fixed = true;
+            return { ok: true, changed: [ 'outreach.sender_email' ], approved_now: 2, settings: {} };
+        }
+        return undefined;
+    } );
+    const before = await s.page.locator( '.ppclg-card', { hasText: 'Run 3' } ).first().textContent();
+    await s.page.click( 'button.ppclg-btn:has-text("Use hi@purepeptidescanada.com")' );
+    await s.settle( 900 );
+    const after = await s.page.locator( '.ppclg-card', { hasText: 'Run 3' } ).first().textContent();
+    const out = { before, after, toasts: await s.toasts(), errors: s.errors };
+    await s.context.close();
+    return out;
+} );
+
 // Pure helpers of outreach.js, settings.js and overview.js.
 await scenario( 'helpers', async () => {
     const s = await open( 'outreach', ( m, p ) => ( p === '/outreach/sender' ? LIVE_SENDER : undefined ) );
@@ -235,6 +265,7 @@ await scenario( 'helpers', async () => {
         const o = await import( `${ base }assets/js/pages/outreach.js` );
         const st = await import( `${ base }assets/js/pages/settings.js` );
         const ov = await import( `${ base }assets/js/pages/overview.js` );
+        const au = await import( `${ base }assets/js/pages/automation.js` );
         return {
             createdDrafts: o.campaignCreatedText( { drafted: 3, eligible: 5, remaining: 2, approved: 0, autopilot: false } ),
             createdAutopilot: o.campaignCreatedText( { drafted: 2, eligible: 2, remaining: 0, approved: 2, autopilot: true } ),
@@ -245,6 +276,11 @@ await scenario( 'helpers', async () => {
             bannerOff: o.autosendBanner( { autosend: false } ),
             zone: st.sendZoneText( { timezone: 'America/Toronto', label: 'Toronto time', source: 'region', wordpress: 'UTC' } ),
             growAutopilot: ov.growPolicyText( { autopilot: true, submissions: true, submission_mode: 'auto', outreach_autosend: true, require_approval: false } ),
+            createdBlocked: o.campaignCreatedText( { drafted: 2, eligible: 2, remaining: 0, approved: 0, autopilot: true, campaign: { next_step: { state: 'blocked', text: 'Paused: the sender email domain cannot receive mail. Fix it under Settings → Outreach; nothing is sent until then.' } } } ),
+            modesAfterOff: ov.headlineModes( { autopilot: true, links_auto: { enabled: true, present: 3, per_day: 20 } }, { autopilot: false, auto_links: false } ),
+            modesNoPolicy: ov.headlineModes( { autopilot: true, links_auto: { enabled: true } }, null ),
+            stageOn: au.stageDescription( 'outreach_autosend', true ),
+            stageOff: au.stageDescription( 'outreach_autosend', false ),
         };
     }, PLUGIN );
     out.errors = s.errors;

@@ -22,6 +22,23 @@ const FLAGS = [
     { key: 'imports', label: 'Provider imports', desc: 'Imports backlinks from SE Ranking / Ahrefs / Semrush and referral sources from GA4 on the configured interval.' },
 ];
 
+/**
+ * What Autopilot changes about a stage, appended to its description while Autopilot is on (the static text
+ * describes the stage's own switch). Exported for tests.
+ */
+export const AUTOPILOT_STAGE_NOTES = {
+    packaging: 'Autopilot is on: packages that pass every check are submitted automatically (and packages that waited for review are re-checked); only sites below the auto-queue score or set to “Never automate” wait for you.',
+    submissions: 'Autopilot is on: submissions run in “auto” mode whatever this switch says.',
+    outreach_autosend: 'Autopilot is on: it overrides this switch and “Require individual approval”. Your own campaigns and their first-contact drafts are approved and sent automatically too (to sites at or above the auto-queue score); follow-ups only once reply tracking is set up.',
+};
+
+/** A stage description with the Autopilot note when Autopilot is on. Exported for tests. */
+export function stageDescription( flag, autopilotOn ) {
+    const f = FLAGS.find( ( x ) => x.key === flag );
+    const base = f ? f.desc : '';
+    return autopilotOn && AUTOPILOT_STAGE_NOTES[ flag ] ? `${ base } ${ AUTOPILOT_STAGE_NOTES[ flag ] }` : base;
+}
+
 const STAGES = {
     discover: { label: 'Discover', desc: 'Run search discovery and seeds.' },
     evaluate: { label: 'Evaluate', desc: 'Profile and score due prospects.' },
@@ -162,7 +179,7 @@ export default async function render( root, ctx ) {
             subtitle: 'Each flag gates the matching scheduled stage',
             body: FLAGS.map( ( f ) => switchRow( {
                 label: f.label,
-                description: f.desc,
+                description: stageDescription( f.key, Boolean( s.autopilot && s.autopilot.enabled ) ),
                 checked: Boolean( s.flags[ f.key ] ),
                 // Autopilot raises these stages to on whatever their own switch says.
                 badgeNode: s.autopilot && s.autopilot.enabled && ! s.flags[ f.key ] && s.effectiveFlags[ f.key ] ? badge( 'On through Autopilot', 'success' ) : ( f.gated ? badge( 'Confirmation required', 'warning' ) : null ),

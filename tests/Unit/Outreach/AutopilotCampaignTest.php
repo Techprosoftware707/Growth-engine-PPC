@@ -407,9 +407,9 @@ final class AutopilotCampaignTest extends TestCase {
         $this->assertSame( 0, Container::get( OutreachEngine::class )->sendDue( TimeBudget::seconds( 30.0 ) )['sent'] );
     }
 
-    public function testMissingSpfIsOnlyAWarningAndAnARecordCountsAsImplicitMx(): void {
+    public function testMissingSpfIsOnlyAWarning(): void {
         $this->settings()->set( 'outreach.sender_email', 'hello@example-lab.ca' );
-        $this->dns( [ 'example-lab.ca' => [ 'mx' => false, 'a' => true, 'spf' => false ] ] );
+        $this->dns( [ 'example-lab.ca' => [ 'mx' => true, 'a' => true, 'spf' => false ] ] );
         $ready = Container::get( Compliance::class )->senderReady();
         $this->assertTrue( $ready['ok'] );
         $this->assertNotEmpty( array_filter( $ready['warnings'], static fn( string $w ): bool => str_contains( $w, 'no SPF record' ) ) );

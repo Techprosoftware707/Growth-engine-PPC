@@ -164,6 +164,40 @@ final class SubmissionEngine {
         return $stats;
     }
 
+    /**
+     * Re-checks packages waiting in pending_review against the current policy (Autopilot raises submissions to "on"
+     * and the mode to "auto", but rows packaged before that would otherwise wait forever) and queues the ones that
+     * now pass every check. Rows that still do not pass (a score below the auto-queue score, a site set to never
+     * automate) stay pending_review for a person; they are never downgraded here. Least recently checked first.
+     *
+     * @return array{checked:int,queued:int}
+     */
+    public function reevaluatePending( TimeBudget $budget, int $max = 20 ): array {
+        $out = [ 'checked' => 0, 'queued' => 0 ];
+        foreach ( $this->submissions->findBy( [ 'status' => Submissions::STATUS_PENDING_REVIEW ], 'updated_at', 'ASC', max( 1, $max ) ) as $sub ) {
+            if ( ! $budget->has( 4 ) ) {
+                break;
+            }
+            $id = (int) $sub['id'];
+            $out['checked']++;
+            try {
+                $prospect = $this->prospects->find( (int) $sub['prospect_id'] );
+                if ( null !== $prospect ) {
+                    $payload = $this->withCompliance( is_array( $sub['payload'] ?? null ) ? $sub['payload'] : [] );
+                    $policy  = $this->policy->evaluate( $prospect, $payload, $this->formFromPayload( $payload ), (string) $sub['target_url'], $this->robotsFetcher(), false );
+                    if ( $policy['allowed'] && $this->approve( $id, 0 ) ) {
+                        $out['queued']++;
+                        continue;
+                    }
+                }
+                $this->submissions->update( $id, [ 'updated_at' => Repository::now() ] ); // checked: others go first next time
+            } catch ( Throwable $e ) {
+                $this->logger->warning( 'submission', 'Re-checking a pending package failed', [ 'submission_id' => $id, 'error' => $e->getMessage() ] );
+            }
+        }
+        return $out;
+    }
+
     // ------------------------------------------------------------------
     // Queue processing
     // ------------------------------------------------------------------

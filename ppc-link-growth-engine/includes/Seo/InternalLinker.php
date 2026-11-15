@@ -348,6 +348,11 @@ final class InternalLinker {
                 'created_at'     => (string) ( $prev['created_at'] ?? $now ),
                 'updated_at'     => $now,
             ];
+            // A suggestion the automatic safeguards refused stays refused while it is the same link at the same spot:
+            // regenerating the list must not make the daily automatic run try it again.
+            if ( ! empty( $prev['auto_skip'] ) && (int) ( $prev['target_id'] ?? 0 ) === $tid && (string) ( $prev['context_hash'] ?? '' ) === (string) $p['o']['context_hash'] ) {
+                $store['items'][ (string) $id ]['auto_skip'] = (string) $prev['auto_skip'];
+            }
             $keep[ $id ] = true;
         }
         foreach ( $existing as $id ) {
@@ -549,9 +554,23 @@ final class InternalLinker {
         return $out;
     }
 
+    /**
+     * Key that identifies a link target by its address: the path, and for plain permalinks ("/?product=slug",
+     * "/?p=12", "/index.php?page_id=3") the sorted query too. Without the query every plain-permalink address and
+     * the home page share the key "", so one link to any of them would count as a link to all of them.
+     */
     private static function pathKey( string $url ): string {
-        $path = (string) wp_parse_url( $url, PHP_URL_PATH );
-        return strtolower( rtrim( rawurldecode( $path ), '/' ) );
+        $path = strtolower( rtrim( rawurldecode( (string) wp_parse_url( $url, PHP_URL_PATH ) ), '/' ) );
+        if ( '' !== $path && '/index.php' !== $path ) {
+            return $path;
+        }
+        parse_str( html_entity_decode( (string) wp_parse_url( $url, PHP_URL_QUERY ), ENT_QUOTES | ENT_HTML5, 'UTF-8' ), $query );
+        $query = array_filter( $query, static fn( $v, $k ): bool => is_scalar( $v ) && '' !== (string) $v && ! str_starts_with( strtolower( (string) $k ), 'utm_' ), ARRAY_FILTER_USE_BOTH );
+        if ( [] === $query ) {
+            return '';
+        }
+        ksort( $query );
+        return '?' . strtolower( http_build_query( $query ) );
     }
 
     // ------------------------------------------------------------------
@@ -691,7 +710,7 @@ final class InternalLinker {
      * highest relevance first, at most seo.max_links_per_post per item and seo.auto_apply_per_day a day, through the
      * same safeguards as apply(). A suggestion the safeguards refuse is left for a person and not retried.
      *
-     * @return array{ran:bool,applied:int,refused:int,today:int,per_day:int,message:string}
+     * @return array{ran:bool,applied:int,refused:int,closed?:int,today:int,per_day:int,message:string}
      */
     public function autoApply( ?TimeBudget $budget = null ): array {
         $perDay = $this->autopilot()->linksPerDay();
@@ -734,13 +753,24 @@ final class InternalLinker {
         } finally {
             $this->locks->release( self::LOCK );
         }
+        // A refused suggestion either stays pending for a person (auto_skip) or was closed as no longer valid
+        // (stale: the text changed, the item already links there, …); only the first kind is "left for you".
+        $closed = 0;
+        foreach ( $results as $r ) {
+            if ( empty( $r['ok'] ) && self::STATUS_PENDING !== (string) ( $store['items'][ (string) (int) $r['id'] ]['status'] ?? '' ) ) {
+                $closed++;
+            }
+        }
         $out['ran']     = true;
         $out['applied'] = $done;
-        $out['refused'] = count( $results ) - $done;
+        $out['refused'] = max( 0, count( $results ) - $done - $closed );
+        $out['closed']  = $closed;
         $out['today']   = $today + $done;
+        $tail           = ( $out['refused'] > 0 ? sprintf( '; %d left for you to review', $out['refused'] ) : '' )
+            . ( $closed > 0 ? sprintf( '; %d no longer valid (closed)', $closed ) : '' );
         $out['message'] = 0 === $done && [] === $ids
             ? 'No internal-link suggestion is waiting to be applied automatically.'
-            : sprintf( 'Applied %d internal %s automatically (%d of %d today)%s.', $done, 1 === $done ? 'link' : 'links', $today + $done, $perDay, $out['refused'] > 0 ? sprintf( '; %d left for you to review', $out['refused'] ) : '' );
+            : sprintf( 'Applied %d internal %s automatically (%d of %d today)%s.', $done, 1 === $done ? 'link' : 'links', $today + $done, $perDay, $tail );
         return $out;
     }
 
@@ -1575,7 +1605,9 @@ final class InternalLinker {
     private function pruneStore( array &$store ): bool {
         foreach ( [ self::STATUS_STALE, self::STATUS_DISMISSED ] as $status ) {
             foreach ( $store['items'] as $id => $item ) {
-                if ( $status === $item['status'] ) {
+                // An undone automatic link is the only record that keeps it from being suggested (and, with
+                // automatic links on, applied) again, so it is never pruned.
+                if ( $status === $item['status'] && empty( $item['undone_at'] ) ) {
                     unset( $store['items'][ $id ] );
                     return true;
                 }

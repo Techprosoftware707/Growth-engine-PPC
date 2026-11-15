@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace PPC\LinkGrowth\Admin;
 
 use PPC\LinkGrowth\Integrations\ProviderRegistry;
+use PPC\LinkGrowth\Outreach\Compliance;
 use PPC\LinkGrowth\Support\Crypto;
 use PPC\LinkGrowth\Support\Settings;
 
@@ -22,7 +23,7 @@ final class Notices {
     /** Days a dismissed notice stays hidden for that user. */
     private const DISMISS_DAYS = 7;
 
-    public function __construct( private Settings $settings, private ProviderRegistry $providers ) {}
+    public function __construct( private Settings $settings, private ProviderRegistry $providers, private ?Compliance $compliance = null ) {}
 
     public function register(): void {
         add_action( 'admin_notices', [ $this, 'render' ] );
@@ -93,14 +94,14 @@ final class Notices {
         }
 
         try {
-            $name   = trim( (string) $this->settings->get( 'outreach.sender_name', '' ) );
-            $email  = trim( (string) $this->settings->get( 'outreach.sender_email', '' ) );
-            $postal = trim( (string) $this->settings->get( 'outreach.postal_address', '' ) );
-            if ( '' === $name || '' === $email || ! is_email( $email ) || '' === $postal ) {
+            // The same check the send path uses (the postal address may come from Settings → Site; the mail domain
+            // must receive mail), so the notice never says sending is blocked while it is not, or the reverse.
+            $ready = null !== $this->compliance ? $this->compliance->senderReady() : null;
+            if ( is_array( $ready ) && empty( $ready['ok'] ) ) {
                 $out[] = [
                     'id'           => 'sender_identity',
                     'level'        => 'info',
-                    'message'      => __( 'Outreach sender identity is incomplete (sender name, sender email and postal address are required by CASL / CAN-SPAM). Outreach emails cannot be sent until it is complete.', 'ppc-link-growth-engine' ),
+                    'message'      => Compliance::senderProblemText( $ready ),
                     'action_url'   => Menu::url( 'settings' ),
                     'action_label' => __( 'Complete sender identity', 'ppc-link-growth-engine' ),
                 ];

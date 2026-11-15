@@ -192,7 +192,29 @@ final class Settings {
         return $value;
     }
 
+    /**
+     * Drops this request's copy so the next read comes from the database. Settings is a container singleton that
+     * caches the option for the whole request (a cron tick can run for tens of seconds), so code that must see a
+     * change another request made meanwhile (Autopilot switched off, say) refreshes first.
+     */
+    public function refresh(): void {
+        $this->cache = null;
+        if ( function_exists( 'wp_cache_delete' ) ) {
+            wp_cache_delete( self::OPTION, 'options' );
+            $all = function_exists( 'wp_cache_get' ) ? wp_cache_get( 'alloptions', 'options' ) : false;
+            if ( is_array( $all ) && array_key_exists( self::OPTION, $all ) ) {
+                wp_cache_delete( 'alloptions', 'options' );
+            }
+        }
+    }
+
+    /**
+     * Changes one path. The change is merged into a fresh read of the stored option, never into this request's
+     * cached copy: a background job that writes one value must not put back settings the owner changed while it
+     * ran (for example Autopilot switched off).
+     */
     public function set( string $path, mixed $value ): void {
+        $this->refresh();
         $all  = $this->all();
         $ref  = &$all;
         $keys = explode( '.', $path );
@@ -213,8 +235,9 @@ final class Settings {
         update_option( self::OPTION, $this->cache, false );
     }
 
-    /** @param array<string,mixed> $partial */
+    /** Merges $partial into a fresh read of the stored option (see set()). @param array<string,mixed> $partial */
     public function update( array $partial ): void {
+        $this->refresh();
         $this->replace( self::mergeDeep( $this->all(), $partial ) );
     }
 

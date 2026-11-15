@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace PPC\LinkGrowth\Automation\Jobs;
 
+use PPC\LinkGrowth\Automation\Autopilot;
 use PPC\LinkGrowth\Container;
 use PPC\LinkGrowth\Submission\SubmissionEngine;
 use PPC\LinkGrowth\Support\TimeBudget;
@@ -42,7 +43,14 @@ final class PackageJob extends AbstractJob {
             : (int) $settings->get( 'automation.min_score_auto_queue', 70 );
         $max      = isset( $payload['max'] ) ? max( 1, min( 50, (int) $payload['max'] ) ) : self::DEFAULT_MAX;
 
-        $stats = $c->get( SubmissionEngine::class )->packageOpenOpportunities( $budget, $max, $minScore );
+        $engine = $c->get( SubmissionEngine::class );
+        $stats  = $engine->packageOpenOpportunities( $budget, $max, $minScore );
+        // Under Autopilot, packages that waited for review before it was switched on are queued once they pass.
+        if ( $c->get( Autopilot::class )->isOn() && $budget->has( 6.0 ) ) {
+            $re                     = $engine->reevaluatePending( $budget );
+            $stats['rechecked']     = $re['checked'];
+            $stats['queued_review'] = $re['queued'];
+        }
 
         return $this->result(
             array_merge(

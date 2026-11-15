@@ -173,6 +173,55 @@ final class AutopilotLinksTest extends TestCase {
         $this->assertSame( [], StubsSeo::$updates );
     }
 
+    public function testARefusedSuggestionIsNotRetriedAfterTheListIsRegenerated(): void {
+        $this->settings()->set( 'automation.autopilot', true );
+        StubsSeo::addPost( 405, [ 'post_title' => 'Prep', 'post_content' => '<p>Keep bacteriostatic water cold.</p><iframe src="https://example.org/x"></iframe>' ] );
+        $linker = $this->linker();
+        $this->assertStringContainsString( '1 left for you to review', $this->runJob()['summary'] );
+        // The next daily run regenerates the suggestions first (a fresh pass), then applies.
+        $next = $this->runJob();
+        $this->assertStringNotContainsString( 'left for you to review', $next['summary'], 'not attempted again' );
+        $this->assertNotEmpty( $this->bySource( $linker, 405 )[0]['auto_skip'] ?? '' );
+    }
+
+    public function testSuggestionsClosedAsNoLongerValidAreNotCountedAsLeftForYou(): void {
+        StubsSeo::addPost( 409, [ 'post_title' => 'Notes', 'post_content' => '<p>Keep bacteriostatic water cold.</p>' ] );
+        $linker = $this->linker();
+        $linker->run( TimeBudget::seconds( 30 ) ); // suggestions only (Autopilot off)
+        $this->assertCount( 1, $this->bySource( $linker, 409, 'pending' ) );
+        StubsSeo::$posts[409]['post_content'] = '<p>Changed: bacteriostatic water must stay cold.</p>'; // edited since
+        $this->settings()->set( 'automation.autopilot', true );
+        $res = $linker->autoApply( TimeBudget::seconds( 30 ) );
+        $this->assertSame( [ 0, 0, 1 ], [ $res['applied'], $res['refused'], $res['closed'] ] );
+        $this->assertStringContainsString( '1 no longer valid (closed)', $res['message'] );
+        $this->assertStringNotContainsString( 'left for you to review', $res['message'] );
+    }
+
+    public function testAnUndoneLinkIsNeverPrunedFromAFullStore(): void {
+        $this->settings()->set( 'automation.autopilot', true );
+        StubsSeo::addPost( 410, [ 'post_title' => 'Prep', 'post_content' => '<p>Keep bacteriostatic water cold.</p>' ] );
+        $linker = $this->linker();
+        $this->assertSame( 1, $this->runJob()['applied'] );
+        $this->asAdmin();
+        $this->assertTrue( $linker->undoAuto( 1, TimeBudget::seconds( 30 ) )['ok'] );
+        $GLOBALS['ppclg_test_caps'] = [];
+        // The store is full (2000 items); another page now needs room for a new suggestion.
+        $store = get_option( InternalLinker::OPTION );
+        for ( $i = 0; count( $store['items'] ) < 2000; $i++ ) {
+            $id                             = 50000 + $i;
+            $store['items'][ (string) $id ] = [ 'id' => $id, 'source_post_id' => 90000 + $i, 'target_id' => 100, 'status' => 'applied', 'anchor' => 'x', 'relevance' => 1 ];
+        }
+        update_option( InternalLinker::OPTION, $store, false );
+        StubsSeo::addPost( 411, [ 'post_title' => 'Other', 'post_content' => '<p>Read about peptide storage here.</p>' ] );
+        $linker->run( TimeBudget::seconds( 30 ), [ 'restart' => true ] );
+        $linker->run( TimeBudget::seconds( 30 ), [ 'restart' => true ] );
+        $undone = array_values( array_filter( $linker->suggestions( 'dismissed' ), static fn( array $s ): bool => 410 === (int) $s['source_post_id'] ) );
+        $this->assertCount( 1, $undone, 'the undone link keeps its record' );
+        $this->assertSame( [], $this->bySource( $linker, 410, 'pending' ) );
+        $this->assertSame( 0, $linker->autoApply( TimeBudget::seconds( 30 ) )['applied'] );
+        $this->assertStringNotContainsString( 'href', (string) StubsSeo::$posts[410]['post_content'] );
+    }
+
     public function testThePerItemLimitHoldsForAutomaticLinks(): void {
         $this->settings()->set( 'automation.autopilot', true );
         StubsSeo::addPost( 406, [ 'post_title' => 'Prep', 'post_content' => '<p>Use bacteriostatic water, then follow peptide storage rules.</p>' ] );
@@ -184,6 +233,37 @@ final class AutopilotLinksTest extends TestCase {
         $this->assertSame( 1, $res['applied'] );
         $this->assertCount( 1, $this->bySource( $linker, 406, 'applied' ) );
         $this->assertCount( 1, $this->bySource( $linker, 406, 'pending' ) );
+    }
+
+    /**
+     * Browser E2E finding: on a site with plain permalinks ("/?product=slug") every product address has the empty
+     * path, so after the first automatic link in a post every other suggestion in it was closed as "already links to
+     * this target" and Autopilot added one link per post instead of filling the daily cap.
+     */
+    public function testPlainPermalinkTargetsAreToldApart(): void {
+        $this->settings()->update( [ 'automation' => [ 'autopilot' => true ], 'seo' => [ 'auto_apply_per_day' => 5, 'max_links_per_post' => 3 ] ] );
+        StubsSeo::addPost( 110, [ 'post_type' => 'product', 'post_title' => 'Sterile Mixing Vials', 'url' => 'https://purepeptidescanada.test/?product=sterile-mixing-vials' ] );
+        StubsSeo::addPost( 111, [ 'post_type' => 'product', 'post_title' => 'Alcohol Prep Pads', 'url' => 'https://purepeptidescanada.test/?product=alcohol-prep-pads' ] );
+        StubsSeo::addPost( 112, [ 'post_type' => 'product', 'post_title' => 'Cold Storage Box', 'url' => 'https://purepeptidescanada.test/?product=cold-storage-box' ] );
+        // Post 408 already links to the home page: that is no link to any product either.
+        $content = '<p>See <a href="https://purepeptidescanada.test/">our shop</a>. Label the sterile mixing vials.</p><p>Wipe with alcohol prep pads.</p><p>Keep a cold storage box nearby.</p>';
+        StubsSeo::addPost( 408, [ 'post_title' => 'Bench prep', 'post_content' => $content ] );
+        $linker = $this->linker();
+        $linker->run( TimeBudget::seconds( 30 ) );
+        $this->assertCount( 3, $this->bySource( $linker, 408 ), 'a link to the home page hides no plain-permalink target' );
+
+        $res = $linker->autoApply( TimeBudget::seconds( 30 ) );
+        $this->assertSame( 3, $res['applied'], (string) $res['message'] );
+        $this->assertCount( 3, $this->bySource( $linker, 408, 'applied' ) );
+        $this->assertCount( 0, $this->bySource( $linker, 408, 'stale' ) );
+        foreach ( [ 'sterile-mixing-vials', 'alcohol-prep-pads', 'cold-storage-box' ] as $slug ) {
+            $this->assertStringContainsString( '?product=' . $slug, StubsSeo::$posts[408]['post_content'] );
+        }
+
+        // A target that really is linked already is still recognised (query order and entities do not matter).
+        StubsSeo::addPost( 409, [ 'post_title' => 'Bench prep 2', 'post_content' => '<p><a href="https://purepeptidescanada.test/?utm_source=x&amp;product=cold-storage-box">box</a>. Keep a cold storage box nearby.</p>' ] );
+        $linker->run( TimeBudget::seconds( 30 ), [ 'restart' => true ] );
+        $this->assertCount( 0, $this->bySource( $linker, 409 ) );
     }
 
     public function testUndoRestoresUneditedItemsExactlyAndUnlinksEditedOnes(): void {

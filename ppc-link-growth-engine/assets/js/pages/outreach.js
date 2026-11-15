@@ -99,6 +99,16 @@ export function campaignCreatedText( res ) {
     if ( remaining > 0 ) {
         text += ` (${ plural( remaining, 'more prospect is', 'more prospects are' ) } being drafted in the background)`;
     }
+    // The card's own "what happens next" wins when sending is paused (sender not ready, storefront gate) or
+    // something still waits for the owner: the toast never promises automatic sending the card contradicts.
+    const next = isObject( r.campaign ) && isObject( r.campaign.next_step ) ? r.campaign.next_step : {};
+    const nextText = String( next.text || '' ).trim();
+    if ( next.state === 'blocked' && nextText ) {
+        return { text: `${ text }. Nothing is sent yet. ${ nextText }`, kind: 'warning' };
+    }
+    if ( r.autopilot && approved === 0 && [ 'waiting', 'approving', 'needs_edit' ].includes( next.state ) && nextText ) {
+        return { text: `${ text }. ${ nextText }`, kind: 'info' };
+    }
     if ( r.autopilot ) {
         text += approved > 0
             ? `. Autopilot approved ${ fmtNumber( approved ) } and sends them automatically inside the send window and daily limits.`
@@ -187,9 +197,13 @@ export default async function render( root, ctx ) {
             const auto = autosendBanner( sender );
             const win = obj( sender && sender.send_window );
             const useSuggested = suggestion && suggestion.sender_email ? button( `Use ${ suggestion.sender_email }`, { small: true, kind: 'primary', onClick: async () => {
-                await api.post( '/settings', { settings: { outreach: { sender_email: suggestion.sender_email } } } );
-                toast( `Sender email changed to ${ suggestion.sender_email }.`, 'success' );
+                const saved = await api.post( '/settings', { settings: { outreach: { sender_email: suggestion.sender_email } } } );
+                const approvedNow = Number( saved && saved.approved_now ) || 0;
+                toast( `Sender email changed to ${ suggestion.sender_email }.${ approvedNow > 0 ? ` ${ fmtNumber( approvedNow ) } waiting ${ approvedNow === 1 ? 'draft was' : 'drafts were' } approved.` : '' }`, 'success' );
                 loadSenderBanner();
+                // The campaign cards' "What happens next" changes with the sender: reload them, not only the banner.
+                await campaigns( true ).catch( () => null );
+                view.refresh( 'campaigns' );
             } } ) : null;
             replace( bannerHost,
                 sender && sender.ok === false ? callout( 'danger', 'Sending is paused: the sender is not ready', el( 'div', {},

@@ -33,6 +33,9 @@ final class CompetitorBacklinkSource {
     /** After a scan in which every provider call failed: do not retry before this time. */
     public const RETRY_OPTION = 'ppclg_competitor_scan_retry_at';
 
+    /** Competitors already scanned in the current weekly scan (it pauses at the provider lookup limit). */
+    public const SCAN_PROGRESS_OPTION = 'ppclg_competitor_scan_progress';
+
     private const RETRY_SECONDS = 6 * HOUR_IN_SECONDS;
 
     /** Last automatic competitor detection that got an answer (ISO time). */
@@ -300,12 +303,28 @@ final class CompetitorBacklinkSource {
             $stats['warning'] = 'No backlink data provider configured (SE Ranking, Ahrefs or Semrush).';
             return $stats;
         }
-        $source = $sources[0]; // one provider is enough; avoid double credit spend.
-        $errors = [];
-        $anyOk  = false;
+        $source   = $sources[0]; // one provider is enough; avoid double credit spend.
+        $errors   = [];
+        $limits   = $this->limits ?? new Limits( $this->settings );
+        $progress = get_option( self::SCAN_PROGRESS_OPTION, [] );
+        $done     = is_array( $progress ) ? array_map( 'strval', (array) ( $progress['done'] ?? [] ) ) : [];
+        // A scan paused at the lookup limit resumes where it stopped; one with data from earlier competitors counts.
+        $anyOk    = is_array( $progress ) && ! empty( $progress['ok'] );
+        $paused   = false;
         foreach ( $comps as $comp ) {
+            if ( in_array( $comp, $done, true ) ) {
+                continue;
+            }
+            // Every competitor is one billable provider request: it counts against the daily provider lookup limit
+            // like every other provider call, and the scan continues on a later run when the limit is reached.
+            if ( ! $limits->allow( 'provider_lookups' ) ) {
+                $paused = true;
+                break;
+            }
+            $limits->spend( 'provider_lookups' );
             $stats['competitors']++;
-            $links = $source->backlinks( $comp, $perCompetitor, 1 );
+            $done[] = $comp;
+            $links  = $source->backlinks( $comp, $perCompetitor, 1 );
             $error = method_exists( $source, 'lastError' ) ? (string) $source->lastError() : '';
             if ( empty( $links ) && '' !== $error ) {
                 $errors[ $comp ] = $error; // the call failed: not "no backlinks"
@@ -330,15 +349,20 @@ final class CompetitorBacklinkSource {
                 }
             }
         }
-        if ( $anyOk ) {
+        if ( $paused ) {
+            update_option( self::SCAN_PROGRESS_OPTION, [ 'done' => $done, 'ok' => $anyOk ], false );
+            $stats['warning'] = trim( $stats['warning'] . ' The competitor backlink scan paused at today’s provider lookup limit; it continues on the next run.' );
+        } elseif ( $anyOk ) {
             // Only a scan that actually got data starts the weekly interval.
             update_option( self::LAST_RUN_OPTION, gmdate( 'c' ), false );
             delete_option( self::RETRY_OPTION );
+            delete_option( self::SCAN_PROGRESS_OPTION );
         } else {
+            delete_option( self::SCAN_PROGRESS_OPTION );
             update_option( self::RETRY_OPTION, gmdate( 'c', time() + self::RETRY_SECONDS ), false );
         }
         if ( [] !== $errors ) {
-            $stats['warning'] = sprintf( 'Backlink provider "%s" failed for %s: %s', $source->id(), implode( ', ', array_keys( $errors ) ), (string) reset( $errors ) );
+            $stats['warning'] = trim( sprintf( 'Backlink provider "%s" failed for %s: %s', $source->id(), implode( ', ', array_keys( $errors ) ), (string) reset( $errors ) ) . ' ' . $stats['warning'] );
         }
         $this->logger->info( 'discovery', 'Competitor backlink scan finished.', $stats );
         return $stats;

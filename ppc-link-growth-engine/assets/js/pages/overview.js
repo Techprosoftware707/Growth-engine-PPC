@@ -297,21 +297,42 @@ function auditTile( audit ) {
     return { value: valueOr( audit.high, 'unknown' ), hint: `${ valueOr( audit.issues_total, 'unknown' ) } issues in total${ partial ? ' (partial)' : '' }` };
 }
 
-function headline( summary, ctx ) {
+/**
+ * Which tile variants the headline shows: the live policy (GET /growth/status "policy", refreshed after the
+ * Autopilot switch) wins over what the stored run summary recorded, so turning Autopilot off does not leave tiles
+ * saying "Autopilot approves and sends them". `changed` is true when the policy differs from the run's. Exported
+ * for tests.
+ *
+ * @param {object} summary run.summary
+ * @param {object} policy  live policy ({ autopilot, auto_links }); null/undefined values fall back to the summary
+ * @return {{ autopilot: boolean, autoLinks: boolean, changed: boolean }}
+ */
+export function headlineModes( summary, policy ) {
     const s = asObject( summary );
+    const p = asObject( policy );
+    const runAutopilot = s.autopilot === true;
+    const runLinks = Boolean( s.links_auto && s.links_auto.enabled === true );
+    const autopilot = typeof p.autopilot === 'boolean' ? p.autopilot : runAutopilot;
+    const autoLinks = typeof p.auto_links === 'boolean' ? p.auto_links : runLinks;
+    return { autopilot, autoLinks, changed: autopilot !== runAutopilot };
+}
+
+function headline( summary, ctx, policy ) {
+    const s = asObject( summary );
+    const modes = headlineModes( s, policy );
     const subs = s.submissions && typeof s.submissions === 'object' ? s.submissions : null;
     const prospects = s.prospects && typeof s.prospects === 'object' ? s.prospects : null;
     const backlinks = s.backlinks && typeof s.backlinks === 'object' ? s.backlinks : null;
     const audit = s.site_audit && typeof s.site_audit === 'object' ? s.site_audit : null;
     return el( 'div', { class: 'ppclg-grid ppclg-grid--tiles' },
         statTile( { label: 'Owner tasks', iconName: 'package', value: subs ? valueOr( subs.owner_tasks, 'unknown' ) : 'unknown', hint: 'Listings you submit yourself', href: pageHref( ctx, 'submissions', { tab: 'needs_manual' } ) } ),
-        s.autopilot === true
+        modes.autopilot
             ? statTile( { label: 'Outreach drafts', iconName: 'mail', value: valueOr( s.outreach_drafts, 'unknown' ), hint: 'Autopilot approves and sends them', href: pageHref( ctx, 'outreach', { tab: 'messages', status: 'draft' } ) } )
             : statTile( { label: 'Drafts to approve', iconName: 'mail', value: valueOr( s.outreach_drafts, 'unknown' ), hint: 'Nothing is sent without approval', href: pageHref( ctx, 'outreach', { tab: 'messages', status: 'draft' } ) } ),
         statTile( { label: 'Qualified prospects', iconName: 'target', value: prospects ? valueOr( prospects.qualified, 'unknown' ) : 'unknown', hint: prospects ? `${ valueOr( prospects.total, 'unknown' ) } prospects in total` : '', href: pageHref( ctx, 'prospects', { status: 'qualified' } ) } ),
         statTile( { label: 'Live backlinks', iconName: 'link', value: backlinks ? valueOr( backlinks.live, 'unknown' ) : 'unknown', hint: backlinks ? `${ valueOr( backlinks.lost, 'unknown' ) } lost` : '' } ),
         statTile( { label: 'High-priority SEO issues', iconName: 'alert', ...auditTile( audit ), href: audit ? pageHref( ctx, 'seo', { severity: 'high' } ) : null } ),
-        s.links_auto && s.links_auto.enabled === true
+        modes.autoLinks && s.links_auto && s.links_auto.enabled === true
             ? statTile( { label: 'Automatic internal links', iconName: 'link', value: valueOr( s.links_auto.present, 'unknown' ), hint: `Added automatically, up to ${ fmtNumber( s.links_auto.per_day ) } a day`, href: pageHref( ctx, 'seo', { links: 'applied' } ) } )
             : statTile( { label: 'Link suggestions', iconName: 'link', value: valueOr( s.link_suggestions_pending, 'not available' ), hint: 'Applied only when you click Apply', href: pageHref( ctx, 'seo', { links: 'pending' } ) } ),
     );
@@ -453,7 +474,7 @@ export function createGrowPanel( ctx, options = {} ) {
                 badge( meta.label, meta.kind ),
                 el( 'span', { class: 'ppclg-muted' }, `took ${ fmtDuration( run.elapsed_seconds ) }` ),
             ),
-            summary.computed_at ? headline( summary, ctx ) : el( 'p', { class: 'ppclg-muted' }, 'Headline numbers appear once a run reaches its summary step.' ),
+            summary.computed_at ? headline( summary, ctx, s.policy ) : el( 'p', { class: 'ppclg-muted' }, 'Headline numbers appear once a run reaches its summary step.' ),
         );
     }
 
@@ -461,8 +482,12 @@ export function createGrowPanel( ctx, options = {} ) {
         const finished = run.finished_at ? Date.parse( run.finished_at ) : NaN;
         const recent = Number.isFinite( finished ) && Date.now() - finished < 30 * 60 * 1000;
         const actions = asArray( run.next_actions ).length ? run.next_actions : run.needs_you;
+        const modes = headlineModes( run.summary, s.policy );
+        const switched = asObject( run.summary ).computed_at && modes.changed
+            ? el( 'p', { class: 'ppclg-small ppclg-muted ppclg-grow-switched' }, `Autopilot was switched ${ modes.autopilot ? 'on' : 'off' } after this run, so this list may be out of date; click “Grow now” to refresh it.` )
+            : null;
         return el( 'div', { class: 'ppclg-grid ppclg-grid--2 ppclg-grow-results' },
-            el( 'div', {}, el( 'h4', {}, 'Needs you' ), needsYouList( actions, ctx, s.storefrontOk ) ),
+            el( 'div', {}, el( 'h4', {}, 'Needs you' ), switched, needsYouList( actions, ctx, s.storefrontOk ) ),
             el( 'div', {}, el( 'h4', {}, 'What happened' ), details( recent ? 'Step by step' : 'Step by step (last run)', el( 'ol', { class: 'ppclg-list ppclg-grow-steps' }, asArray( run.steps ).map( ( st ) => stepRow( st, String( run.status || '' ) ) ) ), { open: recent } ) ),
         );
     }

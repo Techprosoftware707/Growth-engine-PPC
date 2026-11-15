@@ -58,10 +58,12 @@ final class Compliance {
     /**
      * Sender identification required by CASL (s.6(2)) and CAN-SPAM: name, working address, postal address.
      *
-     * The sender email must be on a domain that can receive mail (MX record, or an A/AAAA record as the implicit MX
-     * of RFC 5321): replies and emailed unsubscribe requests go there. When it cannot, "sender_email_domain" is
-     * missing (automatic sending pauses with the plain reason in `problems`) and `suggestion` offers the site email
-     * when that domain does receive mail. A domain without an SPF record is a warning only. The postal address
+     * The sender email must be on a domain with a mail server (an MX record): replies and emailed unsubscribe
+     * requests (the List-Unsubscribe mailto) go there. An A/AAAA record alone does not count: RFC 5321 would fall back
+     * to it, but a parked or registrar-forwarded domain almost always has one, pointing at a web server that takes
+     * no mail. When the domain has no MX, "sender_email_domain" is missing (automatic sending pauses with the plain
+     * reason in `problems`) and `suggestion` offers the site email when its domain has MX. A separate Reply-To
+     * address must have a mail server too ("reply_to_domain"). A domain without an SPF record is a warning only. The postal address
      * defaults to the business address under Settings → Site when the outreach one is empty.
      *
      * @return array{ok:bool,missing:string[],warnings:string[],problems:string[],suggestion:?array<string,string>,mail_domain:?array<string,mixed>,postal_address:string,postal_default:bool}
@@ -94,7 +96,7 @@ final class Compliance {
             $dns = $this->mailDomain( $dom );
             if ( $dns['checked'] && false === $dns['receives'] ) {
                 $missing[]  = 'sender_email_domain';
-                $problems[] = sprintf( 'The sender email domain %1$s cannot receive mail (it has no MX or A record), so replies and unsubscribe requests sent to %2$s would bounce. Automatic sending is paused until the sender email uses a domain that receives mail.', $dom, $email );
+                $problems[] = sprintf( 'The sender email domain %1$s cannot receive mail (it has no MX record, i.e. no mail server; a parked domain looks like this), so replies and unsubscribe requests sent to %2$s would bounce. Automatic sending is paused until the sender email uses a domain that receives mail.', $dom, $email );
                 $siteEmail  = strtolower( trim( (string) $this->settings->get( 'site.email', '' ) ) );
                 if ( '' !== $siteEmail && is_email( $siteEmail ) && $siteEmail !== strtolower( $email ) ) {
                     $siteDns = $this->mailDomain( self::domainOf( $siteEmail ) );
@@ -113,6 +115,12 @@ final class Compliance {
         }
         if ( '' !== $replyTo && ! is_email( $replyTo ) ) {
             $warnings[] = 'Reply-To address is not a valid email address; the sender address will be used.';
+        } elseif ( '' !== $replyTo && strtolower( $replyTo ) !== strtolower( $email ) ) {
+            $replyDns = $this->mailDomain( self::domainOf( $replyTo ) );
+            if ( $replyDns['checked'] && false === $replyDns['receives'] ) {
+                $missing[]  = 'reply_to_domain';
+                $problems[] = sprintf( 'The Reply-To address %1$s is on %2$s, which has no MX record (no mail server), so replies would bounce. Automatic sending is paused until the Reply-To address (Settings → Outreach) uses a domain that receives mail, or is left empty.', $replyTo, $replyDns['domain'] );
+            }
         }
         if ( '' === $postal ) {
             $missing[]  = 'postal_address';
@@ -134,6 +142,27 @@ final class Compliance {
             'postal_address' => $postal,
             'postal_default' => '' === $configured && '' !== $postal,
         ];
+    }
+
+    /**
+     * One plain sentence about a senderReady() result that is not ok, naming the real problem: the mail domain when
+     * that is it, otherwise only the fields that are actually missing ('' when the sender is ready).
+     *
+     * @param array<string,mixed> $ready senderReady()
+     */
+    public static function senderProblemText( array $ready ): string {
+        if ( ! empty( $ready['ok'] ) ) {
+            return '';
+        }
+        $missing = array_map( 'strval', (array) ( $ready['missing'] ?? [] ) );
+        if ( [] !== array_intersect( [ 'sender_email_domain', 'reply_to_domain' ], $missing ) ) {
+            $text       = implode( ' ', array_map( 'strval', (array) ( $ready['problems'] ?? [] ) ) );
+            $suggestion = is_array( $ready['suggestion'] ?? null ) ? (string) ( $ready['suggestion']['reason'] ?? '' ) : '';
+            return trim( $text . ( '' !== $suggestion ? ' ' . $suggestion : '' ) );
+        }
+        $labels = [ 'sender_name' => 'sender name', 'sender_email' => 'sender email', 'postal_address' => 'postal address' ];
+        $named  = array_values( array_filter( array_map( static fn( string $m ): string => $labels[ $m ] ?? str_replace( '_', ' ', $m ), $missing ) ) );
+        return sprintf( 'Outreach sender identity is incomplete (%s; required by CASL / CAN-SPAM): outreach emails cannot be sent until it is complete (Settings → Outreach).', [] !== $named ? implode( ', ', $named ) : 'see Settings → Outreach' );
     }
 
     /**
@@ -183,10 +212,13 @@ final class Compliance {
     }
 
     /**
-     * Whether a domain can receive mail. MX first, then A/AAAA (RFC 5321 implicit MX); SPF is a TXT "v=spf1" record.
-     * Results are cached for 12 hours. `ppclg_mail_domain_dns` (null, $domain) may return [mx, a, spf] to answer
-     * without DNS (tests). Reserved test domains (.test, .example, .invalid, .localhost) are not looked up. When the
-     * resolver itself fails, the result is "not checked" (sending is not paused on a lookup failure).
+     * Whether a domain can receive mail: it has an MX record ("receives"; the A/AAAA result is reported as `a` but is
+     * not enough, see senderReady()). SPF is a TXT "v=spf1" record. Results are cached for 12 hours.
+     * `ppclg_mail_domain_dns` (null, $domain) may return [mx, a, spf] to answer without DNS (tests). Reserved test
+     * domains (.test, .example, .invalid, .localhost) are not looked up. When the resolver itself fails, the result
+     * is "not checked" (sending is not paused on a lookup failure) and that failure is remembered for 20 minutes, so
+     * a resolver that times out does not stall every request; `ppclg_mail_domain_lookup` (null, $domain) may return
+     * the records, or false for a failed lookup, in place of the real DNS queries (tests).
      *
      * @return array{domain:string,checked:bool,receives:?bool,mx:bool,a:bool,spf:?bool,error:string}
      */
@@ -207,13 +239,25 @@ final class Compliance {
          */
         $records = apply_filters( 'ppclg_mail_domain_dns', null, $domain );
         if ( ! is_array( $records ) ) {
-            $key    = 'ppclg_mxchk_' . md5( $domain );
-            $cached = get_transient( $key );
+            $key     = 'ppclg_mxchk_' . md5( $domain );
+            $failKey = 'ppclg_mxfail_' . md5( $domain );
+            $cached  = get_transient( $key );
             if ( is_array( $cached ) && isset( $cached['mx'] ) ) {
                 $records = $cached;
+            } elseif ( false !== get_transient( $failKey ) ) {
+                $out['error'] = 'the DNS lookup failed; it is tried again in a few minutes';
+                return $this->dnsCache[ $domain ] = $out;
             } else {
-                $records = self::lookupDns( $domain );
+                /**
+                 * Replaces the DNS queries of the mail-domain check (tests).
+                 *
+                 * @param array{mx?:bool,a?:bool,spf?:bool|null}|false|null $records null = query DNS, false = failed.
+                 * @param string                                             $domain
+                 */
+                $looked  = apply_filters( 'ppclg_mail_domain_lookup', null, $domain );
+                $records = is_array( $looked ) ? $looked : ( false === $looked ? null : self::lookupDns( $domain ) );
                 if ( null === $records ) {
+                    set_transient( $failKey, 1, 20 * MINUTE_IN_SECONDS );
                     $out['error'] = 'the DNS lookup failed';
                     return $this->dnsCache[ $domain ] = $out;
                 }
@@ -224,7 +268,7 @@ final class Compliance {
         $out['mx']       = ! empty( $records['mx'] );
         $out['a']        = ! empty( $records['a'] );
         $out['spf']      = array_key_exists( 'spf', $records ) && null !== $records['spf'] ? (bool) $records['spf'] : null;
-        $out['receives'] = $out['mx'] || $out['a'];
+        $out['receives'] = $out['mx'];
         return $this->dnsCache[ $domain ] = $out;
     }
 
@@ -311,7 +355,7 @@ final class Compliance {
 
         $sender = $this->senderReady();
         if ( ! $sender['ok'] ) {
-            $v[] = in_array( 'sender_email_domain', $sender['missing'], true ) && [] !== $sender['problems']
+            $v[] = [] !== array_intersect( [ 'sender_email_domain', 'reply_to_domain' ], $sender['missing'] ) && [] !== $sender['problems']
                 ? implode( ' ', $sender['problems'] )
                 : 'Sender identity incomplete: ' . implode( ', ', $sender['missing'] ) . ' (set under Settings → Outreach).';
             $transient++;
@@ -523,7 +567,14 @@ final class Compliance {
         if ( $this->withinSendWindow( $ts ) ) {
             return $ts;
         }
-        $hour = $ts - ( $ts % HOUR_IN_SECONDS ) + HOUR_IN_SECONDS;
+        // Step through whole hours of the send zone (not of UTC): in a zone with a :30 or :45 offset (St. John's,
+        // India, Nepal) a UTC hour falls on :30 local time, so a 09:00 opening would be reported as 09:30.
+        try {
+            $local = ( new \DateTimeImmutable( '@' . $ts ) )->setTimezone( $this->sendTimezone() );
+            $hour  = $local->setTime( (int) $local->format( 'G' ), 0 )->getTimestamp() + HOUR_IN_SECONDS;
+        } catch ( \Throwable $e ) {
+            $hour = $ts - ( $ts % HOUR_IN_SECONDS ) + HOUR_IN_SECONDS;
+        }
         for ( $i = 0; $i < 8 * 24 + 2; $i++, $hour += HOUR_IN_SECONDS ) {
             if ( $this->withinSendWindow( $hour ) ) {
                 return $hour;

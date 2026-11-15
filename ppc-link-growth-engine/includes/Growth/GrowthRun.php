@@ -36,6 +36,8 @@ use PPC\LinkGrowth\Discovery\VerifiedOpportunities;
 use PPC\LinkGrowth\Integrations\Google\SearchConsole;
 use PPC\LinkGrowth\Integrations\Google\SiteKitBridge;
 use PPC\LinkGrowth\Integrations\ProviderRegistry;
+use PPC\LinkGrowth\Database\Schema;
+use PPC\LinkGrowth\Outreach\CampaignFiller;
 use PPC\LinkGrowth\Outreach\Compliance;
 use PPC\LinkGrowth\Plugin;
 use PPC\LinkGrowth\Repositories\Backlinks;
@@ -926,6 +928,7 @@ final class GrowthRun {
         } );
         $drafts    = $this->safe( fn(): int => $this->c->get( OutreachMessages::class )->count( [ 'status' => OutreachMessages::STATUS_DRAFT ] ) );
         $needsEdit = $this->safe( fn(): int => $this->draftsNeedingEdit() );
+        $held      = $this->autopilot()->isOn() ? $this->safe( fn(): array => $this->draftsHeldForOwner() ) : null;
         $backlinks = $this->safe( function (): array {
             $bs = $this->c->get( Backlinks::class )->statusCounts();
             return [
@@ -995,6 +998,7 @@ final class GrowthRun {
             'submissions'              => $submissions,
             'outreach_drafts'          => $drafts,
             'outreach_needs_edit'      => $needsEdit,
+            'outreach_held'            => $held,
             'autopilot'                => $this->autopilot()->isOn(),
             'backlinks'                => $backlinks,
             'site_audit'               => $audit,
@@ -1047,15 +1051,36 @@ final class GrowthRun {
                 [ 'tab' => 'needs_manual' ]
             ) );
         }
-        if ( null !== $subs && $subs['pending_review'] > 0 && ! $autopilot ) {
-            $add( self::action( 'pending_review', sprintf( 'Review %d listing %s waiting for approval', $subs['pending_review'], 1 === $subs['pending_review'] ? 'package' : 'packages' ), $subs['pending_review'], 'submissions', [ 'tab' => 'pending_review' ] ) );
+        if ( null !== $subs && $subs['pending_review'] > 0 ) {
+            $n = $subs['pending_review'];
+            $add( self::action(
+                'pending_review',
+                $autopilot
+                    // Autopilot re-checks these on every packaging run and queues the ones that now pass; the rest
+                    // (a score below the auto-queue score, a site set to never automate) stay for a person.
+                    ? sprintf( 'Review %d listing %s Autopilot does not submit by itself (below the auto-queue score, or a site you set to never automate)', $n, 1 === $n ? 'package' : 'packages' )
+                    : sprintf( 'Review %d listing %s waiting for approval', $n, 1 === $n ? 'package' : 'packages' ),
+                $n,
+                'submissions',
+                [ 'tab' => 'pending_review' ]
+            ) );
         }
         $drafts = $summary['outreach_drafts'];
         if ( ! empty( $summary['autopilot'] ) ) {
-            // Autopilot approves and sends drafts by itself; only the ones the claims filter flagged need a person.
+            // Autopilot approves and sends drafts by itself; the ones a check flagged, follow-ups without reply
+            // tracking and first contacts to sites below the auto-queue score need a person.
             $edit = $summary['outreach_needs_edit'] ?? null;
             if ( is_int( $edit ) && $edit > 0 ) {
-                $add( self::action( 'outreach_drafts', sprintf( 'Edit %d outreach %s the claims filter flagged (Autopilot cannot send %s as written)', $edit, 1 === $edit ? 'draft' : 'drafts', 1 === $edit ? 'it' : 'them' ), $edit, 'outreach', [ 'tab' => 'messages', 'status' => 'draft' ] ) );
+                $add( self::action( 'outreach_drafts', sprintf( 'Edit %d outreach %s the claims filter or a compliance check flagged (Autopilot cannot send %s as written)', $edit, 1 === $edit ? 'draft' : 'drafts', 1 === $edit ? 'it' : 'them' ), $edit, 'outreach', [ 'tab' => 'messages', 'status' => 'draft' ] ) );
+            }
+            $held = is_array( $summary['outreach_held'] ?? null ) ? $summary['outreach_held'] : [];
+            $fu   = (int) ( $held['follow_ups'] ?? 0 );
+            if ( $fu > 0 ) {
+                $add( self::action( 'outreach_follow_ups', sprintf( 'Set up reply tracking (Settings → Integrations → Email, RDAP & inbound replies) so Autopilot can send follow-ups, or approve the %d follow-up %s yourself', $fu, 1 === $fu ? 'draft' : 'drafts' ), $fu, 'outreach', [ 'tab' => 'messages', 'status' => 'draft' ] ) );
+            }
+            $low = (int) ( $held['below_bar'] ?? 0 );
+            if ( $low > 0 ) {
+                $add( self::action( 'outreach_below_bar', sprintf( 'Approve or reject %d outreach %s to sites scoring below the auto-queue score (%d): Autopilot only emails sites at or above it without review', $low, 1 === $low ? 'draft' : 'drafts', (int) ( $held['bar'] ?? 0 ) ), $low, 'outreach', [ 'tab' => 'messages', 'status' => 'draft' ] ) );
             }
         } elseif ( is_int( $drafts ) && $drafts > 0 ) {
             $add( self::action( 'outreach_drafts', sprintf( 'Review %d outreach %s (nothing is sent without approval)', $drafts, 1 === $drafts ? 'draft' : 'drafts' ), $drafts, 'outreach', [ 'tab' => 'messages', 'status' => 'draft' ] ) );
@@ -1379,10 +1404,49 @@ final class GrowthRun {
     /** Drafts the claims filter or the compliance check flagged (a person has to edit them). */
     private function draftsNeedingEdit(): int {
         global $wpdb;
-        $t   = $this->c->get( OutreachMessages::class )->table();
-        $sql = "SELECT COUNT(*) FROM {$t} WHERE status = %s AND ( last_error LIKE %s OR last_error LIKE %s )";
+        $t                  = $this->c->get( OutreachMessages::class )->table();
+        [ $edit, $params ]  = self::needsEditSql( 'last_error' );
+        $sql                = "SELECT COUNT(*) FROM {$t} WHERE status = %s AND {$edit}";
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        return (int) $wpdb->get_var( $wpdb->prepare( $sql, OutreachMessages::STATUS_DRAFT, 'Needs editing%', 'Not approved:%' ) );
+        return (int) $wpdb->get_var( $wpdb->prepare( $sql, array_merge( [ OutreachMessages::STATUS_DRAFT ], $params ) ) );
+    }
+
+    /**
+     * Under Autopilot: drafts that still wait for the owner although they need no edit (see CampaignFiller):
+     * follow-ups while reply tracking is not set up, and first contacts to sites below the auto-queue score.
+     *
+     * @return array{follow_ups:int,below_bar:int,bar:int}
+     */
+    private function draftsHeldForOwner(): array {
+        global $wpdb;
+        $m                 = $this->c->get( OutreachMessages::class )->table();
+        $p                 = Schema::table( 'prospects' );
+        $bar               = max( 0, (int) $this->settings()->get( 'automation.min_score_auto_queue', 70 ) );
+        [ $edit, $params ] = self::needsEditSql( 'm.last_error' );
+        $out               = [ 'follow_ups' => 0, 'below_bar' => 0, 'bar' => $bar ];
+        if ( ! $this->autopilot()->replyTracking() ) {
+            $sql = "SELECT COUNT(*) FROM {$m} m WHERE m.status = %s AND m.sequence > 1 AND NOT {$edit}";
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $out['follow_ups'] = (int) $wpdb->get_var( $wpdb->prepare( $sql, array_merge( [ OutreachMessages::STATUS_DRAFT ], $params ) ) );
+        }
+        if ( $bar > 0 ) {
+            $sql = "SELECT COUNT(*) FROM {$m} m LEFT JOIN {$p} p ON p.id = m.prospect_id WHERE m.status = %s AND m.sequence <= 1 AND COALESCE( p.score, 0 ) < %d AND NOT {$edit}";
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $out['below_bar'] = (int) $wpdb->get_var( $wpdb->prepare( $sql, array_merge( [ OutreachMessages::STATUS_DRAFT, $bar ], $params ) ) );
+        }
+        return $out;
+    }
+
+    /**
+     * SQL that is true for a last_error a person has to edit for (CampaignFiller::needsEdit()).
+     *
+     * @return array{0:string,1:string[]}
+     */
+    private static function needsEditSql( string $column ): array {
+        $transient = implode( ' AND ', array_fill( 0, count( CampaignFiller::TRANSIENT_NOT_APPROVED ), "{$column} NOT LIKE %s" ) );
+        $sql       = "( COALESCE( {$column}, '' ) LIKE %s OR ( COALESCE( {$column}, '' ) LIKE %s AND {$transient} ) )";
+        $params    = array_merge( [ 'Needs editing%', 'Not approved:%' ], array_map( static fn( string $t ): string => $t . '%', CampaignFiller::TRANSIENT_NOT_APPROVED ) );
+        return [ $sql, $params ];
     }
 
     private function settings(): Settings {

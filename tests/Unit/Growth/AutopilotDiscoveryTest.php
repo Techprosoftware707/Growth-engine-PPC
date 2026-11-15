@@ -184,6 +184,41 @@ final class AutopilotDiscoveryTest extends TestCase {
         $this->assertSame( '', DiscoverJob::summaryFor( [ 'queries_run' => 2, 'competitors' => null, 'competitor_detection' => null ], [] ), 'unchanged without automatic competitors' );
     }
 
+    public function testCompetitorBacklinkMiningCountsAgainstProviderLookupsAndResumes(): void {
+        $this->withProvider();
+        $this->settings()->update( [ 'discovery' => [ 'competitor_domains' => [ 'rival-a.ca', 'rival-b.ca', 'rival-c.ca' ] ], 'automation' => [ 'daily_limits' => [ 'provider_lookups' => 2 ] ] ] );
+        $src    = $this->source();
+        $intake = Container::get( \PPC\LinkGrowth\Discovery\ProspectIntake::class );
+
+        $first = $src->discover( $intake );
+        $this->assertSame( [ 'rival-a.ca', 'rival-b.ca' ], $this->provider->mined, 'one billable request per competitor, within the limit' );
+        $this->assertSame( 2, Container::get( Limits::class )->used( 'provider_lookups' ) );
+        $this->assertStringContainsString( 'paused at today’s provider lookup limit', $first['warning'] );
+        $this->assertTrue( $src->isDue(), 'the weekly interval starts only once the scan is complete' );
+
+        $GLOBALS['ppclg_test_options'][ Limits::OPTION ] = []; // the next day
+        $src->discover( $intake );
+        $this->assertSame( [ 'rival-a.ca', 'rival-b.ca', 'rival-c.ca' ], $this->provider->mined, 'continues where it stopped' );
+        $this->assertFalse( $src->isDue() );
+    }
+
+    public function testADetectionRunCannotTurnAutopilotBackOnAfterTheOwnerSwitchedItOff(): void {
+        $this->withProvider();
+        $this->settings()->set( 'automation.autopilot', true );
+        $src = $this->source();
+        $this->assertTrue( ( new Autopilot( $this->settings() ) )->isOn() ); // the tick caches "on"
+        // Meanwhile the owner switches Autopilot off in another request.
+        $stored                                      = (array) get_option( Settings::OPTION, [] );
+        $stored['automation']['autopilot']           = false;
+        $GLOBALS['ppclg_test_options'][ Settings::OPTION ] = $stored;
+
+        $res = $src->autoDetect();
+        $this->assertNotEmpty( $res['added'] );
+        $fresh = new Settings();
+        $this->assertFalse( (bool) $fresh->get( 'automation.autopilot' ), 'the detection write did not restore the old switch' );
+        $this->assertSame( $res['added'], $fresh->get( 'discovery.competitor_domains_auto' ) );
+    }
+
     // ------------------------------------------------------------------ Grow now under Autopilot
 
     private function growNow(): array {
@@ -229,9 +264,13 @@ final class AutopilotDiscoveryTest extends TestCase {
         $this->assertStringContainsString( 'Add your SE Ranking API key', $byKey['discovery_source']['label'] );
         $this->assertStringContainsString( 'Link Growth Submitter role', $byKey['owner_tasks']['label'] );
         $this->assertArrayHasKey( 'sender_identity', $byKey, 'outreach cannot be sent without a sender: a real blocker' );
-        foreach ( [ 'google', 'metrics_provider', 'seo_issues', 'link_suggestions', 'pending_review', 'outreach_drafts', 'search_provider' ] as $key ) {
+        foreach ( [ 'google', 'metrics_provider', 'seo_issues', 'link_suggestions', 'outreach_drafts', 'search_provider' ] as $key ) {
             $this->assertArrayNotHasKey( $key, $byKey, $key );
         }
+        // A package Autopilot cannot submit by itself (here: its site no longer exists) is not hidden.
+        $this->assertStringContainsString( 'Autopilot does not submit by itself', $byKey['pending_review']['label'] );
+        // The seeded draft's site has no score: Autopilot does not email it without review, and says so.
+        $this->assertStringContainsString( 'below the auto-queue score (70)', $byKey['outreach_below_bar']['label'] );
         $summary = '';
         foreach ( $state['steps'] as $step ) {
             $summary = 'summary' === $step['key'] ? (string) $step['summary'] : $summary;

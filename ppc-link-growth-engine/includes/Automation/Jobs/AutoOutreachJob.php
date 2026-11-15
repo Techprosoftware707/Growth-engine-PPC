@@ -76,7 +76,10 @@ final class AutoOutreachJob extends AbstractJob {
         $autopilot = $c->get( Autopilot::class );
         $result    = [ 'drafted' => 0, 'auto_approved' => 0, 'skipped' => 0, 'campaigns' => [], 'warnings' => [], 'filled' => 0, 'owner_campaigns' => 0, 'approved_waiting' => 0 ];
 
-        if ( ! $autopilot->autoDrafts() && empty( $payload['manual'] ) ) {
+        // A "fill_only" run (queued when creating a campaign left prospects for the background) only continues the
+        // owner's campaigns: it never drafts into the evergreen "Auto:" campaigns, whatever the drafting switch says.
+        $fillOnly = ! empty( $payload['fill_only'] );
+        if ( ! $fillOnly && ! $autopilot->autoDrafts() && empty( $payload['manual'] ) ) {
             $result['warnings'][] = 'Automatic outreach drafting is switched off (Settings → Automation).';
             return $this->result( $result );
         }
@@ -109,7 +112,7 @@ final class AutoOutreachJob extends AbstractJob {
         }
         // Eligibility is filtered in SQL before the LIMIT, so form-first, low-score, contact-less and already
         // drafted prospects at the top of the ranking can no longer fill the window and starve the rest.
-        $candidateIds = $this->candidateIds( $prospects, $approaches, $minScore, $settings );
+        $candidateIds = $fillOnly ? [] : $this->candidateIds( $prospects, $approaches, $minScore, $settings );
 
         foreach ( array_chunk( $candidateIds, self::PAGE_SIZE ) as $chunk ) {
             foreach ( $this->loadOrdered( $prospects, $chunk ) as $prospect ) {

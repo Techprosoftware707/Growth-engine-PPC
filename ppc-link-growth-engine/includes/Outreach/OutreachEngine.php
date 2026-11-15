@@ -97,6 +97,9 @@ final class OutreachEngine {
     /** last_error when the storefront check cannot run (fail closed). */
     private const STOREFRONT_UNAVAILABLE = 'Paused: the storefront compliance check could not run, so outreach sending is paused until it does (check the plugin logs).';
 
+    /** last_error prefix of a draft whose approval waits for a problem that clears without editing it. */
+    public const WAITING_PREFIX = 'Waiting to approve: ';
+
     /** @var array<int,array<string,mixed>|null> */
     private array $campaignCache = [];
 
@@ -471,7 +474,10 @@ final class OutreachEngine {
             return [ 'ok' => false, 'violations' => [ 'Campaign is ' . $campaign['status'] . '.' ] ];
         }
         if ( $userId <= 0 ) {
-            // Automation approving on the owner's behalf (Autopilot / outreach autosend): honour the owner's settings.
+            // Automation approving on the owner's behalf (Autopilot / outreach autosend): honour the owner's settings
+            // as stored now, not as this (possibly long-running) request read them: Autopilot may have been switched
+            // off by another request meanwhile.
+            $this->settings->refresh();
             if ( $this->autopilot()->requireApproval() ) {
                 return [ 'ok' => false, 'violations' => [ 'Individual approval is required (Settings → Outreach → Require individual approval), so automation does not approve messages.' ] ];
             }
@@ -482,10 +488,14 @@ final class OutreachEngine {
         $prospectId = (int) ( $m['prospect_id'] ?? 0 );
         $prospect   = $prospectId > 0 ? $this->prospects->find( $prospectId ) : null;
         // The campaign's own approval is enforced at send time, so messages may be reviewed in any order.
-        $result = $this->compliance->validate( array_merge( $m, [ 'status' => OutreachMessages::STATUS_APPROVED ] ), $contact, null, $prospect );
+        $result = $this->compliance->assess( array_merge( $m, [ 'status' => OutreachMessages::STATUS_APPROVED ] ), $contact, null, $prospect );
         if ( ! $result['ok'] ) {
-            $this->messages->update( $id, [ 'last_error' => 'Not approved: ' . implode( ' ', $result['violations'] ), 'updated_at' => OutreachMessages::now() ] );
-            return $result;
+            // A problem that clears by itself or with a settings fix (sender identity, the contact cool-down) is not
+            // something to edit in the draft: it is noted as "Waiting", so automation approves it once it clears.
+            // Anything else ("Not approved:") needs a person to edit the draft.
+            $prefix = $result['transient'] ? self::WAITING_PREFIX : 'Not approved: ';
+            $this->messages->update( $id, [ 'last_error' => $prefix . implode( ' ', $result['violations'] ), 'updated_at' => OutreachMessages::now() ] );
+            return [ 'ok' => false, 'violations' => $result['violations'] ];
         }
         $this->messages->setStatus( $id, OutreachMessages::STATUS_APPROVED, [ 'last_error' => '' ] );
         $this->audit->record( $this->approver( $userId ), 'outreach.message_approved', 'outreach_message', $id, [ 'campaign_id' => $campaignId, 'prospect_id' => (int) ( $m['prospect_id'] ?? 0 ), 'autopilot' => $userId <= 0 && $this->autopilot()->isOn() ] );
@@ -624,6 +634,16 @@ final class OutreachEngine {
         };
         try {
             $this->releaseStaleClaims();
+            // Read the switch as stored now: a tick that started before Autopilot was switched off may have approved
+            // messages after disable() returned the others to draft. Those go back to draft too, before anything is
+            // sent, so "automatic sending stops at once" holds.
+            $this->settings->refresh();
+            if ( ! $this->autopilot()->isOn() ) {
+                $reverted = $this->autopilot()->revertAutoApproved();
+                if ( $reverted > 0 ) {
+                    $out['reasons']['autopilot_off'] = $reverted;
+                }
+            }
             $autosend = $this->autopilot()->outreachAutosend();
             $ready    = $this->sendCandidates( $max, $autosend );
             if ( [] === $ready ) {

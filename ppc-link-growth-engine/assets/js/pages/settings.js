@@ -42,6 +42,9 @@ const CONFIRM_FLAGS = {
 /** Turning the storefront compliance gate off: POST /settings needs confirm=true for it. */
 const STOREFRONT_GATE_OFF = { title: 'Turn off the storefront compliance gate', text: 'Turn off the storefront compliance gate? Automated submissions and outreach sending will continue even while the storefront check finds consumer-use wording (weight loss, skincare, nasal sprays, capsules, syringes, dosing…) that contradicts the research-use-only listings. How the store presents itself is your legal decision; the check keeps running and its findings stay visible on the Overview.' };
 /** Turning “Require individual approval” off while autosend is on: POST /settings needs confirm=true for it. */
+// Mirrors SettingsController::autoLinksConfirmationText(): automatic links edit published pages without review.
+const AUTO_LINKS_GATE = { title: 'Turn on automatic internal links', text: 'Turn on automatic internal links? Every day the engine will edit your published pages and posts without asking you first, adding the best internal-link suggestions (highest relevance first, up to the daily number under Settings → Automation → On-site SEO). WordPress keeps a revision of every page it changes, and “Undo automatic links” on the On-site SEO page removes them.' };
+
 const APPROVAL_OFF_GATE = { title: 'Turn off individual approval', text: 'Turn off “Require individual approval”? Outreach autosend is on, so initial cold emails that the engine drafts for qualified prospects (score at or above the auto-queue threshold, with a known contact) will be approved and sent to third parties in your name without your review. Sending stays inside the send window and the outreach email limits, and every message includes the unsubscribe link.' };
 const LIMIT_GROUPS = { daily_limits: 'Daily', weekly_limits: 'Weekly' };
 
@@ -301,9 +304,18 @@ export default async function render( root, ctx ) {
                 return;
             }
         }
+        let autoLinksConfirmed = false;
+        if ( obj( changed.seo ).auto_apply_links === true && ! getPath( state.original, 'seo.auto_apply_links', false ) && ! obj( obj( state.data ).autopilot ).enabled ) {
+            if ( await confirm( AUTO_LINKS_GATE.text, { title: AUTO_LINKS_GATE.title, confirmText: 'Turn on', danger: true } ) ) {
+                autoLinksConfirmed = true;
+            } else {
+                toast( 'Nothing was saved.', 'info' );
+                return;
+            }
+        }
         if ( Object.keys( changed ).length ) {
             body.settings = changed;
-            if ( approvalOffConfirmed || gateOffConfirmed ) {
+            if ( approvalOffConfirmed || gateOffConfirmed || autoLinksConfirmed ) {
                 body.confirm = true;
             }
         }

@@ -90,6 +90,13 @@ IT::step( 'Autopilot: campaigns fill at once, one switch approves and sends', st
     IT::check( false === $parked['ok'] && in_array( 'sender_email_domain', (array) $parked['missing'], true ), 'parked sender domain blocks sending', wp_json_encode( $parked['problems'] ?? null ) );
     IT::check( 'hi@working-site.ca' === ( $parked['suggestion']['sender_email'] ?? '' ), 'the site email is offered instead' );
     remove_filter( 'ppclg_mail_domain_dns', $dns, 10 );
+    // A parked domain usually keeps a parking A record: that is not a mail server either.
+    $parking = static fn( $r, string $domain ) => [ 'parking-a.ca' => [ 'mx' => false, 'a' => true, 'spf' => false ], 'working-site.ca' => [ 'mx' => true, 'a' => true, 'spf' => true ] ][ $domain ] ?? $r;
+    add_filter( 'ppclg_mail_domain_dns', $parking, 10, 2 );
+    $settings->update( [ 'outreach' => [ 'sender_email' => 'hi@parking-a.ca' ] ] );
+    $parkingA = (array) $do( 'GET', '/outreach/sender' )->get_data();
+    IT::check( false === $parkingA['ok'] && in_array( 'sender_email_domain', (array) $parkingA['missing'], true ) && 'hi@working-site.ca' === ( $parkingA['suggestion']['sender_email'] ?? '' ), 'a domain with only a parking A record (no MX) blocks sending too', wp_json_encode( $parkingA['problems'] ?? null ) );
+    remove_filter( 'ppclg_mail_domain_dns', $parking, 10 );
     $settings->update( [ 'outreach' => [ 'sender_email' => (string) $saved['outreach']['sender_email'] ], 'site' => [ 'email' => (string) $saved['site']['email'] ] ] );
 
     // 4. WordPress left on UTC for a Toronto business: the window runs on Toronto time.
