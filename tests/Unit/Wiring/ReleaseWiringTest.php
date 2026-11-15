@@ -110,14 +110,14 @@ final class ReleaseWiringTest extends TestCase {
         }
 
         $defaults = Settings::defaults();
-        $this->assertSame( [ 'indexnow' => true, 'indexnow_key' => '', 'audit_max_pages' => 400, 'audit_http_sample' => true, 'internal_links' => true, 'max_links_per_post' => 3 ], $defaults['seo'] );
+        $this->assertSame( [ 'indexnow' => true, 'indexnow_key' => '', 'audit_max_pages' => 400, 'audit_http_sample' => true, 'internal_links' => true, 'max_links_per_post' => 3, 'auto_apply_links' => false, 'auto_apply_per_day' => 20 ], $defaults['seo'] );
         $this->assertSame( [ 'storefront_gate' => true, 'acknowledged_hash' => '', 'acknowledged_by' => 0, 'acknowledged_at' => '' ], $defaults['compliance'] );
         $this->assertSame( [ 'evaluate_rounds' => 6, 'step_seconds' => 20 ], $defaults['growth'] );
 
         $main = (string) file_get_contents( self::ROOT . 'ppc-link-growth-engine.php' );
-        $this->assertMatchesRegularExpression( '/\*\s+Version:\s+1\.1\.0\b/', $main );
-        $this->assertStringContainsString( "define( 'PPCLG_VERSION', '1.1.0' );", $main );
-        $this->assertStringContainsString( 'Stable tag: 1.1.0', (string) file_get_contents( self::ROOT . 'readme.txt' ) );
+        $this->assertMatchesRegularExpression( '/\*\s+Version:\s+1\.2\.0\b/', $main );
+        $this->assertStringContainsString( "define( 'PPCLG_VERSION', '1.2.0' );", $main );
+        $this->assertStringContainsString( 'Stable tag: 1.2.0', (string) file_get_contents( self::ROOT . 'readme.txt' ) );
 
         $css = (string) file_get_contents( self::ROOT . 'assets/css/admin.css' );
         foreach ( [ '.ppclg-grow-step--blocked .ppclg-grow-step-icon', '.ppclg-compliance-finding', '.ppclg-owner-steps', '.ppclg-wrap mark' ] as $selector ) {

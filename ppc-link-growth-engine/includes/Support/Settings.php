@@ -51,6 +51,9 @@ final class Settings {
             ],
             'automation' => [
                 'enabled'               => true,
+                // One switch for hands-off growth (Automation\Autopilot): written only through
+                // POST /automation/autopilot or POST /settings with confirm=true, which records the owner's consent.
+                'autopilot'             => false,
                 'discovery'             => true,
                 'evaluation'            => true,
                 'opportunities'         => true,
@@ -83,6 +86,9 @@ final class Settings {
             'discovery'  => [
                 'geo_modifiers'       => [ 'Canada', 'Canadian', 'Ontario', 'Toronto', 'British Columbia', 'Alberta', 'Quebec', 'Vancouver', 'Montreal', 'Ottawa' ],
                 'competitor_domains'  => [],
+                // Competitors Autopilot found through SE Ranking while competitor_domains was empty (kept apart from
+                // the owner's list; removable in Settings → Discovery; see Discovery\CompetitorBacklinkSource).
+                'competitor_domains_auto' => [],
                 'brand_terms'         => [ 'Pure Peptides Canada', 'purepeptidescanada.com', 'purepeptidescanada' ],
                 'query_cooldown_days' => 30,
                 'results_per_query'   => 10,
@@ -113,6 +119,9 @@ final class Settings {
                 'send_window_start'         => 9,
                 'send_window_end'           => 17,
                 'send_days'                 => [ 1, 2, 3, 4, 5 ],
+                // IANA zone the send window is evaluated in; '' = the WordPress timezone, or the business region's
+                // zone when WordPress is left on UTC (see Outreach\Compliance::sendTimezone()).
+                'timezone'                  => '',
             ],
             'monitoring' => [
                 'check_interval_days_new'     => 1,
@@ -131,6 +140,9 @@ final class Settings {
                 'audit_http_sample'  => true, // optional HTTP spot check of at most 10 URLs at the end of each audit
                 'internal_links'     => true,
                 'max_links_per_post' => 3,
+                // Apply the best pending internal-link suggestions without a click (always on under Autopilot).
+                'auto_apply_links'   => false,
+                'auto_apply_per_day' => 20,
             ],
             'compliance' => [
                 'storefront_gate'   => true,

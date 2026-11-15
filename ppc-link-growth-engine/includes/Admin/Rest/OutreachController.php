@@ -9,7 +9,10 @@ declare(strict_types=1);
 
 namespace PPC\LinkGrowth\Admin\Rest;
 
+use PPC\LinkGrowth\Automation\Autopilot;
 use PPC\LinkGrowth\Automation\JobRunner;
+use PPC\LinkGrowth\Automation\Pipeline;
+use PPC\LinkGrowth\Outreach\CampaignFiller;
 use PPC\LinkGrowth\Outreach\Compliance;
 use PPC\LinkGrowth\Outreach\OutreachEngine;
 use PPC\LinkGrowth\Outreach\Templates;
@@ -55,6 +58,12 @@ final class OutreachController extends Controller {
     /** Prospects drafted per batch between time-budget checks (AI drafting is checked after every prospect). */
     private const DRAFT_BATCH = 25;
 
+    /** Seconds a POST /outreach/campaigns request may spend building the new campaign's first drafts. */
+    private const FILL_SECONDS = 15.0;
+
+    /** Most drafts one "Approve all drafts" request approves (the rest stay for the next click). */
+    private const APPROVE_ALL_MAX = 200;
+
     /** Seconds the job-runner lock is held for one "Send now" (released as soon as the send returns). */
     private const SEND_LOCK_SECONDS = 120;
 
@@ -70,6 +79,8 @@ final class OutreachController extends Controller {
             $this->idArgs() + [ 'action' => [ 'type' => 'string', 'required' => true, 'enum' => array_keys( self::CAMPAIGN_ACTIONS ) ] ]
         );
         $this->route( $namespace, '/outreach/campaigns/(?P<id>\d+)/drafts', 'POST', [ $this, 'drafts' ], $this->idArgs() );
+        $this->route( $namespace, '/outreach/campaigns/(?P<id>\d+)/approve-drafts', 'POST', [ $this, 'approveDrafts' ], $this->idArgs() );
+        $this->route( $namespace, '/outreach/campaigns/(?P<id>\d+)/candidates', 'GET', [ $this, 'candidates' ], $this->idArgs() );
 
         $this->route( $namespace, '/outreach/messages', 'GET', [ $this, 'messages' ], $this->listArgs( [ 'status', 'campaign_id', 'prospect_id', 'approach', 'sequence' ] ) );
         $this->route( $namespace, '/outreach/messages/(?P<id>\d+)', 'GET', [ $this, 'message' ], $this->idArgs() );
@@ -133,7 +144,87 @@ final class OutreachController extends Controller {
         if ( $id <= 0 ) {
             return $this->fail( 'ppclg_campaign_failed', __( 'The campaign could not be created.', 'ppc-link-growth-engine' ), 422 );
         }
-        return [ 'ok' => true, 'campaign_id' => $id, 'campaign' => $this->campaignDetail( $id ) ];
+        // A new campaign starts with real drafts for every eligible prospect matching its approach (within a time
+        // budget); the auto outreach stage continues the rest in the background. Under Autopilot the campaign and
+        // its drafts are approved straight away.
+        /**
+         * Filters the seconds POST /outreach/campaigns may spend building the first drafts.
+         *
+         * @param float $seconds
+         */
+        $budget = TimeBudget::seconds( max( 0.0, (float) apply_filters( 'ppclg_rest_campaign_fill_seconds', self::FILL_SECONDS ) ) );
+        $fill   = $this->safe( fn(): array => $this->c->get( CampaignFiller::class )->fill( $id, $budget, $this->userId() ), [ 'drafted' => 0, 'adopted' => 0, 'eligible' => 0, 'remaining' => 0, 'approved' => 0, 'campaign_approved' => false, 'reasons' => [], 'explanation' => '' ], 'campaign fill' );
+        $queued = false;
+        if ( (int) ( $fill['remaining'] ?? 0 ) > 0 ) {
+            $queued = null !== $this->safe( fn(): ?int => $this->c->get( Pipeline::class )->enqueueStage( 'auto_outreach', [ 'campaign_id' => $id ], 4, true ), null, 'queue campaign fill' );
+        }
+        return [
+            'ok'          => true,
+            'campaign_id' => $id,
+            'campaign'    => $this->campaignDetail( $id ),
+            'drafted'     => (int) ( $fill['drafted'] ?? 0 ) + (int) ( $fill['adopted'] ?? 0 ),
+            'eligible'    => (int) ( $fill['eligible'] ?? 0 ),
+            'remaining'   => (int) ( $fill['remaining'] ?? 0 ),
+            'approved'    => (int) ( $fill['approved'] ?? 0 ),
+            'reasons'     => is_array( $fill['reasons'] ?? null ) ? $fill['reasons'] : [],
+            'explanation' => (string) ( $fill['explanation'] ?? '' ),
+            'queued'      => $queued,
+            'autopilot'   => (bool) $this->safe( fn(): bool => $this->c->get( Autopilot::class )->isOn(), false, 'autopilot' ),
+        ];
+    }
+
+    /**
+     * POST /outreach/campaigns/{id}/approve-drafts — the owner approves every draft of a campaign at once, and the
+     * campaign itself when it is still a draft or pending approval (one click instead of submit → approve → each
+     * message). Every message still passes the full compliance validation.
+     *
+     * @return array<string,mixed>|\WP_Error
+     */
+    public function approveDrafts( WP_REST_Request $request ) {
+        $id  = $this->id( $request );
+        $row = $this->c->get( Campaigns::class )->find( $id );
+        if ( null === $row ) {
+            return $this->notFound( __( 'Campaign', 'ppc-link-growth-engine' ) );
+        }
+        $engine           = $this->c->get( OutreachEngine::class );
+        $campaignApproved = null;
+        if ( in_array( (string) $row['status'], [ Campaigns::STATUS_DRAFT, Campaigns::STATUS_PENDING_APPROVAL ], true ) ) {
+            $campaignApproved = $engine->approveCampaign( $id, $this->userId() );
+        }
+        $budget   = TimeBudget::seconds( self::DRAFT_SECONDS );
+        $approved = 0;
+        $failed   = [];
+        $left     = 0;
+        foreach ( $this->c->get( OutreachMessages::class )->findBy( [ 'campaign_id' => $id, 'status' => OutreachMessages::STATUS_DRAFT ], 'id', 'ASC', self::APPROVE_ALL_MAX ) as $m ) {
+            if ( ! $budget->has( 1.0 ) ) {
+                $left++;
+                continue;
+            }
+            $r = $engine->approveMessage( (int) $m['id'], $this->userId() );
+            if ( ! empty( $r['ok'] ) ) {
+                $approved++;
+            } else {
+                $failed[ (int) $m['id'] ] = implode( ' ', array_map( 'strval', (array) ( $r['violations'] ?? [] ) ) );
+            }
+        }
+        return [
+            'ok'                => true,
+            'approved'          => $approved,
+            'failed'            => $failed,
+            'remaining'         => $left,
+            'campaign_approved' => $campaignApproved,
+            'campaign'          => $this->campaignDetail( $id ),
+        ];
+    }
+
+    /** GET /outreach/campaigns/{id}/candidates — prospects eligible for this campaign's approach. @return array<string,mixed>|\WP_Error */
+    public function candidates( WP_REST_Request $request ) {
+        $c = $this->c->get( Campaigns::class )->find( $this->id( $request ) );
+        if ( null === $c ) {
+            return $this->notFound( __( 'Campaign', 'ppc-link-growth-engine' ) );
+        }
+        $items = $this->safe( fn(): array => $this->c->get( CampaignFiller::class )->candidates( (string) $c['approach'] ), [], 'campaign candidates' );
+        return [ 'items' => $items, 'total' => count( $items ), 'approach' => (string) $c['approach'] ];
     }
 
     /** @return array<string,mixed>|\WP_Error */
@@ -482,7 +573,9 @@ final class OutreachController extends Controller {
         unset( $request );
         $settings   = $this->c->get( Settings::class );
         $compliance = $this->c->get( Compliance::class );
-        $ready      = $this->safe( static fn(): array => $compliance->senderReady(), [ 'ok' => false, 'missing' => [ 'unknown' ], 'warnings' => [] ], 'sender readiness' );
+        $autopilot  = $this->c->get( Autopilot::class );
+        $ready      = $this->safe( static fn(): array => $compliance->senderReady(), [ 'ok' => false, 'missing' => [ 'unknown' ], 'warnings' => [], 'problems' => [] ], 'sender readiness' );
+        $zone       = $this->safe( static fn(): array => $compliance->sendTimezoneInfo(), [ 'timezone' => wp_timezone_string(), 'source' => 'wordpress', 'label' => wp_timezone_string(), 'wordpress' => wp_timezone_string() ], 'send timezone' );
         return array_merge(
             $ready,
             [
@@ -492,15 +585,25 @@ final class OutreachController extends Controller {
                     'reply_to'           => (string) $settings->get( 'outreach.reply_to', '' ),
                     'postal_address_set' => '' !== trim( (string) $settings->get( 'outreach.postal_address', '' ) ),
                     'require_approval'   => (bool) $settings->get( 'outreach.require_approval', true ),
+                    'postal_address'     => (string) ( $ready['postal_address'] ?? '' ),
+                    'postal_default'     => (bool) ( $ready['postal_default'] ?? false ),
                 ],
                 'send_window'   => [
                     'start'    => (int) $settings->get( 'outreach.send_window_start', 9 ),
                     'end'      => (int) $settings->get( 'outreach.send_window_end', 17 ),
                     'days'     => array_values( array_map( 'intval', (array) $settings->get( 'outreach.send_days', [ 1, 2, 3, 4, 5 ] ) ) ),
-                    'timezone' => wp_timezone_string(),
-                    'open_now' => (bool) $this->safe( static fn(): bool => $compliance->withinSendWindow(), false, 'send window' ),
+                    'timezone'        => (string) $zone['timezone'],
+                    'timezone_label'  => (string) $zone['label'],
+                    'timezone_source' => (string) $zone['source'],
+                    'wp_timezone'     => (string) $zone['wordpress'],
+                    'open_now'        => (bool) $this->safe( static fn(): bool => $compliance->withinSendWindow(), false, 'send window' ),
+                    'next_open'       => (string) $this->safe( static fn(): string => $compliance->describeNextSendWindow(), '', 'next send window' ),
                 ],
                 'autosend'      => (bool) $settings->get( 'automation.outreach_autosend', false ),
+                // What actually happens: Autopilot, or autosend with individual approval off, approves drafts.
+                'autopilot'     => $autopilot->isOn(),
+                'auto_approve'  => $autopilot->autoApproveMessages(),
+                'follow_ups'    => $autopilot->followUpNote(),
             ]
         );
     }
@@ -570,6 +673,9 @@ final class OutreachController extends Controller {
         if ( ! isset( $c['message_counts'] ) ) {
             $c['message_counts'] = is_array( $c['counts'] ?? null ) ? $c['counts'] : [];
         }
+        if ( ! isset( $c['next_step'] ) ) {
+            $c['next_step'] = $this->nextStep( $c );
+        }
         return $c;
     }
 
@@ -582,7 +688,18 @@ final class OutreachController extends Controller {
         $c['messages_total'] = (int) array_sum( $counts );
         $c['approach_label'] = Templates::label( (string) ( $c['approach'] ?? '' ) );
         $c['sent_today']     = (int) $this->safe( static fn(): int => $messages->sentTodayForCampaign( $id ), 0, 'sent today' );
+        $c['next_step']      = $this->nextStep( $c );
         return self::castInts( $c, [ 'daily_limit', 'created_by', 'approved_by' ] );
+    }
+
+    /**
+     * The card's one-line "What happens next" (CampaignFiller::nextStep()), or null when it cannot be computed.
+     *
+     * @param array<string,mixed> $c
+     * @return array<string,mixed>|null
+     */
+    private function nextStep( array $c ): ?array {
+        return $this->safe( fn(): array => $this->c->get( CampaignFiller::class )->nextStep( $c ), null, 'campaign next step' );
     }
 
     /** @param array<string,mixed> $m @return array<string,mixed> */

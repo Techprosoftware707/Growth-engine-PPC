@@ -89,6 +89,7 @@ class WP_REST_Request implements ArrayAccess {
     }
     public function set_param( string $key, mixed $value ): void { $this->params[ $key ] = $value; }
     public function get_param( string $key ): mixed { return $this->params[ $key ] ?? null; }
+    public function has_param( string $key ): bool { return array_key_exists( $key, $this->params ); }
     public function get_params(): array { return $this->params; }
     public function set_body( string $body ): void { $this->body = $body; }
     public function get_body(): string { return $this->body; }
@@ -245,8 +246,9 @@ function shortcode_atts( array $pairs, array $atts ): array { return array_merge
 
 // ---------------------------------------------------------------- time
 function current_time( string $type, int|bool $gmt = 0 ): mixed { $ts = $GLOBALS['ppclg_test_time'] ?? time(); return 'timestamp' === $type ? $ts : ( 'mysql' === $type ? gmdate( 'Y-m-d H:i:s', $ts ) : gmdate( $type, $ts ) ); }
-function wp_timezone(): DateTimeZone { return new DateTimeZone( 'America/Toronto' ); }
-function wp_timezone_string(): string { return 'America/Toronto'; }
+// $GLOBALS['ppclg_test_timezone'] overrides the WordPress timezone (e.g. 'UTC' or '+00:00'); default America/Toronto.
+function wp_timezone_string(): string { return (string) ( $GLOBALS['ppclg_test_timezone'] ?? 'America/Toronto' ); }
+function wp_timezone(): DateTimeZone { $tz = wp_timezone_string(); return new DateTimeZone( preg_match( '/^[+-]\d{2}:\d{2}$/', $tz ) ? $tz : ( '' !== $tz ? $tz : 'UTC' ) ); }
 function wp_date( string $format, ?int $ts = null, ?DateTimeZone $tz = null ): string { $d = new DateTime( '@' . ( $ts ?? time() ) ); $d->setTimezone( $tz ?? wp_timezone() ); return $d->format( $format ); }
 function date_i18n( string $format, ?int $ts = null ): string { return gmdate( $format, $ts ?? time() ); }
 function get_date_from_gmt( string $s, string $format = 'Y-m-d H:i:s' ): string { return gmdate( $format, strtotime( $s ) ?: 0 ); }

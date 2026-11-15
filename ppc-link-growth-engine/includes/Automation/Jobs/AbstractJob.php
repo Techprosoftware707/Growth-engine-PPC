@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace PPC\LinkGrowth\Automation\Jobs;
 
 use PPC\LinkGrowth\Automation\Audit;
+use PPC\LinkGrowth\Automation\Autopilot;
 use PPC\LinkGrowth\Container;
 use PPC\LinkGrowth\Growth\GrowthRun;
 use PPC\LinkGrowth\Monitoring\Notifier;
@@ -129,7 +130,7 @@ abstract class AbstractJob implements JobInterface {
      * @param array<string,mixed> $payload
      */
     protected function flag( Container $c, array $payload, string $flag ): bool {
-        if ( (bool) $this->settings( $c )->get( 'automation.' . $flag, false ) ) {
+        if ( ( new Autopilot( $this->settings( $c ) ) )->flag( $flag ) ) {
             return true;
         }
         return $this->isManual( $payload ) && ! in_array( $flag, self::HARD_GATES, true );

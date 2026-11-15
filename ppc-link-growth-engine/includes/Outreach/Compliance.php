@@ -28,6 +28,26 @@ final class Compliance {
     /** Prospect states in which the owner decided the website must not be contacted ("on hold" only defers sending). */
     public const BLOCKED_PROSPECT_STATUSES = [ Prospects::STATUS_REJECTED, Prospects::STATUS_SUPPRESSED ];
 
+    /** Canadian province / territory → IANA zone of its most populous area (send window when WordPress is on UTC). */
+    public const CA_REGION_TIMEZONES = [
+        'ON' => 'America/Toronto',
+        'QC' => 'America/Toronto',
+        'NU' => 'America/Toronto',
+        'MB' => 'America/Winnipeg',
+        'SK' => 'America/Regina',
+        'AB' => 'America/Edmonton',
+        'NT' => 'America/Edmonton',
+        'BC' => 'America/Vancouver',
+        'YT' => 'America/Vancouver',
+        'NS' => 'America/Halifax',
+        'PE' => 'America/Halifax',
+        'NB' => 'America/Halifax',
+        'NL' => 'America/St_Johns',
+    ];
+
+    /** @var array<string,array<string,mixed>> per-request mail-domain results */
+    private array $dnsCache = [];
+
     public function __construct(
         private Settings $settings,
         private Suppression $suppression,
@@ -38,37 +58,225 @@ final class Compliance {
     /**
      * Sender identification required by CASL (s.6(2)) and CAN-SPAM: name, working address, postal address.
      *
-     * @return array{ok:bool,missing:string[],warnings:string[]}
+     * The sender email must be on a domain that can receive mail (MX record, or an A/AAAA record as the implicit MX
+     * of RFC 5321): replies and emailed unsubscribe requests go there. When it cannot, "sender_email_domain" is
+     * missing (automatic sending pauses with the plain reason in `problems`) and `suggestion` offers the site email
+     * when that domain does receive mail. A domain without an SPF record is a warning only. The postal address
+     * defaults to the business address under Settings → Site when the outreach one is empty.
+     *
+     * @return array{ok:bool,missing:string[],warnings:string[],problems:string[],suggestion:?array<string,string>,mail_domain:?array<string,mixed>,postal_address:string,postal_default:bool}
      */
     public function senderReady(): array {
-        $missing  = [];
-        $warnings = [];
-        $name     = trim( (string) $this->settings->get( 'outreach.sender_name', '' ) );
-        $email    = trim( (string) $this->settings->get( 'outreach.sender_email', '' ) );
-        $replyTo  = trim( (string) $this->settings->get( 'outreach.reply_to', '' ) );
-        $postal   = trim( (string) $this->settings->get( 'outreach.postal_address', '' ) );
+        $missing    = [];
+        $warnings   = [];
+        $problems   = [];
+        $suggestion = null;
+        $dns        = null;
+        $name       = trim( (string) $this->settings->get( 'outreach.sender_name', '' ) );
+        $email      = trim( (string) $this->settings->get( 'outreach.sender_email', '' ) );
+        $replyTo    = trim( (string) $this->settings->get( 'outreach.reply_to', '' ) );
+        $configured = trim( (string) $this->settings->get( 'outreach.postal_address', '' ) );
+        $postal     = $this->postalAddress();
 
         if ( '' === $name ) {
-            $missing[] = 'sender_name';
+            $missing[]  = 'sender_name';
+            $problems[] = 'The sender name is missing (Settings → Outreach).';
         }
         if ( '' === $email || ! is_email( $email ) ) {
-            $missing[] = 'sender_email';
+            $missing[]  = 'sender_email';
+            $problems[] = 'The sender email is missing or not a valid address (Settings → Outreach).';
         } else {
             $site = $this->settings->siteDomain();
-            $dom  = strtolower( substr( $email, (int) strrpos( $email, '@' ) + 1 ) );
+            $dom  = self::domainOf( $email );
             if ( '' !== $site && $dom !== $site && ! str_ends_with( $dom, '.' . $site ) ) {
                 $warnings[] = 'Sender email domain differs from the site domain; deliverability and trust are better when they match.';
+            }
+            $dns = $this->mailDomain( $dom );
+            if ( $dns['checked'] && false === $dns['receives'] ) {
+                $missing[]  = 'sender_email_domain';
+                $problems[] = sprintf( 'The sender email domain %1$s cannot receive mail (it has no MX or A record), so replies and unsubscribe requests sent to %2$s would bounce. Automatic sending is paused until the sender email uses a domain that receives mail.', $dom, $email );
+                $siteEmail  = strtolower( trim( (string) $this->settings->get( 'site.email', '' ) ) );
+                if ( '' !== $siteEmail && is_email( $siteEmail ) && $siteEmail !== strtolower( $email ) ) {
+                    $siteDns = $this->mailDomain( self::domainOf( $siteEmail ) );
+                    if ( $siteDns['checked'] && $siteDns['mx'] ) {
+                        $suggestion = [
+                            'sender_email' => $siteEmail,
+                            'reason'       => sprintf( 'Use %s (your site email): its domain has a mail server (MX record).', $siteEmail ),
+                        ];
+                    }
+                }
+            } elseif ( $dns['checked'] && false === $dns['spf'] ) {
+                $warnings[] = sprintf( 'The sender email domain %s has no SPF record, so receiving servers are more likely to treat outreach as spam. Ask your email provider for the SPF TXT record to publish.', $dom );
+            } elseif ( ! $dns['checked'] && '' !== $dns['error'] ) {
+                $warnings[] = 'Whether the sender email domain can receive mail could not be checked (' . $dns['error'] . ').';
             }
         }
         if ( '' !== $replyTo && ! is_email( $replyTo ) ) {
             $warnings[] = 'Reply-To address is not a valid email address; the sender address will be used.';
         }
         if ( '' === $postal ) {
-            $missing[] = 'postal_address';
+            $missing[]  = 'postal_address';
+            $problems[] = 'The postal address is missing (Settings → Outreach, or the business address under Settings → Site).';
         } elseif ( mb_strlen( $postal ) < 12 ) {
             $warnings[] = 'Postal address looks incomplete; include street, city, province and postal code.';
+        } else {
+            foreach ( self::postalGaps( $postal ) as $gap ) {
+                $warnings[] = $gap;
+            }
         }
-        return [ 'ok' => [] === $missing, 'missing' => $missing, 'warnings' => $warnings ];
+        return [
+            'ok'             => [] === $missing,
+            'missing'        => $missing,
+            'warnings'       => $warnings,
+            'problems'       => $problems,
+            'suggestion'     => $suggestion,
+            'mail_domain'    => $dns,
+            'postal_address' => $postal,
+            'postal_default' => '' === $configured && '' !== $postal,
+        ];
+    }
+
+    /**
+     * The postal address every email carries: outreach.postal_address, or (when that is empty) the business address
+     * from Settings → Site (street, city, region + postal code, country).
+     */
+    public function postalAddress(): string {
+        return self::effectivePostalAddress( $this->settings );
+    }
+
+    /** @see postalAddress() */
+    public static function effectivePostalAddress( Settings $settings ): string {
+        $configured = trim( (string) $settings->get( 'outreach.postal_address', '' ) );
+        if ( '' !== $configured ) {
+            return $configured;
+        }
+        $parts = array_filter(
+            array_map(
+                'trim',
+                [
+                    (string) $settings->get( 'site.address', '' ),
+                    (string) $settings->get( 'site.city', '' ),
+                    trim( (string) $settings->get( 'site.region', '' ) . ' ' . (string) $settings->get( 'site.postal_code', '' ) ),
+                    (string) $settings->get( 'site.country', '' ),
+                ]
+            ),
+            static fn( string $p ): bool => '' !== $p
+        );
+        return implode( ', ', $parts );
+    }
+
+    /**
+     * CASL asks for a valid mailing address: warn when it has no postal / ZIP code or no city part.
+     *
+     * @return string[]
+     */
+    public static function postalGaps( string $postal ): array {
+        $out = [];
+        if ( ! preg_match( '/\b[ABCEGHJ-NPRSTVXY]\d[ABCEGHJ-NPRSTV-Z][ -]?\d[ABCEGHJ-NPRSTV-Z]\d\b|\b\d{5}(-\d{4})?\b|\b[A-Z]{1,2}\d[A-Z\d]? ?\d[A-Z]{2}\b/i', $postal ) ) {
+            $out[] = 'The postal address has no postal code; CASL requires a valid mailing address (street, city, province and postal code).';
+        }
+        $parts = preg_split( '/\s*[,\n]\s*/', trim( $postal ) ) ?: [];
+        if ( count( array_filter( $parts, static fn( string $p ): bool => '' !== trim( $p ) ) ) < 2 ) {
+            $out[] = 'The postal address seems to have no city; write it as "street, city, province postal code".';
+        }
+        return $out;
+    }
+
+    /**
+     * Whether a domain can receive mail. MX first, then A/AAAA (RFC 5321 implicit MX); SPF is a TXT "v=spf1" record.
+     * Results are cached for 12 hours. `ppclg_mail_domain_dns` (null, $domain) may return [mx, a, spf] to answer
+     * without DNS (tests). Reserved test domains (.test, .example, .invalid, .localhost) are not looked up. When the
+     * resolver itself fails, the result is "not checked" (sending is not paused on a lookup failure).
+     *
+     * @return array{domain:string,checked:bool,receives:?bool,mx:bool,a:bool,spf:?bool,error:string}
+     */
+    public function mailDomain( string $domain ): array {
+        $domain = strtolower( trim( $domain, " .\t\n\r" ) );
+        if ( isset( $this->dnsCache[ $domain ] ) ) {
+            return $this->dnsCache[ $domain ];
+        }
+        $out = [ 'domain' => $domain, 'checked' => false, 'receives' => null, 'mx' => false, 'a' => false, 'spf' => null, 'error' => '' ];
+        if ( '' === $domain || ! str_contains( $domain, '.' ) || preg_match( '/\.(test|example|invalid|localhost)$/', $domain ) ) {
+            return $this->dnsCache[ $domain ] = $out;
+        }
+        /**
+         * Short-circuits the mail-domain DNS lookup.
+         *
+         * @param array{mx?:bool,a?:bool,spf?:bool|null}|null $records null = look up in DNS.
+         * @param string                                       $domain
+         */
+        $records = apply_filters( 'ppclg_mail_domain_dns', null, $domain );
+        if ( ! is_array( $records ) ) {
+            $key    = 'ppclg_mxchk_' . md5( $domain );
+            $cached = get_transient( $key );
+            if ( is_array( $cached ) && isset( $cached['mx'] ) ) {
+                $records = $cached;
+            } else {
+                $records = self::lookupDns( $domain );
+                if ( null === $records ) {
+                    $out['error'] = 'the DNS lookup failed';
+                    return $this->dnsCache[ $domain ] = $out;
+                }
+                set_transient( $key, $records, 12 * HOUR_IN_SECONDS );
+            }
+        }
+        $out['checked']  = true;
+        $out['mx']       = ! empty( $records['mx'] );
+        $out['a']        = ! empty( $records['a'] );
+        $out['spf']      = array_key_exists( 'spf', $records ) && null !== $records['spf'] ? (bool) $records['spf'] : null;
+        $out['receives'] = $out['mx'] || $out['a'];
+        return $this->dnsCache[ $domain ] = $out;
+    }
+
+    /** @return array{mx:bool,a:bool,spf:?bool}|null null when the resolver did not answer at all. */
+    private static function lookupDns( string $domain ): ?array {
+        if ( ! function_exists( 'dns_get_record' ) ) {
+            return null;
+        }
+        $fqdn = $domain . '.';
+        // phpcs:disable WordPress.PHP.NoSilencedErrors.Discouraged -- dns_get_record() warns on NXDOMAIN.
+        $mx   = @dns_get_record( $fqdn, DNS_MX );
+        $a    = @dns_get_record( $fqdn, DNS_A );
+        $aaaa = ( is_array( $a ) && [] !== $a ) ? [] : @dns_get_record( $fqdn, DNS_AAAA );
+        $txt  = @dns_get_record( $fqdn, DNS_TXT );
+        // phpcs:enable
+        if ( false === $mx && false === $a && false === $aaaa && false === $txt ) {
+            // An unregistered domain also fails every query; tell the two apart with checkdnsrr().
+            if ( function_exists( 'checkdnsrr' ) && ( checkdnsrr( $fqdn, 'MX' ) || checkdnsrr( $fqdn, 'A' ) ) ) {
+                return [ 'mx' => checkdnsrr( $fqdn, 'MX' ), 'a' => true, 'spf' => null ];
+            }
+            return self::resolverWorks() ? [ 'mx' => false, 'a' => false, 'spf' => false ] : null;
+        }
+        $hasMx = false;
+        foreach ( is_array( $mx ) ? $mx : [] as $r ) {
+            // A "null MX" (RFC 7505: priority 0, target ".") explicitly says the domain accepts no mail.
+            if ( isset( $r['target'] ) && '' !== trim( (string) $r['target'], '.' ) ) {
+                $hasMx = true;
+            }
+        }
+        $spf = false;
+        foreach ( is_array( $txt ) ? $txt : [] as $r ) {
+            $value = (string) ( $r['txt'] ?? ( isset( $r['entries'] ) ? implode( '', (array) $r['entries'] ) : '' ) );
+            if ( str_starts_with( strtolower( trim( $value ) ), 'v=spf1' ) ) {
+                $spf = true;
+            }
+        }
+        return [
+            'mx'  => $hasMx,
+            'a'   => ( is_array( $a ) && [] !== $a ) || ( is_array( $aaaa ) && [] !== $aaaa ),
+            'spf' => false === $txt ? null : $spf,
+        ];
+    }
+
+    /** Whether DNS answers at all here (a well-known zone must resolve). */
+    private static function resolverWorks(): bool {
+        // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+        $r = @dns_get_record( 'iana.org.', DNS_A );
+        return is_array( $r ) && [] !== $r;
+    }
+
+    private static function domainOf( string $email ): string {
+        return strtolower( substr( $email, (int) strrpos( $email, '@' ) + 1 ) );
     }
 
     /**
@@ -103,7 +311,9 @@ final class Compliance {
 
         $sender = $this->senderReady();
         if ( ! $sender['ok'] ) {
-            $v[] = 'Sender identity incomplete: ' . implode( ', ', $sender['missing'] ) . ' (set under Settings → Outreach).';
+            $v[] = in_array( 'sender_email_domain', $sender['missing'], true ) && [] !== $sender['problems']
+                ? implode( ' ', $sender['problems'] )
+                : 'Sender identity incomplete: ' . implode( ', ', $sender['missing'] ) . ' (set under Settings → Outreach).';
             $transient++;
         }
 
@@ -127,7 +337,7 @@ final class Compliance {
         } elseif ( ! $this->bodyHasUnsubscribe( $body, $token ) ) {
             $v[] = 'Body must contain the unsubscribe link.';
         }
-        $postal = trim( (string) $this->settings->get( 'outreach.postal_address', '' ) );
+        $postal = $this->postalAddress();
         if ( '' !== $postal && ! $this->containsNormalized( $body, $postal ) ) {
             $v[] = 'Body must contain the sender postal address.';
         }
@@ -278,30 +488,23 @@ final class Compliance {
     }
 
     /**
-     * Whether a timestamp falls inside the configured send window (site timezone).
+     * Whether a timestamp falls inside the configured send window, evaluated in sendTimezone().
      */
     public function withinSendWindow( ?int $timestamp = null ): bool {
         $ts = $timestamp ?? time();
         try {
-            $tz = function_exists( 'wp_timezone' ) ? wp_timezone() : new \DateTimeZone( 'UTC' );
-            $dt = ( new \DateTimeImmutable( '@' . $ts ) )->setTimezone( $tz );
+            $dt = ( new \DateTimeImmutable( '@' . $ts ) )->setTimezone( $this->sendTimezone() );
         } catch ( \Throwable $e ) {
             $dt = new \DateTimeImmutable( '@' . $ts );
         }
         $hour = (int) $dt->format( 'G' );
         $dow  = (int) $dt->format( 'N' ); // 1 = Monday … 7 = Sunday
 
-        $days = array_map( 'intval', array_filter( (array) $this->settings->get( 'outreach.send_days', [ 1, 2, 3, 4, 5 ] ), 'is_numeric' ) );
-        $days = array_map( static fn( int $d ): int => 0 === $d ? 7 : $d, $days );
-        if ( [] === $days ) {
-            $days = [ 1, 2, 3, 4, 5 ];
-        }
-        if ( ! in_array( $dow, $days, true ) ) {
+        if ( ! in_array( $dow, $this->sendDays(), true ) ) {
             return false;
         }
 
-        $start = max( 0, min( 23, (int) $this->settings->get( 'outreach.send_window_start', 9 ) ) );
-        $end   = max( 0, min( 24, (int) $this->settings->get( 'outreach.send_window_end', 17 ) ) );
+        [ $start, $end ] = $this->sendHours();
         if ( $start === $end ) {
             return true; // no restriction
         }
@@ -312,6 +515,104 @@ final class Compliance {
     }
 
     /**
+     * Start of the next send window at or after $timestamp (the timestamp itself when the window is open), or null
+     * when no send day is configured within the next 8 days.
+     */
+    public function nextSendWindow( ?int $timestamp = null ): ?int {
+        $ts = $timestamp ?? time();
+        if ( $this->withinSendWindow( $ts ) ) {
+            return $ts;
+        }
+        $hour = $ts - ( $ts % HOUR_IN_SECONDS ) + HOUR_IN_SECONDS;
+        for ( $i = 0; $i < 8 * 24 + 2; $i++, $hour += HOUR_IN_SECONDS ) {
+            if ( $this->withinSendWindow( $hour ) ) {
+                return $hour;
+            }
+        }
+        return null;
+    }
+
+    /** "Monday 09:00 Toronto time" for the next send window ('' when there is none). */
+    public function describeNextSendWindow( ?int $timestamp = null ): string {
+        $next = $this->nextSendWindow( $timestamp );
+        if ( null === $next ) {
+            return '';
+        }
+        $dt = ( new \DateTimeImmutable( '@' . $next ) )->setTimezone( $this->sendTimezone() );
+        return $dt->format( 'l H:i' ) . ' ' . $this->sendTimezoneInfo()['label'];
+    }
+
+    /**
+     * The zone the send window is evaluated in: outreach.timezone when set to a valid IANA zone; otherwise the
+     * WordPress timezone, except that a WordPress install left on UTC for a Canadian business (site.country CA)
+     * uses the zone of its province (site.region), so 9–17 means business hours there.
+     */
+    public function sendTimezone(): \DateTimeZone {
+        try {
+            return new \DateTimeZone( $this->sendTimezoneInfo()['timezone'] );
+        } catch ( \Throwable $e ) {
+            return new \DateTimeZone( 'UTC' );
+        }
+    }
+
+    /**
+     * @return array{timezone:string,source:string,label:string,wordpress:string} source: setting | wordpress | region
+     */
+    public function sendTimezoneInfo(): array {
+        $wp = function_exists( 'wp_timezone_string' ) ? (string) wp_timezone_string() : 'UTC';
+        $tz = trim( (string) $this->settings->get( 'outreach.timezone', '' ) );
+        if ( '' !== $tz && self::validTimezone( $tz ) ) {
+            return [ 'timezone' => $tz, 'source' => 'setting', 'label' => self::zoneLabel( $tz ), 'wordpress' => $wp ];
+        }
+        if ( self::isUtc( $wp ) && 'CA' === strtoupper( trim( (string) $this->settings->get( 'site.country', '' ) ) ) ) {
+            $region = strtoupper( trim( (string) $this->settings->get( 'site.region', '' ) ) );
+            if ( isset( self::CA_REGION_TIMEZONES[ $region ] ) ) {
+                $zone = self::CA_REGION_TIMEZONES[ $region ];
+                return [ 'timezone' => $zone, 'source' => 'region', 'label' => self::zoneLabel( $zone ), 'wordpress' => $wp ];
+            }
+        }
+        $zone = '' !== $wp && self::validTimezone( $wp ) ? $wp : 'UTC';
+        return [ 'timezone' => $zone, 'source' => 'wordpress', 'label' => self::zoneLabel( $zone ), 'wordpress' => $wp ];
+    }
+
+    /** A known IANA zone name (or a ±HH:MM offset WordPress may report). */
+    public static function validTimezone( string $tz ): bool {
+        if ( preg_match( '/^[+-]\d{2}:\d{2}$/', $tz ) ) {
+            return true;
+        }
+        static $known = null;
+        $known ??= array_flip( \DateTimeZone::listIdentifiers() );
+        return isset( $known[ $tz ] ) || 'UTC' === $tz;
+    }
+
+    private static function isUtc( string $tz ): bool {
+        return in_array( strtoupper( trim( $tz ) ), [ '', 'UTC', 'GMT', 'Z', 'ETC/UTC', 'ETC/GMT', 'UTC+0', 'UTC-0', '+00:00', '-00:00' ], true );
+    }
+
+    private static function zoneLabel( string $tz ): string {
+        if ( 'UTC' === $tz || preg_match( '/^[+-]\d{2}:\d{2}$/', $tz ) ) {
+            return 'UTC' === $tz ? 'UTC' : 'UTC' . $tz;
+        }
+        $city = str_replace( '_', ' ', (string) substr( (string) strrchr( '/' . $tz, '/' ), 1 ) );
+        return $city . ' time';
+    }
+
+    /** @return int[] ISO weekdays (1 = Monday … 7 = Sunday) */
+    private function sendDays(): array {
+        $days = array_map( 'intval', array_filter( (array) $this->settings->get( 'outreach.send_days', [ 1, 2, 3, 4, 5 ] ), 'is_numeric' ) );
+        $days = array_map( static fn( int $d ): int => 0 === $d ? 7 : $d, $days );
+        return [] === $days ? [ 1, 2, 3, 4, 5 ] : $days;
+    }
+
+    /** @return array{0:int,1:int} */
+    private function sendHours(): array {
+        return [
+            max( 0, min( 23, (int) $this->settings->get( 'outreach.send_window_start', 9 ) ) ),
+            max( 0, min( 24, (int) $this->settings->get( 'outreach.send_window_end', 17 ) ) ),
+        ];
+    }
+
+    /**
      * Whether a body still carries the mandatory footer: the unsubscribe link for this token
      * and the configured postal address (when one is configured).
      */
@@ -319,7 +620,7 @@ final class Compliance {
         if ( ! preg_match( '/^[a-f0-9]{32}$/', $token ) || ! $this->bodyHasUnsubscribe( $body, $token ) ) {
             return false;
         }
-        $postal = trim( (string) $this->settings->get( 'outreach.postal_address', '' ) );
+        $postal = $this->postalAddress();
         return '' === $postal || $this->containsNormalized( $body, $postal );
     }
 

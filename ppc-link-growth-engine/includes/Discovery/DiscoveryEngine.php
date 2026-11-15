@@ -38,7 +38,7 @@ final class DiscoveryEngine {
      * @return array<string,mixed>
      */
     public function run( TimeBudget $budget, array $opts = [] ): array {
-        $stats = [ 'seeds' => null, 'queries_run' => 0, 'results' => 0, 'new_prospects' => 0, 'skipped' => 0, 'competitors' => null, 'warnings' => [] ];
+        $stats = [ 'seeds' => null, 'queries_run' => 0, 'results' => 0, 'new_prospects' => 0, 'skipped' => 0, 'competitors' => null, 'competitor_detection' => null, 'warnings' => [] ];
 
         // 1. Seeds: the whole catalog once, then any seed added since (custom seeds, catalog updates).
         if ( $this->settings->get( 'discovery.seed_catalog', true ) ) {
@@ -120,7 +120,17 @@ final class DiscoveryEngine {
             }
         }
 
-        // 3. Competitor backlinks (weekly).
+        // 3. Competitors found automatically (Autopilot, owner list empty; at most every 30 days), then their
+        //    backlinks (weekly).
+        if ( empty( $opts['skip_competitors'] ) && $budget->has( 8 ) ) {
+            $detect = $this->competitors->autoDetect();
+            if ( null !== $detect ) {
+                $stats['competitor_detection'] = $detect;
+                if ( ! $detect['ran'] && '' !== $detect['message'] ) {
+                    $stats['warnings'][] = $detect['message'];
+                }
+            }
+        }
         if ( empty( $opts['skip_competitors'] ) && $budget->has( 5 ) && $this->competitors->isDue() && ! empty( $this->competitors->competitors() ) ) {
             $stats['competitors'] = $this->competitors->discover( $this->intake );
             $stats['new_prospects'] += $stats['competitors']['created'];

@@ -6,9 +6,10 @@
 import * as api from '../api.js';
 import {
     el, replace, statTile, card, badge, button, linkButton, callout, kv, meter, loading, errorState, emptyState, timeEl, fmtNumber, fmtPercent, fmtCompact, labelize, pageHeader, statusBadge, truncate, fmtDate,
-    icon, spinner, progressBar, details, fmtDuration, sleep, toast, confirm,
+    icon, spinner, progressBar, details, fmtDuration, sleep, toast, confirm, switchRow,
 } from '../ui.js';
 import { barChart, lineChart, histogram, segmentedBar } from '../charts.js';
+import { setAutopilot, autopilotSummary } from '../autopilot.js';
 
 // ---------------------------------------------------------------------
 // Storefront compliance banner (assets/js/compliance-banner.js)
@@ -111,14 +112,37 @@ export async function loadComplianceBanner( host, { onStatus = null } = {} ) {
 const GROW_EXPLAIN = 'Runs the whole growth routine once, in order: storefront and setup checks, on-site SEO audit, search-engine notification (IndexNow), prospect discovery and evaluation, listing packages, automatic submissions where the safety checks allow them, and outreach drafts. It never buys or hides links and never edits your site content unless you click Apply.';
 
 /**
+ * The panel's explanation: with automatic internal links on (Autopilot or Settings) it no longer says content is
+ * edited only on a click. Exported for tests.
+ *
+ * @param {object|null} policy GET /growth/status `policy`
+ * @return {string}
+ */
+export function growExplainText( policy ) {
+    const p = asObject( policy );
+    if ( p.autopilot !== true && p.auto_links !== true ) {
+        return GROW_EXPLAIN;
+    }
+    const n = Number( p.links_per_day ) || 0;
+    return `Runs the whole growth routine once, in order: storefront and setup checks, on-site SEO audit, search-engine notification (IndexNow), the best internal links between your own pages (added automatically${ n ? `, up to ${ n } a day` : '' }; a revision is kept and “Undo automatic links” removes them), prospect discovery and evaluation, listing packages, automatic submissions where the safety checks allow them, and outreach. It never buys or hides links.`;
+}
+
+/** Headline of the Grow panel while Autopilot is on. */
+export const AUTOPILOT_ON_TEXT = 'Autopilot is on — nothing needs your approval';
+
+/**
  * The panel subtitle: what one click may submit or send on its own, built from the current settings
  * (GET /growth/status `policy`). Without them it makes no promise either way. Exported for tests.
  *
- * @param {object|null} policy { submissions, submission_mode, outreach_autosend, require_approval }
+ * @param {object|null} policy { autopilot, submissions, submission_mode, outreach_autosend, require_approval }
  * @return {string}
  */
 export function growPolicyText( policy ) {
     const p = asObject( policy );
+    if ( p.autopilot === true ) {
+        const n = Number( p.links_per_day ) || 0;
+        return `One click runs the whole routine. Autopilot is on: listings to sites that pass every safety check are submitted, outreach drafts are approved and sent in your name inside the send window and daily limits, and the best internal links are added${ n ? ` (up to ${ n } a day)` : '' }, without asking you first. Sign-ups, CAPTCHAs, comment posting and paid listings stay off limits.`;
+    }
     if ( typeof p.submissions !== 'boolean' ) {
         return 'One click runs the whole routine. What it submits or sends on its own follows your Automation and Outreach settings.';
     }
@@ -281,11 +305,15 @@ function headline( summary, ctx ) {
     const audit = s.site_audit && typeof s.site_audit === 'object' ? s.site_audit : null;
     return el( 'div', { class: 'ppclg-grid ppclg-grid--tiles' },
         statTile( { label: 'Owner tasks', iconName: 'package', value: subs ? valueOr( subs.owner_tasks, 'unknown' ) : 'unknown', hint: 'Listings you submit yourself', href: pageHref( ctx, 'submissions', { tab: 'needs_manual' } ) } ),
-        statTile( { label: 'Drafts to approve', iconName: 'mail', value: valueOr( s.outreach_drafts, 'unknown' ), hint: 'Nothing is sent without approval', href: pageHref( ctx, 'outreach', { tab: 'messages', status: 'draft' } ) } ),
+        s.autopilot === true
+            ? statTile( { label: 'Outreach drafts', iconName: 'mail', value: valueOr( s.outreach_drafts, 'unknown' ), hint: 'Autopilot approves and sends them', href: pageHref( ctx, 'outreach', { tab: 'messages', status: 'draft' } ) } )
+            : statTile( { label: 'Drafts to approve', iconName: 'mail', value: valueOr( s.outreach_drafts, 'unknown' ), hint: 'Nothing is sent without approval', href: pageHref( ctx, 'outreach', { tab: 'messages', status: 'draft' } ) } ),
         statTile( { label: 'Qualified prospects', iconName: 'target', value: prospects ? valueOr( prospects.qualified, 'unknown' ) : 'unknown', hint: prospects ? `${ valueOr( prospects.total, 'unknown' ) } prospects in total` : '', href: pageHref( ctx, 'prospects', { status: 'qualified' } ) } ),
         statTile( { label: 'Live backlinks', iconName: 'link', value: backlinks ? valueOr( backlinks.live, 'unknown' ) : 'unknown', hint: backlinks ? `${ valueOr( backlinks.lost, 'unknown' ) } lost` : '' } ),
         statTile( { label: 'High-priority SEO issues', iconName: 'alert', ...auditTile( audit ), href: audit ? pageHref( ctx, 'seo', { severity: 'high' } ) : null } ),
-        statTile( { label: 'Link suggestions', iconName: 'link', value: valueOr( s.link_suggestions_pending, 'not available' ), hint: 'Applied only when you click Apply', href: pageHref( ctx, 'seo', { links: 'pending' } ) } ),
+        s.links_auto && s.links_auto.enabled === true
+            ? statTile( { label: 'Automatic internal links', iconName: 'link', value: valueOr( s.links_auto.present, 'unknown' ), hint: `Added automatically, up to ${ fmtNumber( s.links_auto.per_day ) } a day`, href: pageHref( ctx, 'seo', { links: 'applied' } ) } )
+            : statTile( { label: 'Link suggestions', iconName: 'link', value: valueOr( s.link_suggestions_pending, 'not available' ), hint: 'Applied only when you click Apply', href: pageHref( ctx, 'seo', { links: 'pending' } ) } ),
     );
 }
 
@@ -305,7 +333,7 @@ export function createGrowPanel( ctx, options = {} ) {
     const pollDelay = Number.isFinite( options.pollDelay ) ? options.pollDelay : 400;
     const waitDelay = Number.isFinite( options.waitDelay ) ? options.waitDelay : 3000;
     const retryDelay = Number.isFinite( options.retryDelay ) ? options.retryDelay : 1500;
-    const s = { mode: 'loading', run: null, policy: null, busy: false, failures: 0, error: '', errorStatus: 0, errorCode: '', notice: '', elapsedBase: 0, elapsedAt: Date.now(), ticker: null, stoppedByUser: false, storefrontOk: false, onFinished: typeof options.onFinished === 'function' ? options.onFinished : null };
+    const s = { mode: 'loading', run: null, policy: null, busy: false, failures: 0, error: '', errorStatus: 0, errorCode: '', notice: '', elapsedBase: 0, elapsedAt: Date.now(), ticker: null, stoppedByUser: false, storefrontOk: false, autopilot: null, onAutopilot: typeof options.onAutopilot === 'function' ? options.onAutopilot : null, onFinished: typeof options.onFinished === 'function' ? options.onFinished : null };
     let elapsedNode = null;
 
     const isRunning = () => s.busy || ( s.run && s.run.status === 'running' );
@@ -463,7 +491,11 @@ export function createGrowPanel( ctx, options = {} ) {
         } else {
             actions.push( button( 'Grow now', { kind: 'primary', iconName: 'zap', onClick: startRun, disabled: s.mode === 'loading' } ) );
         }
-        const body = [ el( 'p', { class: 'ppclg-muted ppclg-grow-explain' }, GROW_EXPLAIN ) ];
+        const body = [ el( 'p', { class: 'ppclg-muted ppclg-grow-explain' }, growExplainText( s.policy ) ) ];
+        const autopilotNode = autopilotRow();
+        if ( autopilotNode ) {
+            body.push( autopilotNode );
+        }
         if ( s.notice ) {
             body.push( callout( 'warning', 'The last growth run could not be loaded', s.notice ) );
         }
@@ -501,6 +533,45 @@ export function createGrowPanel( ctx, options = {} ) {
         } ) );
         refocus( focused );
         announce();
+    }
+
+    /**
+     * The Autopilot switch inside the panel. On: "Autopilot is on — nothing needs your approval" with what it does and
+     * the switch to turn it off. Off: the switch (turning it on asks first, listing what runs automatically and the
+     * hard limits). Needs the GET /automation/autopilot answer the page passes in (setAutopilot); without it only the
+     * run's policy says whether it is on.
+     */
+    function autopilotRow() {
+        const st = s.autopilot;
+        const on = st ? st.enabled === true : asObject( s.policy ).autopilot === true;
+        if ( ! st && ! on ) {
+            return null;
+        }
+        const toggle = st ? switchRow( {
+            label: on ? 'Autopilot' : 'Autopilot: let the engine work without asking me',
+            description: on ? 'Switch off to go back to approving drafts, campaigns, listings and links yourself.' : 'Sends outreach, adds internal links and submits listings that pass every safety check on its own, within your daily limits. You confirm first.',
+            checked: on,
+            onChange: async ( next ) => {
+                const res = await setAutopilot( next, st );
+                if ( ! res ) {
+                    return false;
+                }
+                s.autopilot = { ...st, ...asObject( res ) };
+                if ( s.onAutopilot ) {
+                    s.onAutopilot( res );
+                }
+                refresh();
+                return true;
+            },
+        } ) : null;
+        if ( ! on ) {
+            return el( 'div', { class: 'ppclg-grow-autopilot' }, toggle );
+        }
+        const lines = st ? autopilotSummary( st ).lines : [];
+        return el( 'div', { class: 'ppclg-grow-autopilot ppclg-grow-autopilot--on' },
+            callout( 'success', AUTOPILOT_ON_TEXT, lines.length ? el( 'ul', { class: 'ppclg-list--bullets ppclg-small' }, lines.map( ( l ) => el( 'li', {}, l ) ) ) : null ),
+            toggle,
+        );
     }
 
     /** Label of the panel button that has keyboard focus (null when focus is elsewhere). */
@@ -703,6 +774,16 @@ export function createGrowPanel( ctx, options = {} ) {
         setFinished: ( fn ) => {
             s.onFinished = typeof fn === 'function' ? fn : null;
         },
+        /** GET /automation/autopilot answer (the page loads it; the panel makes no request of its own for it). */
+        setAutopilot: ( status, onChange ) => {
+            s.autopilot = status && typeof status === 'object' && status.hard_limits ? status : null;
+            if ( typeof onChange === 'function' ) {
+                s.onAutopilot = onChange;
+            }
+            if ( ! s.busy && s.mode !== 'loading' ) {
+                draw();
+            }
+        },
     };
 }
 
@@ -793,6 +874,21 @@ export default async function render( root, ctx ) {
             render( root, ctx ); // fresh numbers below once a run finishes
         }
     } );
+    // The Autopilot switch sits inside the "Grow your site" panel: together they are the hands-off path.
+    const loadAutopilot = async () => {
+        let st = null;
+        try {
+            st = await api.get( '/automation/autopilot', {}, { silent: true } );
+        } catch ( e ) {
+            st = null;
+        }
+        if ( growPanelInstance ) {
+            growPanelInstance.setAutopilot( st, () => {
+                loadAutopilot();
+            } );
+        }
+    };
+    loadAutopilot();
     replace( root, pageHeader( { title: 'Overview', description: `Link acquisition health for ${ config.siteDomain || config.brand }.` } ), bannerHost, grow, loading( 'Loading overview…' ) );
 
     let data;

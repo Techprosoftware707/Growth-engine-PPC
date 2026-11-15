@@ -88,7 +88,7 @@ final class ConfiguredApiAdapter implements AdapterInterface {
      * @return array<string,mixed>
      */
     private function run( int $sid, int $pid, array $prospect, array $payload ): array {
-        if ( ! (bool) $this->settings->get( 'automation.submissions', false ) ) {
+        if ( ! ( new \PPC\LinkGrowth\Automation\Autopilot( $this->settings ) )->submissionsEnabled() ) {
             return $this->manual( 'Automated submissions are switched off.' );
         }
         if ( \PPC\LinkGrowth\Repositories\Prospects::AUTOMATION_NEVER === \PPC\LinkGrowth\Repositories\Prospects::automationSetting( $prospect ) ) {

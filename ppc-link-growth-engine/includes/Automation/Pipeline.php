@@ -217,6 +217,9 @@ final class Pipeline {
         return [
             'automation_enabled'    => (bool) $this->settings->get( 'automation.enabled', false ),
             'flags'                 => $flags,
+            // What the stages actually use: Autopilot raises submissions / outreach autosend / auto drafts to on.
+            'effective_flags'       => $this->effectiveFlags(),
+            'autopilot'             => $this->autopilot()->isOn(),
             'queue'                 => $queue,
             'last_tick'             => is_string( $lastTick ) && '' !== $lastTick ? $lastTick : null,
             'stage_runs'            => $this->stageRuns(),
@@ -323,6 +326,8 @@ final class Pipeline {
      */
     private function stages(): array {
         $importDays = max( 1, (int) $this->settings->get( 'monitoring.import_interval_days', 7 ) );
+        // Automatic internal links (seo.auto_apply_links or Autopilot) run daily so the daily cap is used.
+        $autoLinks  = (bool) $this->settings->get( 'seo.internal_links', true ) && $this->autopilot()->autoApplyLinks();
         $defs       = [
             'discover'           => [ 'every' => DAY_IN_SECONDS, 'flag' => 'discovery', 'due' => null, 'cadence' => 'daily' ],
             'mention_scan'       => [ 'every' => WEEK_IN_SECONDS, 'flag' => 'discovery', 'due' => null, 'cadence' => 'weekly' ],
@@ -342,7 +347,9 @@ final class Pipeline {
             'metrics_refresh'    => [ 'every' => WEEK_IN_SECONDS, 'flag' => '', 'due' => null, 'cadence' => 'weekly' ],
             'site_audit'         => [ 'every' => DAY_IN_SECONDS, 'flag' => '', 'due' => null, 'cadence' => 'daily' ],
             'indexnow'           => [ 'every' => HOUR_IN_SECONDS, 'flag' => '', 'due' => 'indexnowDue', 'cadence' => 'hourly (when URLs are waiting)' ],
-            'internal_links'     => [ 'every' => WEEK_IN_SECONDS, 'flag' => '', 'due' => null, 'cadence' => 'weekly (suggestions only)' ],
+            'internal_links'     => $autoLinks
+                ? [ 'every' => DAY_IN_SECONDS, 'flag' => '', 'due' => null, 'cadence' => sprintf( 'daily (applies up to %d links automatically)', $this->autopilot()->linksPerDay() ) ]
+                : [ 'every' => WEEK_IN_SECONDS, 'flag' => '', 'due' => null, 'cadence' => 'weekly (suggestions only)' ],
         ];
         $types = $this->runner->types();
         $out   = [];
@@ -372,7 +379,7 @@ final class Pipeline {
                 continue; // manual-only
             }
             try {
-                if ( '' !== $stage['flag'] && ! (bool) $this->settings->get( 'automation.' . $stage['flag'], false ) ) {
+                if ( '' !== $stage['flag'] && ! $this->autopilot()->flag( $stage['flag'] ) ) {
                     continue;
                 }
                 $last = isset( $runs[ $type ] ) ? (int) strtotime( (string) $runs[ $type ] ) : 0;
@@ -537,5 +544,27 @@ final class Pipeline {
 
     private function container(): Container {
         return $this->runner->container();
+    }
+
+    /** The approval policy (Autopilot), built from the same settings when the container has none. */
+    private function autopilot(): Autopilot {
+        try {
+            $svc = $this->container()->get( Autopilot::class );
+            if ( $svc instanceof Autopilot ) {
+                return $svc;
+            }
+        } catch ( Throwable $e ) {
+            unset( $e );
+        }
+        return new Autopilot( $this->settings );
+    }
+
+    /** @return array<string,bool> */
+    private function effectiveFlags(): array {
+        $out = [];
+        foreach ( self::FLAGS as $flag ) {
+            $out[ $flag ] = $this->autopilot()->flag( $flag );
+        }
+        return $out;
     }
 }

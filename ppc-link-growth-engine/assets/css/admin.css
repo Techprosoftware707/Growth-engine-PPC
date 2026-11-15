@@ -2761,6 +2761,14 @@
     max-width: 72ch;
 }
 
+/* Autopilot switch inside the Grow panel (1.2.0) */
+.ppclg-grow-card .ppclg-grow-autopilot {
+    margin: 0 0 12px;
+}
+.ppclg-grow-card .ppclg-grow-autopilot--on .ppclg-callout {
+    margin-bottom: 8px;
+}
+
 .ppclg-grow-steps {
     list-style: none;
     margin: 8px 0 0;

@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace PPC\LinkGrowth\Automation\Jobs;
 
+use PPC\LinkGrowth\Automation\Autopilot;
 use PPC\LinkGrowth\Container;
 use PPC\LinkGrowth\Submission\SubmissionEngine;
 use PPC\LinkGrowth\Support\TimeBudget;
@@ -32,7 +33,7 @@ final class SubmitJob extends AbstractJob {
      * @return array<string,mixed>
      */
     public function handle( array $payload, TimeBudget $budget, Container $c ): array {
-        if ( ! (bool) $this->settings( $c )->get( 'automation.submissions', false ) ) {
+        if ( ! ( new Autopilot( $this->settings( $c ) ) )->submissionsEnabled() ) {
             return $this->skipped( 'submissions_disabled', [ 'hint' => 'Enable Automation → Submissions to let the engine submit approved packages.' ] );
         }
         $limits = $this->limits( $c );

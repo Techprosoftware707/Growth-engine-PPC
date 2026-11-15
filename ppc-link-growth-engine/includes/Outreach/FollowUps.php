@@ -4,7 +4,8 @@
  *
  * Follow-ups are drafts by default; they are only queued automatically ("scheduled") when the
  * campaign opted in (settings.auto_follow_up) AND the automation master switch for outreach
- * auto-send is on. Nothing here sends email.
+ * auto-send is on, or, under Autopilot, when reply tracking (the inbound webhook secret) is configured, so a reply
+ * always cancels the follow-up first (Automation\Autopilot::autoFollowUp()). Nothing here sends email.
  *
  * Candidates are filtered in SQL (follow-up cap, active contact, website not rejected/suppressed, campaign
  * present / active / follow-ups enabled, nobody in the conversation answered), so rows that can never get a
@@ -17,6 +18,8 @@ declare(strict_types=1);
 
 namespace PPC\LinkGrowth\Outreach;
 
+use PPC\LinkGrowth\Automation\Autopilot;
+use PPC\LinkGrowth\Repositories\AuditLog;
 use PPC\LinkGrowth\Repositories\Campaigns;
 use PPC\LinkGrowth\Repositories\Contacts;
 use PPC\LinkGrowth\Repositories\Opportunities;
@@ -39,7 +42,8 @@ final class FollowUps {
         private Campaigns $campaigns,
         private Settings $settings,
         private Templates $templates,
-        private Personalizer $personalizer
+        private Personalizer $personalizer,
+        private ?Autopilot $autopilot = null
     ) {}
 
     /**
@@ -52,8 +56,8 @@ final class FollowUps {
             return $out;
         }
         $days     = max( 1, (int) $this->settings->get( 'outreach.follow_up_days', 7 ) );
-        $autosend = (bool) $this->settings->get( 'automation.outreach_autosend', false );
-        $max      = max( 1, min( 200, $max ) );
+        $autopilot = $this->autopilot ?? new Autopilot( $this->settings );
+        $max       = max( 1, min( 200, $max ) );
 
         try {
             $due = $this->due( $days, 1 + $maxFollowUps, $max );
@@ -121,10 +125,10 @@ final class FollowUps {
                 $subject                 = $this->oneLine( $this->personalizer->render( $template['subject'], $ctx ), 255 );
                 $body                    = $this->personalizer->render( $template['body'], $ctx );
 
-                $auto   = $autosend && ! empty( $cs['auto_follow_up'] ) && filter_var( $cs['auto_follow_up'], FILTER_VALIDATE_BOOLEAN );
+                $auto   = $autopilot->autoFollowUp( $cs );
                 $status = $auto ? OutreachMessages::STATUS_SCHEDULED : OutreachMessages::STATUS_DRAFT;
 
-                $this->messages->create(
+                $newId = $this->messages->create(
                     [
                         'campaign_id'       => $campaignId,
                         'prospect_id'       => (int) $prospect['id'],
@@ -140,6 +144,10 @@ final class FollowUps {
                         'unsubscribe_token' => $token,
                     ]
                 );
+                if ( $auto && $autopilot->isOn() && $newId > 0 ) {
+                    // Recorded so switching Autopilot off returns this follow-up to draft.
+                    ( new AuditLog() )->record( Autopilot::ACTOR, Autopilot::ACTION_FOLLOWUP, 'outreach_message', $newId, [ 'campaign_id' => $campaignId, 'sequence' => $sequence + 1 ] );
+                }
                 $out['created']++;
             } catch ( \Throwable $e ) {
                 $out['errors']++;

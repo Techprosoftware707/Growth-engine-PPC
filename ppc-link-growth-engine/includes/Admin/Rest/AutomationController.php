@@ -9,12 +9,15 @@ declare(strict_types=1);
 
 namespace PPC\LinkGrowth\Admin\Rest;
 
+use PPC\LinkGrowth\Automation\Autopilot;
 use PPC\LinkGrowth\Automation\JobRunner;
 use PPC\LinkGrowth\Automation\Pipeline;
 use PPC\LinkGrowth\Automation\Scheduler;
+use PPC\LinkGrowth\Outreach\CampaignFiller;
 use PPC\LinkGrowth\Repositories\Jobs;
 use PPC\LinkGrowth\Support\Limits;
 use PPC\LinkGrowth\Support\Settings;
+use PPC\LinkGrowth\Support\TimeBudget;
 use WP_REST_Request;
 
 final class AutomationController extends Controller {
@@ -55,6 +58,8 @@ final class AutomationController extends Controller {
         $this->route( $namespace, '/automation/kick', 'POST', [ $this, 'kick' ] );
         $this->route( $namespace, '/automation/cancel', 'POST', [ $this, 'cancel' ] );
         $this->route( $namespace, '/automation/jobs', 'GET', [ $this, 'jobs' ], $this->listArgs( [ 'status', 'type' ] ) );
+        $this->route( $namespace, '/automation/autopilot', 'GET', [ $this, 'autopilot' ] );
+        $this->route( $namespace, '/automation/autopilot', 'POST', [ $this, 'setAutopilot' ] );
     }
 
     /** GET /automation/status @return array<string,mixed> */
@@ -130,6 +135,58 @@ final class AutomationController extends Controller {
             return __( 'Turning off “Require individual approval” while outreach auto-send is on lets the engine approve and send, in your name and without review, the first-contact emails it drafts for qualified prospects. Confirm to proceed.', 'ppc-link-growth-engine' );
         }
         return __( 'Enabling outreach auto-send lets the engine approve and send, in your name and without review, the first-contact emails it drafts for qualified prospects (while “Require individual approval” in Settings → Outreach is off) plus follow-ups in campaigns that auto-approve follow-ups. Confirm to proceed.', 'ppc-link-growth-engine' );
+    }
+
+    /** GET /automation/autopilot @return array<string,mixed> */
+    public function autopilot( WP_REST_Request $request ): array {
+        unset( $request );
+        return $this->c->get( Autopilot::class )->status();
+    }
+
+    /**
+     * POST /automation/autopilot {enabled, confirm}. Turning Autopilot on needs confirm=true (400 otherwise, with the
+     * policy text to show) and records the consent; turning it off needs no confirmation and returns the messages
+     * Autopilot approved but did not send yet to draft.
+     *
+     * @return array<string,mixed>|\WP_Error
+     */
+    public function setAutopilot( WP_REST_Request $request ) {
+        if ( ! $request->has_param( 'enabled' ) ) {
+            return $this->fail( 'ppclg_missing_value', __( 'A boolean "enabled" value is required.', 'ppc-link-growth-engine' ), 400 );
+        }
+        $autopilot = $this->c->get( Autopilot::class );
+        $enable    = $this->bool( $request, 'enabled', false );
+        if ( $enable && ! $this->bool( $request, 'confirm', false ) ) {
+            return $this->fail( 'ppclg_confirmation_required', Autopilot::policyText(), 400, [ 'confirm_required' => true, 'key' => 'autopilot', 'policy_version' => Autopilot::POLICY_VERSION, 'hard_limits' => Autopilot::hardLimits() ] );
+        }
+        $status = $enable ? $autopilot->enable( $this->userId() ) : $autopilot->disable( $this->userId() );
+        if ( $enable ) {
+            // Drafts and campaigns that were already waiting are approved now, not at the next daily outreach run.
+            $status['approved_now'] = self::approveWaitingNow( $this->c );
+            $this->safe(
+                function (): void {
+                    if ( class_exists( Scheduler::class ) ) {
+                        $this->c->get( Scheduler::class )->schedule();
+                    }
+                },
+                null,
+                'schedule after autopilot'
+            );
+        }
+        return array_merge( [ 'ok' => true ], $status );
+    }
+
+    /**
+     * Approves (as Autopilot) the campaigns and drafts that may be approved automatically, within a short budget;
+     * the auto outreach stage approves the rest on its next run. Returns the number of messages approved.
+     */
+    public static function approveWaitingNow( \PPC\LinkGrowth\Container $c ): int {
+        try {
+            $r = $c->get( CampaignFiller::class )->approveWaiting( TimeBudget::seconds( 10.0 ), 200 );
+            return (int) ( $r['messages'] ?? 0 );
+        } catch ( \Throwable $e ) {
+            return 0;
+        }
     }
 
     /** POST /automation/tick @return array<string,mixed> */
@@ -221,6 +278,7 @@ final class AutomationController extends Controller {
                 'job_types'          => array_keys( $types ),
                 'stage_labels'       => $stages,
                 'confirm_flags'      => self::CONFIRM_FLAGS,
+                'autopilot'          => $this->safe( fn(): array => $this->c->get( Autopilot::class )->status(), null, 'autopilot status' ),
                 'settings'           => [
                     // What the runner actually uses: the setting, raised to JobRunner::MIN_TICK_SECONDS.
                     'max_execution_seconds' => (int) ceil( JobRunner::effectiveMaxSeconds( $settings ) ),

@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace PPC\LinkGrowth\Admin\Rest;
 
+use PPC\LinkGrowth\Automation\Autopilot;
 use PPC\LinkGrowth\Automation\Scheduler;
 use PPC\LinkGrowth\Content\ClaimsFilter;
 use PPC\LinkGrowth\Content\FactsRegistry;
@@ -21,6 +22,7 @@ use PPC\LinkGrowth\Integrations\Google\Analytics4;
 use PPC\LinkGrowth\Integrations\Google\SearchConsole;
 use PPC\LinkGrowth\Integrations\Google\SiteKitBridge;
 use PPC\LinkGrowth\Integrations\ProviderRegistry;
+use PPC\LinkGrowth\Outreach\Compliance;
 use PPC\LinkGrowth\Repositories\DomainMetrics;
 use PPC\LinkGrowth\Repositories\Opportunities;
 use PPC\LinkGrowth\Support\Crypto;
@@ -74,6 +76,7 @@ final class SettingsController extends Controller {
         'serper_daily_limit'          => [ 0, 100000 ],
         'audit_max_pages'             => [ 20, 5000 ],
         'max_links_per_post'          => [ 1, 10 ],
+        'auto_apply_per_day'          => [ 1, 100 ],
         'evaluate_rounds'             => [ 1, 20 ],
         'step_seconds'                => [ 8, 25 ],
     ];
@@ -92,7 +95,7 @@ final class SettingsController extends Controller {
 
     private const EMAIL_KEYS    = [ 'email', 'sender_email', 'reply_to', 'notify_email' ];
     private const TEXTAREA_KEYS = [ 'signature', 'postal_address', 'address' ];
-    private const DOMAIN_LISTS  = [ 'competitor_domains', 'excluded_domains' ];
+    private const DOMAIN_LISTS  = [ 'competitor_domains', 'competitor_domains_auto', 'excluded_domains' ];
 
     private const TEST_PROVIDERS = [ 'seranking', 'ahrefs', 'semrush', 'moz', 'google_search_console', 'google_analytics_4', 'google_cse', 'brave', 'serper', 'anthropic', 'sitekit', 'email' ];
 
@@ -162,6 +165,9 @@ final class SettingsController extends Controller {
                 'unsubscribe'     => esc_url_raw( rest_url( RestApi::NAMESPACE . '/unsubscribe' ) ),
             ],
             'site_timezone'   => wp_timezone_string(),
+            // The zone the outreach send window is evaluated in (outreach.timezone, or derived; see Compliance).
+            'send_timezone'   => $this->safe( fn(): array => $this->c->get( Compliance::class )->sendTimezoneInfo(), [], 'send timezone' ),
+            'autopilot'       => $this->safe( fn(): array => $this->c->get( Autopilot::class )->status(), [], 'autopilot status' ),
             'admin_email'     => (string) get_option( 'admin_email', '' ),
         ];
     }
@@ -171,8 +177,11 @@ final class SettingsController extends Controller {
      *
      * Switching automation.submissions or automation.outreach_autosend on needs confirm=true, as on
      * POST /automation/toggle, and so does turning outreach.require_approval off while outreach autosend is on
-     * (that is what lets automation approve and send its own first-contact drafts). Linkable assets must pass the
-     * claims filter. Otherwise nothing is saved.
+     * (that is what lets automation approve and send its own first-contact drafts). automation.autopilot is never
+     * stored from the form directly: switching it on needs confirm=true and goes through Automation\Autopilot, which
+     * records the consent (the consent itself lives in its own option and cannot be written here); switching it off
+     * returns what Autopilot approved but did not send to draft. Linkable assets must pass the claims filter.
+     * Otherwise nothing is saved.
      *
      * @return array<string,mixed>|\WP_Error
      */
@@ -185,7 +194,24 @@ final class SettingsController extends Controller {
         $clean    = is_array( $incoming ) && [] !== $incoming ? $this->sanitizeSettings( $incoming ) : [];
         $clean    = self::dropReadOnly( $clean );
 
+        // Autopilot is switched only through Automation\Autopilot (consent record, revert on off), never stored as-is.
+        $autopilot       = $this->c->get( Autopilot::class );
+        $autopilotWanted = null;
+        if ( isset( $clean['automation'] ) && is_array( $clean['automation'] ) && array_key_exists( 'autopilot', $clean['automation'] ) ) {
+            $autopilotWanted = (bool) $clean['automation']['autopilot'];
+            unset( $clean['automation']['autopilot'] );
+            if ( [] === $clean['automation'] ) {
+                unset( $clean['automation'] );
+            }
+            if ( $autopilotWanted === $autopilot->isOn() ) {
+                $autopilotWanted = null; // no change
+            }
+        }
+
         $enabling = [];
+        if ( true === $autopilotWanted ) {
+            $enabling[] = 'autopilot';
+        }
         foreach ( AutomationController::CONFIRM_FLAGS as $flag ) {
             if ( true === ( $clean['automation'][ $flag ] ?? null ) && ! (bool) $settings->get( 'automation.' . $flag, false ) ) {
                 $enabling[] = $flag;
@@ -233,6 +259,15 @@ final class SettingsController extends Controller {
         if ( [] !== $clean ) {
             $settings->update( $clean );
             $changed = self::diffKeys( $before, $settings->all() );
+        }
+        if ( null !== $autopilotWanted ) {
+            if ( $autopilotWanted ) {
+                $autopilot->enable( $this->userId() );
+                AutomationController::approveWaitingNow( $this->c );
+            } else {
+                $autopilot->disable( $this->userId() );
+            }
+            $changed = array_values( array_unique( array_merge( $changed, self::diffKeys( $before, $settings->all() ) ) ) );
         }
 
         $secretsIn    = $request->get_param( 'secrets' );
@@ -299,6 +334,9 @@ final class SettingsController extends Controller {
 
     /** Why a settings change needs confirm=true (see update()). */
     public static function confirmationText( string $key ): string {
+        if ( 'autopilot' === $key ) {
+            return Autopilot::policyText();
+        }
         if ( 'storefront_gate_off' === $key ) {
             return __( 'Turning off the storefront compliance gate lets automated submissions and outreach sending continue while the storefront check finds consumer-use wording that contradicts the research-use-only listings. How the store presents itself is your legal decision. Confirm to proceed.', 'ppc-link-growth-engine' );
         }
@@ -581,6 +619,10 @@ if ( 'send_days' === $leaf && ( $i < 0 || $i > 7 ) ) {
             case 'user_agent':
                 $s = trim( sanitize_text_field( $s ) );
                 return '' === $s ? null : mb_substr( $s, 0, 255 );
+            case 'timezone':
+                // '' = derive (WordPress timezone, or the business region's zone when WordPress is on UTC).
+                $s = trim( $s );
+                return '' === $s || Compliance::validTimezone( $s ) ? $s : null;
         }
         return mb_substr( trim( sanitize_text_field( $s ) ), 0, 1000 );
     }

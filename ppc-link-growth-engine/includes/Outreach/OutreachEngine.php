@@ -6,8 +6,10 @@
  * (or an auto follow-up explicitly enabled by both the campaign and the automation switch),
  * (3) a passing Compliance::validate() and (4) a free slot in the daily/weekly limits.
  *
- * Automation (user id 0) may approve an initial message only when outreach autosend is on AND the owner
- * turned off "Require individual approval", and it never approves anything in a campaign a person paused.
+ * Automation (user id 0) may approve an initial message only when Autopilot is on, or outreach autosend is on AND
+ * the owner turned off "Require individual approval" (Automation\Autopilot decides), and it never approves anything
+ * in a campaign a person paused. Approvals made under Autopilot are recorded with the actor "system:autopilot", so
+ * switching Autopilot off can return them to draft.
  * Every send first claims its row (approved/scheduled -> "sending" with a compare-and-set on status and
  * updated_at), so a message that was sent, edited or rejected meanwhile is never sent from a stale copy.
  *
@@ -22,6 +24,7 @@ declare(strict_types=1);
 
 namespace PPC\LinkGrowth\Outreach;
 
+use PPC\LinkGrowth\Automation\Autopilot;
 use PPC\LinkGrowth\Compliance\StorefrontAudit;
 use PPC\LinkGrowth\Content\ClaimsFilter;
 use PPC\LinkGrowth\Content\ContentGenerator;
@@ -58,7 +61,7 @@ final class OutreachEngine {
     private const DEFAULT_ROLES = [ 'editor', 'partnerships', 'directory', 'person', 'general' ];
 
     /** Opportunity types that fit each approach (first = best). */
-    private const APPROACH_OPPORTUNITIES = [
+    public const APPROACH_OPPORTUNITIES = [
         'resource_page'            => [ 'resource_page' ],
         'directory_inclusion'      => [ 'directory_listing', 'supplier_listing', 'membership' ],
         'partnership'              => [ 'partnership', 'membership' ],
@@ -69,7 +72,7 @@ final class OutreachEngine {
         'unlinked_mention'         => [ 'unlinked_mention' ],
     ];
 
-    private const REQUIRES_OPPORTUNITY = [ 'broken_link', 'unlinked_mention' ];
+    public const REQUIRES_OPPORTUNITY = [ 'broken_link', 'unlinked_mention' ];
 
     private const EDITABLE_STATUSES = [ OutreachMessages::STATUS_DRAFT, OutreachMessages::STATUS_APPROVED, OutreachMessages::STATUS_SCHEDULED, OutreachMessages::STATUS_REJECTED, OutreachMessages::STATUS_FAILED ];
 
@@ -113,8 +116,14 @@ final class OutreachEngine {
         private Notifier $notifier,
         private Settings $settings,
         private Logger $logger,
-        private ?StorefrontAudit $storefront = null
+        private ?StorefrontAudit $storefront = null,
+        private ?Autopilot $autopilot = null
     ) {}
+
+    /** The approval policy (Automation\Autopilot), built from the same settings when it was not injected. */
+    public function autopilot(): Autopilot {
+        return $this->autopilot ??= new Autopilot( $this->settings );
+    }
 
     // --- Campaigns ----------------------------------------------------------
 
@@ -198,7 +207,8 @@ final class OutreachEngine {
         $sender = $this->compliance->senderReady();
         if ( ! $sender['ok'] ) {
             $this->logger->warning( 'outreach', 'Campaign #' . $id . ' not approved: sender identity incomplete (' . implode( ', ', $sender['missing'] ) . ').' );
-            $this->notify( 'outreach_sender', 'warning', 'Outreach sender identity incomplete', 'Complete the sender name, sender email and postal address under Settings → Outreach before approving campaigns.', [ 'missing' => $sender['missing'] ] );
+            $why = is_array( $sender['problems'] ?? null ) && [] !== $sender['problems'] ? implode( ' ', $sender['problems'] ) . ' ' : '';
+            $this->notify( 'outreach_sender', 'warning', 'Outreach sender identity incomplete', $why . 'Complete the sender name, a sender email on a domain that receives mail and the postal address under Settings → Outreach before campaigns can be approved.', [ 'missing' => $sender['missing'] ] );
             return false;
         }
         $status = (string) $c['status'];
@@ -210,7 +220,7 @@ final class OutreachEngine {
         }
         $this->campaigns->setStatus( $id, Campaigns::STATUS_APPROVED, [ 'approved_by' => $userId > 0 ? $userId : null, 'approved_at' => Campaigns::now() ] );
         unset( $this->campaignCache[ $id ] );
-        $this->audit->record( $this->actor( $userId ), 'campaign.approved', 'campaign', $id, [ 'name' => $c['name'] ?? '' ] );
+        $this->audit->record( $this->approver( $userId ), 'campaign.approved', 'campaign', $id, [ 'name' => $c['name'] ?? '', 'autopilot' => $userId <= 0 && $this->autopilot()->isOn() ] );
         return true;
     }
 
@@ -328,8 +338,15 @@ final class OutreachEngine {
             return [ null, 'No eligible active contact (add one on the prospect)' ];
         }
         $contactId = (int) $contact['id'];
-        if ( $this->messages->existsFor( $contactId, $approach, 1 ) ) {
-            return [ null, 'A message for this contact and approach already exists' ];
+        $existing  = $this->messages->existsFor( $contactId, $approach, 1 );
+        if ( $existing ) {
+            return [ null, 'A first message to this contact for this approach already exists' . $this->whereMessage( $existing ) ];
+        }
+        $open = $this->openMessageFor( $prospectId );
+        if ( null !== $open ) {
+            // One open conversation per website: a second pitch to the same site waits until the first is answered,
+            // closed or sent and the contact cool-down has passed.
+            return [ null, 'This website already has an open message' . $this->whereMessage( $open ) . '; one open message per website' ];
         }
         $opportunity = $this->bestOpportunity( $prospectId, $approach );
         if ( ! $opportunity && in_array( $approach, self::REQUIRES_OPPORTUNITY, true ) ) {
@@ -454,8 +471,8 @@ final class OutreachEngine {
             return [ 'ok' => false, 'violations' => [ 'Campaign is ' . $campaign['status'] . '.' ] ];
         }
         if ( $userId <= 0 ) {
-            // Automation approving on the owner's behalf (outreach autosend): honour the owner's settings.
-            if ( (bool) $this->settings->get( 'outreach.require_approval', true ) ) {
+            // Automation approving on the owner's behalf (Autopilot / outreach autosend): honour the owner's settings.
+            if ( $this->autopilot()->requireApproval() ) {
                 return [ 'ok' => false, 'violations' => [ 'Individual approval is required (Settings → Outreach → Require individual approval), so automation does not approve messages.' ] ];
             }
             if ( $campaign && Campaigns::STATUS_PAUSED === (string) $campaign['status'] ) {
@@ -471,7 +488,7 @@ final class OutreachEngine {
             return $result;
         }
         $this->messages->setStatus( $id, OutreachMessages::STATUS_APPROVED, [ 'last_error' => '' ] );
-        $this->audit->record( $this->actor( $userId ), 'outreach.message_approved', 'outreach_message', $id, [ 'campaign_id' => $campaignId, 'prospect_id' => (int) ( $m['prospect_id'] ?? 0 ) ] );
+        $this->audit->record( $this->approver( $userId ), 'outreach.message_approved', 'outreach_message', $id, [ 'campaign_id' => $campaignId, 'prospect_id' => (int) ( $m['prospect_id'] ?? 0 ), 'autopilot' => $userId <= 0 && $this->autopilot()->isOn() ] );
         return [ 'ok' => true, 'violations' => [] ];
     }
 
@@ -607,9 +624,15 @@ final class OutreachEngine {
         };
         try {
             $this->releaseStaleClaims();
-            $autosend = (bool) $this->settings->get( 'automation.outreach_autosend', false );
+            $autosend = $this->autopilot()->outreachAutosend();
             $ready    = $this->sendCandidates( $max, $autosend );
             if ( [] === $ready ) {
+                // Say why nothing goes out when first-contact drafts wait for a person (e.g. autosend on while
+                // "Require individual approval" is on): reported as a reason only, nothing was skipped.
+                $waiting = $this->autopilot()->autoApproveMessages() ? 0 : $this->messages->count( [ 'status' => OutreachMessages::STATUS_DRAFT, 'sequence' => 1 ] );
+                if ( $waiting > 0 ) {
+                    $out['reasons']['awaiting_approval'] = $waiting;
+                }
                 return $out;
             }
             $pause = $this->storefrontPause();
@@ -667,7 +690,7 @@ final class OutreachEngine {
      */
     public function hasSendable(): bool {
         try {
-            $autosend = (bool) $this->settings->get( 'automation.outreach_autosend', false );
+            $autosend = $this->autopilot()->outreachAutosend();
             if ( [] === $this->sendCandidates( 1, $autosend ) ) {
                 return false;
             }
@@ -1137,6 +1160,34 @@ final class OutreachEngine {
         $body = preg_replace( '/[ \t]+$/m', '', $body ) ?? $body;
         $body = preg_replace( "/\n{3,}/", "\n\n", $body ) ?? $body;
         return trim( $body );
+    }
+
+    /**
+     * Audit actor of an approval: the person, or "system:autopilot" when automation approves under Autopilot (so
+     * switching Autopilot off finds what it approved), or the plain automation actor otherwise.
+     */
+    private function approver( int $userId ): string {
+        if ( $userId > 0 ) {
+            return 'user:' . $userId;
+        }
+        return $this->autopilot()->isOn() ? Autopilot::ACTOR : 'system';
+    }
+
+    /**
+     * The open (not yet sent) first message of a website in any campaign, or null.
+     *
+     * @return array<string,mixed>|null
+     */
+    private function openMessageFor( int $prospectId ): ?array {
+        $rows = $this->messages->findBy( [ 'prospect_id' => $prospectId, 'status' => [ OutreachMessages::STATUS_DRAFT, OutreachMessages::STATUS_APPROVED, OutreachMessages::STATUS_SCHEDULED, self::STATUS_SENDING ] ], 'id', 'ASC', 1 );
+        return $rows[0] ?? null;
+    }
+
+    /** ' (draft #12 in campaign "Auto: Resource page inclusion")' for a skip reason. @param array<string,mixed> $m */
+    private function whereMessage( array $m ): string {
+        $campaign = (int) ( $m['campaign_id'] ?? 0 ) > 0 ? $this->campaignCached( (int) $m['campaign_id'] ) : null;
+        $what     = sprintf( '%s #%d', (string) ( $m['status'] ?? 'message' ), (int) ( $m['id'] ?? 0 ) );
+        return null !== $campaign ? sprintf( ' (%s in campaign "%s")', $what, (string) ( $campaign['name'] ?? '' ) ) : ' (' . $what . ')';
     }
 
     private function actor( int $userId, string $fallback = '' ): string {

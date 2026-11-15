@@ -79,6 +79,63 @@ function normalizeApproaches( res ) {
     return out;
 }
 
+/**
+ * The toast after POST /outreach/campaigns: what was drafted at once and what happens next. Exported for tests.
+ *
+ * @param {object} res { drafted, eligible, remaining, approved, explanation, autopilot, campaign{ next_step } }
+ * @return {{ text: string, kind: string }}
+ */
+export function campaignCreatedText( res ) {
+    const r = isObject( res ) ? res : {};
+    const drafted = Number( r.drafted ) || 0;
+    const remaining = Number( r.remaining ) || 0;
+    const approved = Number( r.approved ) || 0;
+    const plural = ( n, one, many ) => `${ fmtNumber( n ) } ${ n === 1 ? one : many }`;
+    if ( drafted === 0 && remaining === 0 ) {
+        const why = String( r.explanation || '' ).trim() || 'No matching prospects with a published email address yet; the engine adds drafts as it finds them.';
+        return { text: `Campaign created. ${ why }`, kind: 'info' };
+    }
+    let text = `Campaign created with ${ plural( drafted, 'draft', 'drafts' ) }`;
+    if ( remaining > 0 ) {
+        text += ` (${ plural( remaining, 'more prospect is', 'more prospects are' ) } being drafted in the background)`;
+    }
+    if ( r.autopilot ) {
+        text += approved > 0
+            ? `. Autopilot approved ${ fmtNumber( approved ) } and sends them automatically inside the send window and daily limits.`
+            : '. Autopilot approves and sends them automatically inside the send window and daily limits.';
+    } else {
+        text += drafted > 0 ? '. They are waiting for your approval: use “Approve all drafts” on the campaign card.' : '.';
+    }
+    return { text, kind: 'success' };
+}
+
+/**
+ * The Outreach page banner about automatic sending, from GET /outreach/sender. Exported for tests.
+ * Returns null when nothing is sent automatically.
+ *
+ * @param {object} sender
+ * @return {{ kind: string, title: string, text: string }|null}
+ */
+export function autosendBanner( sender ) {
+    const s = isObject( sender ) ? sender : {};
+    const win = isObject( s.send_window ) ? s.send_window : {};
+    const when = win.open_now ? 'the send window is open now' : ( win.next_open ? `next send window ${ win.next_open }` : '' );
+    if ( s.autopilot === true ) {
+        return {
+            kind: 'success',
+            title: 'Autopilot is on',
+            text: `Drafts are approved and sent in your name automatically, inside the send window (${ win.timezone_label || win.timezone || 'site time' }${ when ? `; ${ when }` : '' }) and the daily and weekly limits. ${ s.follow_ups || '' } The hard limits stay on: unsubscribes, the suppression list, the claims filter and the contact cool-down.`.replace( /\s+/g, ' ' ).trim(),
+        };
+    }
+    if ( s.autosend === true && s.auto_approve !== false ) {
+        return { kind: 'warning', title: 'Outreach autosend is on', text: 'Auto-drafted first emails to qualified prospects and follow-ups in auto-approve campaigns are approved and sent in your name without individual review (inside the send window and limits). Switch it off on the Automation page to review every message.' };
+    }
+    if ( s.autosend === true ) {
+        return { kind: 'warning', title: 'Outreach autosend is on, but nothing is approved automatically', text: '“Require individual approval” (Settings → Outreach) is also on, so automation approves no message and 0 auto-drafted emails will be sent until you approve them. Turn on Autopilot (Automation) to let the engine approve and send them for you.' };
+    }
+    return null;
+}
+
 function violationList( violations ) {
     return el( 'ul', { class: 'ppclg-violations' }, violations.map( ( v ) => el( 'li', {}, icon( 'alert', 14 ), `${ v.message || labelize( v.rule || 'claim' ) }: “${ v.match || '' }”` ) ) );
 }
@@ -105,7 +162,7 @@ export default async function render( root, ctx ) {
     replace( root,
         pageHeader( {
             title: 'Outreach',
-            description: 'Personalised, CASL/CAN-SPAM-compliant email outreach. Messages are sent only after approval: by you, or automatically when “Outreach autosend” is on (Automation), which approves auto-drafted first emails to qualified prospects and auto-approve follow-ups without review. Recipients can opt out with one click.',
+            description: 'Personalised, CASL/CAN-SPAM-compliant email outreach. A new campaign gets drafts at once for every matching prospect with a published address. Messages are sent only after approval: by you, or automatically under Autopilot (Automation). Every email carries your postal address and a one-click unsubscribe.',
             actions: button( 'New campaign', { kind: 'primary', iconName: 'plus', onClick: () => createCampaign() } ),
         } ),
         bannerHost,
@@ -124,11 +181,26 @@ export default async function render( root, ctx ) {
         try {
             const sender = await api.get( '/outreach/sender', {}, { silent: true } );
             const missing = arr( sender && sender.missing ).map( ( m ) => labelize( m ) );
+            const problems = arr( sender && sender.problems );
             const warnings = arr( sender && sender.warnings );
+            const suggestion = sender && isObject( sender.suggestion ) ? sender.suggestion : null;
+            const auto = autosendBanner( sender );
+            const win = obj( sender && sender.send_window );
+            const useSuggested = suggestion && suggestion.sender_email ? button( `Use ${ suggestion.sender_email }`, { small: true, kind: 'primary', onClick: async () => {
+                await api.post( '/settings', { settings: { outreach: { sender_email: suggestion.sender_email } } } );
+                toast( `Sender email changed to ${ suggestion.sender_email }.`, 'success' );
+                loadSenderBanner();
+            } } ) : null;
             replace( bannerHost,
-                sender && sender.ok === false ? callout( 'danger', 'Sender identity incomplete — sending is blocked', `Missing: ${ missing.join( ', ' ) }. Anti-spam law requires the sender name, a working address and a postal address in every message.`, { actions: linkButton( 'Complete sender settings', settingsUrl, { small: true, kind: 'primary' } ) } ) : null,
+                sender && sender.ok === false ? callout( 'danger', 'Sending is paused: the sender is not ready', el( 'div', {},
+                    problems.length ? el( 'ul', {}, problems.map( ( p ) => el( 'li', {}, String( p ) ) ) ) : `Missing: ${ missing.join( ', ' ) }.`,
+                    suggestion && suggestion.reason ? el( 'p', {}, String( suggestion.reason ) ) : null,
+                    el( 'p', { class: 'ppclg-small' }, 'Anti-spam law requires the sender name, a working reply address and a postal address in every message.' ),
+                ), { actions: [ useSuggested, linkButton( 'Complete sender settings', settingsUrl, { small: true, kind: useSuggested ? 'secondary' : 'primary' } ) ].filter( Boolean ) } ) : null,
                 warnings.length ? callout( 'info', 'Sender identity notes', el( 'ul', {}, warnings.map( ( w ) => el( 'li', {}, String( w ) ) ) ) ) : null,
-                sender && sender.autosend === true ? callout( 'warning', 'Outreach autosend is on', 'Auto-drafted first emails to qualified prospects and follow-ups in auto-approve campaigns are approved and sent in your name without individual review (inside the send window and limits). Switch it off on the Automation page to review every message.', { actions: linkButton( 'Open automation', ctx.pageUrl( 'automation' ), { small: true } ) } ) : null,
+                // sender.autosend === true / sender.autopilot === true: see autosendBanner().
+                auto ? callout( auto.kind, auto.title, auto.text, { actions: linkButton( 'Open automation', ctx.pageUrl( 'automation' ), { small: true } ) } ) : null,
+                win.timezone ? el( 'p', { class: 'ppclg-small ppclg-muted' }, `Send window: ${ win.start }:00–${ win.end }:00 on ${ arr( win.days ).map( ( d ) => [ 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun' ][ Number( d ) ] || d ).join( ', ' ) }, ${ win.timezone_label || win.timezone }${ win.timezone_source === 'region' ? ` (from your business region, because WordPress is set to ${ win.wp_timezone || 'UTC' })` : '' }. ${ win.open_now ? 'Open now.' : ( win.next_open ? `Next: ${ win.next_open }.` : '' ) }` ) : null,
             );
         } catch ( e ) {
             replace( bannerHost );
@@ -176,7 +248,7 @@ export default async function render( root, ctx ) {
         const nameField = formField( { type: 'text', name: 'name', label: 'Campaign name', placeholder: 'Canadian lab resource pages — Q1', required: true } );
         const limitField = formField( { type: 'number', name: 'daily_limit', label: 'Daily send limit', value: 5, min: 1, max: 100, hint: 'Also capped by the global outreach limits.' } );
         const followField = formField( { type: 'toggle', name: 'follow_ups', label: 'Allow one polite follow-up', value: true, hint: 'A single follow-up draft is created after the configured number of days without a reply.' } );
-        const autoField = formField( { type: 'toggle', name: 'auto_follow_up', label: 'Auto-approve follow-ups', value: false, hint: 'Only takes effect when the global “Outreach autosend” stage is on; otherwise follow-ups wait for approval like any message.' } );
+        const autoField = formField( { type: 'toggle', name: 'auto_follow_up', label: 'Auto-approve follow-ups', value: false, hint: 'Only takes effect when the global “Outreach autosend” stage is on; otherwise follow-ups wait for approval like any message. Under Autopilot follow-ups are sent automatically only when reply tracking is set up.' } );
         const notesField = formField( { type: 'textarea', name: 'notes', label: 'Notes', rows: 2 } );
 
         const dialog = modal( {
@@ -197,15 +269,22 @@ export default async function render( root, ctx ) {
                         nameField.setError( 'Give the campaign a name.' );
                         return;
                     }
-                    await api.post( '/outreach/campaigns', {
+                    const res = await api.post( '/outreach/campaigns', {
                         name,
                         approach: approachField.get(),
                         settings: { daily_limit: limitField.get() || 5, follow_ups: followField.get(), auto_follow_up: autoField.get(), notes: notesField.get() },
                     } );
-                    toast( 'Campaign created as a draft.', 'success' );
+                    const created = campaignCreatedText( res );
+                    toast( created.text, created.kind, { timeout: 9000 } );
                     close();
-                    await campaigns( true );
+                    await campaigns( true ).catch( () => null );
+                    // Show the new campaign whichever tab was open, and rebuild the Messages tab (its campaign
+                    // filter lists the new campaign the next time it is shown).
                     view.refresh( 'campaigns' );
+                    if ( view.active !== 'campaigns' ) {
+                        view.select( 'campaigns' );
+                    }
+                    view.refresh( 'messages' ); // not the active tab any more: only marked for a rebuild
                 } },
             ],
         } );
@@ -251,12 +330,41 @@ export default async function render( root, ctx ) {
             await campaigns( true );
             view.refresh( 'campaigns' );
         };
+        const next = obj( c.next_step );
+        const showMessages = ( status ) => {
+            messageFilters.campaign_id = String( c.id );
+            messageFilters.status = status || '';
+            view.refresh( 'messages' );
+            view.select( 'messages' );
+        };
+        const approveAll = async () => {
+            if ( ! ( await confirm( `Approve “${ c.name }” and all its drafts? Each email is checked again (claims filter, unsubscribe link, postal address, suppression list) and is then sent automatically inside the send window and the daily limits.`, { title: 'Approve all drafts', confirmText: 'Approve all' } ) ) ) {
+                return;
+            }
+            let res;
+            try {
+                res = await api.post( `/outreach/campaigns/${ c.id }/approve-drafts`, {} );
+            } catch ( e ) {
+                return;
+            }
+            const failed = Object.entries( obj( res && res.failed ) );
+            const campaignRefused = res && res.campaign_approved === false;
+            toast( `${ fmtNumber( Number( res && res.approved ) || 0 ) } draft(s) approved${ failed.length ? `, ${ failed.length } need editing first` : '' }.${ campaignRefused ? ' The campaign itself could not be approved yet: check the sender identity (Settings → Outreach).' : '' }`, failed.length || campaignRefused ? 'warning' : 'success' );
+            if ( failed.length ) {
+                modal( { title: 'Drafts that need editing', content: el( 'ul', { class: 'ppclg-list--bullets' }, failed.map( ( [ id, why ] ) => el( 'li', {}, `#${ id }: ${ why }` ) ) ), actions: [ { label: 'Close', kind: 'primary', onClick: ( close2 ) => close2() } ] } );
+            }
+            await campaigns( true );
+            view.refresh( 'campaigns' );
+        };
         const actions = [];
         if ( c.status === 'draft' ) {
             actions.push( button( 'Submit for approval', { small: true, iconName: 'check', onClick: () => act( 'submit' ) } ) );
         }
         if ( c.status === 'pending_approval' ) {
-            actions.push( button( 'Approve campaign', { small: true, kind: 'success', iconName: 'check', onClick: () => act( 'approve', 'Approve this campaign? Approved messages inside it become eligible for sending within the send window.' ) } ) );
+            actions.push( button( 'Approve campaign', { small: true, kind: 'success', iconName: 'check', onClick: () => act( 'approve', 'Approve this campaign? Its messages still need approval too: approve them one by one or with “Approve all drafts”; approved messages are then sent within the send window.' ) } ) );
+        }
+        if ( Number( next.waiting ) > 0 ) {
+            actions.push( button( `Approve all drafts (${ fmtNumber( Number( next.waiting ) ) })`, { small: true, kind: 'success', iconName: 'check', onClick: () => approveAll() } ) );
         }
         if ( [ 'approved', 'sending' ].includes( c.status ) ) {
             actions.push( button( 'Pause', { small: true, iconName: 'pause', onClick: () => act( 'pause' ) } ) );
@@ -268,21 +376,28 @@ export default async function render( root, ctx ) {
             actions.push( button( 'Build drafts', { small: true, kind: 'primary', iconName: 'edit', onClick: () => buildDrafts( c ) } ) );
             actions.push( button( 'Archive', { small: true, kind: 'ghost', iconName: 'inbox', onClick: () => act( 'archive', 'Archive this campaign? Unsent messages will no longer be sent.' ) } ) );
         }
-        actions.push( button( 'Messages', { small: true, kind: 'ghost', iconName: 'mail', onClick: () => {
-            messageFilters.campaign_id = String( c.id );
-            view.select( 'messages' );
-            if ( messagesList ) {
-                messagesList.setFilters( { campaign_id: String( c.id ) } );
-            }
-        } } ) );
+        actions.push( button( 'Messages', { small: true, kind: 'ghost', iconName: 'mail', onClick: () => showMessages( '' ) } ) );
 
         const countsHost = el( 'div', { class: 'ppclg-row', style: { marginTop: '8px' } } );
-        api.get( `/outreach/campaigns/${ c.id }`, {}, { silent: true } ).then( ( res ) => {
-            const detail = isObject( res && res.campaign ) ? res.campaign : obj( res );
-            const counts = obj( detail.counts || detail.message_counts || detail.messages );
-            const entries = Object.entries( counts ).filter( ( [ , v ] ) => typeof v === 'number' );
-            replace( countsHost, entries.length ? entries.map( ( [ k, v ] ) => badge( `${ labelize( k ) }: ${ fmtNumber( v ) }`, k === 'sent' || k === 'replied' ? 'success' : ( k === 'failed' ? 'danger' : 'neutral' ) ) ) : el( 'span', { class: 'ppclg-muted ppclg-small' }, 'No messages yet' ) );
-        } ).catch( () => replace( countsHost ) );
+        const nextHost = el( 'div', { class: 'ppclg-campaign-next', style: { marginTop: '8px' } } );
+        const drawNext = ( step ) => {
+            const st = obj( step );
+            if ( ! st.text ) {
+                replace( nextHost );
+                return;
+            }
+            const kind = { sending: 'success', waiting: 'warning', blocked: 'danger', needs_edit: 'warning', empty: 'info', paused: 'neutral' }[ st.state ] || 'info';
+            replace( nextHost, el( 'div', { class: 'ppclg-small' }, el( 'strong', {}, 'What happens next: ' ), String( st.text ), Number( st.waiting ) > 0 ? el( 'span', {}, ' ', el( 'a', { href: '#', onClick: ( ev ) => {
+                ev.preventDefault();
+                showMessages( 'draft' );
+            } }, 'Open the drafts' ) ) : null ), badge( labelize( st.state || 'status' ), kind ) );
+        };
+        drawNext( next );
+        const drawCounts = ( counts ) => {
+            const entries = Object.entries( obj( counts ) ).filter( ( [ , v ] ) => typeof v === 'number' );
+            replace( countsHost, entries.length ? entries.map( ( [ k, v ] ) => badge( `${ labelize( k ) }: ${ fmtNumber( v ) }`, k === 'sent' || k === 'replied' ? 'success' : ( k === 'failed' ? 'danger' : 'neutral' ) ) ) : null );
+        };
+        drawCounts( c.counts || c.message_counts );
 
         return card( {
             title: c.name,
@@ -296,6 +411,7 @@ export default async function render( root, ctx ) {
                     [ 'Approved', c.approved_at ? fmtDate( c.approved_at ) : null ],
                 ].concat( statRows.map( ( [ k, v ] ) => [ labelize( k ), typeof v === 'number' ? fmtNumber( v ) : String( v ) ] ) ), { compact: true } ),
                 countsHost,
+                nextHost,
                 settings.notes ? el( 'p', { class: 'ppclg-small', style: { marginTop: '8px' } }, String( settings.notes ) ) : null,
             ],
             footer: actions,
@@ -324,7 +440,7 @@ export default async function render( root, ctx ) {
                     countEl.textContent = `${ selected.size } selected`;
                 } );
                 return el( 'label', {}, cb, el( 'span', { class: 'ppclg-grow' }, el( 'span', { class: 'ppclg-strong' }, p.name || p.domain ), ' ', el( 'span', { class: 'ppclg-muted ppclg-small' }, p.domain ) ), badge( `${ fmtNumber( p.score ) }`, 'neutral' ), statusBadge( p.status ) );
-            } ) : emptyState( { title: 'No matching prospects', compact: true } ) );
+            } ) : emptyState( { title: 'No matching prospects', message: allShown ? '' : 'Every website that fits this approach already has a draft or message, or none has a published address yet. Switch on “Show all qualified prospects” to pick others.', compact: true } ) );
         };
         search.addEventListener( 'input', debounce( renderRows, 200 ) );
 
@@ -373,28 +489,42 @@ export default async function render( root, ctx ) {
             }
         };
 
-        ( async () => {
+        // By default only prospects that match this campaign's approach and can be written to are listed
+        // (GET /outreach/campaigns/{id}/candidates); "Show all qualified prospects" lists every one.
+        let allShown = false;
+        const loadRows = async ( all ) => {
+            allShown = Boolean( all );
+            replace( picker, loading( 'Loading qualified prospects…', true ) );
+            selected.clear();
+            countEl.textContent = '0 selected';
             try {
-                const results = await Promise.all( [ 'approved', 'qualified', 'in_progress' ].map( ( status ) => api.get( '/prospects', { status, per_page: 100, orderby: 'score', order: 'desc' }, { silent: true } ).then( normalizeList ).catch( () => ( { items: [] } ) ) ) );
-                const seen = new Set();
-                rows = results.flatMap( ( r ) => r.items ).filter( ( p ) => {
-                    if ( seen.has( p.id ) ) {
-                        return false;
-                    }
-                    seen.add( p.id );
-                    return true;
-                } );
+                if ( ! all ) {
+                    rows = normalizeList( await api.get( `/outreach/campaigns/${ c.id }/candidates`, {}, { silent: true } ) ).items;
+                } else {
+                    const results = await Promise.all( [ 'approved', 'qualified', 'in_progress' ].map( ( status ) => api.get( '/prospects', { status, per_page: 100, orderby: 'score', order: 'desc' }, { silent: true } ).then( normalizeList ).catch( () => ( { items: [] } ) ) ) );
+                    const seen = new Set();
+                    rows = results.flatMap( ( r ) => r.items ).filter( ( p ) => {
+                        if ( seen.has( p.id ) ) {
+                            return false;
+                        }
+                        seen.add( p.id );
+                        return true;
+                    } );
+                }
                 renderRows();
             } catch ( e ) {
                 replace( picker, errorState( { title: 'Could not load prospects', message: e && e.message ? e.message : '' } ) );
             }
-        } )();
+        };
+        const allField = formField( { type: 'toggle', name: 'all_prospects', label: 'Show all qualified prospects', value: false, hint: 'Off: only websites whose best opportunity fits this approach, with a published address and no open message elsewhere.', onChange: ( v ) => loadRows( Boolean( v ) ) } );
+        loadRows( false );
 
         modal( {
             title: `Build drafts — ${ c.name }`,
             width: 'wide',
             content: el( 'div', { class: 'ppclg-stack' },
-                el( 'p', {}, 'Drafts are created for prospects with an active, legitimately published contact and a matching opportunity. Nothing is sent until each message is approved.' ),
+                el( 'p', {}, 'Drafts are created for prospects with an active, conspicuously published contact and no open message in another campaign (one open message per website). They are sent after approval: yours, or automatically under Autopilot.' ),
+                allField.el,
                 el( 'div', { class: 'ppclg-row ppclg-row--between' }, el( 'div', { class: 'ppclg-grow' }, search ), countEl, button( 'Select all visible', { small: true, kind: 'ghost', onClick: () => {
                     picker.querySelectorAll( 'input[type="checkbox"]' ).forEach( ( cb ) => {
                         if ( ! cb.checked ) {

@@ -10,10 +10,18 @@
  * target at most once per source and at most seo.max_links_per_post suggestions per source. Page-builder posts
  * (Elementor and similar) are skipped because their layout data, not post_content, is what visitors see.
  *
- * Nothing is ever changed automatically. apply() runs only from the admin's "Apply" click: it re-locates the
- * occurrence under the same rules, refuses when the surrounding text changed, wraps exactly those bytes in
- * <a href="…">…</a> (every other byte of post_content stays identical), checks the result with DOMDocument, saves
- * through wp_update_post() (which stores a revision) and writes an audit-log entry.
+ * apply() runs from the admin's "Apply" click: it re-locates the occurrence under the same rules, refuses when the
+ * surrounding text changed, wraps exactly those bytes in <a href="…">…</a> (every other byte of post_content stays
+ * identical), checks the result with DOMDocument, keeps a revision of the content before the change, saves through
+ * wp_update_post() and writes an audit-log entry.
+ *
+ * Automatic links (setting seo.auto_apply_links, always on under Automation\Autopilot): autoApply(), called by the
+ * internal_links job, applies the pending suggestions with the highest relevance first through the same code path
+ * and safeguards (opaque blocks, DOM check, kses must leave the content unchanged, a revision before each change,
+ * seo.max_links_per_post), at most seo.auto_apply_per_day a day, audit-logged as the automation. undoAuto()
+ * (POST /seo/links/undo-auto) removes every automatic link still present: it restores the content from before the
+ * change when the item was not edited since, otherwise it removes only the inserted anchor tag. Off, nothing is
+ * applied without a click (as before).
  *
  * @package PPC\LinkGrowth
  */
@@ -23,6 +31,8 @@ declare(strict_types=1);
 namespace PPC\LinkGrowth\Seo;
 
 use PPC\LinkGrowth\Automation\Audit;
+use PPC\LinkGrowth\Automation\Autopilot;
+use PPC\LinkGrowth\Support\Limits;
 use PPC\LinkGrowth\Support\Locks;
 use PPC\LinkGrowth\Support\Logger;
 use PPC\LinkGrowth\Support\Settings;
@@ -101,6 +111,12 @@ final class InternalLinker {
     /** Bytes of surrounding visible text shown as the excerpt. */
     private const EXCERPT_BYTES = 150;
 
+    /** Limits counter of the links applied automatically today (cap: seo.auto_apply_per_day). */
+    public const AUTO_COUNTER = 'internal_links_auto';
+
+    /** Note on a suggestion whose automatic link was removed by "Undo automatic links". */
+    public const UNDONE_NOTE = 'Removed by “Undo automatic links”; it will not be added again.';
+
     public function __construct(
         private Settings $settings,
         private Logger $logger,
@@ -118,6 +134,19 @@ final class InternalLinker {
 
     public function maxPerSource(): int {
         return max( 1, min( 20, (int) $this->settings->get( 'seo.max_links_per_post', 3 ) ) );
+    }
+
+    /** Pending suggestions are applied automatically (seo.auto_apply_links, or Autopilot on). */
+    public function autoApplyEnabled(): bool {
+        return $this->enabled() && $this->autopilot()->autoApplyLinks();
+    }
+
+    private function autopilot(): Autopilot {
+        return new Autopilot( $this->settings );
+    }
+
+    private function limits(): Limits {
+        return new Limits( $this->settings );
     }
 
     /**
@@ -201,7 +230,7 @@ final class InternalLinker {
             (int) $work['suggested'],
             ! $done,
             $done
-                ? sprintf( 'Checked %d %s against %d link %s; %d %s waiting for your review.', $checked, 1 === $checked ? 'item' : 'items', count( (array) $work['targets'] ), 1 === count( (array) $work['targets'] ) ? 'target' : 'targets', $pending, 1 === $pending ? 'suggestion is' : 'suggestions are' )
+                ? sprintf( 'Checked %d %s against %d link %s; %d %s %s.', $checked, 1 === $checked ? 'item' : 'items', count( (array) $work['targets'] ), 1 === count( (array) $work['targets'] ) ? 'target' : 'targets', $pending, 1 === $pending ? 'suggestion is' : 'suggestions are', $this->autoApplyEnabled() ? 'waiting to be applied automatically' : 'waiting for your review' )
                 : sprintf( 'Checked %d of %d items for internal-link opportunities; %d %s waiting so far.', $checked, $total, $pending, 1 === $pending ? 'suggestion is' : 'suggestions are' )
         );
     }
@@ -299,7 +328,9 @@ final class InternalLinker {
                 $store['next_id'] = $id + 1;
                 $new++;
             }
-            $prev = $store['items'][ (string) $id ] ?? [];
+            $prev     = $store['items'][ (string) $id ] ?? [];
+            $mentions = substr_count( $lower, mb_strtolower( (string) $t['anchor'] ) );
+            $position = strlen( $content ) > 0 ? $p['o']['start'] / strlen( $content ) : 1.0;
             $store['items'][ (string) $id ] = [
                 'id'             => $id,
                 'source_post_id' => $sourceId,
@@ -312,6 +343,7 @@ final class InternalLinker {
                 'target_title'   => (string) $t['title'],
                 'excerpt'        => $p['o']['excerpt'],
                 'context_hash'   => $p['o']['context_hash'],
+                'relevance'      => self::relevance( (string) $t['anchor'], $mentions, $position, (string) ( $t['kind'] ?? '' ) ),
                 'status'         => self::STATUS_PENDING,
                 'created_at'     => (string) ( $prev['created_at'] ?? $now ),
                 'updated_at'     => $now,
@@ -408,7 +440,7 @@ final class InternalLinker {
             }
             $title = self::clean( (string) ( $post->post_title ?? '' ) );
             if ( self::usableAnchor( $title ) ) {
-                $out[] = [ 'id' => $id, 'anchor' => $title, 'url' => (string) get_permalink( $id ), 'title' => $title ];
+                $out[] = [ 'id' => $id, 'anchor' => $title, 'url' => (string) get_permalink( $id ), 'title' => $title, 'kind' => 'product' ];
             }
         }
         foreach ( [ 'page', 'post' ] as $type ) {
@@ -421,7 +453,7 @@ final class InternalLinker {
                 if ( ! is_object( $post ) || '' !== (string) ( $post->post_password ?? '' ) || SiteAuditor::isNoindex( $id, $type ) ) {
                     continue;
                 }
-                $out[] = [ 'id' => $id, 'anchor' => $keyword, 'url' => (string) get_permalink( $id ), 'title' => self::clean( (string) ( $post->post_title ?? '' ) ) ];
+                $out[] = [ 'id' => $id, 'anchor' => $keyword, 'url' => (string) get_permalink( $id ), 'title' => self::clean( (string) ( $post->post_title ?? '' ) ), 'kind' => $type ];
             }
         }
         $byAnchor = [];
@@ -435,6 +467,29 @@ final class InternalLinker {
             }
         }
         return array_slice( $targets, 0, self::MAX_TARGETS );
+    }
+
+    /**
+     * How strongly a suggestion is worth linking (0–100; automatic links take the highest first): specific,
+     * multi-word anchors, a source that mentions the target several times and early in the text, and products
+     * (commercial pages) slightly ahead of posts and pages.
+     */
+    public static function relevance( string $term, int $mentions, float $position, string $kind ): int {
+        $words = count( preg_split( '/\s+/u', trim( $term ) ) ?: [] );
+        $score = min( 30, 10 * max( 1, $words ) );
+        $score += min( 10, intdiv( mb_strlen( trim( $term ) ), 4 ) );
+        $score += min( 30, 10 * max( 1, $mentions ) );
+        $score += 'product' === $kind ? 20 : 15;
+        $score += $position <= 0.34 ? 10 : ( $position <= 0.67 ? 5 : 0 );
+        return max( 0, min( 100, $score ) );
+    }
+
+    /** @param array<string,mixed> $item stored relevance, or one estimated from the anchor (older suggestions) */
+    private static function relevanceOf( array $item ): int {
+        if ( isset( $item['relevance'] ) && is_numeric( $item['relevance'] ) ) {
+            return (int) $item['relevance'];
+        }
+        return self::relevance( (string) ( $item['term'] ?? $item['anchor'] ?? '' ), 1, 0.5, '' );
     }
 
     /** At least 4 characters, a letter, not generic, not a sentence. */
@@ -546,7 +601,7 @@ final class InternalLinker {
     }
 
     // ------------------------------------------------------------------
-    // Apply / dismiss (admin click only)
+    // Apply / dismiss (admin click; automatic links: autoApply / undoAuto)
     // ------------------------------------------------------------------
 
     /**
@@ -564,36 +619,9 @@ final class InternalLinker {
         if ( ! $this->locks->acquire( self::LOCK, 120 ) ) {
             return [ 'ok' => false, 'applied' => 0, 'refused' => count( $ids ), 'results' => [], 'message' => 'Suggestions are being refreshed right now; nothing was changed. Try again in a minute.' ];
         }
-        $results = [];
-        $applied = 0;
         try {
             $store = $this->store();
-            foreach ( $ids as $id ) {
-                if ( null !== $budget && ! $budget->has( 3.0 ) ) {
-                    $results[] = [ 'id' => $id, 'ok' => false, 'message' => 'Not attempted: the request ran out of time. Apply it again.' ];
-                    continue;
-                }
-                $item = $store['items'][ (string) $id ] ?? null;
-                if ( ! is_array( $item ) ) {
-                    $results[] = [ 'id' => $id, 'ok' => false, 'message' => 'Suggestion not found; refresh the list.' ];
-                    continue;
-                }
-                if ( self::STATUS_PENDING !== $item['status'] ) {
-                    $results[] = [ 'id' => $id, 'ok' => false, 'message' => sprintf( 'This suggestion is already %s.', $item['status'] ) ];
-                    continue;
-                }
-                try {
-                    [ $ok, $message, $status, $extra ] = $this->applyOne( $item, $store, $userId );
-                } catch ( Throwable $e ) {
-                    $this->logger->error( 'seo', 'Applying an internal link failed: ' . $e->getMessage(), [ 'suggestion' => $id ] );
-                    [ $ok, $message, $status, $extra ] = [ false, 'Nothing was changed: an unexpected error occurred (see Logs).', '', [] ];
-                }
-                if ( '' !== $status ) {
-                    $store['items'][ (string) $id ] = array_merge( $item, $extra, [ 'status' => $status, 'updated_at' => gmdate( 'c' ), 'note' => $message ] );
-                }
-                $applied  += $ok ? 1 : 0;
-                $results[] = [ 'id' => $id, 'ok' => $ok, 'message' => $message ];
-            }
+            [ $applied, $results ] = $this->applyBatch( $store, $ids, $userId, $budget, false, PHP_INT_MAX );
             $this->saveStore( $store );
         } finally {
             $this->locks->release( self::LOCK );
@@ -611,17 +639,305 @@ final class InternalLinker {
     }
 
     /**
+     * Applies suggestions in order until $stopAfter were applied (the caller holds the lock and saves the store).
+     *
+     * @param array<string,mixed> $store
+     * @param int[] $ids
+     * @return array{0:int,1:array<int,array{id:int,ok:bool,message:string}>} applied, results
+     */
+    private function applyBatch( array &$store, array $ids, int $userId, ?TimeBudget $budget, bool $auto, int $stopAfter ): array {
+        $results = [];
+        $applied = 0;
+        foreach ( $ids as $id ) {
+            if ( $applied >= $stopAfter ) {
+                break;
+            }
+            if ( null !== $budget && ! $budget->has( 3.0 ) ) {
+                if ( $auto ) {
+                    break; // the next run continues
+                }
+                $results[] = [ 'id' => $id, 'ok' => false, 'message' => 'Not attempted: the request ran out of time. Apply it again.' ];
+                continue;
+            }
+            $item = $store['items'][ (string) $id ] ?? null;
+            if ( ! is_array( $item ) ) {
+                $results[] = [ 'id' => $id, 'ok' => false, 'message' => 'Suggestion not found; refresh the list.' ];
+                continue;
+            }
+            if ( self::STATUS_PENDING !== $item['status'] ) {
+                $results[] = [ 'id' => $id, 'ok' => false, 'message' => sprintf( 'This suggestion is already %s.', $item['status'] ) ];
+                continue;
+            }
+            try {
+                [ $ok, $message, $status, $extra ] = $this->applyOne( $item, $store, $userId, $auto );
+            } catch ( Throwable $e ) {
+                $this->logger->error( 'seo', 'Applying an internal link failed: ' . $e->getMessage(), [ 'suggestion' => $id ] );
+                [ $ok, $message, $status, $extra ] = [ false, 'Nothing was changed: an unexpected error occurred (see Logs).', '', [] ];
+            }
+            if ( '' !== $status ) {
+                $store['items'][ (string) $id ] = array_merge( $item, $extra, [ 'status' => $status, 'updated_at' => gmdate( 'c' ), 'note' => $message ] );
+            } elseif ( $auto && ! $ok ) {
+                // Left for a person (e.g. kses would re-filter the item): never retried automatically.
+                $store['items'][ (string) $id ] = array_merge( $item, [ 'auto_skip' => $message, 'updated_at' => gmdate( 'c' ) ] );
+            }
+            $applied  += $ok ? 1 : 0;
+            $results[] = [ 'id' => $id, 'ok' => $ok, 'message' => $message ];
+        }
+        return [ $applied, $results ];
+    }
+
+    /**
+     * Applies the best pending suggestions without a click (internal_links job; seo.auto_apply_links or Autopilot):
+     * highest relevance first, at most seo.max_links_per_post per item and seo.auto_apply_per_day a day, through the
+     * same safeguards as apply(). A suggestion the safeguards refuse is left for a person and not retried.
+     *
+     * @return array{ran:bool,applied:int,refused:int,today:int,per_day:int,message:string}
+     */
+    public function autoApply( ?TimeBudget $budget = null ): array {
+        $perDay = $this->autopilot()->linksPerDay();
+        $today  = $this->limits()->used( self::AUTO_COUNTER );
+        $out    = [ 'ran' => false, 'applied' => 0, 'refused' => 0, 'today' => $today, 'per_day' => $perDay, 'message' => '' ];
+        if ( ! $this->autoApplyEnabled() ) {
+            return $out;
+        }
+        $room = max( 0, $perDay - $today );
+        if ( $room <= 0 ) {
+            $out['message'] = sprintf( 'Today’s %d automatic internal %s done; the next ones are added tomorrow.', $perDay, 1 === $perDay ? 'link is' : 'links are' );
+            return $out;
+        }
+        if ( ! $this->locks->acquire( self::LOCK, (int) ceil( null !== $budget ? $budget->remaining() : 60 ) + 60 ) ) {
+            $out['message'] = 'Internal-link suggestions are being refreshed right now; automatic links are added on the next run.';
+            return $out;
+        }
+        try {
+            $store   = $this->store();
+            $max     = $this->maxPerSource();
+            $applied = [];
+            foreach ( $store['items'] as $item ) {
+                if ( self::STATUS_APPLIED === $item['status'] ) {
+                    $applied[ (int) $item['source_post_id'] ] = ( $applied[ (int) $item['source_post_id'] ] ?? 0 ) + 1;
+                }
+            }
+            $pending = array_values( array_filter( $store['items'], static fn( array $i ): bool => self::STATUS_PENDING === $i['status'] && empty( $i['auto_skip'] ) ) );
+            usort( $pending, static fn( array $a, array $b ): int => [ self::relevanceOf( $b ), (int) $a['id'] ] <=> [ self::relevanceOf( $a ), (int) $b['id'] ] );
+            $ids = [];
+            foreach ( $pending as $item ) {
+                $src = (int) $item['source_post_id'];
+                if ( ( $applied[ $src ] ?? 0 ) >= $max ) {
+                    continue;
+                }
+                $applied[ $src ] = ( $applied[ $src ] ?? 0 ) + 1; // planned: keeps the per-item cap across this batch
+                $ids[]           = (int) $item['id'];
+            }
+            [ $done, $results ] = $this->applyBatch( $store, $ids, 0, $budget, true, $room );
+            $this->saveStore( $store );
+        } finally {
+            $this->locks->release( self::LOCK );
+        }
+        $out['ran']     = true;
+        $out['applied'] = $done;
+        $out['refused'] = count( $results ) - $done;
+        $out['today']   = $today + $done;
+        $out['message'] = 0 === $done && [] === $ids
+            ? 'No internal-link suggestion is waiting to be applied automatically.'
+            : sprintf( 'Applied %d internal %s automatically (%d of %d today)%s.', $done, 1 === $done ? 'link' : 'links', $today + $done, $perDay, $out['refused'] > 0 ? sprintf( '; %d left for you to review', $out['refused'] ) : '' );
+        return $out;
+    }
+
+    /**
+     * Removes every automatically applied link still present (POST /seo/links/undo-auto). Per item, newest first:
+     * when the content is exactly what the automatic change produced, the content from before it is restored;
+     * otherwise (the item was edited since) only the inserted <a> tag is removed and the words stay. A revision is
+     * kept before each change. Undone suggestions are dismissed so they are not applied again.
+     *
+     * @return array{ok:bool,restored:int,unlinked:int,already_gone:int,refused:int,left:int,items:int,message:string,results:array<int,array<string,mixed>>}
+     */
+    public function undoAuto( int $userId, ?TimeBudget $budget = null ): array {
+        $out = [ 'ok' => false, 'restored' => 0, 'unlinked' => 0, 'already_gone' => 0, 'refused' => 0, 'left' => 0, 'items' => 0, 'message' => '', 'results' => [] ];
+        if ( ! $this->locks->acquire( self::LOCK, 120 ) ) {
+            $out['message'] = 'Suggestions are being refreshed right now; nothing was changed. Try again in a minute.';
+            return $out;
+        }
+        try {
+            $store   = $this->store();
+            $bySource = [];
+            foreach ( $store['items'] as $id => $item ) {
+                if ( self::STATUS_APPLIED === $item['status'] && ! empty( $item['auto'] ) ) {
+                    $bySource[ (int) $item['source_post_id'] ][] = (string) $id;
+                }
+            }
+            foreach ( $bySource as $sourceId => $ids ) {
+                $out['items'] += count( $ids );
+                if ( null !== $budget && ! $budget->has( 3.0 ) ) {
+                    $out['left'] += count( $ids );
+                    continue;
+                }
+                // Newest change first: undoing it gives back the content the previous automatic change produced.
+                usort( $ids, static fn( string $a, string $b ): int => [ (string) ( $store['items'][ $b ]['applied_at'] ?? '' ), (int) $b ] <=> [ (string) ( $store['items'][ $a ]['applied_at'] ?? '' ), (int) $a ] );
+                $res = $this->undoSource( (int) $sourceId, $ids, $store, $userId );
+                foreach ( [ 'restored', 'unlinked', 'already_gone', 'refused' ] as $k ) {
+                    $out[ $k ] += $res[ $k ];
+                }
+                $out['results'][] = [ 'post_id' => (int) $sourceId ] + $res;
+            }
+            $this->saveStore( $store );
+        } finally {
+            $this->locks->release( self::LOCK );
+        }
+        $removed        = $out['restored'] + $out['unlinked'];
+        $out['ok']      = 0 === $out['refused'] && 0 === $out['left'];
+        $out['message'] = 0 === $out['items']
+            ? 'There are no automatic links to undo.'
+            : sprintf(
+                'Removed %d automatic %s (%d restored to the version before the change, %d unlinked in items edited since)%s%s%s. WordPress kept a revision of each edited item.',
+                $removed,
+                1 === $removed ? 'link' : 'links',
+                $out['restored'],
+                $out['unlinked'],
+                $out['already_gone'] > 0 ? sprintf( '; %d %s already gone', $out['already_gone'], 1 === $out['already_gone'] ? 'was' : 'were' ) : '',
+                $out['refused'] > 0 ? sprintf( '; %d could not be removed (see Logs)', $out['refused'] ) : '',
+                $out['left'] > 0 ? sprintf( '; %d left for another click (out of time)', $out['left'] ) : ''
+            );
+        if ( $out['items'] > 0 ) {
+            $this->audit?->record( 'seo.internal_links_auto_undone', 'seo', 0, [ 'restored' => $out['restored'], 'unlinked' => $out['unlinked'], 'already_gone' => $out['already_gone'], 'refused' => $out['refused'], 'left' => $out['left'] ] );
+        }
+        return $out;
+    }
+
+    /**
+     * Undoes the automatic links of one item ($ids newest first) and saves it once.
+     *
+     * @param string[] $ids
+     * @param array<string,mixed> $store
+     * @return array{restored:int,unlinked:int,already_gone:int,refused:int,message:string}
+     */
+    private function undoSource( int $sourceId, array $ids, array &$store, int $userId ): array {
+        $res  = [ 'restored' => 0, 'unlinked' => 0, 'already_gone' => 0, 'refused' => 0, 'message' => '' ];
+        $post = get_post( $sourceId );
+        $now  = gmdate( 'c' );
+        $mark = function ( string $id, string $mode ) use ( &$store, $now, $userId ): void {
+            $store['items'][ $id ] = array_merge( $store['items'][ $id ], [ 'status' => self::STATUS_DISMISSED, 'undone_at' => $now, 'undone_by' => $userId, 'undo_mode' => $mode, 'dismissed_at' => $now, 'dismissed_by' => $userId, 'updated_at' => $now, 'note' => self::UNDONE_NOTE ] );
+        };
+        if ( ! is_object( $post ) ) {
+            foreach ( $ids as $id ) {
+                $mark( $id, 'gone' );
+            }
+            $res['already_gone'] = count( $ids );
+            return $res;
+        }
+        if ( ! current_user_can( 'edit_post', $sourceId ) ) {
+            $res['refused'] = count( $ids );
+            $res['message'] = 'Your account may not edit this item.';
+            return $res;
+        }
+        $original = (string) ( $post->post_content ?? '' );
+        $content  = $original;
+        $modes    = [];
+        foreach ( $ids as $id ) {
+            [ $content, $mode ] = self::undoContent( $content, $store['items'][ $id ] );
+            $modes[ $id ]       = $mode;
+        }
+        if ( $content !== $original ) {
+            $problem = '';
+            if ( ! current_user_can( 'unfiltered_html' ) && wp_kses_post( $content ) !== $content ) {
+                $problem = 'your account cannot save unfiltered HTML, and WordPress would re-filter other markup in this item; remove the link in the editor instead';
+            } elseif ( $this->restorePoint( $sourceId ) <= 0 ) {
+                $problem = 'WordPress could not keep a revision of the current content';
+            } else {
+                $saved = wp_update_post( wp_slash( [ 'ID' => $sourceId, 'post_content' => $content ] ), true );
+                if ( is_wp_error( $saved ) || (int) $saved <= 0 ) {
+                    $problem = is_wp_error( $saved ) ? $saved->get_error_message() : 'WordPress did not save the item';
+                }
+            }
+            if ( '' !== $problem ) {
+                $this->logger->warning( 'seo', 'Automatic internal links could not be removed: ' . $problem, [ 'post_id' => $sourceId ] );
+                $res['refused'] = count( array_filter( $modes, static fn( string $m ): bool => 'gone' !== $m ) );
+                $res['message'] = 'Not removed: ' . $problem . '.';
+                foreach ( $modes as $id => $mode ) {
+                    if ( 'gone' === $mode ) {
+                        $mark( (string) $id, 'gone' );
+                        $res['already_gone']++;
+                    }
+                }
+                return $res;
+            }
+        }
+        foreach ( $modes as $id => $mode ) {
+            $mark( (string) $id, $mode );
+            $res[ 'restored' === $mode ? 'restored' : ( 'unlinked' === $mode ? 'unlinked' : 'already_gone' ) ]++;
+        }
+        $this->audit?->record( 'seo.internal_link_auto_undone', 'post', $sourceId, [ 'suggestion_ids' => array_map( 'intval', array_keys( $modes ) ), 'modes' => array_values( $modes ) ] );
+        $this->logger->info( 'seo', 'Automatic internal links removed', [ 'post_id' => $sourceId, 'modes' => array_values( $modes ) ] );
+        return $res;
+    }
+
+    /**
+     * Content without one automatic link: [content, mode]. "restored" = exactly the content before the change (the
+     * item is byte-for-byte what the change produced), "unlinked" = only the inserted anchor tag removed, "gone" =
+     * the inserted link is no longer there (content unchanged).
+     *
+     * @param array<string,mixed> $item
+     * @return array{0:string,1:string}
+     */
+    public static function undoContent( string $content, array $item ): array {
+        $open  = (string) ( $item['link_open'] ?? '' );
+        $text  = (string) ( $item['link_text'] ?? '' );
+        $start = (int) ( $item['link_start'] ?? -1 );
+        if ( '' === $open || '' === $text ) {
+            return [ $content, 'gone' ];
+        }
+        $inserted = $open . $text . '</a>';
+        if ( ! empty( $item['byte_identical'] ) && $start >= 0 && hash( 'sha256', $content ) === (string) ( $item['after_hash'] ?? '' ) && substr( $content, $start, strlen( $inserted ) ) === $inserted ) {
+            $before = substr( $content, 0, $start ) . $text . substr( $content, $start + strlen( $inserted ) );
+            if ( hash( 'sha256', $before ) === (string) ( $item['before_hash'] ?? '' ) ) {
+                return [ $before, 'restored' ];
+            }
+        }
+        $pos = strpos( $content, $inserted );
+        if ( false === $pos ) {
+            return [ $content, 'gone' ];
+        }
+        return [ substr( $content, 0, $pos ) . $text . substr( $content, $pos + strlen( $inserted ) ), 'unlinked' ];
+    }
+
+    /**
+     * Automatic-link figures for the On-site SEO page and the growth run.
+     *
+     * @return array{enabled:bool,autopilot:bool,per_day:int,today:int,present:int,undone:int}
+     */
+    public function autoInfo(): array {
+        $present = 0;
+        $undone  = 0;
+        foreach ( $this->store()['items'] as $item ) {
+            if ( empty( $item['auto'] ) ) {
+                continue;
+            }
+            $present += self::STATUS_APPLIED === $item['status'] ? 1 : 0;
+            $undone  += ! empty( $item['undone_at'] ) ? 1 : 0;
+        }
+        return [
+            'enabled'   => $this->autoApplyEnabled(),
+            'autopilot' => $this->autopilot()->isOn(),
+            'per_day'   => $this->autopilot()->linksPerDay(),
+            'today'     => $this->limits()->used( self::AUTO_COUNTER ),
+            'present'   => $present,
+            'undone'    => $undone,
+        ];
+    }
+
+    /**
      * @param array<string,mixed> $item
      * @param array<string,mixed> $store
      * @return array{0:bool,1:string,2:string,3:array<string,mixed>} ok, message, new status ('' = unchanged), extra fields
      */
-    private function applyOne( array $item, array $store, int $userId ): array {
+    private function applyOne( array $item, array $store, int $userId, bool $auto = false ): array {
         $sourceId = (int) $item['source_post_id'];
         $targetId = (int) $item['target_id'];
         if ( $sourceId === $targetId ) {
             return [ false, 'Refused: an item cannot link to itself.', self::STATUS_STALE, [] ];
         }
-        if ( ! current_user_can( 'edit_post', $sourceId ) ) {
+        // Automatic links act on the owner's standing consent (Autopilot / seo.auto_apply_links), not on a user.
+        if ( ! $auto && ! current_user_can( 'edit_post', $sourceId ) ) {
             return [ false, 'Refused: your account may not edit this item.', '', [] ];
         }
         $post = get_post( $sourceId );
@@ -663,7 +979,11 @@ final class InternalLinker {
         if ( empty( $ok[0] ) ) {
             return [ false, 'Refused: the link would land inside markup that must not contain links, so nothing was edited.', self::STATUS_STALE, [] ];
         }
-        if ( ! current_user_can( 'unfiltered_html' ) && wp_kses_post( $new ) !== $new ) {
+        if ( $auto && wp_kses_post( $new ) !== $new ) {
+            // In the background there is no user who may save unfiltered HTML: WordPress would re-filter other markup.
+            return [ false, 'Not applied automatically: WordPress would re-filter other markup in this item when saving it. Apply it by hand from an administrator account, or add the link in the editor.', '', [] ];
+        }
+        if ( ! $auto && ! current_user_can( 'unfiltered_html' ) && wp_kses_post( $new ) !== $new ) {
             return [ false, 'Refused: your account cannot save unfiltered HTML, and WordPress would re-filter other markup in this item. Add the link in the editor instead.', '', [] ];
         }
 
@@ -693,10 +1013,33 @@ final class InternalLinker {
             'seo.internal_link_applied',
             'post',
             $sourceId,
-            [ 'suggestion_id' => (int) $item['id'], 'target_id' => $targetId, 'target_url' => $targetUrl, 'anchor' => $occ['text'], 'restore_revision_id' => $restore, 'revision_id' => $revision, 'byte_identical' => $stored === $new ]
+            [ 'suggestion_id' => (int) $item['id'], 'target_id' => $targetId, 'target_url' => $targetUrl, 'anchor' => $occ['text'], 'restore_revision_id' => $restore, 'revision_id' => $revision, 'byte_identical' => $stored === $new, 'automatic' => $auto ],
+            $auto ? ( $this->autopilot()->isOn() ? Autopilot::ACTOR : 'system' ) : null
         );
-        $this->logger->info( 'seo', 'Internal link applied', [ 'post_id' => $sourceId, 'target_id' => $targetId, 'anchor' => $occ['text'], 'restore_revision_id' => $restore ] );
-        return [ true, $message, self::STATUS_APPLIED, [ 'applied_at' => gmdate( 'c' ), 'applied_by' => $userId, 'restore_revision_id' => $restore, 'revision_id' => $revision, 'target_url' => $targetUrl ] ];
+        $this->logger->info( 'seo', $auto ? 'Internal link applied automatically' : 'Internal link applied', [ 'post_id' => $sourceId, 'target_id' => $targetId, 'anchor' => $occ['text'], 'restore_revision_id' => $restore ] );
+        if ( $auto ) {
+            $this->limits()->spend( self::AUTO_COUNTER );
+        }
+        return [
+            true,
+            $auto ? sprintf( 'Linked “%s” to %s automatically.', $occ['text'], $targetUrl ) . ( $stored === $new ? '' : ' WordPress or another plugin also changed other markup while saving; review the latest revision.' ) : $message,
+            self::STATUS_APPLIED,
+            [
+                'applied_at'          => gmdate( 'c' ),
+                'applied_by'          => $userId,
+                'auto'                => $auto,
+                'restore_revision_id' => $restore,
+                'revision_id'         => $revision,
+                'target_url'          => $targetUrl,
+                // What "Undo automatic links" needs to take exactly this change back out.
+                'link_open'           => '<a href="' . esc_url( $targetUrl ) . '">',
+                'link_text'           => substr( $content, $occ['start'], $occ['end'] - $occ['start'] ),
+                'link_start'          => $occ['start'],
+                'before_hash'         => hash( 'sha256', $content ),
+                'after_hash'          => hash( 'sha256', $stored ),
+                'byte_identical'      => $stored === $new,
+            ],
+        ];
     }
 
     /**

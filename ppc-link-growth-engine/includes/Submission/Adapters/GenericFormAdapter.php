@@ -156,7 +156,7 @@ final class GenericFormAdapter implements AdapterInterface {
      */
     private function run( int $sid, array $submission, array $prospect, array $payload ): array {
         // Authorization gates (defence in depth; the engine evaluates Policy first).
-        if ( ! (bool) $this->settings->get( 'automation.submissions', false ) ) {
+        if ( ! ( new \PPC\LinkGrowth\Automation\Autopilot( $this->settings ) )->submissionsEnabled() ) {
             return $this->manual( 'Automated submissions are switched off.' );
         }
         $mode    = \PPC\LinkGrowth\Submission\Policy::submissionMode( $this->settings );

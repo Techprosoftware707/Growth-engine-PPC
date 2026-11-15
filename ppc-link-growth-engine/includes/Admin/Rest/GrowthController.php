@@ -13,8 +13,8 @@ declare(strict_types=1);
 
 namespace PPC\LinkGrowth\Admin\Rest;
 
+use PPC\LinkGrowth\Automation\Autopilot;
 use PPC\LinkGrowth\Growth\GrowthRun;
-use PPC\LinkGrowth\Submission\Policy;
 use PPC\LinkGrowth\Support\Settings;
 use PPC\LinkGrowth\Support\TimeBudget;
 use Throwable;
@@ -118,20 +118,24 @@ final class GrowthController extends Controller {
     }
 
     /**
-     * The settings that decide what a run may send on its own, so the panel can say so accurately:
-     * automation.submissions + submission_mode (listings) and automation.outreach_autosend + outreach.require_approval
-     * (emails). Values that cannot be read are null (the panel then makes no promise either way).
+     * The settings that decide what a run may send on its own, so the panel can say so accurately: the effective
+     * values from Automation\Autopilot (Autopilot on raises them; otherwise automation.submissions + submission_mode
+     * for listings and automation.outreach_autosend + outreach.require_approval for emails). Values that cannot be
+     * read are null (the panel then makes no promise either way).
      *
-     * @return array{submissions:?bool,submission_mode:?string,outreach_autosend:?bool,require_approval:?bool}
+     * @return array{autopilot:?bool,submissions:?bool,submission_mode:?string,outreach_autosend:?bool,require_approval:?bool,auto_links:?bool,links_per_day:?int}
      */
     private function policy(): array {
-        $out = [ 'submissions' => null, 'submission_mode' => null, 'outreach_autosend' => null, 'require_approval' => null ];
+        $out = [ 'autopilot' => null, 'submissions' => null, 'submission_mode' => null, 'outreach_autosend' => null, 'require_approval' => null, 'auto_links' => null, 'links_per_day' => null ];
         try {
-            $settings                 = $this->c->get( Settings::class );
-            $out['submissions']       = (bool) $settings->get( 'automation.submissions', false );
-            $out['submission_mode']   = Policy::submissionMode( $settings );
-            $out['outreach_autosend'] = (bool) $settings->get( 'automation.outreach_autosend', false );
-            $out['require_approval']  = (bool) $settings->get( 'outreach.require_approval', true );
+            $autopilot                = $this->c->get( Autopilot::class );
+            $out['autopilot']         = $autopilot->isOn();
+            $out['submissions']       = $autopilot->submissionsEnabled();
+            $out['submission_mode']   = $autopilot->submissionMode();
+            $out['outreach_autosend'] = $autopilot->outreachAutosend();
+            $out['require_approval']  = $autopilot->requireApproval();
+            $out['auto_links']        = (bool) $this->c->get( Settings::class )->get( 'seo.internal_links', true ) && $autopilot->autoApplyLinks();
+            $out['links_per_day']     = $autopilot->linksPerDay();
         } catch ( Throwable $e ) {
             unset( $e );
         }

@@ -444,7 +444,10 @@ final class GrowthRunTest extends TestCase {
         // Setup gaps from the preflight (no providers / sender / Google in the test install) come last.
         $this->assertArrayHasKey( 'sender_identity', $byKey );
         $this->assertSame( '#/settings?tab=outreach', $byKey['sender_identity']['route'] );
-        $this->assertArrayHasKey( 'search_provider', $byKey );
+        // No search key and no provider that lists competitors: the item names the one key that unlocks discovery.
+        $this->assertArrayHasKey( 'discovery_source', $byKey );
+        $this->assertStringContainsString( 'Add a Serper.dev API key', $byKey['discovery_source']['label'] );
+        $this->assertArrayNotHasKey( 'search_provider', $byKey );
         $this->assertSame( 'owner_tasks', $state['next_actions'][0]['key'] );
 
         $last = $this->step( $state, 'summary' );

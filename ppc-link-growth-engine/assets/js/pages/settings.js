@@ -25,6 +25,16 @@ const arr = ( v ) => ( Array.isArray( v ) ? v : [] );
  * confirmation nor carry a flag the owner did not touch in this tab.
  */
 const TOGGLE_FLAGS = [ 'enabled', 'submissions', 'outreach_autosend' ];
+
+/** "Evaluated in Toronto time (America/Toronto, from your business region …)" for the send-window card. */
+export function sendZoneText( info ) {
+    const z = info && typeof info === 'object' ? info : {};
+    if ( ! z.timezone ) {
+        return 'Site time zone';
+    }
+    const why = { setting: 'set here', region: `from your business region, because WordPress is set to ${ z.wordpress || 'UTC' }`, wordpress: 'the WordPress time zone' }[ z.source ] || '';
+    return `Evaluated in ${ z.label || z.timezone } (${ z.timezone }${ why ? `, ${ why }` : '' })`;
+}
 const CONFIRM_FLAGS = {
     submissions: { title: 'Enable automated submissions', text: 'Enable automated submissions? In auto mode the engine submits by itself to high-scoring sites whenever every safety gate passes (public listing form, no CAPTCHA or login, robots.txt allows it). Every submission is logged in the audit trail.' },
     outreach_autosend: { title: 'Enable outreach autosend', text: 'Enable outreach autosend? Follow-ups in campaigns set to “Auto-approve follow-ups” will be sent to third parties in your name without your review. Initial cold emails that the engine drafts for qualified prospects (score at or above the auto-queue threshold, with a known contact) are also approved and sent without your review if “Require individual approval” (Settings → Outreach) is off; while it is on, they wait for your approval. Sending stays inside the send window and the outreach email limits, and every message includes the unsubscribe link.' },
@@ -432,7 +442,7 @@ export default async function render( root, ctx ) {
             [ 'packaging', 'Packaging', 'Build listing packages for review.' ],
             [ 'submissions', 'Automated submissions', 'Submit packages without a manual click wherever the policy and safety gates allow.' ],
             [ 'auto_outreach_drafts', 'Auto outreach drafts', 'Draft personalised outreach for qualified editorial prospects into evergreen “Auto” campaigns.' ],
-            [ 'outreach_autosend', 'Outreach autosend', 'Send without per-message review (sender identity must be complete): follow-ups in campaigns set to “Auto-approve follow-ups”; auto-drafted first messages also need “Require individual approval” (Outreach tab) turned off. Off by default: emails go out in your name.' ],
+            [ 'outreach_autosend', 'Outreach autosend', 'Send without per-message review (sender identity must be complete): follow-ups in campaigns set to “Auto-approve follow-ups”; auto-drafted first messages also need “Require individual approval” (Outreach tab) turned off. Off by default: emails go out in your name. Autopilot (Automation page) covers all of this with one switch.' ],
             [ 'monitoring', 'Backlink monitoring', 'Re-check backlinks and alert on changes.' ],
             [ 'imports', 'Provider imports', 'Import backlinks and referral sources periodically.' ],
         ];
@@ -462,8 +472,10 @@ export default async function render( root, ctx ) {
             ] ) } ),
             card( { title: 'On-site SEO', subtitle: 'Site audit, IndexNow and internal-link suggestions (On-site SEO page)', body: grid( [
                 bind( 'seo.indexnow', { type: 'toggle', label: 'Notify search engines through IndexNow', hint: 'Submits new and changed public URLs. Only on the production site, and never while WordPress discourages search engines.' } ),
-                bind( 'seo.internal_links', { type: 'toggle', label: 'Suggest internal links', hint: 'Suggestions only: content changes only when you click Apply on the On-site SEO page (WordPress keeps a revision).' } ),
+                bind( 'seo.internal_links', { type: 'toggle', label: 'Suggest internal links', hint: 'Lists places where a product or key page could be linked. Without automatic links, content changes only when you click Apply on the On-site SEO page (WordPress keeps a revision).' } ),
                 bind( 'seo.max_links_per_post', { type: 'number', label: 'Suggested links per item', min: 1, max: 10, default: 3 } ),
+                bind( 'seo.auto_apply_links', { type: 'toggle', label: 'Add the best internal links automatically', hint: 'Always on while Autopilot is on. Highest relevance first, a revision of each page is kept, and “Undo automatic links” on the On-site SEO page removes them.' } ),
+                bind( 'seo.auto_apply_per_day', { type: 'number', label: 'Automatic internal links per day', min: 1, max: 100, default: 20 } ),
                 bind( 'seo.audit_max_pages', { type: 'number', label: 'Pages per site audit', min: 20, max: 5000, default: 400, hint: 'Posts, pages and products read from the database. Orphan pages are checked only when the audit covers every item.' } ),
                 bind( 'seo.audit_http_sample', { type: 'toggle', label: 'HTTP spot check after each audit', hint: 'Requests at most 10 of your own URLs (after reading robots.txt) to confirm their status and canonical tag.' } ),
             ] ) } ),
@@ -531,7 +543,10 @@ export default async function render( root, ctx ) {
                 bind( 'discovery.custom_queries', { type: 'list', label: 'Custom search queries (one per line)', rows: 5, full: true, hint: 'Added to the generated pool verbatim.' } ),
                 bind( 'discovery.excluded_domains', { type: 'list', label: 'Excluded domains (one per line)', rows: 4, full: true, hint: 'Never discovered or evaluated (big platforms are excluded by default).' } ),
             ] ) } ),
-            card( { title: 'Competitors', actions: suggestBtn, body: competitorsField.el } ),
+            card( { title: 'Competitors', actions: suggestBtn, body: el( 'div', { class: 'ppclg-stack' },
+                competitorsField.el,
+                bind( 'discovery.competitor_domains_auto', { type: 'list', label: 'Found automatically by Autopilot (one per line)', rows: 4, hint: 'While your own list above is empty, Autopilot asks SE Ranking for your competitors at most once every 30 days and leaves out marketplaces, social networks, news, government and health or pharmacy sites. Remove any you do not want: a removed domain is never added back. Both lists are mined for prospects.' } ).el,
+            ) } ),
             card( { title: 'Cadence', body: grid( [
                 bind( 'discovery.query_cooldown_days', { type: 'number', label: 'Query cooldown (days)', min: 1, default: 30, hint: 'A query is not repeated within this window.' } ),
                 bind( 'discovery.results_per_query', { type: 'number', label: 'Results per query', min: 1, max: 50, default: 10 } ),
@@ -760,15 +775,16 @@ export default async function render( root, ctx ) {
                 bind( 'outreach.signature', { type: 'textarea', label: 'Signature', rows: 3, full: true, hint: 'Plain text; appears above the compliance footer.' } ),
             ] ) } ),
             card( { title: 'Approval & pacing', body: grid( [
-                bind( 'outreach.require_approval', { type: 'toggle', label: 'Require individual approval for every message', hint: 'Recommended. While on, automation never approves a message; only follow-ups in campaigns that opted in to auto-approval can send automatically, and only with Outreach autosend on.' } ),
+                bind( 'outreach.require_approval', { type: 'toggle', label: 'Require individual approval for every message', hint: 'Recommended unless you use Autopilot. While on, automation never approves a message; only follow-ups in campaigns that opted in to auto-approval can send automatically, and only with Outreach autosend on. Autopilot (Automation page) overrides this setting while it is on.' } ),
                 bind( 'outreach.follow_up_days', { type: 'number', label: 'Days before a follow-up', min: 1, default: 7 } ),
                 bind( 'outreach.max_follow_ups', { type: 'number', label: 'Maximum follow-ups', min: 0, max: 3, default: 1 } ),
                 bind( 'outreach.min_days_between_contacts', { type: 'number', label: 'Cool-down between contacts (days)', min: 1, default: 90 } ),
             ] ) } ),
-            card( { title: 'Send window', subtitle: 'Site time zone', body: [
+            card( { title: 'Send window', subtitle: sendZoneText( state.data && state.data.send_timezone ), body: [
                 grid( [
                     bind( 'outreach.send_window_start', { type: 'number', label: 'Start hour (0–23)', min: 0, max: 23, default: 9 } ),
                     bind( 'outreach.send_window_end', { type: 'number', label: 'End hour (1–24)', min: 1, max: 24, default: 17 } ),
+                    bind( 'outreach.timezone', { type: 'text', label: 'Time zone (IANA, optional)', placeholder: 'America/Toronto', hint: 'Leave empty to use the WordPress time zone; when WordPress is set to UTC for a Canadian business, the zone of the province under Settings → Business is used.' } ),
                 ] ),
                 el( 'div', { class: 'ppclg-field', style: { marginTop: '12px' } }, el( 'span', { class: 'ppclg-field-label' }, 'Send days' ), dayGroup ),
             ] } ),

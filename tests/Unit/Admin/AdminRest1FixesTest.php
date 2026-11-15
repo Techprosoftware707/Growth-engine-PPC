@@ -316,7 +316,10 @@ final class AdminRest1FixesTest extends TestCase {
         $this->assertSame( 'pending_approval', $data['campaign']['status'] );
         $this->assertFalse( $data['sender']['ok'] );
         $this->assertStringContainsString( 'could not be approved', $res->get_error_message() );
-        $this->assertStringContainsString( 'postal_address', $res->get_error_message() );
+        // 1.2.0: the postal address defaults to the business address under Settings → Site, so only the sender
+        // name and email are missing on a fresh install.
+        $this->assertStringContainsString( 'sender_email', $res->get_error_message() );
+        $this->assertStringNotContainsString( 'postal_address', $res->get_error_message() );
 
         // Pause works (pending_approval -> paused); resume without a sender is refused with the reason.
         $paused = $ctl->campaignAction( $this->request( 'POST', '/x', [ 'id' => $id, 'action' => 'pause' ] ) );

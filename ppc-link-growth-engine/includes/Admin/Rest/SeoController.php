@@ -2,8 +2,10 @@
 /**
  * /seo — on-site audit, IndexNow and internal-link suggestions.
  *
- * Link suggestions change published content only through POST /seo/links/apply, which requires confirm=true and is
- * sent by the admin's explicit "Apply" / "Apply all" click on the On-site SEO page.
+ * Link suggestions change published content through POST /seo/links/apply, which requires confirm=true and is sent
+ * by the admin's explicit "Apply" / "Apply all" click on the On-site SEO page, or automatically by the
+ * internal_links job when seo.auto_apply_links or Autopilot is on. POST /seo/links/undo-auto (confirm=true) removes
+ * every automatic link still present.
  *
  * @package PPC\LinkGrowth
  */
@@ -35,6 +37,7 @@ final class SeoController extends Controller {
         $this->route( $namespace, '/seo/links/run', 'POST', [ $this, 'linksRun' ] );
         $this->route( $namespace, '/seo/links/apply', 'POST', [ $this, 'linksApply' ] );
         $this->route( $namespace, '/seo/links/dismiss', 'POST', [ $this, 'linksDismiss' ] );
+        $this->route( $namespace, '/seo/links/undo-auto', 'POST', [ $this, 'linksUndoAuto' ] );
     }
 
     // ------------------------------------------------------------------
@@ -139,7 +142,8 @@ final class SeoController extends Controller {
         $items = $linker->suggestions( 'all' === $status ? '' : $status, 500 );
         foreach ( $items as &$item ) {
             $item = self::castInts( $item, [ 'id', 'source_post_id', 'target_id', 'applied_by', 'dismissed_by', 'revision_id', 'restore_revision_id' ] );
-            unset( $item['context_hash'] );
+            unset( $item['context_hash'], $item['before_hash'], $item['after_hash'], $item['link_open'], $item['link_start'] );
+            $item['auto'] = ! empty( $item['auto'] );
             $item['edit_url'] = $this->editLink( (int) $item['source_post_id'] );
         }
         unset( $item );
@@ -150,6 +154,7 @@ final class SeoController extends Controller {
             'generated_at'       => $linker->generatedAt(),
             'progress'           => $linker->progress(),
             'counts'             => $linker->counts(),
+            'auto'               => $linker->autoInfo(),
             'status'             => $status,
             'items'              => $items,
         ];
@@ -186,6 +191,25 @@ final class SeoController extends Controller {
         $res = $linker->apply( $ids, $this->userId(), TimeBudget::seconds( self::RUN_SECONDS + 5 ) );
         $this->audit( 'seo.internal_links_apply', 'seo', 0, [ 'requested' => count( $ids ), 'applied' => $res['applied'], 'refused' => $res['refused'] ] );
         return array_merge( $res, [ 'counts' => $linker->counts() ] );
+    }
+
+    /** POST /seo/links/undo-auto {confirm: true} — removes every automatic link still present. @return array<string,mixed>|\WP_Error */
+    public function linksUndoAuto( WP_REST_Request $request ) {
+        $linker = $this->linker();
+        if ( null === $linker ) {
+            return [ 'ok' => false, 'message' => 'Internal-link suggestions are not available.' ];
+        }
+        if ( true !== $this->bool( $request, 'confirm', false ) ) {
+            return $this->fail(
+                'ppclg_confirmation_required',
+                __( 'Undoing the automatic links edits published content (WordPress keeps a revision). Confirm to continue.', 'ppc-link-growth-engine' ),
+                400,
+                [ 'confirm_required' => true ]
+            );
+        }
+        $res = $linker->undoAuto( $this->userId(), TimeBudget::seconds( self::RUN_SECONDS + 5 ) );
+        unset( $res['results'] );
+        return array_merge( $res, [ 'counts' => $linker->counts(), 'auto' => $linker->autoInfo() ] );
     }
 
     /** POST /seo/links/dismiss {ids: int[]} @return array<string,mixed>|\WP_Error */

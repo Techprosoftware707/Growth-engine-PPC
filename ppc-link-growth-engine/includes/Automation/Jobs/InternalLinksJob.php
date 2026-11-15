@@ -1,7 +1,9 @@
 <?php
 /**
- * Job: refresh internal-link suggestions. Suggestions only: nothing is ever applied by this job; links are added
- * solely when an admin clicks "Apply" on the On-site SEO page.
+ * Job: refresh internal-link suggestions. Without automatic links (the default) nothing is applied by this job; links
+ * are added solely when an admin clicks "Apply" on the On-site SEO page. With seo.auto_apply_links or Autopilot on,
+ * the job then applies the best pending suggestions (InternalLinker::autoApply(): highest relevance first, at most
+ * seo.auto_apply_per_day a day, same safeguards as a click, a revision before each change).
  *
  * @package PPC\LinkGrowth
  */
@@ -35,7 +37,8 @@ final class InternalLinksJob extends AbstractJob {
         if ( ! $budget->has( 3.0 ) ) {
             return $this->deferred( $c, $payload, 'time_budget', [ 'summary' => 'Not enough time left in this run; link suggestions continue on the next tick.', 'checked' => 0, 'suggested' => 0, 'pending' => 0, 'more' => true ] );
         }
-        $res = $c->get( InternalLinker::class )->run( $budget, [ 'restart' => ! empty( $payload['restart'] ), 'manual' => $this->isManual( $payload ) ] );
+        $linker = $c->get( InternalLinker::class );
+        $res    = $linker->run( $budget, [ 'restart' => ! empty( $payload['restart'] ), 'manual' => $this->isManual( $payload ) ] );
         $out = [
             'summary'   => (string) $res['summary'],
             'checked'   => (int) $res['checked'],
@@ -48,6 +51,15 @@ final class InternalLinksJob extends AbstractJob {
         ];
         if ( ! empty( $res['skipped'] ) ) {
             return $this->skipped( (string) $res['reason'], array_merge( $out, [ 'more' => false ] ) );
+        }
+        if ( $linker->autoApplyEnabled() && $budget->has( 3.0 ) ) {
+            $auto             = $linker->autoApply( $budget );
+            $out['applied']   = (int) $auto['applied'];
+            $out['pending']   = $linker->pendingCount();
+            $out['auto_today'] = (int) $auto['today'];
+            if ( '' !== $auto['message'] ) {
+                $out['summary'] = trim( $out['summary'] . ' ' . $auto['message'] );
+            }
         }
         if ( $out['more'] ) {
             unset( $payload['restart'] );

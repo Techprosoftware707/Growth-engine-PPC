@@ -20,6 +20,7 @@ declare(strict_types=1);
 namespace PPC\LinkGrowth\Submission;
 
 use PPC\LinkGrowth\Analysis\FormDetector;
+use PPC\LinkGrowth\Automation\Autopilot;
 use PPC\LinkGrowth\Compliance\StorefrontAudit;
 use PPC\LinkGrowth\Plugin;
 use PPC\LinkGrowth\Repositories\Prospects;
@@ -99,8 +100,8 @@ final class Policy {
 
         $api = self::apiConfig( $prospect );
 
-        // 1. Master switch.
-        if ( ! (bool) $this->settings->get( 'automation.submissions', false ) ) {
+        // 1. Master switch (Autopilot switches it on; every structural gate below still applies).
+        if ( ! ( new Autopilot( $this->settings ) )->submissionsEnabled() ) {
             $add( 'Automated submissions are switched off (Automation → Submissions).', false );
         }
 
@@ -257,8 +258,7 @@ final class Policy {
 
     /** The configured submission mode, normalised to a known value. */
     public static function submissionMode( Settings $settings ): string {
-        $mode = strtolower( trim( (string) $settings->get( 'automation.submission_mode', 'auto' ) ) );
-        return in_array( $mode, self::SUBMISSION_MODES, true ) ? $mode : 'auto';
+        return ( new Autopilot( $settings ) )->submissionMode(); // 'auto' under Autopilot
     }
 
     /**

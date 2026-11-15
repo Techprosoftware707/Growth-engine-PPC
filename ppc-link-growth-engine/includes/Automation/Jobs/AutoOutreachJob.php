@@ -11,6 +11,10 @@
  * the send window and limits without per-message review. A campaign a person paused, archived or completed
  * gets no new drafts and is never re-approved by automation.
  *
+ * Every run also fills the campaigns the owner created (Outreach\CampaignFiller), not only the "Auto:" ones, and
+ * approves what may be approved automatically right now, so drafts that were waiting when Autopilot (or autosend
+ * with individual approval off) was switched on are not left behind. Automation\Autopilot decides the policy.
+ *
  * @package PPC\LinkGrowth
  */
 
@@ -18,9 +22,10 @@ declare(strict_types=1);
 
 namespace PPC\LinkGrowth\Automation\Jobs;
 
+use PPC\LinkGrowth\Automation\Autopilot;
 use PPC\LinkGrowth\Container;
 use PPC\LinkGrowth\Database\Schema;
-use PPC\LinkGrowth\Discovery\VerifiedOpportunities;
+use PPC\LinkGrowth\Outreach\CampaignFiller;
 use PPC\LinkGrowth\Outreach\Compliance;
 use PPC\LinkGrowth\Outreach\OutreachEngine;
 use PPC\LinkGrowth\Outreach\Templates;
@@ -67,10 +72,11 @@ final class AutoOutreachJob extends AbstractJob {
     }
 
     public function handle( array $payload, TimeBudget $budget, Container $c ): array {
-        $settings = $c->get( Settings::class );
-        $result   = [ 'drafted' => 0, 'auto_approved' => 0, 'skipped' => 0, 'campaigns' => [], 'warnings' => [] ];
+        $settings  = $c->get( Settings::class );
+        $autopilot = $c->get( Autopilot::class );
+        $result    = [ 'drafted' => 0, 'auto_approved' => 0, 'skipped' => 0, 'campaigns' => [], 'warnings' => [], 'filled' => 0, 'owner_campaigns' => 0, 'approved_waiting' => 0 ];
 
-        if ( ! (bool) $settings->get( 'automation.auto_outreach_drafts', true ) && empty( $payload['manual'] ) ) {
+        if ( ! $autopilot->autoDrafts() && empty( $payload['manual'] ) ) {
             $result['warnings'][] = 'Automatic outreach drafting is switched off (Settings → Automation).';
             return $this->result( $result );
         }
@@ -84,15 +90,15 @@ final class AutoOutreachJob extends AbstractJob {
         $logger     = $c->get( Logger::class );
 
         $minScore = (int) $settings->get( 'automation.min_score_auto_queue', 70 );
-        $autosend = (bool) $settings->get( 'automation.outreach_autosend', false );
+        $autosend = $autopilot->outreachAutosend();
         $sender   = $compliance->senderReady();
         if ( $autosend && ! $sender['ok'] ) {
-            $result['warnings'][] = 'Outreach autosend is enabled but the sender identity is incomplete: ' . implode( ', ', $sender['missing'] ) . '.';
+            $result['warnings'][] = ( $autopilot->isOn() ? 'Autopilot is on' : 'Outreach autosend is enabled' ) . ' but the sender identity is not ready: ' . ( [] !== ( $sender['problems'] ?? [] ) ? implode( ' ', $sender['problems'] ) : implode( ', ', $sender['missing'] ) . '.' );
         }
 
-        // The engine refuses automated message approval while "Require individual approval" is on, so it is not
-        // attempted then; the drafts simply wait for review.
-        $approveMessages = $autosend && $sender['ok'] && ! (bool) $settings->get( 'outreach.require_approval', true );
+        // The engine refuses automated message approval while "Require individual approval" is on (and Autopilot is
+        // off), so it is not attempted then; the drafts simply wait for review.
+        $approveMessages = $sender['ok'] && $autopilot->autoApproveMessages();
 
         $approaches = Templates::approaches();
         // An approach whose evergreen campaign a person paused, archived or completed is left out of the candidate
@@ -103,7 +109,7 @@ final class AutoOutreachJob extends AbstractJob {
         }
         // Eligibility is filtered in SQL before the LIMIT, so form-first, low-score, contact-less and already
         // drafted prospects at the top of the ranking can no longer fill the window and starve the rest.
-        $candidateIds = $this->candidateIds( $prospects, $approaches, $minScore );
+        $candidateIds = $this->candidateIds( $prospects, $approaches, $minScore, $settings );
 
         foreach ( array_chunk( $candidateIds, self::PAGE_SIZE ) as $chunk ) {
             foreach ( $this->loadOrdered( $prospects, $chunk ) as $prospect ) {
@@ -112,6 +118,28 @@ final class AutoOutreachJob extends AbstractJob {
                 }
                 $this->draftOne( $prospect, $result, $engine, $campaigns, $contacts, $messages, $logger, $approaches, $minScore, $autosend && $sender['ok'], $approveMessages );
             }
+        }
+
+        // The owner's campaigns get drafts too (the campaign a person just created first), and whatever may be
+        // approved automatically now is approved.
+        try {
+            $filler = $c->get( CampaignFiller::class );
+            $owner  = [];
+            if ( $budget->has( 4 ) ) {
+                $owner                     = $filler->fillOwnerCampaigns( $budget, self::MAX_DRAFTS_PER_RUN, (int) ( $payload['campaign_id'] ?? 0 ) );
+                $result['filled']          = $owner['drafted'] + $owner['adopted'];
+                $result['owner_campaigns'] = $owner['campaigns'];
+                if ( $owner['remaining'] > 0 ) {
+                    $this->continueLater( $c, $payload, 120 );
+                }
+            }
+            $result['approved_waiting'] = (int) ( $owner['approved'] ?? 0 );
+            if ( $approveMessages || $autopilot->isOn() ) {
+                $waiting                     = $filler->approveWaiting( $budget );
+                $result['approved_waiting'] += $waiting['messages'];
+            }
+        } catch ( Throwable $e ) {
+            $logger->warning( 'automation', 'Filling the owner campaigns failed: ' . $e->getMessage() );
         }
         return $this->result( $result );
     }
@@ -172,7 +200,7 @@ final class AutoOutreachJob extends AbstractJob {
      * @param array<string,string> $approaches approach => label
      * @return int[]
      */
-    private function candidateIds( Prospects $prospects, array $approaches, int $minScore ): array {
+    private function candidateIds( Prospects $prospects, array $approaches, int $minScore, Settings $settings ): array {
         global $wpdb;
         $byApproach = [];
         foreach ( self::APPROACH_FOR_TYPE as $type => $approach ) {
@@ -186,7 +214,6 @@ final class AutoOutreachJob extends AbstractJob {
         $p        = $prospects->table();
         $m        = Schema::table( 'outreach_messages' );
         $ct       = Schema::table( 'contacts' );
-        $s        = Schema::table( 'submissions' );
         $params   = [ Prospects::STATUS_QUALIFIED, Prospects::STATUS_APPROVED ];
         $branches = [];
         foreach ( $byApproach as $approach => $types ) {
@@ -199,19 +226,14 @@ final class AutoOutreachJob extends AbstractJob {
             $params[] = (string) $approach;
             $params[] = Contacts::STATUS_ACTIVE;
         }
-        $sql = "SELECT p.id FROM {$p} p WHERE p.status IN (%s,%s) AND ( " . implode( ' OR ', $branches ) . ' )'
-            . " AND EXISTS ( SELECT 1 FROM {$ct} c WHERE c.prospect_id = p.id AND c.status = %s )"
-            // Prospects imported from the verified opportunity database are owner tasks: whether to pitch them is the
-            // owner's decision, so they are never auto-drafted (the owner can still draft for them by hand). A site
-            // that was already a prospect (seed, search, manual) keeps its discovered_via, so the owner task itself
-            // is checked too.
-            . ' AND p.discovered_via <> %s'
-            . " AND NOT EXISTS ( SELECT 1 FROM {$s} s WHERE s.prospect_id = p.id AND s.payload LIKE %s )";
-        $params[] = Contacts::STATUS_ACTIVE;
-        $params[] = VerifiedOpportunities::SOURCE;
-        // Unescaped like the other owner-task queries: SQLite has no default LIKE escape character, and the only
-        // wildcard in the marker ("_") can match nothing but itself in a JSON payload.
-        $params[] = '%' . VerifiedOpportunities::PAYLOAD_MARKER . '%';
+        // Prospects imported from the verified opportunity database are owner tasks: whether to pitch them is the
+        // owner's decision, so they are never auto-drafted (the owner can still draft for them by hand). A site that
+        // was already a prospect (seed, search, manual) keeps its discovered_via, so the owner task itself is checked
+        // too. The shared clauses also require a published active contact and skip websites with an open message in
+        // any campaign (one open message per website), inside the contact cool-down or on the suppression list.
+        [ $eligibility, $eligibilityParams ] = CampaignFiller::eligibilityClauses( $settings, [] );
+        $sql    = "SELECT p.id FROM {$p} p WHERE p.status IN (%s,%s) AND ( " . implode( ' OR ', $branches ) . ' )' . $eligibility;
+        $params = array_merge( $params, $eligibilityParams );
         if ( $minScore > 0 ) {
             $sql     .= ' AND p.score >= %d';
             $params[] = $minScore;
@@ -222,6 +244,7 @@ final class AutoOutreachJob extends AbstractJob {
         $ids = $wpdb->get_col( $wpdb->prepare( $sql, $params ) );
         return array_values( array_unique( array_map( 'intval', (array) $ids ) ) );
     }
+
 
     /**
      * @param int[] $ids
@@ -294,7 +317,7 @@ final class AutoOutreachJob extends AbstractJob {
                     'daily_limit'  => 5,
                     'follow_ups'   => true,
                     'auto_created' => true,
-                    'notes'        => 'Created automatically for hands-off drafting. Drafts wait for your approval unless outreach autosend is on and "Require individual approval" is off.',
+                    'notes'        => 'Created automatically for hands-off drafting. Drafts wait for your approval unless Autopilot is on (or outreach autosend is on and "Require individual approval" is off).',
                 ],
                 0
             );

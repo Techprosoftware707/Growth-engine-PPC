@@ -3,6 +3,8 @@
  *
  * Nothing on this page changes site content except the internal-link "Apply" buttons: a row's Apply runs only on
  * that click, and "Apply all" only after a confirmation that says it edits published content and creates revisions.
+ * With automatic links on (Autopilot or Settings → Automation → On-site SEO) the background job adds the best
+ * suggestions itself; "Undo automatic links" (after a confirmation) removes every automatic link still present.
  */
 
 import * as api from '../api.js';
@@ -39,6 +41,26 @@ function highlight( excerpt, anchor ) {
     return el( 'span', {}, text.slice( 0, idx ), el( 'mark', {}, text.slice( idx, idx + needle.length ) ), text.slice( idx + needle.length ) );
 }
 
+/**
+ * The "Applied automatically" line of the internal-links card (GET /seo/links `auto`). Exported for tests.
+ *
+ * @param {object} auto { enabled, autopilot, per_day, today, present, undone }
+ * @return {{show: boolean, title: string, text: string, present: number}}
+ */
+export function autoLinksText( auto ) {
+    const a = obj( auto );
+    const present = Number( a.present ) || 0;
+    const show = a.enabled === true || present > 0;
+    if ( ! show ) {
+        return { show: false, title: '', text: '', present: 0 };
+    }
+    const title = `Applied automatically: ${ fmtNumber( present ) }`;
+    const text = a.enabled === true
+        ? `${ a.autopilot ? 'Autopilot adds' : 'The engine adds' } the best suggestions by itself, highest relevance first: up to ${ fmtNumber( Number( a.per_day ) || 0 ) } a day (${ fmtNumber( Number( a.today ) || 0 ) } today), at most the per-item limit, with a revision of each page kept. “Undo automatic links” removes every automatic link still on the site.`
+        : 'Automatic links are switched off now; the ones added earlier stay until you undo them.';
+    return { show, title, text, present };
+}
+
 /** Message from a refusal or failure (ApiError or a { ok:false, message } body). */
 function reason( errOrRes, fallback ) {
     if ( errOrRes && typeof errOrRes.message === 'string' && errOrRes.message !== '' ) {
@@ -61,7 +83,7 @@ export default async function render( root, ctx ) {
     replace( root,
         pageHeader( {
             title: 'On-site SEO',
-            description: 'Checks your published pages, posts and products for search problems, tells IndexNow-enabled search engines about new and changed pages, and suggests internal links between your own pages. The audit never edits content; a link is added only when you click Apply.',
+            description: 'Checks your published pages, posts and products for search problems, tells IndexNow-enabled search engines about new and changed pages, and suggests internal links between your own pages. The audit never edits content; a link is added when you click Apply, or by itself when automatic links are on (Autopilot).',
         } ),
         auditHost,
         indexHost,
@@ -369,6 +391,25 @@ export default async function render( root, ctx ) {
         await loadLinks();
     }
 
+    async function undoAuto( count ) {
+        const ok = await confirm(
+            `This removes ${ plural( count, 'automatic internal link', 'automatic internal links' ) } from your live site. An item not edited since gets back exactly the content it had before; in an item edited since, only the inserted link is removed and the words stay. WordPress keeps a revision of each edited item.`,
+            { title: 'Undo automatic links?', confirmText: 'Undo automatic links', danger: true },
+        );
+        if ( ! ok ) {
+            return;
+        }
+        let res;
+        try {
+            res = obj( await api.post( '/seo/links/undo-auto', { confirm: true }, { silent: true } ) );
+        } catch ( e ) {
+            toast( reason( e, 'The automatic links could not be removed.' ), 'error' );
+            return;
+        }
+        toast( reason( res, 'Done.' ), res.ok === false ? 'warning' : 'success', { timeout: 9000 } );
+        await loadLinks();
+    }
+
     async function refreshSuggestions() {
         for ( let round = 0; round < 30 && root.isConnected; round++ ) {
             let res;
@@ -452,6 +493,7 @@ export default async function render( root, ctx ) {
         } else {
             columns.push( { key: 'status', label: 'Status', render: ( r ) => el( 'div', {},
                 badge( labelize( r.status ), r.status === 'applied' ? 'success' : 'neutral' ),
+                r.auto ? [ ' ', badge( 'Automatic', 'info' ) ] : null,
                 r.applied_at ? el( 'div', { class: 'ppclg-small ppclg-muted' }, timeEl( r.applied_at ) ) : null,
                 r.note ? el( 'div', { class: 'ppclg-small ppclg-muted' }, truncate( String( r.note ), 160 ) ) : null,
             ) } );
@@ -460,11 +502,21 @@ export default async function render( root, ctx ) {
             }
         }
 
+        const auto = autoLinksText( data.auto );
+        const autoNode = auto.show ? callout( 'info', auto.title, auto.text, {
+            actions: button( 'Undo automatic links', {
+                small: true, iconName: 'refresh',
+                disabled: auto.present === 0,
+                title: auto.present === 0 ? 'No automatic link is on the site.' : 'Removes every automatic link still present (asks first).',
+                onClick: () => undoAuto( auto.present ),
+            } ),
+        } ) : null;
         replace( linksHost, card( {
             title: 'Internal link suggestions',
-            subtitle: `Places in your published content where a product or key page could be linked (at most ${ fmtNumber( data.max_links_per_post || 3 ) } per item). Links are added only when you click Apply.`,
+            subtitle: `Places in your published content where a product or key page could be linked (at most ${ fmtNumber( data.max_links_per_post || 3 ) } per item). ${ obj( data.auto ).enabled === true ? 'The best ones are added automatically each day.' : 'Links are added only when you click Apply.' }`,
             actions: [ refreshBtn, applyAllBtn ],
-            body: el( 'div', { class: 'ppclg-stack' },
+            body: el( 'div', { class: 'ppclg-stack ppclg-links-body' },
+                autoNode,
                 data.enabled === false ? callout( 'info', 'Automatic suggestions are off', 'The weekly background check is turned off in Settings. “Find suggestions” still runs when you click it.' ) : null,
                 progress.running ? callout( 'info', null, `Suggestions are being refreshed: ${ fmtNumber( progress.checked ) } of ${ fmtNumber( progress.total ) } items checked.` ) : null,
                 el( 'div', { class: 'ppclg-small ppclg-muted' }, data.generated_at ? el( 'span', {}, 'Last refreshed ', timeEl( data.generated_at ) ) : 'Not refreshed yet.' ),

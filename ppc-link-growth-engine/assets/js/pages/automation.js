@@ -9,6 +9,7 @@ import {
     pageHeader, dataTable, confirm, toast, card, switchRow, meter, details, isObject, modal, formField,
 } from '../ui.js';
 import { reportRun } from './outcome.js';
+import { autopilotCard } from '../autopilot.js';
 
 const FLAGS = [
     { key: 'discovery', label: 'Discovery', desc: 'Search-engine queries, the seed catalog, competitor backlink mining and brand-mention scans to find new candidate sites. Bounded by the daily query limit.' },
@@ -29,7 +30,7 @@ const STAGES = {
     submit: { label: 'Submit', desc: 'Process the approved submission queue (policy re-checked per item).' },
     verify_listings: { label: 'Verify listings', desc: 'Look for submitted listings going live.' },
     outreach_send: { label: 'Outreach send', desc: 'Send approved messages inside the send window.' },
-    auto_outreach: { label: 'Auto outreach drafts', desc: 'Draft personalised outreach for qualified editorial prospects into evergreen “Auto” campaigns (sent only after approval, or automatically when autosend is enabled).' },
+    auto_outreach: { label: 'Auto outreach drafts', desc: 'Draft personalised outreach for qualified editorial prospects into evergreen “Auto” campaigns and into your own campaigns (sent only after approval, or automatically under Autopilot / autosend).' },
     follow_ups: { label: 'Follow-ups', desc: 'Draft follow-ups for unanswered messages.' },
     monitor_backlinks: { label: 'Monitor backlinks', desc: 'Check backlinks that are due.' },
     import_backlinks: { label: 'Import backlinks', desc: 'Pull backlinks from providers and GA4.' },
@@ -60,6 +61,8 @@ function normalizeStatus( res ) {
         maxSeconds: pipeline.max_execution_seconds,
         tickInterval: pipeline.tick_interval || scheduler.interval,
         scheduler,
+        autopilot: isObject( st.autopilot ) ? st.autopilot : null,
+        effectiveFlags: obj( pipeline.effective_flags || st.effective_flags ),
     };
 }
 
@@ -84,7 +87,7 @@ export default async function render( root, ctx ) {
     replace( root,
         pageHeader( {
             title: 'Automation',
-            description: 'Background stages run on a schedule within the configured limits. Risky stages (automated submissions, outreach autosend) ask for confirmation before they are switched on; check their current state below.',
+            description: 'Background stages run on a schedule within the configured limits. Autopilot (below) is the one switch for hands-off growth; risky stages (Autopilot, automated submissions, outreach autosend) ask for confirmation before they are switched on.',
             actions: [ refreshToggle.el, button( 'Refresh', { iconName: 'refresh', onClick: () => load() } ) ],
         } ),
         content,
@@ -161,7 +164,8 @@ export default async function render( root, ctx ) {
                 label: f.label,
                 description: f.desc,
                 checked: Boolean( s.flags[ f.key ] ),
-                badgeNode: f.gated ? badge( 'Confirmation required', 'warning' ) : null,
+                // Autopilot raises these stages to on whatever their own switch says.
+                badgeNode: s.autopilot && s.autopilot.enabled && ! s.flags[ f.key ] && s.effectiveFlags[ f.key ] ? badge( 'On through Autopilot', 'success' ) : ( f.gated ? badge( 'Confirmation required', 'warning' ) : null ),
                 onChange: ( next ) => toggleFlag( f.key, next ),
             } ) ),
         } );
@@ -312,7 +316,7 @@ export default async function render( root, ctx ) {
 
         replace( content,
             el( 'div', { class: 'ppclg-grid ppclg-grid--main-side ppclg-section' },
-                el( 'div', { class: 'ppclg-stack' }, masterCard, flagsCard ),
+                el( 'div', { class: 'ppclg-stack' }, s.autopilot ? autopilotCard( s.autopilot, () => load( { quiet: true } ) ) : null, masterCard, flagsCard ),
                 el( 'div', { class: 'ppclg-stack' }, schedulerCard, limitsCard ),
             ),
             el( 'h3', { style: { margin: '0 0 12px', fontSize: '15px' } }, 'Stages' ),

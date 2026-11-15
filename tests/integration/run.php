@@ -427,6 +427,12 @@ require __DIR__ . '/growth.php';
 // "Link Growth Submitter" role: owner tasks handed to a staff member or assistant.
 require __DIR__ . '/submitter.php';
 
+// 1.2.0: campaigns fill at once, the Autopilot switch, sender DNS checks and the send-window time zone.
+require __DIR__ . '/autopilot.php';
+
+// 1.2.0 Build B: automatic internal links (and their undo) and competitors found without a search key.
+require __DIR__ . '/autopilot-links.php';
+
 echo "\n==============================\n";
 printf( "Passed: %d  Failed: %d\n", IT::$pass, IT::$fail );
 foreach ( IT::$failures as $f ) {

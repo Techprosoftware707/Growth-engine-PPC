@@ -23,6 +23,7 @@ use PPC\LinkGrowth\Analysis\SiteProfiler;
 use PPC\LinkGrowth\Analysis\SubmissionPageFinder;
 use PPC\LinkGrowth\Analysis\Taxonomy;
 use PPC\LinkGrowth\Automation\Audit;
+use PPC\LinkGrowth\Automation\Autopilot;
 use PPC\LinkGrowth\Automation\JobRunner;
 use PPC\LinkGrowth\Automation\Pipeline;
 use PPC\LinkGrowth\Automation\Scheduler;
@@ -56,6 +57,7 @@ use PPC\LinkGrowth\Integrations\Rdap;
 use PPC\LinkGrowth\Monitoring\BacklinkImporter;
 use PPC\LinkGrowth\Monitoring\BacklinkMonitor;
 use PPC\LinkGrowth\Monitoring\Notifier;
+use PPC\LinkGrowth\Outreach\CampaignFiller;
 use PPC\LinkGrowth\Outreach\Compliance;
 use PPC\LinkGrowth\Outreach\FollowUps;
 use PPC\LinkGrowth\Outreach\InboundWebhook;
@@ -227,6 +229,8 @@ final class Plugin {
         $c->singleton( Client::class, static fn( Container $c ) => new Client( $c->get( Settings::class ), $c->get( Logger::class ), $c->get( RobotsTxt::class ) ) );
         $c->singleton( Locks::class, static fn() => new Locks() );
         $c->singleton( Limits::class, static fn( Container $c ) => new Limits( $c->get( Settings::class ) ) );
+        // The one approval policy (Autopilot switch + the individual outreach / submission settings).
+        $c->singleton( Autopilot::class, static fn( Container $c ) => new Autopilot( $c->get( Settings::class ), $c->get( Secrets::class ), $c->get( AuditLog::class ) ) );
 
         // --- Database ------------------------------------------------------
         $c->singleton( Schema::class, static fn() => new Schema() );
@@ -292,7 +296,7 @@ final class Plugin {
         $c->singleton( QueryGenerator::class, static fn( Container $c ) => new QueryGenerator( $c->get( Settings::class ), $c->get( SearchLog::class ) ) );
         $c->singleton( SeedCatalog::class, static fn() => new SeedCatalog() );
         $c->singleton( ProspectIntake::class, static fn( Container $c ) => new ProspectIntake( $c->get( Prospects::class ), $c->get( Opportunities::class ), $c->get( DomainFilter::class ), $c->get( Classifier::class ), $c->get( AuditLog::class ), $c->get( Logger::class ) ) );
-        $c->singleton( CompetitorBacklinkSource::class, static fn( Container $c ) => new CompetitorBacklinkSource( $c->get( ProviderRegistry::class ), $c->get( Settings::class ), $c->get( Logger::class ) ) );
+        $c->singleton( CompetitorBacklinkSource::class, static fn( Container $c ) => new CompetitorBacklinkSource( $c->get( ProviderRegistry::class ), $c->get( Settings::class ), $c->get( Logger::class ), $c->get( Limits::class ), $c->get( Taxonomy::class ), $c->get( AuditLog::class ) ) );
         $c->singleton( MentionFinder::class, static fn( Container $c ) => new MentionFinder( $c->get( ProviderRegistry::class ), $c->get( Client::class ), $c->get( PageAnalyzer::class ), $c->get( Settings::class ), $c->get( ProspectIntake::class ), $c->get( SearchLog::class ), $c->get( Logger::class ) ) );
         $c->singleton( BrokenLinkFinder::class, static fn( Container $c ) => new BrokenLinkFinder( $c->get( Client::class ), $c->get( PageAnalyzer::class ), $c->get( Taxonomy::class ), $c->get( LinkableAssets::class ), $c->get( Opportunities::class ), $c->get( Logger::class ) ) );
         $c->singleton( DiscoveryEngine::class, static fn( Container $c ) => new DiscoveryEngine( $c->get( ProviderRegistry::class ), $c->get( QueryGenerator::class ), $c->get( SeedCatalog::class ), $c->get( ProspectIntake::class ), $c->get( CompetitorBacklinkSource::class ), $c->get( SearchLog::class ), $c->get( Limits::class ), $c->get( Settings::class ), $c->get( Logger::class ) ) );
@@ -312,8 +316,9 @@ final class Plugin {
         $c->singleton( Mailer::class, static fn( Container $c ) => new Mailer( $c->get( Settings::class ), $c->get( Logger::class ) ) );
         $c->singleton( Unsubscribe::class, static fn( Container $c ) => new Unsubscribe( $c->get( OutreachMessages::class ), $c->get( Contacts::class ), $c->get( Suppression::class ), $c->get( AuditLog::class ) ) );
         $c->singleton( InboundWebhook::class, static fn( Container $c ) => new InboundWebhook( $c->get( Secrets::class ), $c->get( OutreachMessages::class ), $c->get( Contacts::class ), $c->get( Notifier::class ), $c->get( AuditLog::class ), $c->get( Logger::class ) ) );
-        $c->singleton( FollowUps::class, static fn( Container $c ) => new FollowUps( $c->get( OutreachMessages::class ), $c->get( Campaigns::class ), $c->get( Settings::class ), $c->get( Templates::class ), $c->get( Personalizer::class ) ) );
-        $c->singleton( OutreachEngine::class, static fn( Container $c ) => new OutreachEngine( $c->get( Campaigns::class ), $c->get( OutreachMessages::class ), $c->get( Contacts::class ), $c->get( Prospects::class ), $c->get( Opportunities::class ), $c->get( Templates::class ), $c->get( Personalizer::class ), $c->get( Compliance::class ), $c->get( Mailer::class ), $c->get( ContentGenerator::class ), $c->get( Limits::class ), $c->get( AuditLog::class ), $c->get( Notifier::class ), $c->get( Settings::class ), $c->get( Logger::class ) ) );
+        $c->singleton( FollowUps::class, static fn( Container $c ) => new FollowUps( $c->get( OutreachMessages::class ), $c->get( Campaigns::class ), $c->get( Settings::class ), $c->get( Templates::class ), $c->get( Personalizer::class ), $c->get( Autopilot::class ) ) );
+        $c->singleton( OutreachEngine::class, static fn( Container $c ) => new OutreachEngine( $c->get( Campaigns::class ), $c->get( OutreachMessages::class ), $c->get( Contacts::class ), $c->get( Prospects::class ), $c->get( Opportunities::class ), $c->get( Templates::class ), $c->get( Personalizer::class ), $c->get( Compliance::class ), $c->get( Mailer::class ), $c->get( ContentGenerator::class ), $c->get( Limits::class ), $c->get( AuditLog::class ), $c->get( Notifier::class ), $c->get( Settings::class ), $c->get( Logger::class ), autopilot: $c->get( Autopilot::class ) ) );
+        $c->singleton( CampaignFiller::class, static fn( Container $c ) => new CampaignFiller( $c ) );
 
         // --- Monitoring ----------------------------------------------------
         $c->singleton( Notifier::class, static fn( Container $c ) => new Notifier( $c->get( Notifications::class ), $c->get( Settings::class ), $c->get( Logger::class ) ) );

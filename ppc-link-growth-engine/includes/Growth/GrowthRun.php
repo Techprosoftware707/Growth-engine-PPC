@@ -11,8 +11,11 @@
  * all the owner's gates still apply: the hard automation flags (submissions, outreach autosend), the submission
  * Policy (including the storefront compliance gate), robots.txt, the daily limits and the outreach approval rules.
  * The run never changes a setting, has no send step for outreach (drafting only; sending stays with the
- * approval/autosend gates) and never edits site content (internal links are suggestions applied only by an admin
- * click). The submit step posts listings only where automation.submissions and the Policy gates allow it.
+ * approval/autosend gates) and edits site content only through automatic internal links when the owner allowed them
+ * (seo.auto_apply_links or Autopilot; otherwise links are suggestions applied only by an admin click). The submit
+ * step posts listings only where automation.submissions and the Policy gates allow it.
+ * Automation\Autopilot decides those gates: under Autopilot the outreach step also approves its drafts (the send
+ * stage then mails them inside the caps and the send window) and "next actions" lists only what still needs a person.
  *
  * @package PPC\LinkGrowth
  */
@@ -22,11 +25,13 @@ declare(strict_types=1);
 namespace PPC\LinkGrowth\Growth;
 
 use PPC\LinkGrowth\Automation\Audit;
+use PPC\LinkGrowth\Automation\Autopilot;
 use PPC\LinkGrowth\Automation\JobRunner;
 use PPC\LinkGrowth\Automation\Pipeline;
 use PPC\LinkGrowth\Automation\Scheduler;
 use PPC\LinkGrowth\Compliance\StorefrontAudit;
 use PPC\LinkGrowth\Container;
+use PPC\LinkGrowth\Discovery\CompetitorBacklinkSource;
 use PPC\LinkGrowth\Discovery\VerifiedOpportunities;
 use PPC\LinkGrowth\Integrations\Google\SearchConsole;
 use PPC\LinkGrowth\Integrations\Google\SiteKitBridge;
@@ -103,6 +108,16 @@ final class GrowthRun {
         'summary'            => [ 'Summarise the results', 'internal' ],
     ];
 
+    /** Step labels while Autopilot is on (the work differs: drafts are approved and sent without review). */
+    private const AUTOPILOT_LABELS = [
+        'internal_links' => 'Add the best internal links automatically',
+        'submit'         => 'Submit listings that pass every safety check',
+        'auto_outreach'  => 'Draft and approve outreach (Autopilot sends it)',
+    ];
+
+    /** internal_links label when only seo.auto_apply_links is on (Autopilot off). */
+    private const AUTO_LINKS_LABEL = 'Add the best internal links automatically';
+
     /**
      * Most job runs per step (first run + continuations); evaluate reads settings growth.evaluate_rounds.
      * import_verified imports batches of 100 local items: 8 rounds cover the 595 bundled items in one run.
@@ -132,7 +147,7 @@ final class GrowthRun {
     private const SNAPSHOT_COUNTS = [
         '*'               => [ 'cursor', 'total', 'owner_tasks_open', 'http_status' ],
         'site_audit'      => [ 'checked', 'issues', 'high', 'medium', 'low' ],
-        'internal_links'  => [ 'checked', 'targets', 'suggested', 'pending' ],
+        'internal_links'  => [ 'checked', 'targets', 'suggested', 'pending', 'auto_today' ],
         'indexnow'        => [ 'candidates', 'pending' ],
     ];
 
@@ -183,7 +198,7 @@ final class GrowthRun {
                 'finished_at'     => null,
                 'last_advance_at' => null,
                 'cursor'          => 0,
-                'steps'           => self::freshSteps(),
+                'steps'           => self::freshSteps( $this->autopilot()->isOn(), $this->autoLinks() ),
                 'summary'         => [],
                 'needs_you'       => [],
                 'next_actions'    => [],
@@ -387,12 +402,19 @@ final class GrowthRun {
      *
      * @return array<int,array{key:string,label:string,kind:string}>
      */
-    public static function plan(): array {
+    public static function plan( bool $autopilot = false, bool $autoLinks = false ): array {
         $out = [];
         foreach ( self::STEPS as $key => [ $label, $kind ] ) {
-            $out[] = [ 'key' => $key, 'label' => $label, 'kind' => $kind ];
+            $out[] = [ 'key' => $key, 'label' => self::stepLabel( $key, $label, $autopilot, $autoLinks ), 'kind' => $kind ];
         }
         return $out;
+    }
+
+    private static function stepLabel( string $key, string $label, bool $autopilot, bool $autoLinks ): string {
+        if ( $autopilot && isset( self::AUTOPILOT_LABELS[ $key ] ) ) {
+            return self::AUTOPILOT_LABELS[ $key ];
+        }
+        return 'internal_links' === $key && $autoLinks ? self::AUTO_LINKS_LABEL : $label;
     }
 
     // ------------------------------------------------------------------
@@ -640,10 +662,40 @@ final class GrowthRun {
                 return 'Paused: the storefront compliance check could not run (' . $e->getMessage() . '). Automated submissions stay paused until it runs.';
             }
         }
-        if ( ! (bool) $this->settings()->get( 'automation.submissions', false ) ) {
+        if ( ! $this->autopilot()->submissionsEnabled() ) {
             return 'Automated submissions are switched off (Automation → Submissions), so nothing was submitted. Prepared packages wait for your review under Submissions.';
         }
         return '';
+    }
+
+    /**
+     * A metrics/backlink provider whose credits are used up ('' = none known): read from what is already stored
+     * (the dashboard's cached SE Ranking balance, the provider's last error), never a live call.
+     */
+    private function providerCreditsExhausted(): string {
+        $balance = function_exists( 'get_transient' ) ? get_transient( 'ppclg_seranking_balance' ) : false;
+        $v       = is_array( $balance ) && is_array( $balance['v'] ?? null ) ? $balance['v'] : null;
+        if ( null !== $v && (int) ( $v['units_limit'] ?? 0 ) > 0 && (int) ( $v['units_left'] ?? 1 ) <= 0 ) {
+            return 'SE Ranking has no API credits left, so competitor discovery and prospect metrics are paused. Top up the SE Ranking account (or wait for the monthly renewal).';
+        }
+        foreach ( [ 'seranking' => 'SE Ranking', 'ahrefs' => 'Ahrefs', 'semrush' => 'Semrush', 'moz' => 'Moz' ] as $id => $label ) {
+            $err = get_option( 'ppclg_provider_error_' . $id, [] );
+            $msg = is_array( $err ) ? (string) ( $err['message'] ?? '' ) : '';
+            if ( '' !== $msg && preg_match( '/HTTP 402|insufficient (funds|credits|units|balance)|not enough (credits|units)|(credits?|units?|balance) (exhausted|left: 0|is 0)|out of (credits|units)/i', $msg ) ) {
+                return sprintf( '%s reports that its API credits are used up (%s), so the work that needs it is paused. Top up the %s account.', $label, mb_substr( $msg, 0, 120 ), $label );
+            }
+        }
+        return '';
+    }
+
+    private function competitorSource(): ?CompetitorBacklinkSource {
+        $svc = $this->safe( fn(): mixed => $this->c->get( CompetitorBacklinkSource::class ) );
+        return $svc instanceof CompetitorBacklinkSource ? $svc : null;
+    }
+
+    /** Automatic internal links are on (seo.auto_apply_links or Autopilot). */
+    private function autoLinks(): bool {
+        return (bool) $this->settings()->get( 'seo.internal_links', true ) && $this->autopilot()->autoApplyLinks();
     }
 
     // ------------------------------------------------------------------
@@ -713,9 +765,14 @@ final class GrowthRun {
      * @return array<int,array<string,mixed>>
      */
     private function setupGaps(): array {
-        $gaps = [];
+        $gaps      = [];
+        $autopilot = $this->autopilot()->isOn();
         try {
             $registry = $this->c->get( ProviderRegistry::class );
+            $exhausted = $this->providerCreditsExhausted();
+            if ( '' !== $exhausted ) {
+                $gaps[] = self::action( 'provider_credits', $exhausted, null, 'settings', [ 'tab' => 'integrations' ] );
+            }
             if ( [] === $registry->searchProviders() ) {
                 $configured = false;
                 foreach ( $registry->status() as $entry ) {
@@ -724,11 +781,27 @@ final class GrowthRun {
                         break;
                     }
                 }
-                if ( ! $configured ) {
+                // A provider that lists competitors (SE Ranking) is a discovery source of its own under Autopilot
+                // (it finds the competitors) or when the owner listed competitors.
+                $competitors = $this->competitorSource();
+                $usable      = null !== $competitors && null !== $competitors->detectionProvider() && '' === $exhausted;
+                $viaRivals   = $usable && ( $autopilot || [] !== $competitors->competitors() );
+                if ( ! $configured && ! $usable ) {
+                    $seConfigured = ( null !== $competitors && null !== $competitors->detectionProvider() ) || true === $this->safe( static fn(): bool => $registry->seranking()->isConfigured() );
+                    $gaps[]       = self::action(
+                        'discovery_source',
+                        $autopilot && ! $seConfigured
+                            ? 'Discovery has no source yet. Add your SE Ranking API key (Settings → Integrations): that one key lets Autopilot find your competitors and the sites that link to them, and gives every prospect its metrics.'
+                            : 'Discovery has no source yet. Add a Serper.dev API key (Settings → Integrations → Search providers): that one key lets discovery run its search queries.',
+                        null,
+                        'settings',
+                        [ 'tab' => 'integrations' ]
+                    );
+                } elseif ( ! $configured && ! $viaRivals ) {
                     $gaps[] = self::action( 'search_provider', 'Add a search provider key (Google Programmable Search, Brave Search or Serper) so discovery can run search queries.', null, 'settings', [ 'tab' => 'integrations' ] );
                 }
             }
-            if ( [] === $registry->metricsProviders( true ) ) {
+            if ( ! $autopilot && [] === $registry->metricsProviders( true ) ) {
                 $gaps[] = self::action( 'metrics_provider', 'Add your SE Ranking API key (or an Ahrefs, Semrush or Moz key) so prospects get authority and traffic metrics; until then those metrics show as unknown.', null, 'settings', [ 'tab' => 'integrations' ] );
             }
         } catch ( Throwable $e ) {
@@ -742,9 +815,12 @@ final class GrowthRun {
                 foreach ( (array) ( $sender['missing'] ?? [] ) as $field ) {
                     $missing[] = $labels[ (string) $field ] ?? str_replace( '_', ' ', (string) $field );
                 }
+                $label = in_array( 'sender_email_domain', (array) ( $sender['missing'] ?? [] ), true ) && [] !== (array) ( $sender['problems'] ?? [] )
+                    ? 'Fix the outreach sender email: ' . implode( ' ', (array) $sender['problems'] ) . ( isset( $sender['suggestion']['reason'] ) ? ' ' . $sender['suggestion']['reason'] : '' )
+                    : 'Complete the outreach sender identity' . ( [] !== $missing ? ' (missing: ' . implode( ', ', $missing ) . ')' : '' ) . '. Outreach emails cannot be sent until it is complete.';
                 $gaps[] = self::action(
                     'sender_identity',
-                    'Complete the outreach sender identity' . ( [] !== $missing ? ' (missing: ' . implode( ', ', $missing ) . ')' : '' ) . '. Outreach emails cannot be sent until it is complete.',
+                    $label,
                     null,
                     'settings',
                     [ 'tab' => 'outreach' ]
@@ -753,8 +829,12 @@ final class GrowthRun {
         } catch ( Throwable $e ) {
             $this->log( 'warning', 'Growth preflight could not check the sender identity: ' . $e->getMessage() );
         }
+        if ( $this->autopilot()->isOn() && ! (bool) $this->settings()->get( 'automation.enabled', false ) ) {
+            $gaps[] = self::action( 'automation_off', 'Autopilot is on, but background automation is switched off (Automation → Master switch), so nothing runs on its own between growth runs.', null, 'automation' );
+        }
         try {
-            $google = $this->c->get( SearchConsole::class )->isConfigured() || $this->c->get( SiteKitBridge::class )->isAvailable();
+            // Under Autopilot only genuine blockers are listed: Search Console is reporting, not a blocker.
+            $google = $autopilot || $this->c->get( SearchConsole::class )->isConfigured() || $this->c->get( SiteKitBridge::class )->isAvailable();
             if ( ! $google ) {
                 $gaps[] = self::action( 'google', 'Connect Google Search Console (a service account under Settings → Integrations, or the Site Kit plugin) to see search clicks and impressions.', null, 'settings', [ 'tab' => 'integrations' ] );
             }
@@ -784,14 +864,28 @@ final class GrowthRun {
             $parts[] = sprintf( '%d owner %s waiting.', $tasks, 1 === $tasks ? 'task' : 'tasks' );
         }
         if ( null !== $summary['outreach_drafts'] ) {
-            $drafts  = (int) $summary['outreach_drafts'];
-            $parts[] = 1 === $drafts ? '1 outreach draft awaits your approval.' : sprintf( '%d outreach drafts await your approval.', $drafts );
+            if ( ! empty( $summary['autopilot'] ) ) {
+                $edit    = (int) ( $summary['outreach_needs_edit'] ?? 0 );
+                $parts[] = 'Autopilot approves outreach drafts and sends them inside the send window and daily limits.';
+                if ( $edit > 0 ) {
+                    $parts[] = 1 === $edit ? '1 draft needs editing first.' : sprintf( '%d drafts need editing first.', $edit );
+                }
+            } else {
+                $drafts  = (int) $summary['outreach_drafts'];
+                $parts[] = 1 === $drafts ? '1 outreach draft awaits your approval.' : sprintf( '%d outreach drafts await your approval.', $drafts );
+            }
         }
         if ( is_array( $summary['backlinks'] ) ) {
             $live    = (int) $summary['backlinks']['live'];
             $parts[] = sprintf( '%d live %s.', $live, 1 === $live ? 'backlink' : 'backlinks' );
         }
-        $parts[] = sprintf( '%d next %s for you.', count( $state['next_actions'] ), 1 === count( $state['next_actions'] ) ? 'action' : 'actions' );
+        if ( is_array( $summary['links_auto'] ?? null ) && ! empty( $summary['links_auto']['enabled'] ) ) {
+            $present = (int) $summary['links_auto']['present'];
+            $parts[] = sprintf( 'Internal links are added automatically (up to %d a day; %d automatic %s on the site).', (int) $summary['links_auto']['per_day'], $present, 1 === $present ? 'link' : 'links' );
+        }
+        $parts[] = ! empty( $summary['autopilot'] ) && [] === $state['next_actions']
+            ? 'Autopilot is on: nothing needs your approval.'
+            : sprintf( '%d next %s for you.', count( $state['next_actions'] ), 1 === count( $state['next_actions'] ) ? 'action' : 'actions' );
 
         $counts = [ 'next_actions' => count( $state['next_actions'] ) ];
         if ( is_array( $summary['submissions'] ) ) {
@@ -831,6 +925,7 @@ final class GrowthRun {
             ];
         } );
         $drafts    = $this->safe( fn(): int => $this->c->get( OutreachMessages::class )->count( [ 'status' => OutreachMessages::STATUS_DRAFT ] ) );
+        $needsEdit = $this->safe( fn(): int => $this->draftsNeedingEdit() );
         $backlinks = $this->safe( function (): array {
             $bs = $this->c->get( Backlinks::class )->statusCounts();
             return [
@@ -867,6 +962,7 @@ final class GrowthRun {
             ];
         } );
         $links      = $this->optional( InternalLinker::class, static fn( object $svc ): int => (int) $svc->pendingCount() );
+        $linksAuto  = $this->optional( InternalLinker::class, static fn( object $svc ): ?array => method_exists( $svc, 'autoInfo' ) ? (array) $svc->autoInfo() : null );
         $verified   = $this->optional( VerifiedOpportunities::class, static fn( object $svc ): array => (array) $svc->status() );
         $compliance = null;
         $storefront = $this->storefront();
@@ -898,11 +994,14 @@ final class GrowthRun {
             'opportunities_open'       => $opportunities,
             'submissions'              => $submissions,
             'outreach_drafts'          => $drafts,
+            'outreach_needs_edit'      => $needsEdit,
+            'autopilot'                => $this->autopilot()->isOn(),
             'backlinks'                => $backlinks,
             'site_audit'               => $audit,
             'indexnow'                 => $indexNow,
             'indexnow_submitted_run'   => isset( $run['indexnow']['submitted'] ) ? (int) $run['indexnow']['submitted'] : null,
             'link_suggestions_pending' => $links,
+            'links_auto'               => $linksAuto,
             'compliance'               => $compliance,
             'verified'                 => $verified,
             'steps'                    => $steps,
@@ -935,23 +1034,39 @@ final class GrowthRun {
         if ( is_array( $summary['compliance'] ) && ! empty( $summary['compliance']['blocking'] ) ) {
             $add( self::action( 'storefront', 'Review the storefront compliance findings: automated submissions and outreach sending are paused while they block.', null, 'overview' ) );
         }
-        $subs = is_array( $summary['submissions'] ) ? $summary['submissions'] : null;
+        $autopilot = ! empty( $summary['autopilot'] );
+        $subs      = is_array( $summary['submissions'] ) ? $summary['submissions'] : null;
         if ( null !== $subs && $subs['owner_tasks'] > 0 ) {
-            $add( self::action( 'owner_tasks', sprintf( 'Complete %d owner %s (sites where a person has to submit the listing)', $subs['owner_tasks'], 1 === $subs['owner_tasks'] ? 'task' : 'tasks' ), $subs['owner_tasks'], 'submissions', [ 'tab' => 'needs_manual' ] ) );
+            $add( self::action(
+                'owner_tasks',
+                $autopilot
+                    ? sprintf( 'Complete %d owner %s: these sites need an account, a login or a person, which Autopilot never does for you. You can hand them to a staff member with the Link Growth Submitter role.', $subs['owner_tasks'], 1 === $subs['owner_tasks'] ? 'task' : 'tasks' )
+                    : sprintf( 'Complete %d owner %s (sites where a person has to submit the listing)', $subs['owner_tasks'], 1 === $subs['owner_tasks'] ? 'task' : 'tasks' ),
+                $subs['owner_tasks'],
+                'submissions',
+                [ 'tab' => 'needs_manual' ]
+            ) );
         }
-        if ( null !== $subs && $subs['pending_review'] > 0 ) {
+        if ( null !== $subs && $subs['pending_review'] > 0 && ! $autopilot ) {
             $add( self::action( 'pending_review', sprintf( 'Review %d listing %s waiting for approval', $subs['pending_review'], 1 === $subs['pending_review'] ? 'package' : 'packages' ), $subs['pending_review'], 'submissions', [ 'tab' => 'pending_review' ] ) );
         }
         $drafts = $summary['outreach_drafts'];
-        if ( is_int( $drafts ) && $drafts > 0 ) {
+        if ( ! empty( $summary['autopilot'] ) ) {
+            // Autopilot approves and sends drafts by itself; only the ones the claims filter flagged need a person.
+            $edit = $summary['outreach_needs_edit'] ?? null;
+            if ( is_int( $edit ) && $edit > 0 ) {
+                $add( self::action( 'outreach_drafts', sprintf( 'Edit %d outreach %s the claims filter flagged (Autopilot cannot send %s as written)', $edit, 1 === $edit ? 'draft' : 'drafts', 1 === $edit ? 'it' : 'them' ), $edit, 'outreach', [ 'tab' => 'messages', 'status' => 'draft' ] ) );
+            }
+        } elseif ( is_int( $drafts ) && $drafts > 0 ) {
             $add( self::action( 'outreach_drafts', sprintf( 'Review %d outreach %s (nothing is sent without approval)', $drafts, 1 === $drafts ? 'draft' : 'drafts' ), $drafts, 'outreach', [ 'tab' => 'messages', 'status' => 'draft' ] ) );
         }
-        $links = $summary['link_suggestions_pending'];
-        if ( is_int( $links ) && $links > 0 ) {
+        $links     = $summary['link_suggestions_pending'];
+        $autoLinks = is_array( $summary['links_auto'] ?? null ) && ! empty( $summary['links_auto']['enabled'] );
+        if ( is_int( $links ) && $links > 0 && ! $autoLinks ) {
             $add( self::action( 'link_suggestions', sprintf( 'Review %d internal-link %s (applied only when you click Apply)', $links, 1 === $links ? 'suggestion' : 'suggestions' ), $links, 'seo', [ 'links' => 'pending' ] ) );
         }
         $high = is_array( $summary['site_audit'] ) && null !== ( $summary['site_audit']['high'] ?? null ) ? (int) $summary['site_audit']['high'] : 0;
-        if ( $high > 0 ) {
+        if ( $high > 0 && ! $autopilot ) {
             $add( self::action( 'seo_issues', sprintf( 'Fix %d high-priority on-site SEO %s', $high, 1 === $high ? 'issue' : 'issues' ), $high, 'seo', [ 'severity' => 'high' ] ) );
         }
         foreach ( $state['steps'] as $step ) {
@@ -1008,12 +1123,12 @@ final class GrowthRun {
     }
 
     /** @return array<int,array<string,mixed>> */
-    private static function freshSteps(): array {
+    private static function freshSteps( bool $autopilot = false, bool $autoLinks = false ): array {
         $out = [];
         foreach ( self::STEPS as $key => [ $label ] ) {
             $out[] = [
                 'key'         => $key,
-                'label'       => $label,
+                'label'       => self::stepLabel( $key, $label, $autopilot, $autoLinks ),
                 'status'      => self::STEP_PENDING,
                 'rounds'      => 0,
                 'attempts'    => 0,
@@ -1247,6 +1362,27 @@ final class GrowthRun {
 
     private function runner(): JobRunner {
         return $this->c->get( JobRunner::class );
+    }
+
+    private function autopilot(): Autopilot {
+        try {
+            $svc = $this->c->get( Autopilot::class );
+            if ( $svc instanceof Autopilot ) {
+                return $svc;
+            }
+        } catch ( Throwable $e ) {
+            unset( $e );
+        }
+        return new Autopilot( $this->settings() );
+    }
+
+    /** Drafts the claims filter or the compliance check flagged (a person has to edit them). */
+    private function draftsNeedingEdit(): int {
+        global $wpdb;
+        $t   = $this->c->get( OutreachMessages::class )->table();
+        $sql = "SELECT COUNT(*) FROM {$t} WHERE status = %s AND ( last_error LIKE %s OR last_error LIKE %s )";
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        return (int) $wpdb->get_var( $wpdb->prepare( $sql, OutreachMessages::STATUS_DRAFT, 'Needs editing%', 'Not approved:%' ) );
     }
 
     private function settings(): Settings {
