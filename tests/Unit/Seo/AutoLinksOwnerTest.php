@@ -217,4 +217,134 @@ final class AutoLinksOwnerTest extends TestCase {
         $this->settings()->set( 'seo.auto_apply_links', false );
         $this->assertSame( 0, $linker->autoOwner( 9731 ) );
     }
+
+    public function testSwitchingAutomaticLinksOffRevokesTheConsentAndWhoeverSwitchesThemOnIsRecorded(): void {
+        $this->settings()->set( 'automation.autopilot', false );
+        $this->consent( null );
+        $admin                           = [ 'edit_post' => true, 'unfiltered_html' => true, 'manage_options' => true ];
+        $GLOBALS['ppclg_test_user_caps'] = [ 1 => $admin, 2 => $admin ];
+        $save = function ( int $user, array $settings, bool $confirm = false ): void {
+            $GLOBALS['ppclg_test_user_id'] = $user;
+            $GLOBALS['ppclg_test_caps']    = $GLOBALS['ppclg_test_user_caps'][ $user ];
+            $req = new WP_REST_Request( 'POST', '/ppclg/v1/settings' );
+            $req->set_param( 'settings', $settings );
+            if ( $confirm ) {
+                $req->set_param( 'confirm', true );
+            }
+            $res = ( new SettingsController( Container::plugin()->container() ) )->update( $req );
+            $this->assertIsArray( $res, (string) wp_json_encode( $res ) );
+        };
+        $consent = static fn(): int => (int) ( ( (array) get_option( InternalLinker::OPTION_LINKS_CONSENT, [] ) )['user_id'] ?? 0 );
+
+        // User 2 switches automatic links on (with the confirmation), then off again.
+        $save( 2, [ 'seo' => [ 'auto_apply_links' => true ] ], true );
+        $this->assertSame( 2, $consent() );
+        $save( 2, [ 'seo' => [ 'auto_apply_links' => false ] ] );
+        $this->assertFalse( get_option( InternalLinker::OPTION_LINKS_CONSENT, false ), 'switching them off revokes the consent' );
+
+        // User 1 switches Autopilot on, then automatic links (confirming their text, also while Autopilot is on), then
+        // Autopilot off: automatic links keep running on seo.auto_apply_links, which user 1 switched on.
+        $save( 1, [ 'automation' => [ 'autopilot' => true ] ], true );
+        $save( 1, [ 'seo' => [ 'auto_apply_links' => true ] ], true );
+        $this->assertSame( 1, $consent(), 'recorded for the user who confirmed them, also under Autopilot' );
+        $save( 1, [ 'automation' => [ 'autopilot' => false ] ] );
+
+        $GLOBALS['ppclg_test_user_id'] = 0; // the cron
+        $GLOBALS['ppclg_test_caps']    = [];
+        $linker = $this->linker();
+        $this->assertTrue( $linker->autoApplyEnabled() );
+        $this->assertSame( 1, $linker->autoOwner( 9731 ), 'never the user who switched them off' );
+        $res = $linker->autoApply( TimeBudget::seconds( 30 ) );
+        $this->assertSame( 1, $res['applied'], $res['message'] );
+        $this->assertSame( 1, end( StubsSeo::$updates )['_user'] );
+        // A consenting user who no longer exists is simply not used.
+        StubsSeo::$users = [ 2 ];
+        $this->assertSame( 0, $linker->autoOwner( 9731 ) );
+    }
+
+    public function testUnderAutopilotSwitchingAutomaticLinksOnStillNeedsTheConfirmationBeforeAnyoneIsRecorded(): void {
+        // The live state: Autopilot on, consent by user 1 under policy 1.2.0-2 (which says nothing about saving as
+        // the owner's account). Users 1 and 2 are administrators.
+        update_option( Autopilot::OPTION_CONSENT, [ 'user_id' => 1, 'at' => '2026-11-15T20:00:00+00:00', 'policy_version' => '1.2.0-2' ] );
+        $admin                           = [ 'edit_post' => true, 'unfiltered_html' => true, 'manage_options' => true ];
+        $GLOBALS['ppclg_test_user_caps'] = [ 1 => $admin, 2 => $admin ];
+        $save = function ( int $user, array $settings, bool $confirm = false ) {
+            $GLOBALS['ppclg_test_user_id'] = $user;
+            $GLOBALS['ppclg_test_caps']    = $GLOBALS['ppclg_test_user_caps'][ $user ];
+            $req = new WP_REST_Request( 'POST', '/ppclg/v1/settings' );
+            $req->set_param( 'settings', $settings );
+            if ( $confirm ) {
+                $req->set_param( 'confirm', true );
+            }
+            return ( new SettingsController( Container::plugin()->container() ) )->update( $req );
+        };
+
+        // Flipping "Add the best internal links automatically" on without the confirmation is refused, also while
+        // Autopilot is on, and nobody is recorded.
+        foreach ( [ 1, 2 ] as $user ) {
+            $no = $save( $user, [ 'seo' => [ 'auto_apply_links' => true ] ] );
+            $this->assertInstanceOf( \WP_Error::class, $no, 'user ' . $user );
+            $this->assertSame( 'ppclg_confirmation_required', $no->get_error_code() );
+            $this->assertSame( [ 'auto_apply_links' ], $no->get_error_data()['keys'] );
+            $this->assertStringContainsString( 'saves that one change as your account', $no->get_error_message() );
+            $this->assertFalse( (bool) $this->settings()->get( 'seo.auto_apply_links', false ) );
+            $this->assertFalse( get_option( InternalLinker::OPTION_LINKS_CONSENT, false ) );
+        }
+        // Autopilot goes off: automatic links stop, and nobody's account is used.
+        $this->assertIsArray( $save( 1, [ 'automation' => [ 'autopilot' => false ] ] ) );
+        $GLOBALS['ppclg_test_user_id'] = 0; // the cron
+        $GLOBALS['ppclg_test_caps']    = [];
+        $linker = $this->linker();
+        $this->assertFalse( $linker->autoApplyEnabled() );
+        $this->assertSame( 0, $linker->autoOwner( 9731 ) );
+        $this->assertFalse( $linker->autoApply( TimeBudget::seconds( 30 ) )['ran'] );
+        $this->assertSame( self::ARTICLE, StubsSeo::$posts[9731]['post_content'] );
+        $this->assertSame( [], StubsSeo::$userSwitches, 'nobody was impersonated' );
+
+        // A second administrator who confirms the text while another's Autopilot is on is recorded, and is the one
+        // the save is made as once Autopilot is off.
+        $this->assertIsArray( $save( 1, [ 'automation' => [ 'autopilot' => true ] ], true ) );
+        $this->assertIsArray( $save( 2, [ 'seo' => [ 'auto_apply_links' => true ] ], true ) );
+        $this->assertSame( 2, get_option( InternalLinker::OPTION_LINKS_CONSENT )['user_id'] );
+        $this->assertIsArray( $save( 1, [ 'automation' => [ 'autopilot' => false ] ] ) );
+        $GLOBALS['ppclg_test_user_id'] = 0;
+        $GLOBALS['ppclg_test_caps']    = [];
+        $this->assertSame( 2, $linker->autoOwner( 9731 ) );
+        $res = $linker->autoApply( TimeBudget::seconds( 30 ) );
+        $this->assertSame( 1, $res['applied'], $res['message'] );
+        $this->assertSame( 2, end( StubsSeo::$updates )['_user'] );
+
+        // Switching Autopilot and automatic links on in one request needs both texts confirmed.
+        $this->assertIsArray( $save( 2, [ 'seo' => [ 'auto_apply_links' => false ] ] ) );
+        $both = $save( 1, [ 'automation' => [ 'autopilot' => true ], 'seo' => [ 'auto_apply_links' => true ] ] );
+        $this->assertInstanceOf( \WP_Error::class, $both );
+        $this->assertSame( [ 'autopilot', 'auto_apply_links' ], $both->get_error_data()['keys'] );
+        $this->assertFalse( get_option( InternalLinker::OPTION_LINKS_CONSENT, false ) );
+    }
+
+    public function testAnAutopilotConsentFromAnEarlierPolicyDoesNotCoverSavingAsTheOwner(): void {
+        // The live consent was given under policy 1.2.0-2, before Autopilot could save as the owner's account.
+        update_option( Autopilot::OPTION_CONSENT, [ 'user_id' => 1, 'at' => '2026-11-15T20:00:00+00:00', 'policy_version' => '1.2.0-2' ] );
+        StubsSeo::addPost( 9732, [ 'post_type' => 'post', 'post_title' => 'A plain article', 'post_name' => 'plain', 'post_content' => '<p>A plain paragraph explains how bacteriostatic water is used for reconstitution in the lab protocol today.</p>' ] );
+        $linker = $this->linker();
+        $this->assertSame( 0, $linker->autoOwner( 9731 ) );
+        $res = $linker->autoApply( TimeBudget::seconds( 30 ) );
+        $this->assertSame( [ 1, 1 ], [ $res['applied'], $res['refused'] ], 'the rest of Autopilot keeps working: ' . $res['message'] );
+        $this->assertStringContainsString( 'bacteriostatic water</a>', (string) StubsSeo::$posts[9732]['post_content'] );
+        $this->assertSame( self::ARTICLE, StubsSeo::$posts[9731]['post_content'] );
+        $this->assertSame( 'kses', $this->item( $linker )['auto_skip_code'] );
+        $this->assertSame( [], StubsSeo::$userSwitches, 'nobody was impersonated' );
+
+        // The Autopilot text now says it, under a new policy version; switching Autopilot on again records that.
+        $this->assertSame( '1.2.2-1', Autopilot::POLICY_VERSION );
+        $text = Autopilot::policyText();
+        $this->assertStringContainsString( 'saves that one change as your account', $text );
+        $this->assertStringContainsString( 'takes its own automatic links back out of pages whose template doesn’t display them', $text );
+        $this->assertSame( $text, ( new Autopilot( $this->settings() ) )->status()['policy_text'] );
+        ( new Autopilot( $this->settings() ) )->enable( 1 );
+        $this->assertSame( 1, $linker->autoOwner( 9731 ) );
+        $again = $linker->autoApply( TimeBudget::seconds( 30 ) );
+        $this->assertSame( 1, $again['applied'], $again['message'] );
+        $this->assertSame( 1, end( StubsSeo::$updates )['_user'] );
+    }
 }

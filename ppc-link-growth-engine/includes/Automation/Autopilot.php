@@ -50,8 +50,12 @@ final class Autopilot {
     /** Owner consent record (non-autoloaded option; never written through POST /settings). */
     public const OPTION_CONSENT = 'ppclg_autopilot_consent';
 
-    /** Version of policyText(); stored with the consent so a changed policy can be told apart. */
-    public const POLICY_VERSION = '1.2.0-2';
+    /**
+     * Version of policyText(); stored with the consent so a changed policy can be told apart. 1.2.2-1 added saving a
+     * page as the consenting owner's account (markup kses would strip) and taking automatic links back out of pages
+     * that do not display them: InternalLinker saves as the owner only on a consent given under this version.
+     */
+    public const POLICY_VERSION = '1.2.2-1';
 
     /** Audit actor of everything Autopilot approves on the owner's behalf. */
     public const ACTOR = 'system:autopilot';
@@ -278,6 +282,9 @@ final class Autopilot {
             'enabled'            => $this->isOn(),
             'automation_enabled' => (bool) $this->settings->get( 'automation.enabled', false ),
             'consent'            => $this->consent(),
+            // A consent given under an earlier policy text keeps Autopilot running, but does not cover saving a page
+            // as the owner's account (InternalLinker::autoOwner()): switching Autopilot off and on again gives it.
+            'consent_current'    => self::POLICY_VERSION === (string) ( $this->consent()['policy_version'] ?? '' ),
             'policy_version'     => self::POLICY_VERSION,
             'policy_text'        => self::policyText(),
             'hard_limits'        => self::hardLimits(),
@@ -335,7 +342,7 @@ final class Autopilot {
 
     /** What the owner agrees to by switching Autopilot on (versioned by POLICY_VERSION). */
     public static function policyText(): string {
-        return 'Turn on Autopilot? The engine will then work without asking you first: it approves the outreach emails it drafts and your campaigns, sends them in your name to the published business addresses of relevant websites (inside the send window and the daily and weekly limits), submits listings to sites whose public listing form passes every safety check, adds the best internal links between your own pages (up to the daily number in Settings, each page keeps a revision and one click undoes them), finds your competitors through SE Ranking while you list none, and keeps doing this on its schedule. Follow-ups are sent automatically only when reply tracking is set up. The hard limits stay on: no sign-ups or account creation on other sites, no CAPTCHA, login or registration bypass, no comment or forum posting, robots.txt is respected, the claims filter (research use only, no health, medical or dosing claims), CASL and CAN-SPAM rules (sender identification, a working reply address, your postal address, every unsubscribe honoured permanently, only conspicuously published business addresses, relevance, the contact cool-down and the suppression list), the storefront compliance gate and no paid listings. You can switch Autopilot off at any time; messages it approved but did not send yet go back to draft.';
+        return 'Turn on Autopilot? The engine will then work without asking you first: it approves the outreach emails it drafts and your campaigns, sends them in your name to the published business addresses of relevant websites (inside the send window and the daily and weekly limits), submits listings to sites whose public listing form passes every safety check, adds the best internal links between your own pages (up to the daily number in Settings, each page keeps a revision and one click undoes them), finds your competitors through SE Ranking while you list none, and keeps doing this on its schedule. To add a link to a page holding markup only an administrator may save (such as inline SVG diagrams or structured data), it saves that one change as your account, and it takes its own automatic links back out of pages whose template doesn’t display them. Follow-ups are sent automatically only when reply tracking is set up. The hard limits stay on: no sign-ups or account creation on other sites, no CAPTCHA, login or registration bypass, no comment or forum posting, robots.txt is respected, the claims filter (research use only, no health, medical or dosing claims), CASL and CAN-SPAM rules (sender identification, a working reply address, your postal address, every unsubscribe honoured permanently, only conspicuously published business addresses, relevance, the contact cool-down and the suppression list), the storefront compliance gate and no paid listings. You can switch Autopilot off at any time; messages it approved but did not send yet go back to draft.';
     }
 
     /** @return string[] The rules Autopilot never relaxes. */

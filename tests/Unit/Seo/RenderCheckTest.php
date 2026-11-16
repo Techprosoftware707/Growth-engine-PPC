@@ -7,10 +7,12 @@
  *   link, its suggestions are set aside as "not shown" with a note, and an automatic link already on it is taken
  *   back out through the undo path (exact restore when unedited, else only the <a>; a revision first; audited);
  *   it comes back once the page shows its content again;
- * - the posts page and the WooCommerce shop / cart / checkout / account pages are decided without a request;
+ * - the posts page and the WooCommerce cart / checkout / account pages are decided without a request (the shop page
+ *   is checked like any page: classic themes print its content as the shop description, RenderCheckReviewFixesTest);
  * - an error, a timeout, a non-200 answer, a page that does not name the item or a slow answer is "unknown": nothing
- *   changes, the item is tried on a later run; timeouts, 5xx and slow answers stop further requests in the run;
- * - at most a few requests per run; the verdict is kept per item and checked again when the item's modification
+ *   changes, the item is tried on a later run; timeouts, 5xx and slow answers stop further requests in the run and
+ *   pause page checks for a few minutes in later runs too;
+ * - at most a few requests per run and per PHP request; the verdict is kept per item and checked again when the item's modification
  *   time, its template, the theme or the front-page settings change, or after a week;
  * - a person's Apply still works on such an item and says that visitors will not see the link.
  */
@@ -76,6 +78,12 @@ final class RenderCheckTest extends TestCase {
 
     private function render(): RenderCheck {
         return Container::get( RenderCheck::class );
+    }
+
+    /** A later PHP request (another cron tick): fresh page-check and link services, the same stored data. */
+    private function laterRequest(): InternalLinker {
+        Container::plugin()->container()->set( RenderCheck::class, new RenderCheck( $this->settings(), Container::get( Logger::class ), Container::get( Client::class ) ) );
+        return $this->linker();
     }
 
     /** @return array<int,array<string,mixed>> */
@@ -238,12 +246,12 @@ final class RenderCheckTest extends TestCase {
         update_option( 'page_for_posts', 601 );
         $this->assertNull( $render->cheap( 601 ), 'the posts page setting counts only with a static front page' );
         update_option( 'show_on_front', 'page' );
-        StubsSeoReview::$wcPages = [ 'shop' => 602, 'cart' => 603 ];
+        StubsSeoReview::$wcPages = [ 'shop' => 604, 'cart' => 602, 'checkout' => 603 ];
         $this->assertSame( [ RenderCheck::HIDDEN, 'posts_page', RenderCheck::NOTE_POSTS ], array_values( array_intersect_key( (array) $render->cheap( 601 ), array_flip( [ 'verdict', 'code', 'note' ] ) ) ) );
-        $this->assertSame( 'shop', $render->cheap( 602 )['code'] );
-        $this->assertSame( RenderCheck::NOTE_SHOP, $render->cheap( 602 )['note'] );
-        $this->assertSame( 'woo_cart', $render->cheap( 603 )['code'] );
+        $this->assertSame( 'woo_cart', $render->cheap( 602 )['code'] );
+        $this->assertSame( 'woo_checkout', $render->cheap( 603 )['code'] );
         $this->assertSame( RenderCheck::NOTE_WOO, $render->cheap( 603 )['note'] );
+        $this->assertNull( $render->cheap( 604 ), 'the shop page is checked from its page (it can show its content as the shop description)' );
 
         $linker = $this->linker();
         $linker->run( TimeBudget::seconds( 30 ) );
@@ -275,9 +283,19 @@ final class RenderCheckTest extends TestCase {
         }
         $this->assertSame( self::ARTICLE, StubsSeo::$posts[511]['post_content'] );
 
-        // The next run leaves the item alone for a while (retry later) and goes on with the others.
+        // Runs in the next minutes ask nothing at all (the host gets a break).
         StubsSeo::$renderStatus[511] = 200;
-        $next = $linker->autoApply( TimeBudget::seconds( 30 ) );
+        $linker = $this->laterRequest();
+        $paused = $linker->autoApply( TimeBudget::seconds( 30 ) );
+        $this->assertSame( [ 0, 0 ], [ $paused['applied'], $paused['fetches'] ], $paused['message'] );
+        $this->assertCount( 1, StubsSeo::$renderRequests );
+        $this->assertStringContainsString( 'page checks are paused for a few minutes', $paused['message'] );
+        $this->assertNotFalse( get_transient( RenderCheck::PAUSE_TRANSIENT ) );
+
+        // After the pause the next run leaves the item alone for a while (retry later) and goes on with the others.
+        delete_transient( RenderCheck::PAUSE_TRANSIENT );
+        $linker = $this->laterRequest();
+        $next   = $linker->autoApply( TimeBudget::seconds( 30 ) );
         $this->assertSame( 2, $next['applied'] );
         $this->assertSame( [ 'https://purepeptidescanada.test/article-511/', 'https://purepeptidescanada.test/article-512/' ], array_column( StubsSeo::$renderRequests, 'url' ) );
         $this->assertSame( self::ARTICLE, StubsSeo::$posts[511]['post_content'] );
@@ -286,7 +304,8 @@ final class RenderCheckTest extends TestCase {
         $all                   = get_option( RenderCheck::OPTION );
         $all[511]['expires']   = time() - 1;
         update_option( RenderCheck::OPTION, $all );
-        $later = $linker->autoApply( TimeBudget::seconds( 30 ) );
+        $linker = $this->laterRequest();
+        $later  = $linker->autoApply( TimeBudget::seconds( 30 ) );
         $this->assertSame( 2, $later['applied'], $later['message'] );
         $this->assertStringContainsString( 'bacteriostatic water</a>', StubsSeo::$posts[511]['post_content'] );
         $this->assertSame( '', (string) ( $this->bySource( $linker, 511, 'applied' )[0]['render_note'] ?? '' ) );
@@ -349,7 +368,9 @@ final class RenderCheckTest extends TestCase {
         $this->assertTrue( $payload['auto_only'] );
         $this->assertGreaterThanOrEqual( time() + InternalLinksJob::AUTO_CONTINUE_SECONDS - 60, strtotime( (string) $queued[0]['scheduled_at'] . ' UTC' ), 'after a pause' );
 
-        // The continuation only applies (the list is fresh, so it is not regenerated).
+        // The continuation (15 minutes later, another PHP request) only applies (the list is fresh, so it is not
+        // regenerated).
+        $this->laterRequest();
         $next = ( new InternalLinksJob() )->handle( $payload, TimeBudget::seconds( 30 ), Container::plugin()->container() );
         $this->assertSame( 0, $next['checked'] );
         $this->assertSame( 1, $next['applied'], (string) $next['summary'] );

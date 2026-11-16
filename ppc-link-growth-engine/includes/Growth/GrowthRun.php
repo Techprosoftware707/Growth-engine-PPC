@@ -504,7 +504,7 @@ final class GrowthRun {
 
             while ( (int) $state['steps'][ $i ]['rounds'] < $cap ) {
                 $acc = is_array( $state['steps'][ $i ]['_acc'] ?? null ) ? $state['steps'][ $i ]['_acc'] : self::freshAcc();
-                if ( ! empty( $acc['last_failed'] ) || ! $this->hasQueued( $type ) ) {
+                if ( ! empty( $acc['last_failed'] ) || ! $this->hasQueued( $type ) || $this->pausedAutoRound( $type ) ) {
                     break;
                 }
                 $madeProgress = $progress || $finishedHere > 0;
@@ -1343,6 +1343,31 @@ final class GrowthRun {
         } catch ( Throwable $e ) {
             return false;
         }
+    }
+
+    /**
+     * The queued internal_links job is the background run's next automatic-links round (payload auto_only, not this
+     * run's, scheduled later): it waits InternalLinksJob::AUTO_CONTINUE_SECONDS on purpose, so a small host gets a
+     * break between page checks. A step leaves it to the scheduler instead of running it at once.
+     */
+    private function pausedAutoRound( string $type ): bool {
+        if ( 'internal_links' !== $type ) {
+            return false;
+        }
+        try {
+            $queued = $this->c->get( Jobs::class )->findBy( [ 'type' => $type, 'status' => Jobs::STATUS_QUEUED ], 'id', 'ASC', 10 );
+        } catch ( Throwable $e ) {
+            return false;
+        }
+        foreach ( $queued as $job ) {
+            $payload = $job['payload'] ?? [];
+            $payload = is_array( $payload ) ? $payload : ( json_decode( (string) $payload, true ) ?: [] );
+            $later   = (int) strtotime( (string) ( $job['scheduled_at'] ?? '' ) . ' UTC' ) > time();
+            if ( empty( $payload['auto_only'] ) || '' !== (string) ( $payload['growth_run'] ?? '' ) || ! $later ) {
+                return false;
+            }
+        }
+        return [] !== $queued;
     }
 
     /**

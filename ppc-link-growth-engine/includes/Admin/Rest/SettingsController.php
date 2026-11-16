@@ -178,8 +178,10 @@ final class SettingsController extends Controller {
      *
      * Switching automation.submissions or automation.outreach_autosend on needs confirm=true, as on
      * POST /automation/toggle, and so does turning outreach.require_approval off while outreach autosend is on
-     * (that is what lets automation approve and send its own first-contact drafts). automation.autopilot is never
-     * stored from the form directly: switching it on needs confirm=true and goes through Automation\Autopilot, which
+     * (that is what lets automation approve and send its own first-contact drafts), switching seo.auto_apply_links on
+     * (also while Autopilot is on; only then is ppclg_auto_links_consent recorded) and turning the storefront
+     * compliance gate off. automation.autopilot is never stored from the form directly: switching it on needs
+     * confirm=true and goes through Automation\Autopilot, which
      * records the consent (the consent itself lives in its own option and cannot be written here); switching it off
      * returns what Autopilot approved but did not send to draft. Linkable assets must pass the claims filter.
      * Otherwise nothing is saved.
@@ -233,9 +235,10 @@ final class SettingsController extends Controller {
         if ( false === ( $clean['compliance']['storefront_gate'] ?? null ) && (bool) $settings->get( 'compliance.storefront_gate', true ) ) {
             $enabling[] = 'storefront_gate_off';
         }
-        // Automatic internal links edit published pages without review, so switching them on (outside Autopilot,
-        // whose own confirmation already covers them) needs the same explicit confirmation.
-        if ( true === ( $clean['seo']['auto_apply_links'] ?? null ) && ! (bool) $settings->get( 'seo.auto_apply_links', false ) && true !== $autopilotWanted && ! $autopilot->isOn() ) {
+        // Automatic internal links edit published pages without review and, once Autopilot is off, save a page with
+        // administrator-only markup as the account of whoever switched them on, so switching them on needs the same
+        // explicit confirmation, also while Autopilot is on (its own consent covers only the time it is on).
+        if ( true === ( $clean['seo']['auto_apply_links'] ?? null ) && ! (bool) $settings->get( 'seo.auto_apply_links', false ) ) {
             $enabling[] = 'auto_apply_links';
         }
         if ( [] !== $enabling && ! $this->bool( $request, 'confirm', false ) ) {
@@ -266,10 +269,16 @@ final class SettingsController extends Controller {
             $settings->update( $clean );
             $changed = self::diffKeys( $before, $settings->all() );
         }
-        // Automatic links outside Autopilot act on this confirmation: who gave it is what InternalLinker::autoOwner()
-        // checks before saving an item as that user.
-        if ( in_array( 'auto_apply_links', $enabling, true ) && (bool) $settings->get( 'seo.auto_apply_links', false ) ) {
+        // Automatic links outside Autopilot act on the consent of whoever switched seo.auto_apply_links on: that user is
+        // what InternalLinker::autoOwner() checks before saving an item as them. It is recorded only when the setting
+        // goes on with its confirmation (asked also while Autopilot is on, so it is in place once Autopilot goes off)
+        // and removed when it goes off, so a consent that was taken back never comes back.
+        $linksWere = (bool) ( $before['seo']['auto_apply_links'] ?? false );
+        $linksNow  = (bool) $settings->get( 'seo.auto_apply_links', false );
+        if ( ! $linksWere && $linksNow && in_array( 'auto_apply_links', $enabling, true ) ) {
             update_option( InternalLinker::OPTION_LINKS_CONSENT, [ 'user_id' => $this->userId(), 'at' => gmdate( 'c' ) ], false );
+        } elseif ( $linksWere && ! $linksNow ) {
+            delete_option( InternalLinker::OPTION_LINKS_CONSENT );
         }
         $approvedNow = null;
         if ( null !== $autopilotWanted ) {
@@ -366,7 +375,7 @@ final class SettingsController extends Controller {
 
     /** What switching automatic internal links on does (the settings page shows the same text before saving). */
     public static function autoLinksConfirmationText(): string {
-        return __( 'Turn on automatic internal links? Every day the engine will edit your published pages and posts without asking you first, adding the best internal-link suggestions (highest relevance first, up to the daily number under Settings → Automation → On-site SEO). WordPress keeps a revision of every page it changes, and “Undo automatic links” on the On-site SEO page removes them. Confirm to proceed.', 'ppc-link-growth-engine' );
+        return __( 'Turn on automatic internal links? Every day the engine will edit your published pages and posts without asking you first, adding the best internal-link suggestions (highest relevance first, up to the daily number under Settings → Automation → On-site SEO). WordPress keeps a revision of every page it changes, and “Undo automatic links” on the On-site SEO page removes them. To add a link to a page holding markup only an administrator may save (such as inline SVG diagrams or structured data), it saves that one change as your account, and it takes its own automatic links back out of pages whose template doesn’t display them. Confirm to proceed.', 'ppc-link-growth-engine' );
     }
 
     /**

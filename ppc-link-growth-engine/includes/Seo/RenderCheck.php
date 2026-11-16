@@ -8,18 +8,24 @@
  * a page template that ignores the editor content. A link added there is invisible to visitors and Google.
  *
  * - Certain cases need no request (cheap()): the posts page while the front page is a static page, and the
- *   WooCommerce shop, cart, checkout and my-account pages.
+ *   WooCommerce cart, checkout and my-account pages. The shop page is not one of them: classic themes print its
+ *   content as the shop description, so it is decided from its page like any other item.
  * - Everything else is decided from the page itself (check()): one anonymous GET of the permalink through the
- *   plugin's HTTP client (no cookies, no redirects, Accept: text/html, a short timeout, at most MAX_FETCHES per run,
- *   at least GAP_SECONDS apart, inside the caller's TimeBudget). The answer counts only when it is HTTP 200 HTML whose
- *   <body> names this item (body class page-id-N / postid-N, or its shortlink / canonical address), so a login wall,
- *   maintenance page or challenge is never mistaken for the page. Text from the item (a few sentences spread through
- *   it, and for each suggestion the anchor with the words around it) is looked for, as one contiguous run of words,
- *   in the visible text of <body> only (scripts, styles, SVG and comments removed; the same normalisation on both
- *   sides). Shown: at least one of them is there. Hidden: none of at least two is there. A network error, a timeout,
- *   a non-200 answer, a page that does not identify itself or too little text to compare is "unknown": nothing is
- *   decided, the item is skipped this run and checked again later (UNKNOWN_RETRY), never a permanent verdict.
- *   A timeout, HTTP 429 / 5xx or a slow answer (SLOW_SECONDS) stops further requests for the rest of the run.
+ *   plugin's HTTP client (no cookies, no redirects, Accept: text/html, a short timeout, at most MAX_FETCHES per run
+ *   and per PHP request, at least GAP_SECONDS apart, inside the caller's TimeBudget). An item that no longer exists
+ *   or is not public is answered without a request (CODE_GONE / CODE_NOT_PUBLIC). The answer counts only when it is
+ *   HTTP 200 HTML whose <body> names this item (body class page-id-N / postid-N, woocommerce-shop for the shop page,
+ *   or its shortlink / canonical address), so a login wall, maintenance page or challenge is never mistaken for the
+ *   page. Text from the item (a few sentences spread through it, and for each suggestion the anchor with the words
+ *   around it) is looked for, as one contiguous run of words, in the visible text of <body> only (scripts, styles,
+ *   SVG and comments removed; the same normalisation on both sides). An item split with <!--nextpage--> is compared
+ *   by its first page (what the permalink shows); an anchor on a later page is WORDS_LATER, never evidence.
+ *   Shown: at least one of them is there. Hidden: none of at least two is there. A network error, a timeout, a non-200
+ *   answer, a page that does not identify itself, too little text to compare, or the item's words shown without the
+ *   formatting the item gives them (a plain-text excerpt, where a link would not show either) is "unknown": nothing
+ *   is decided, the item is skipped this run and checked again later (UNKNOWN_RETRY), never a permanent verdict.
+ *   A timeout, HTTP 429 / 5xx, a challenge or a slow answer (SLOW_SECONDS) stops further requests for the rest of the
+ *   run and pauses page checks for PAUSE_SECONDS in every run and request (PAUSE_TRANSIENT).
  * - Verdicts are kept per item in OPTION with a key of what could change them (the item's post_modified_gmt and
  *   page template, the theme and its version, and whether the item is the front page, the posts page or a
  *   WooCommerce page):
@@ -57,8 +63,31 @@ final class RenderCheck {
     public const WORDS_SHORT   = 'short';
     public const WORDS_GONE    = 'gone';
 
-    /** Page requests per run at most (filter ppclg_render_check_max_fetches, 0–10). */
+    /** The anchor is on a later page of an item split with <!--nextpage-->: the permalink request did not read it. */
+    public const WORDS_LATER   = 'later';
+
+    /** check() codes answered without a request: the item no longer exists / is not public (not published). */
+    public const CODE_GONE       = 'gone';
+    public const CODE_NOT_PUBLIC = 'not_public';
+
+    /**
+     * Page requests per run at most (filter ppclg_render_check_max_fetches, 0–10), and per PHP request across runs
+     * (filter ppclg_render_check_max_fetches_per_request, 0–30, default the same number): a Grow now step or a cron
+     * tick that runs the job more than once still asks the site for at most this many pages.
+     */
     public const MAX_FETCHES = 3;
+
+    /** Set after host trouble (timeout, 429 / 5xx, challenge, slow answer): no page check while it lasts. */
+    public const PAUSE_TRANSIENT = 'ppclg_render_check_pause';
+
+    /** How long page checks pause after host trouble (filter ppclg_render_check_pause_seconds, 0–3600). */
+    public const PAUSE_SECONDS = 600;
+
+    /** The page break WordPress splits an item's content on (each part has its own address). */
+    private const PAGE_BREAK = '<!--nextpage-->';
+
+    /** Inline formatting whose words show that a page prints the item's content, not a plain-text excerpt of it. */
+    private const FORMATTING = [ 'strong', 'b', 'em', 'i' ];
 
     /** A response slower than this stops further requests in the run (the host is under load). */
     public const SLOW_SECONDS = 5.0;
@@ -110,6 +139,11 @@ final class RenderCheck {
 
     private int $maxFetches = self::MAX_FETCHES;
 
+    /** Requests made in this PHP request (the service is one instance per request), never reset by beginRun(). */
+    private int $requestFetches = 0;
+
+    private int $maxRequestFetches = self::MAX_FETCHES;
+
     private string $abort = '';
 
     private float $lastFetchEnd = 0.0;
@@ -130,12 +164,20 @@ final class RenderCheck {
     // Run state
     // ------------------------------------------------------------------
 
-    /** Starts a run: the request counter and the stop flag are reset. */
+    /**
+     * Starts a run: the run's request counter and stop flag are reset. The PHP request's counter is not, and while
+     * the pause after host trouble lasts (PAUSE_TRANSIENT) the run makes no request at all (stopped() = 'paused').
+     */
     public function beginRun(): void {
-        $max              = (int) apply_filters( 'ppclg_render_check_max_fetches', self::MAX_FETCHES );
-        $this->maxFetches = max( 0, min( 10, $max ) );
-        $this->fetches    = 0;
-        $this->abort      = '';
+        $max                     = (int) apply_filters( 'ppclg_render_check_max_fetches', self::MAX_FETCHES );
+        $this->maxFetches        = max( 0, min( 10, $max ) );
+        $perRequest              = (int) apply_filters( 'ppclg_render_check_max_fetches_per_request', $this->maxFetches );
+        $this->maxRequestFetches = max( 0, min( 30, $perRequest ) );
+        $this->fetches           = 0;
+        $this->abort             = '';
+        if ( false !== get_transient( self::PAUSE_TRANSIENT ) ) {
+            $this->abort = 'paused';
+        }
     }
 
     public function fetchesUsed(): int {
@@ -149,7 +191,7 @@ final class RenderCheck {
 
     /** Whether another page may be requested in this run (budget aside). */
     public function canFetch(): bool {
-        return '' === $this->abort && $this->fetches < $this->maxFetches;
+        return '' === $this->abort && $this->fetches < $this->maxFetches && $this->requestFetches < $this->maxRequestFetches;
     }
 
     // ------------------------------------------------------------------
@@ -157,7 +199,12 @@ final class RenderCheck {
     // ------------------------------------------------------------------
 
     /**
-     * Certain verdicts that need no request: WordPress or WooCommerce never shows this page's text.
+     * Certain verdicts that need no request: WordPress or WooCommerce never shows this page's text to visitors and
+     * search engines. The posts page lists posts in place of its own text. The cart, checkout and my-account pages
+     * show the visitor's own cart or account (anonymous visitors are redirected or see an empty cart) and WooCommerce
+     * marks them noindex, so a link there has no search value even where a theme prints the text around them. The
+     * shop page is not certain: classic themes print its content as the shop description (WooCommerce's
+     * woocommerce_product_archive_description()), so check() decides it from its page.
      *
      * @return array{verdict:string,code:string,note:string,cheap:bool}|null
      */
@@ -169,10 +216,8 @@ final class RenderCheck {
             return [ 'verdict' => self::HIDDEN, 'code' => 'posts_page', 'note' => self::NOTE_POSTS, 'cheap' => true ];
         }
         foreach ( self::wooPages() as $page => $id ) {
-            if ( $id === $postId ) {
-                return 'shop' === $page
-                    ? [ 'verdict' => self::HIDDEN, 'code' => 'shop', 'note' => self::NOTE_SHOP, 'cheap' => true ]
-                    : [ 'verdict' => self::HIDDEN, 'code' => 'woo_' . $page, 'note' => self::NOTE_WOO, 'cheap' => true ];
+            if ( $id === $postId && 'shop' !== $page ) {
+                return [ 'verdict' => self::HIDDEN, 'code' => 'woo_' . $page, 'note' => self::NOTE_WOO, 'cheap' => true ];
             }
         }
         return null;
@@ -202,9 +247,11 @@ final class RenderCheck {
 
     /**
      * Requests the item's page and decides whether it shows the item's text and, for each suggestion ($terms:
-     * suggestion id => anchor term), the words around the anchor. Null when no request may be made now (the run's
-     * request limit, a stop after host trouble, or the budget); otherwise the stored entry (verdict shown / hidden /
-     * unknown).
+     * suggestion id => anchor term), the words around the anchor. Null only when no request may be made now (the
+     * run's or the PHP request's request limit, a stop or pause after host trouble, or the budget). An item that no
+     * longer exists (CODE_GONE) or is not public (CODE_NOT_PUBLIC: not published, or no address) is answered at once
+     * with an "unknown" entry that is not stored and asks nothing. Otherwise the stored entry (verdict shown / hidden
+     * / unknown).
      *
      * @param array<int,string> $terms
      * @return array<string,mixed>|null
@@ -214,16 +261,20 @@ final class RenderCheck {
         if ( null !== $cheap ) {
             return $cheap;
         }
+        $post = get_post( $postId );
+        if ( ! is_object( $post ) ) {
+            return self::unknown( self::CODE_GONE, 'the item no longer exists' ) + [ 'samples' => 0, 'matched' => 0, 'found' => [], 'post_id' => $postId ];
+        }
+        $url = (string) get_permalink( $postId );
+        if ( 'publish' !== (string) ( $post->post_status ?? '' ) || '' === $url ) {
+            // Visitors get a 404 or a login there: nothing to compare, and no reason to ask the site.
+            return self::unknown( self::CODE_NOT_PUBLIC, 'the item is not published' ) + [ 'samples' => 0, 'matched' => 0, 'found' => [], 'post_id' => $postId ];
+        }
         $pre = apply_filters( 'ppclg_render_check_pre', null, $postId, $terms );
         if ( is_array( $pre ) && isset( $pre['verdict'] ) ) {
             return $this->store( $postId, $pre );
         }
         if ( ! $this->canFetch() || ( null !== $budget && ! $budget->has( 6.0 ) ) ) {
-            return null;
-        }
-        $post = get_post( $postId );
-        $url  = (string) get_permalink( $postId );
-        if ( ! is_object( $post ) || '' === $url ) {
             return null;
         }
 
@@ -233,6 +284,7 @@ final class RenderCheck {
             $timeout = (int) max( 3, min( self::TIMEOUT, floor( $budget->remaining() - 3.0 ) ) );
         }
         $this->fetches++;
+        $this->requestFetches++;
         $resp    = null;
         $started = $this->now();
         try {
@@ -259,15 +311,15 @@ final class RenderCheck {
         if ( null === $resp || null !== $resp->error ) {
             $error       = null !== $resp ? (string) $resp->error : 'the request failed';
             $timedOut    = (bool) preg_match( '/timed? ?out|cURL error 28/i', $error );
-            $this->abort = $timedOut ? 'timeout' : 'error';
+            $this->pause( $timedOut ? 'timeout' : 'error', $postId );
             return $this->store( $postId, self::unknown( $timedOut ? 'timeout' : 'error', $timedOut ? 'the page did not answer in time' : 'the page could not be requested (' . self::short( $error ) . ')', $status, $seconds ) );
         }
         if ( $seconds > self::SLOW_SECONDS ) {
-            $this->abort = 'slow';
+            $this->pause( 'slow', $postId );
         }
         $challenge = '' !== $resp->header( 'cf-mitigated' ) || ( 200 !== $status && str_contains( $resp->body, 'Just a moment' ) );
         if ( 429 === $status || $status >= 500 || $challenge ) {
-            $this->abort = $challenge ? 'challenge' : 'http';
+            $this->pause( $challenge ? 'challenge' : 'http', $postId );
             return $this->store( $postId, self::unknown( $challenge ? 'challenge' : 'http', $challenge ? 'a security challenge answered instead of the page' : sprintf( 'the page answered HTTP %d', $status ), $status, $seconds ) );
         }
         if ( 200 !== $status ) {
@@ -278,7 +330,23 @@ final class RenderCheck {
             return $this->store( $postId, self::unknown( 'not_html', 'the page did not answer with HTML', $status, $seconds ) );
         }
         $entry = self::evaluate( $resp->body, $postId, $url, (string) ( $post->post_content ?? '' ), $terms );
+        if ( self::HIDDEN === $entry['verdict'] && 'shop' === array_search( $postId, self::wooPages(), true ) ) {
+            $entry['code'] = 'shop'; // the shop page answered with the catalogue only (no shop description)
+            $entry['note'] = self::NOTE_SHOP;
+        }
         return $this->store( $postId, $entry + [ 'status' => $status, 'seconds' => $seconds ] );
+    }
+
+    /**
+     * Stops requests for the rest of the run and pauses page checks in every run and request for PAUSE_SECONDS: the
+     * host answered slowly or with an error, so it is not asked again right away (a small host under load).
+     */
+    private function pause( string $why, int $postId ): void {
+        $this->abort = $why;
+        $seconds     = max( 0, min( 3600, (int) apply_filters( 'ppclg_render_check_pause_seconds', self::PAUSE_SECONDS ) ) );
+        if ( $seconds > 0 ) {
+            set_transient( self::PAUSE_TRANSIENT, [ 'reason' => $why, 'post_id' => $postId, 'at' => gmdate( 'c' ) ], $seconds );
+        }
     }
 
     /**
@@ -357,7 +425,9 @@ final class RenderCheck {
         if ( null === $visible ) {
             return self::unknown( 'identity', 'the page that answered has no body' ) + [ 'samples' => 0, 'matched' => 0, 'found' => [] ];
         }
-        $samples  = self::contentSamples( $content );
+        // The permalink shows the first page of an item split with <!--nextpage-->: only that page is compared.
+        $first    = self::firstPage( $content );
+        $samples  = self::contentSamples( $first );
         $matched  = 0;
         $evidence = count( $samples );
         foreach ( $samples as $sample ) {
@@ -369,6 +439,13 @@ final class RenderCheck {
             if ( null === $ctx ) {
                 $found[ (int) $id ] = self::WORDS_GONE; // the words are no longer there: applying will close it as stale
                 continue;
+            }
+            if ( $first !== $content ) {
+                if ( self::pageOf( $content, (string) $term ) > 1 ) {
+                    $found[ (int) $id ] = self::WORDS_LATER; // on page 2 or later: not read, and no evidence either way
+                    continue;
+                }
+                $ctx = self::context( $first, (string) $term ) ?? $ctx;
             }
             if ( 0 === $ctx['left_n'] + $ctx['right_n'] ) {
                 $found[ (int) $id ] = self::WORDS_SHORT; // the anchor alone also appears in menus and listings
@@ -382,6 +459,12 @@ final class RenderCheck {
             $evidence          += ! $hit && $ctx['total'] >= self::MIN_SAMPLE_WORDS ? 1 : 0;
         }
         if ( $matched > 0 ) {
+            if ( self::formattingMissing( $html, $first, $visible ) ) {
+                // The words are there without the item's own <strong> / <em>: an excerpt or summary, where a link
+                // would not show either. Unknown, never hidden: a page cache's copy from before an edit can look the
+                // same, so this never takes a link out or sets a suggestion aside; it is checked again later.
+                return self::unknown( 'plain_text', 'the page shows this item’s words without their formatting (like an excerpt, where a link would not show either)' ) + [ 'samples' => count( $samples ), 'matched' => $matched, 'found' => $found ];
+            }
             return [ 'verdict' => self::SHOWN, 'code' => 'shown', 'note' => '', 'samples' => count( $samples ), 'matched' => $matched, 'found' => $found ];
         }
         if ( $evidence >= 2 ) {
@@ -401,6 +484,10 @@ final class RenderCheck {
         if ( preg_match( '/<body\b[^>]*\bclass\s*=\s*(["\'])(.*?)\1/is', $html, $m ) ) {
             $classes = preg_split( '/\s+/', strtolower( trim( (string) $m[2] ) ) ) ?: [];
             if ( in_array( 'page-id-' . $postId, $classes, true ) || in_array( 'postid-' . $postId, $classes, true ) ) {
+                return true;
+            }
+            // The shop page is served as the product archive, whose body class names the shop, not the page id.
+            if ( in_array( 'woocommerce-shop', $classes, true ) && $postId === ( self::wooPages()['shop'] ?? 0 ) ) {
                 return true;
             }
         }
@@ -430,13 +517,10 @@ final class RenderCheck {
      * Visible words of <body> as " w1 w2 … " (lower case), null when the document has no body.
      */
     public static function visibleWords( string $html ): ?string {
-        $start = stripos( $html, '<body' );
-        if ( false === $start ) {
+        $body = self::visibleBody( $html );
+        if ( null === $body ) {
             return null;
         }
-        $body = substr( $html, $start );
-        $body = (string) preg_replace( '/<!--.*?(?:-->|$)/s', ' ', $body );
-        $body = (string) preg_replace( '#<(' . implode( '|', self::INVISIBLE ) . ')\b(?:[^>"\']|"[^"]*"|\'[^\']*\')*>.*?(?:</\1\s*>|$)#is', ' ', $body );
         $body = (string) preg_replace_callback(
             '#</?([a-zA-Z][a-zA-Z0-9:\-]*)(?:[^>"\']|"[^"]*"|\'[^\']*\')*>#',
             static fn( array $m ): string => in_array( strtolower( (string) $m[1] ), self::INLINE, true ) ? '' : ' ',
@@ -444,6 +528,29 @@ final class RenderCheck {
         );
         $text = html_entity_decode( $body, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
         return self::joinWords( self::words( $text ) );
+    }
+
+    /**
+     * The first page of an item split with <!--nextpage--> (the part its permalink shows; a page break at the very
+     * start is ignored, as WordPress does), or the whole content.
+     */
+    public static function firstPage( string $content ): string {
+        if ( ! str_contains( $content, self::PAGE_BREAK ) ) {
+            return $content;
+        }
+        $start = self::leadingBreakEnd( $content );
+        $end   = strpos( $content, self::PAGE_BREAK, $start );
+        return false === $end ? substr( $content, $start ) : substr( $content, $start, $end - $start );
+    }
+
+    /** The page (1 = the permalink) that holds the anchor's occurrence in an item split with <!--nextpage-->; 0 when not found. */
+    public static function pageOf( string $content, string $term ): int {
+        $occ = InternalLinker::locate( InternalLinker::analyse( $content ), $term );
+        if ( null === $occ ) {
+            return 0;
+        }
+        $lead = self::leadingBreakEnd( $content ) > 0 ? 1 : 0;
+        return max( 1, 1 + substr_count( substr( $content, 0, (int) $occ['start'] ), self::PAGE_BREAK ) - $lead );
     }
 
     /**
@@ -565,6 +672,70 @@ final class RenderCheck {
     /** @param string[] $words */
     private static function joinWords( array $words ): string {
         return ' ' . implode( ' ', $words ) . ' ';
+    }
+
+    /** <body> onwards without comments and invisible elements (scripts, styles, SVG…); null without a body. */
+    private static function visibleBody( string $html ): ?string {
+        $start = stripos( $html, '<body' );
+        if ( false === $start ) {
+            return null;
+        }
+        return self::withoutInvisible( substr( $html, $start ) );
+    }
+
+    /** Markup without comments and the elements whose content is never visible text (scripts, styles, SVG…). */
+    private static function withoutInvisible( string $html ): string {
+        $html = (string) preg_replace( '/<!--.*?(?:-->|$)/s', ' ', $html );
+        return (string) preg_replace( '#<(' . implode( '|', self::INVISIBLE ) . ')\b(?:[^>"\']|"[^"]*"|\'[^\']*\')*>.*?(?:</\1\s*>|$)#is', ' ', $html );
+    }
+
+    /** Offset just after a page break at the very start of the content (WordPress ignores it), else 0. */
+    private static function leadingBreakEnd( string $content ): int {
+        return preg_match( '/^\s*(?:<!--\s*wp:nextpage\s*-->\s*)?<!--nextpage-->/', $content, $m ) ? strlen( $m[0] ) : 0;
+    }
+
+    /**
+     * Whether a page shows the item's words without the formatting the item gives them: the item's (first page)
+     * content has phrases of two or more words inside <strong>, <b>, <em> or <i> whose words the page shows, and none
+     * of them inside such an element on the page. False when nothing can be compared (no such phrase, or none of
+     * their words on the page). Links are not used: the plugin's own links can be missing from a cached copy.
+     */
+    private static function formattingMissing( string $html, string $content, string $visible ): bool {
+        $phrases = self::formattedPhrases( self::withoutInvisible( $content ) ); // not the text of JSON-LD or SVG
+        if ( [] === $phrases ) {
+            return false;
+        }
+        $shown    = implode( '|', self::formattedPhrases( (string) self::visibleBody( $html ) ) );
+        $testable = false;
+        foreach ( $phrases as $phrase ) {
+            if ( ! str_contains( $visible, $phrase ) ) {
+                continue; // these words are not on the page at all: nothing to compare
+            }
+            $testable = true;
+            if ( str_contains( $shown, $phrase ) ) {
+                return false;
+            }
+        }
+        return $testable;
+    }
+
+    /**
+     * Words inside <strong>, <b>, <em> and <i> elements of a document (two or more words each), as " w1 w2 … ".
+     *
+     * @return string[]
+     */
+    private static function formattedPhrases( string $html ): array {
+        if ( ! preg_match_all( '#<(' . implode( '|', self::FORMATTING ) . ')\b(?:[^>"\']|"[^"]*"|\'[^\']*\')*>(.*?)</\1\s*>#is', $html, $m ) ) {
+            return [];
+        }
+        $out = [];
+        foreach ( $m[2] as $inner ) {
+            $words = self::words( html_entity_decode( strip_tags( (string) $inner ), ENT_QUOTES | ENT_HTML5, 'UTF-8' ) );
+            if ( count( $words ) >= 2 ) {
+                $out[] = self::joinWords( $words );
+            }
+        }
+        return array_values( array_unique( $out ) );
     }
 
     /** @return array{verdict:string,code:string,note:string,status?:int,seconds?:float} */

@@ -136,9 +136,11 @@ const WILL_RUN = [
     'Submit listings to open public forms that allow it and pass every safety check (up to 5 a day).',
     'Discover new prospects, evaluate them and monitor your backlinks on schedule; while you list no competitors, find them through SE Ranking and mine their backlinks.',
 ];
+// The real Autopilot text (Autopilot::policyText(), passed by AutopilotUiTest), so the dialog is checked against it.
+const POLICY_TEXT = process.env.PPCLG_POLICY_TEXT || 'Turn on Autopilot? The engine will then work without asking you first.';
 const autopilotStatus = ( on ) => ( {
-    enabled: on, automation_enabled: true, consent: on ? { user_id: 1, at: '2026-11-15T10:00:00+00:00', policy_version: '1.2.0-2' } : null,
-    policy_version: '1.2.0-2', policy_text: 'Turn on Autopilot? The engine will then work without asking you first.',
+    enabled: on, automation_enabled: true, consent: on ? { user_id: 1, at: '2026-11-15T10:00:00+00:00', policy_version: '1.2.2-1' } : null, consent_current: on,
+    policy_version: '1.2.2-1', policy_text: POLICY_TEXT,
     hard_limits: HARD_LIMITS, will_run: WILL_RUN, numbers: { emails_per_day: 10, emails_per_week: 40, submissions_per_day: 5, links_per_day: 20 },
     owner_tasks_note: 'Sites that need an account stay owner tasks: Autopilot never signs up anywhere. You can hand them to a staff member with the Link Growth Submitter role.',
     reply_tracking: false, follow_ups: { automatic: false, note: 'Follow-ups are not sent automatically: reply tracking is not set up.' },
@@ -332,6 +334,43 @@ await scenario( 'settingsDiscovery', async () => {
     return out;
 } );
 
+// 1.2.2 Settings → Automation under Autopilot: switching "Add the best internal links automatically" on still shows
+// its confirmation (the text says a page with administrator-only markup is saved as your account) and posts
+// confirm=true; cancelling saves nothing.
+await scenario( 'settingsAutoLinks', async () => {
+    const settings = {
+        seo: { indexnow: true, internal_links: true, max_links_per_post: 3, auto_apply_links: false, auto_apply_per_day: 20, audit_max_pages: 400, audit_http_sample: true },
+        automation: { enabled: true, autopilot: true },
+    };
+    const s = await open( 'settings', ( m, p ) => {
+        if ( p === '/settings' && m === 'GET' ) {
+            return { settings, defaults: settings, secrets: {}, providers: {}, seeds: [], custom_seeds: [], facts: {}, query_pool_size: 0, autopilot: autopilotStatus( true ) };
+        }
+        if ( p === '/settings' && m === 'POST' ) {
+            return { ok: true, settings };
+        }
+        return undefined;
+    }, '#tab=automation' );
+    await s.settle( 600 );
+    const toggle = s.page.locator( 'button.ppclg-toggle[aria-label="Add the best internal links automatically"]' ).first();
+    const save = () => s.page.locator( 'button', { hasText: 'Save changes' } ).first().click();
+    await toggle.click();
+    await save();
+    await s.settle( 300 );
+    const cancelDialog = await s.modalText();
+    await s.page.click( '.ppclg-modal-foot >> text=Cancel' );
+    await s.settle( 300 );
+    const afterCancel = s.posts( '/settings' ).length;
+    await save();
+    await s.settle( 300 );
+    const dialog = await s.modalText();
+    await s.page.click( '.ppclg-modal-foot >> text=Turn on' );
+    await s.settle( 900 );
+    const out = { cancelDialog, afterCancel, dialog, saved: s.posts( '/settings' ).map( ( r ) => r.body ), errors: s.errors };
+    await s.context.close();
+    return out;
+} );
+
 // Pure helpers.
 await scenario( 'helpers', async () => {
     const s = await open( 'seo', () => undefined );
@@ -349,6 +388,8 @@ await scenario( 'helpers', async () => {
             autoLeft: seo.autoLinksText( { enabled: false, present: 2 } ),
             willRunFallback: ap.willRunLines( { numbers: { emails_per_day: 8, links_per_day: 12, submissions_per_day: 4 } } ),
             summaryOn: ap.autopilotSummary( { enabled: true, automation_enabled: true, effective: { links_per_day: 20 } } ).lines,
+            summaryOldConsent: ap.autopilotSummary( { enabled: true, automation_enabled: true, consent: { user_id: 1, at: '2026-11-15T10:00:00+00:00', policy_version: '1.2.0-2' }, consent_current: false, policy_version: '1.2.2-1' } ).lines,
+            summaryCurrentConsent: ap.autopilotSummary( { enabled: true, automation_enabled: true, consent: { user_id: 1, at: '2026-11-16T10:00:00+00:00', policy_version: '1.2.2-1' }, consent_current: true, policy_version: '1.2.2-1' } ).lines,
         };
     }, PLUGIN );
     out.errors = s.errors;

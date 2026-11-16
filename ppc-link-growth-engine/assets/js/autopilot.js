@@ -40,6 +40,9 @@ export function autopilotSummary( status ) {
     if ( on && consent.at ) {
         lines.push( `Switched on ${ fmtDate( consent.at ) }${ consent.user_id ? ` by user #${ consent.user_id }` : '' } (policy ${ consent.policy_version || s.policy_version || '' }).` );
     }
+    if ( on && consent.at && s.consent_current === false ) {
+        lines.push( 'It was switched on under an earlier version of the Autopilot text, which did not cover saving a page as your account: links on pages with inline SVG or structured data wait for you until you switch Autopilot off and on again.' );
+    }
     return { on, headline: on ? 'Autopilot is on' : 'Autopilot is off', lines };
 }
 

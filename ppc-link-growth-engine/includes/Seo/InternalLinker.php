@@ -24,20 +24,25 @@
  *
  * 1.2.2:
  * - Before an automatic link, RenderCheck confirms that the item's public page shows its content and the words
- *   around the anchor (certain cases without a request: the posts page and the WooCommerce shop, cart, checkout and
+ *   around the anchor (certain cases without a request: the posts page and the WooCommerce cart, checkout and
  *   account pages). An item that does not show its content gets no automatic link: its suggestions move to
  *   STATUS_NOT_SHOWN with a note (neither applied automatically nor counted as waiting for review), automatic links
  *   already on it are taken back out through the undo path (exact restore when unedited, else only the <a>; a
  *   revision first; audited), and they come back to "pending" once the page shows its content again (RenderCheck's
  *   key: the item's modification time and template, the theme, and whether the item is the front page, the posts
- *   page or a WooCommerce page). An "unknown" answer (network error, non-200, a page that does not identify itself)
- *   only skips the item for this run.
+ *   page or a WooCommerce page). An automatic link that is no longer in the item (a person removed it) is closed
+ *   instead (dismissed with GONE_NOTE, never suggested or added again, not counted as removed). An "unknown" answer
+ *   (network error, non-200, a page that does not identify itself) only skips the item for this run; a deleted item's
+ *   suggestions and automatic links are closed (stale), and an unpublished item is skipped without a request.
+ *   Suggestions on page 2 or later of an item split with <!--nextpage--> are left for a person (the check reads the
+ *   permalink, which shows page 1).
  * - Background saves run without a user, so WordPress' kses filter would rewrite administrator markup (inline SVG,
  *   JSON-LD) on save. When kses would change the item, the save is made as the owner who gave the standing consent
- *   (Autopilot's, or the one who switched seo.auto_apply_links on), for that one save, only while that user exists,
- *   may edit the item and has unfiltered_html; the previous user is restored in a finally block and the audit row
- *   keeps the automation as the actor with saved_as = that user. Otherwise the suggestion is left for a person as
- *   before. Only the plugin's own <a href="esc_url(permalink)"> around words already in the item is added.
+ *   (Autopilot's, given under the current Autopilot::POLICY_VERSION, while Autopilot is on; otherwise the one who
+ *   switched seo.auto_apply_links on, while it is on), for that one save, only while that user exists, may edit the
+ *   item and has unfiltered_html; the previous user is restored in a finally block and the audit row keeps the
+ *   automation as the actor with saved_as = that user. Otherwise the suggestion is left for a person as before. Only
+ *   the plugin's own <a href="esc_url(permalink)"> around words already in the item is added.
  *
  * @package PPC\LinkGrowth
  */
@@ -78,7 +83,11 @@ final class InternalLinker {
     /** GET /seo/links filter: pending suggestions automation left for a person (auto_skip). */
     public const FILTER_REFUSED = 'refused';
 
-    /** Who switched seo.auto_apply_links on outside Autopilot: {user_id, at} (non-autoloaded). */
+    /**
+     * Who switched seo.auto_apply_links on: {user_id, at} (non-autoloaded). Written by POST /settings when the setting
+     * goes on with its confirmation (confirm=true after SettingsController::autoLinksConfirmationText(), asked with or
+     * without Autopilot) and deleted when it goes off.
+     */
     public const OPTION_LINKS_CONSENT = 'ppclg_auto_links_consent';
 
     /** Start of the refusal left for a person when kses would re-filter the item and no owner may save it unfiltered. */
@@ -86,6 +95,15 @@ final class InternalLinker {
 
     /** Note on an automatic link taken back out because the item's page does not show its content. */
     public const REMOVED_NOTE = 'Removed automatically: this page’s template doesn’t display its content, so visitors and Google never saw this link. It is added again if the page starts showing its content.';
+
+    /** Note on an automatic link that was no longer in the item when the automation came to take it out. */
+    public const GONE_NOTE = 'Closed: this automatic link is no longer in the item (it was removed in the editor), so it will not be added again.';
+
+    /** Note on the suggestions and automatic links of an item that was deleted. */
+    public const SOURCE_GONE_NOTE = 'Closed: the item no longer exists.';
+
+    /** Left for a person: the words are on a later page of an item split with page breaks. */
+    public const LATER_PAGE_REFUSAL = 'Not applied automatically: these words are on a later page of this item (it is split with page breaks), and the page check reads only the first page. Apply it by hand if the link belongs there.';
 
     /** Text inside these elements is never linked. */
     public const NO_LINK_TAGS = [ 'a', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'script', 'style', 'code', 'pre', 'figcaption', 'textarea', 'button', 'select', 'option', 'label', 'noscript', 'iframe', 'svg', 'math', 'title', 'template', 'kbd', 'samp', 'object', 'video', 'audio', 'canvas', 'map' ];
@@ -195,13 +213,16 @@ final class InternalLinker {
     }
 
     /**
-     * The user whose standing consent automatic links act on: Autopilot's consent while Autopilot is on, else the one
-     * who switched seo.auto_apply_links on (0 when none is recorded).
+     * The user whose standing consent an automatic save as the owner's account acts on: while Autopilot is on, its
+     * consent, and only one given under the current policy text (POLICY_VERSION 1.2.2-1 added saving as the owner;
+     * the rest of Autopilot keeps working on an older consent); otherwise, while seo.auto_apply_links is on, the one
+     * who switched it on (0 when none is recorded).
      */
     private function consentUserId(): int {
         $autopilot = $this->autopilot();
         if ( $autopilot->isOn() ) {
-            return (int) ( $autopilot->consent()['user_id'] ?? 0 );
+            $consent = $autopilot->consent();
+            return is_array( $consent ) && Autopilot::POLICY_VERSION === $consent['policy_version'] ? (int) $consent['user_id'] : 0;
         }
         if ( ! (bool) $this->settings->get( 'seo.auto_apply_links', false ) ) {
             return 0;
@@ -905,7 +926,8 @@ final class InternalLinker {
      * anchor (at most a few page requests per run, inside the budget). An item whose page does not show its content
      * gets no link: its suggestions are set aside (STATUS_NOT_SHOWN, with a note) and automatic links already on it
      * are taken back out (undo path, a revision first, audited). Items that could not be checked are left as they
-     * are and tried on a later run. `more` says the run stopped for time or the request limit with work left.
+     * are and tried on a later run; a deleted item is closed and never holds up the others. `more` says the run
+     * stopped for time or the request limit with work left (not after host trouble, which pauses page checks).
      *
      * @return array{ran:bool,applied:int,refused:int,closed:int,not_shown:int,removed:int,unchecked:int,fetches:int,more:bool,today:int,per_day:int,message:string}
      */
@@ -929,6 +951,7 @@ final class InternalLinker {
         $render->beginRun();
         $attempted = 0;
         $unknown   = []; // items whose page could not be checked this run
+        $held      = false; // a page check was held back after host trouble (this run or the pause)
         try {
             $store = $this->store();
             $this->clearKsesRefusals( $store );
@@ -954,8 +977,18 @@ final class InternalLinker {
                 }
                 $v = $render->check( $src, $this->openTerms( $store, $src ), $budget );
                 if ( null === $v ) {
+                    // No request may be made now: deferred by the request limit or the budget (`more`), or held
+                    // back after host trouble (no `more`: page checks are paused).
+                    $held        = $held || '' !== $render->stopped();
                     $out['more'] = $out['more'] || '' === $render->stopped();
                     break;
+                }
+                if ( RenderCheck::CODE_GONE === ( $v['code'] ?? '' ) ) {
+                    $this->closeGone( $store, $src, $out ); // deleted: nothing left to check or edit
+                    continue;
+                }
+                if ( RenderCheck::CODE_NOT_PUBLIC === ( $v['code'] ?? '' ) ) {
+                    continue; // not published: visitors see nothing there, and nothing is asked
                 }
                 $verdicts[ $src ] = $v;
                 $this->syncSource( $store, $src, $v, $out );
@@ -1008,23 +1041,35 @@ final class InternalLinker {
                 if ( null === $v || ( RenderCheck::SHOWN === ( $v['verdict'] ?? '' ) && ! isset( $v['found'][ (int) $id ] ) ) ) {
                     $v = $render->check( $src, $this->openTerms( $store, $src ), $budget );
                     if ( null === $v ) {
+                        $held        = $held || '' !== $render->stopped();
                         $out['more'] = $out['more'] || '' === $render->stopped();
                         continue; // items already checked can still be applied
                     }
                     $verdicts[ $src ] = $v;
-                    $this->syncSource( $store, $src, $v, $out );
-                    if ( RenderCheck::HIDDEN === ( $v['verdict'] ?? '' ) ) {
-                        $this->removeFromHidden( $store, $src, $v, $out );
+                    if ( RenderCheck::CODE_GONE === ( $v['code'] ?? '' ) ) {
+                        $this->closeGone( $store, $src, $out );
+                    } elseif ( RenderCheck::CODE_NOT_PUBLIC !== ( $v['code'] ?? '' ) ) {
+                        $this->syncSource( $store, $src, $v, $out );
+                        if ( RenderCheck::HIDDEN === ( $v['verdict'] ?? '' ) ) {
+                            $this->removeFromHidden( $store, $src, $v, $out );
+                        }
                     }
                 }
-                if ( RenderCheck::SHOWN !== ( $v['verdict'] ?? '' ) ) {
-                    if ( RenderCheck::UNKNOWN === ( $v['verdict'] ?? '' ) ) {
+                if ( RenderCheck::CODE_GONE === ( $v['code'] ?? '' ) ) {
+                    continue; // closed above
+                }
+                $item  = $store['items'][ $id ] ?? null;
+                $still = is_array( $item ) && self::STATUS_PENDING === $item['status'] && empty( $item['auto_skip'] );
+                // Not published: applying closes it as no longer valid, as an Apply click would (1.2.1).
+                if ( RenderCheck::CODE_NOT_PUBLIC !== ( $v['code'] ?? '' ) && RenderCheck::SHOWN !== ( $v['verdict'] ?? '' ) ) {
+                    // Only a suggestion still waiting makes its page one that "could not be checked" (not one the
+                    // check just left for a person, such as one on a later page).
+                    if ( $still && RenderCheck::UNKNOWN === ( $v['verdict'] ?? '' ) ) {
                         $unknown[ $src ] = true;
                     }
                     continue;
                 }
-                $item = $store['items'][ $id ] ?? null;
-                if ( ! is_array( $item ) || self::STATUS_PENDING !== $item['status'] || ! empty( $item['auto_skip'] ) ) {
+                if ( ! $still ) {
                     continue; // set aside or left for a person by the check
                 }
                 $attempted++;
@@ -1055,7 +1100,8 @@ final class InternalLinker {
             . ( $out['not_shown'] > 0 ? sprintf( '; %d set aside because the page doesn’t display its content', $out['not_shown'] ) : '' )
             . ( $out['removed'] > 0 ? sprintf( '; %d automatic %s removed from pages that don’t display their content', $out['removed'], 1 === $out['removed'] ? 'link' : 'links' ) : '' )
             . ( $out['closed'] > 0 ? sprintf( '; %d no longer valid (closed)', $out['closed'] ) : '' )
-            . ( $out['unchecked'] > 0 ? sprintf( '; %d %s could not be checked (tried again later)', $out['unchecked'], 1 === $out['unchecked'] ? 'page' : 'pages' ) : '' );
+            . ( $out['unchecked'] > 0 ? sprintf( '; %d %s could not be checked (tried again later)', $out['unchecked'], 1 === $out['unchecked'] ? 'page' : 'pages' ) : '' )
+            . ( $held ? '; page checks are paused for a few minutes because the site answered slowly or with an error' : '' );
         $out['message'] = 0 === $done && 0 === $attempted && '' === $tail
             ? 'No internal-link suggestion is waiting to be applied automatically.'
             : sprintf( 'Applied %d internal %s automatically (%d of %d today)%s.', $done, 1 === $done ? 'link' : 'links', $today + $done, $perDay, $tail );
@@ -1093,6 +1139,25 @@ final class InternalLinker {
         }
         asort( $out );
         return array_map( 'intval', array_keys( $out ) );
+    }
+
+    /**
+     * Closes the open suggestions and the automatic links of an item that no longer exists (deleted for good, e.g.
+     * when WordPress empties the trash): there is nothing left to check or edit, and it must not hold up the others.
+     *
+     * @param array<string,mixed> $store
+     * @param array<string,int|bool|string> $out counters (closed)
+     */
+    private function closeGone( array &$store, int $src, array &$out ): void {
+        $now = gmdate( 'c' );
+        foreach ( $store['items'] as $id => $item ) {
+            if ( (int) $item['source_post_id'] !== $src || ! ( self::isOpen( $item ) || ( self::STATUS_APPLIED === $item['status'] && ! empty( $item['auto'] ) ) ) ) {
+                continue;
+            }
+            $store['items'][ $id ] = array_merge( $item, [ 'status' => self::STATUS_STALE, 'note' => self::SOURCE_GONE_NOTE, 'updated_at' => $now ] );
+            unset( $store['items'][ $id ]['render_note'], $store['items'][ $id ]['removal_failed'] );
+            $out['closed']++;
+        }
     }
 
     /**
@@ -1137,7 +1202,10 @@ final class InternalLinker {
                 continue;
             }
             if ( RenderCheck::UNKNOWN === $verdict ) {
-                if ( $pending ) {
+                if ( $pending && RenderCheck::WORDS_LATER === $word ) {
+                    // On a later page: no answer about page 1 (here: too little text to compare) can confirm it.
+                    $store['items'][ $id ] = self::leaveLaterPage( $item, $out );
+                } elseif ( $pending ) {
                     $store['items'][ $id ]['render_note'] = (string) ( $v['note'] ?? '' );
                 }
                 continue;
@@ -1164,8 +1232,29 @@ final class InternalLinker {
                 $fresh['auto_skip_code'] = 'short';
                 $out['refused']++;
             }
+            if ( RenderCheck::WORDS_LATER === $word ) {
+                $fresh = self::leaveLaterPage( $fresh, $out ); // not set aside: page 1 says nothing about page 2
+            }
             $store['items'][ $id ] = $fresh;
         }
+    }
+
+    /**
+     * A pending suggestion whose words are on page 2 or later of an item split with <!--nextpage-->: left for a person
+     * (the page check reads only the first page), counted once in `refused`.
+     *
+     * @param array<string,mixed> $item
+     * @param array<string,int|bool|string> $out
+     * @return array<string,mixed>
+     */
+    private static function leaveLaterPage( array $item, array &$out ): array {
+        unset( $item['render_note'] );
+        if ( empty( $item['auto_skip'] ) ) {
+            $item['auto_skip']      = self::LATER_PAGE_REFUSAL;
+            $item['auto_skip_code'] = 'later_page';
+            $out['refused']++;
+        }
+        return $item;
     }
 
     /**
@@ -1189,6 +1278,7 @@ final class InternalLinker {
         usort( $ids, static fn( string $a, string $b ): int => [ (string) ( $store['items'][ $b ]['applied_at'] ?? '' ), (int) $b ] <=> [ (string) ( $store['items'][ $a ]['applied_at'] ?? '' ), (int) $a ] );
         $res = $this->undoSource( $src, $ids, $store, 0, [ 'owner' => $this->autoOwner( $src ), 'code' => (string) ( $v['code'] ?? 'template' ) ] );
         $out['removed'] += $res['restored'] + $res['unlinked'];
+        $out['closed']  += $res['already_gone']; // removed by a person already: closed, not counted as removed
         if ( $res['restored'] + $res['unlinked'] > 0 ) {
             $this->render()->rekey( $src ); // only our <a> went: the verdict still holds
         }
@@ -1283,9 +1373,11 @@ final class InternalLinker {
      * Undoes the automatic links of one item ($ids newest first) and saves it once.
      *
      * With $auto (autoApply(): the item's page does not show its content) no person is involved: the save is made as
-     * the consenting owner ($auto['owner'], 0 = no user) when kses would otherwise re-filter the item, the links are
-     * set aside (STATUS_NOT_SHOWN with REMOVED_NOTE, so they come back when the page shows its content) instead of
-     * dismissed, and the audit row names the automation.
+     * the consenting owner ($auto['owner'], 0 = no user) when kses would otherwise re-filter the item, the links it
+     * removed are set aside (STATUS_NOT_SHOWN with REMOVED_NOTE, so they come back when the page shows its content)
+     * instead of dismissed, and the audit row names the automation. A link that is no longer in the item ("gone": a
+     * person removed it) stays closed as in 1.2.1: dismissed with GONE_NOTE (kept by pruneStore, so the pair is never
+     * suggested again), and left out of the removal audit row.
      *
      * @param string[] $ids
      * @param array<string,mixed> $store
@@ -1297,6 +1389,11 @@ final class InternalLinker {
         $post = get_post( $sourceId );
         $now  = gmdate( 'c' );
         $mark = function ( string $id, string $mode ) use ( &$store, $now, $userId, $auto ): void {
+            if ( null !== $auto && 'gone' === $mode ) {
+                $store['items'][ $id ] = array_merge( $store['items'][ $id ], [ 'status' => self::STATUS_DISMISSED, 'gone_at' => $now, 'dismissed_at' => $now, 'dismissed_by' => 0, 'updated_at' => $now, 'note' => self::GONE_NOTE ] );
+                unset( $store['items'][ $id ]['removal_failed'] );
+                return;
+            }
             if ( null !== $auto ) {
                 $store['items'][ $id ] = array_merge( $store['items'][ $id ], [ 'status' => self::STATUS_NOT_SHOWN, 'removed_at' => $now, 'removed_mode' => $mode, 'render_code' => (string) $auto['code'], 'render_scope' => 'page', 'render_at' => $now, 'updated_at' => $now, 'note' => self::REMOVED_NOTE ] );
                 unset( $store['items'][ $id ]['removal_failed'] );
@@ -1306,7 +1403,11 @@ final class InternalLinker {
         };
         if ( ! is_object( $post ) ) {
             foreach ( $ids as $id ) {
-                $mark( $id, 'gone' );
+                if ( null !== $auto ) {
+                    $store['items'][ $id ] = array_merge( $store['items'][ $id ], [ 'status' => self::STATUS_STALE, 'note' => self::SOURCE_GONE_NOTE, 'updated_at' => $now ] );
+                } else {
+                    $mark( $id, 'gone' );
+                }
             }
             $res['already_gone'] = count( $ids );
             return $res;
@@ -1368,14 +1469,21 @@ final class InternalLinker {
             $res[ 'restored' === $mode ? 'restored' : ( 'unlinked' === $mode ? 'unlinked' : 'already_gone' ) ]++;
         }
         if ( null !== $auto ) {
-            $this->audit?->record(
-                'seo.internal_link_auto_removed',
-                'post',
-                $sourceId,
-                [ 'suggestion_ids' => array_map( 'intval', array_keys( $modes ) ), 'modes' => array_values( $modes ), 'reason' => 'not_displayed', 'render_code' => (string) $auto['code'], 'saved_as' => $owner ],
-                $this->autoActor()
-            );
-            $this->logger->info( 'seo', 'Automatic internal links removed: the page does not display its content', [ 'post_id' => $sourceId, 'modes' => array_values( $modes ), 'saved_as' => $owner ] );
+            // Only what the automation took out is audited as removed; links a person had removed are just closed.
+            $removed = array_filter( $modes, static fn( string $m ): bool => 'gone' !== $m );
+            if ( [] !== $removed ) {
+                $this->audit?->record(
+                    'seo.internal_link_auto_removed',
+                    'post',
+                    $sourceId,
+                    [ 'suggestion_ids' => array_map( 'intval', array_keys( $removed ) ), 'modes' => array_values( $removed ), 'reason' => 'not_displayed', 'render_code' => (string) $auto['code'], 'saved_as' => $owner ],
+                    $this->autoActor()
+                );
+                $this->logger->info( 'seo', 'Automatic internal links removed: the page does not display its content', [ 'post_id' => $sourceId, 'modes' => array_values( $removed ), 'saved_as' => $owner ] );
+            }
+            if ( count( $removed ) < count( $modes ) ) {
+                $this->logger->info( 'seo', 'Automatic internal links already removed from the item were closed', [ 'post_id' => $sourceId, 'suggestion_ids' => array_map( 'intval', array_keys( array_diff_key( $modes, $removed ) ) ) ] );
+            }
             return $res;
         }
         $this->audit?->record( 'seo.internal_link_auto_undone', 'post', $sourceId, [ 'suggestion_ids' => array_map( 'intval', array_keys( $modes ) ), 'modes' => array_values( $modes ) ] );
@@ -1518,7 +1626,7 @@ final class InternalLinker {
                 // on save. The save is made as the consenting owner instead, only when that user may save it unchanged.
                 $owner = $this->autoOwner( $sourceId );
                 if ( 0 === $owner ) {
-                    return [ false, self::KSES_REFUSAL . ' The account that gave the consent for automatic links must still exist, be able to edit this item and be allowed to save unfiltered HTML for the automation to save it unchanged. Apply it by hand from an administrator account, or add the link in the editor.', '', [ 'auto_skip_code' => 'kses' ] ];
+                    return [ false, self::KSES_REFUSAL . ' The account that gave the consent for automatic links must still exist, be able to edit this item and be allowed to save unfiltered HTML for the automation to save it unchanged (under Autopilot: given when it was switched on with its current text, which covers saving as your account; switch Autopilot off and on again to give it). Apply it by hand from an administrator account, or add the link in the editor.', '', [ 'auto_skip_code' => 'kses' ] ];
                 }
             }
         }
@@ -2126,9 +2234,9 @@ final class InternalLinker {
     private function pruneStore( array &$store ): bool {
         foreach ( [ self::STATUS_STALE, self::STATUS_DISMISSED ] as $status ) {
             foreach ( $store['items'] as $id => $item ) {
-                // An undone automatic link is the only record that keeps it from being suggested (and, with
-                // automatic links on, applied) again, so it is never pruned.
-                if ( $status === $item['status'] && empty( $item['undone_at'] ) ) {
+                // An undone automatic link, or one a person had already removed (gone_at), is the only record that
+                // keeps it from being suggested (and, with automatic links on, applied) again, so it is never pruned.
+                if ( $status === $item['status'] && empty( $item['undone_at'] ) && empty( $item['gone_at'] ) ) {
                     unset( $store['items'][ $id ] );
                     return true;
                 }

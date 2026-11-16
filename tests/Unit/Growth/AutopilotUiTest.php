@@ -17,6 +17,7 @@ declare(strict_types=1);
 namespace PPC\LinkGrowth\Tests\Unit\Growth;
 
 use PHPUnit\Framework\TestCase;
+use PPC\LinkGrowth\Automation\Autopilot;
 
 final class AutopilotUiTest extends TestCase {
 
@@ -45,6 +46,8 @@ final class AutopilotUiTest extends TestCase {
         foreach ( [ 'What runs automatically:', 'up to 10 a day and 40 a week', 'Add up to 20 internal links a day', 'open public forms that allow it', 'Discover new prospects, evaluate them and monitor your backlinks', 'These limits always stay on:', 'No account creation or sign-ups on third-party sites.', 'Link Growth Submitter role' ] as $needle ) {
             $this->assertStringContainsString( $needle, $dialog );
         }
+        // 1.2.2: the text the owner confirms covers saving as their account and taking automatic links back out.
+        $this->assertStringContainsString( 'it saves that one change as your account, and it takes its own automatic links back out of pages whose template doesn’t display them', $dialog );
         $this->assertSame( [ [ 'enabled' => true, 'confirm' => true ] ], $r['posts'] );
         $after = (string) $r['after'];
         $this->assertStringContainsString( 'Autopilot is on — nothing needs your approval', $after );
@@ -111,6 +114,17 @@ final class AutopilotUiTest extends TestCase {
         $this->assertSame( [], $r['errors'] );
     }
 
+    public function testUnderAutopilotTurningAutomaticLinksOnInSettingsStillAsksFirst(): void {
+        $r = $this->browser( 'settingsAutoLinks' );
+        $dialog = implode( "\n", $r['dialog'] );
+        $this->assertStringContainsString( 'Turn on automatic internal links?', $dialog );
+        $this->assertStringContainsString( 'it saves that one change as your account', $dialog );
+        $this->assertNotSame( [], $r['cancelDialog'], 'asked before the first save too' );
+        $this->assertSame( 0, $r['afterCancel'], 'cancelling saves nothing' );
+        $this->assertSame( [ [ 'settings' => [ 'seo' => [ 'auto_apply_links' => true ] ], 'confirm' => true ] ], $r['saved'] );
+        $this->assertSame( [], $r['errors'] );
+    }
+
     public function testPureHelpers(): void {
         $h = $this->browser( 'helpers' );
         $this->assertStringContainsString( 'never edits your site content unless you click Apply', $h['explainOff'] );
@@ -124,6 +138,9 @@ final class AutopilotUiTest extends TestCase {
         $this->assertStringContainsString( 'up to 8 a day', $h['willRunFallback'][0] );
         $this->assertStringContainsString( 'Add up to 12 internal links a day', $h['willRunFallback'][1] );
         $this->assertStringContainsString( 'up to 20 a day', $h['summaryOn'][2] );
+        $this->assertStringContainsString( '(policy 1.2.0-2)', implode( ' ', $h['summaryOldConsent'] ) );
+        $this->assertStringContainsString( 'switched on under an earlier version of the Autopilot text', implode( ' ', $h['summaryOldConsent'] ) );
+        $this->assertStringNotContainsString( 'earlier version', implode( ' ', $h['summaryCurrentConsent'] ) );
         $this->assertSame( [], $h['errors'] );
     }
 
@@ -158,6 +175,7 @@ final class AutopilotUiTest extends TestCase {
         if ( '' === $chrome && is_executable( '/usr/bin/google-chrome' ) ) {
             $chrome = '/usr/bin/google-chrome';
         }
+        putenv( 'PPCLG_POLICY_TEXT=' . Autopilot::policyText() ); // the confirm dialog shows the real Autopilot text
         $cmd = [ $node, __DIR__ . '/AutopilotUiHarness.mjs', PPCLG_DIR, $playwright ];
         if ( '' !== $chrome ) {
             $cmd[] = $chrome;

@@ -56,7 +56,10 @@ IT::step( '1.2.2: automatic links only on pages that show them; administrator ma
     $themeDir    = get_theme_root() . '/ppclg-it-classic';
     $created     = [];
     $maxFetches  = static fn(): int => 10; // the run's own items are compared, whatever else the install holds
+    $perRequest  = static fn(): int => 30; // this whole integration run is one PHP request
     add_filter( 'ppclg_render_check_max_fetches', $maxFetches );
+    add_filter( 'ppclg_render_check_max_fetches_per_request', $perRequest );
+    delete_transient( 'ppclg_render_check_pause' ); // no pause left by an earlier section
 
     try {
         // A classic theme like the live one: index.php prints the content, front-page.php is hard-coded.
@@ -141,6 +144,8 @@ IT::step( '1.2.2: automatic links only on pages that show them; administrator ma
         IT::check( count( (array) ( $pending['items'] ?? [] ) ) <= 50 && strlen( (string) wp_json_encode( $pending ) ) < 100 * 1024, 'a page of 50 pending suggestions is small', (string) strlen( (string) wp_json_encode( $pending ) ) );
     } finally {
         remove_filter( 'ppclg_render_check_max_fetches', $maxFetches );
+        remove_filter( 'ppclg_render_check_max_fetches_per_request', $perRequest );
+        delete_transient( 'ppclg_render_check_pause' );
         wp_set_current_user( 1 );
         $do( 'POST', '/automation/autopilot', [ 'enabled' => false ] );
         update_option( 'show_on_front', $saveFront[0] );

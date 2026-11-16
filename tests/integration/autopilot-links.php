@@ -19,7 +19,11 @@ use PPC\LinkGrowth\Support\TimeBudget;
 IT::step( 'Autopilot: internal links applied automatically and undone; competitors found without a search key', static function (): void {
     wp_set_current_user( 1 );
     // 1.2.2: an automatic link needs the item's public page to show the words, so this WordPress is served over HTTP.
+    // This whole integration run is one PHP request, so its page-check limit per request is lifted for the section.
     $stopServer = ppclg_it_self_server();
+    $perRequest = static fn(): int => 30;
+    add_filter( 'ppclg_render_check_max_fetches_per_request', $perRequest );
+    delete_transient( 'ppclg_render_check_pause' );
     $do = static function ( string $method, string $route, array $params = [] ) {
         $req = new WP_REST_Request( $method, '/ppclg/v1' . $route );
         foreach ( $params as $k => $v ) {
@@ -134,6 +138,8 @@ IT::step( 'Autopilot: internal links applied automatically and undone; competito
     wp_delete_post( $postId, true );
     wp_delete_post( $product, true );
     $stopServer();
+    remove_filter( 'ppclg_render_check_max_fetches_per_request', $perRequest );
+    delete_transient( 'ppclg_render_check_pause' );
     delete_option( 'ppclg_render_checks' ); // the 1.2.2 page-check verdicts of this section's items
     $errors = ppclg()->get( \PPC\LinkGrowth\Repositories\Logs::class )->findBy( [ 'level' => 'error', 'channel' => 'seo' ], 'id', 'DESC', 5 );
     IT::check( [] === $errors, 'no SEO errors logged during the section', wp_json_encode( array_column( $errors, 'message' ) ) );

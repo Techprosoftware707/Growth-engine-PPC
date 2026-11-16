@@ -6,7 +6,9 @@
  * seo.auto_apply_per_day a day, same safeguards as a click, a revision before each change, and only on items whose
  * public page shows the words, see Seo\RenderCheck). When that stops for time or for the page-check limit with
  * links left for today, the job continues AUTO_CONTINUE_SECONDS later with payload auto_only, which skips the
- * suggestion refresh while the list is fresh (refreshed within the last day) and only applies.
+ * suggestion refresh while the list is fresh (refreshed within the last day) and only applies. A Grow now step never
+ * runs that paused round early (GrowthRun::pausedAutoRound()), page checks are capped per PHP request as well as per
+ * run, and after host trouble they pause for a few minutes across runs (Seo\RenderCheck).
  *
  * @package PPC\LinkGrowth
  */
