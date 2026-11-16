@@ -1444,8 +1444,9 @@ final class GrowthRun {
      */
     private static function needsEditSql( string $column ): array {
         $transient = implode( ' AND ', array_fill( 0, count( CampaignFiller::TRANSIENT_NOT_APPROVED ), "{$column} NOT LIKE %s" ) );
-        $sql       = "( COALESCE( {$column}, '' ) LIKE %s OR ( COALESCE( {$column}, '' ) LIKE %s AND {$transient} ) )";
-        $params    = array_merge( [ 'Needs editing%', 'Not approved:%' ], array_map( static fn( string $t ): string => $t . '%', CampaignFiller::TRANSIENT_NOT_APPROVED ) );
+        $stale     = implode( ', ', array_fill( 0, count( CampaignFiller::STALE_FOOTER_NOTES ), '%s' ) );
+        $sql       = "( COALESCE( {$column}, '' ) LIKE %s OR ( COALESCE( {$column}, '' ) LIKE %s AND {$transient} AND COALESCE( {$column}, '' ) NOT IN ( {$stale} ) ) )";
+        $params    = array_merge( [ 'Needs editing%', 'Not approved:%' ], array_map( static fn( string $t ): string => $t . '%', CampaignFiller::TRANSIENT_NOT_APPROVED ), CampaignFiller::STALE_FOOTER_NOTES );
         return [ $sql, $params ];
     }
 

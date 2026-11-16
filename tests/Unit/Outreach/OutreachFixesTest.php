@@ -548,15 +548,29 @@ final class OutreachFixesTest extends TestCase {
         $this->assertStringContainsString( Unsubscribe::urlFor( $token ), (string) $this->messages()->find( $id )['body'], 'the record keeps what was sent' );
     }
 
-    public function testBodyWithoutAWorkingUnsubscribeLinkFailsApprovalLikeItWouldFailSending(): void {
+    public function testBodyWithoutAWorkingUnsubscribeLinkGetsTheFooterSoApprovalAndSendingAgree(): void {
+        // 1.2.1: approval (like saving and sending) re-attaches the mandatory footer instead of leaving the draft
+        // stuck; what approval accepts is exactly what goes out.
         $camp  = $this->campaign( Campaigns::STATUS_APPROVED );
         $id    = $this->lead( $camp, 'nolink.test', OutreachMessages::STATUS_DRAFT );
         $token = (string) $this->messages()->find( $id )['unsubscribe_token'];
-        $this->messages()->update( $id, [ 'body' => "Hello.\n\n222 Jarvis St, Toronto, ON M5B 2B8, Canada\nTo unsubscribe quote reference {$token}." ] );
+        $body  = "Hello.\n\n222 Jarvis St, Toronto, ON M5B 2B8, Canada\nTo unsubscribe quote reference {$token}.";
+        $this->messages()->update( $id, [ 'body' => $body ] );
 
         $r = $this->engine()->approveMessage( $id, 1 );
+        $this->assertTrue( $r['ok'], implode( ' ', $r['violations'] ) );
+        $stored = (string) $this->messages()->find( $id )['body'];
+        $this->assertSame( $body . "\n\nPure Peptides Canada · 222 Jarvis St, Toronto, ON M5B 2B8, Canada\nIf you'd rather not hear from us again, reply with \"unsubscribe\" or use this link: " . Unsubscribe::urlFor( $token ), $stored );
+        $this->assertTrue( $this->engine()->sendNow( $id, 1 )['ok'] );
+        $this->assertSame( $stored, $this->mailsTo( 'ed@nolink.test' )[0]['message'] );
+
+        // A message without a valid token cannot get a working link, so it still fails approval (and sending).
+        $bad = $this->lead( $camp, 'notoken.test', OutreachMessages::STATUS_DRAFT );
+        $this->messages()->update( $bad, [ 'unsubscribe_token' => 'not-a-token', 'body' => 'Hello.' ] );
+        $r = $this->engine()->approveMessage( $bad, 1 );
         $this->assertFalse( $r['ok'] );
-        $this->assertContains( 'Body must contain the unsubscribe link.', $r['violations'] );
+        $this->assertContains( 'Message has no unsubscribe token; rebuild the draft.', $r['violations'] );
+        $this->assertSame( 'Hello.', (string) $this->messages()->find( $bad )['body'] );
     }
 
     public function testRefreshLinksRewritesOnlyThisTokensUnsubscribeLinks(): void {

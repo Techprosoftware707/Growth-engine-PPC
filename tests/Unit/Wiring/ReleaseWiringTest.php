@@ -115,9 +115,11 @@ final class ReleaseWiringTest extends TestCase {
         $this->assertSame( [ 'evaluate_rounds' => 6, 'step_seconds' => 20 ], $defaults['growth'] );
 
         $main = (string) file_get_contents( self::ROOT . 'ppc-link-growth-engine.php' );
-        $this->assertMatchesRegularExpression( '/\*\s+Version:\s+1\.2\.0\b/', $main );
-        $this->assertStringContainsString( "define( 'PPCLG_VERSION', '1.2.0' );", $main );
-        $this->assertStringContainsString( 'Stable tag: 1.2.0', (string) file_get_contents( self::ROOT . 'readme.txt' ) );
+        $this->assertMatchesRegularExpression( '/\*\s+Version:\s+1\.2\.1\b/', $main );
+        $this->assertStringContainsString( "define( 'PPCLG_VERSION', '1.2.1' );", $main );
+        $readme = (string) file_get_contents( self::ROOT . 'readme.txt' );
+        $this->assertStringContainsString( 'Stable tag: 1.2.1', $readme );
+        $this->assertStringContainsString( "== Changelog ==\n\n= 1.2.1 =\n", $readme, 'the changelog leads with this version' );
 
         $css = (string) file_get_contents( self::ROOT . 'assets/css/admin.css' );
         foreach ( [ '.ppclg-grow-step--blocked .ppclg-grow-step-icon', '.ppclg-compliance-finding', '.ppclg-owner-steps', '.ppclg-wrap mark' ] as $selector ) {

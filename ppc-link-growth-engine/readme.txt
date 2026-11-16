@@ -4,7 +4,7 @@ Tags: seo, backlinks, outreach, directories, monitoring
 Requires at least: 6.5
 Tested up to: 7.1
 Requires PHP: 8.1
-Stable tag: 1.2.0
+Stable tag: 1.2.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -34,6 +34,13 @@ PPC Link Growth Engine discovers websites that could legitimately link to Pure P
 3. Run Discover and Evaluate from the Automation Center, then enable automation.
 
 == Changelog ==
+
+= 1.2.1 =
+* Fixed: drafts built before the outreach postal address was changed were refused on every approval, automatic and manual, with "Not approved: Body must contain the sender postal address.", because their compliance footer still carried the old address; automation never retried them and the campaign card said they needed editing. The footer of a message that is not sent yet (draft, approved, scheduled, failed or rejected) now follows the current settings: before every approval, before every send and on every manual save, the "<brand> · <postal address>" line and the unsubscribe line below it are rebuilt from Settings (outreach.postal_address, or the business address under Settings → Site when that is empty, and site.brand_name) and replaced in place. The rest of the email and its unsubscribe link token stay exactly as they were, a missing footer is added, and sent, replied, closed or opted-out messages are never changed. Each rewrite at approval or send is recorded once in the audit log ("outreach.footer_refreshed"). A manual save records no separate entry: its "outreach.message_updated" entry says footer_refreshed: true.
+* Fixed: drafts already stuck with "Not approved: Body must contain the sender postal address." (or "… the unsubscribe link.") count as waiting instead of "need editing". Automation approves them wherever it already approves drafts: under Autopilot (on its next run, when Autopilot is switched on, or at once when you save the address or brand in Settings), and without Autopilot in the "Auto:" campaigns when Settings has Outreach autosend on and Require individual approval off (on the next outreach run, or at once when you save Settings). Otherwise they wait for you, and approving them yourself now works.
+* Fixed: saving an edited draft whose footer carried an old address added a second footer under the stale one. The stale footer is now replaced whole, also when its address runs over several lines or a blank line was added above the unsubscribe line, and a stale copy left above a current one by 1.2.0 is removed. A footer edited so that it can no longer be recognised (for example the "·" between brand and address replaced) is not guessed at: the save says so, and approval and sending refuse the draft with a note to delete the old line or type the current address into it, instead of mailing the old address above the new one. Such a draft counts as needing an edit and is not retried on every run.
+* Fixed: a postal address over 200 characters, or one with an HTML entity or a space before a colon, was shortened or rewritten in the footer, so the draft could never pass the postal address check, and under Autopilot it was retried on every run while the card said "Sending automatically". The footer now carries the address exactly as configured, on one line (a line break becomes ", ").
+* Every compliance rule is unchanged: each email still needs the sender identification, the postal address and a working unsubscribe link, and is refused without them.
 
 = 1.2.0 =
 * Fixed: creating a campaign showed "Campaign created as a draft." and an empty card, and nothing ever happened to it. A new campaign now gets drafts at once for every eligible prospect whose best opportunity matches its approach (active, conspicuously published contact; not suppressed; outside the contact cool-down; one open message per website; verified-database owner tasks excluded as before). The response reports drafted / eligible / remaining / reasons; the auto outreach stage continues the rest in the background and now also fills campaigns you created, not only the "Auto:" ones. Unsent drafts an "Auto:" campaign holds for the same approach move into your new campaign instead of being skipped as "already exists". When nobody is eligible the card says why in plain words.

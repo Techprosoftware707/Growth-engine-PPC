@@ -17,6 +17,12 @@
  * stay approved with a "Paused: …" last_error and drafting/approval continue. When the check cannot run, sending
  * fails closed.
  *
+ * The compliance footer (brand, postal address, unsubscribe link) is rendered into a draft when it is built. When the
+ * postal address, the brand or the site URL changes before the message is sent, refreshFooter() rebuilds that footer
+ * from the current settings and replaces it in place, before every approval, before every send and on every manual
+ * save, so a draft is never refused (or sent) with an address the owner no longer uses. A footer edited so that it
+ * cannot be recognised is not patched by guesswork: the message is refused with FOOTER_EDIT_HINT and waits for an edit.
+ *
  * @package PPC\LinkGrowth
  */
 
@@ -99,6 +105,35 @@ final class OutreachEngine {
 
     /** last_error prefix of a draft whose approval waits for a problem that clears without editing it. */
     public const WAITING_PREFIX = 'Waiting to approve: ';
+
+    /** Audit action of refreshFooter() (one entry each time it rewrites a message's footer). */
+    public const ACTION_FOOTER_REFRESHED = 'outreach.footer_refreshed';
+
+    /**
+     * Added after "Body must contain the sender postal address." (or "… the unsubscribe link.") when the footer of a
+     * message could not be brought up to date (withCurrentFooter() does not guess which edited line held the old
+     * address). It also keeps such a note apart from the ones 1.2.0 wrote for a stale footer, which automation retries
+     * (CampaignFiller::STALE_FOOTER_NOTES): this one needs a person.
+     */
+    public const FOOTER_EDIT_HINT = 'The footer was edited, so it could not be updated to the current postal address (Settings → Outreach): delete the edited footer lines (the current footer is then added) or type the current address into them, then save.';
+
+    /** The start of the footer's unsubscribe line (Personalizer::FOOTER_TEMPLATE), as a pattern. */
+    private const UNSUBSCRIBE_SENTENCE = 'If you(?:\'|\x{2019})d rather not hear from us again\b';
+
+    /**
+     * The compliance footer block (Personalizer::FOOTER_TEMPLATE) as it sits in a body: a "<brand> · <postal address>"
+     * line ("brand"), up to four lines its address continues on when it was written on several lines or wrapped
+     * ("more": none blank, none with a "·"), blank lines an edit put above the unsubscribe line ("gap"), then the "If
+     * you'd rather not hear from us again" line, whose link withCurrentFooter() checks against the message's token.
+     * Several "·" lines in a row: the block starts at the last one.
+     */
+    private const FOOTER_BLOCK_RE = '/^(?<brand>[^\r\n]*\x{00B7}[^\r\n]*+)(?<more>(?:\r?\n(?!' . self::UNSUBSCRIBE_SENTENCE . ')(?=[^\r\n]*\S)[^\r\n\x{00B7}]++(?=\r?\n)){0,4})(?<gap>(?:\r?\n[ \t]*+(?=\r?\n))*)\r?\n(?<link>' . self::UNSUBSCRIBE_SENTENCE . '[^\r\n]*+)(?=\r?\n|\z)/miu';
+
+    /** The footer's unsubscribe line on its own (the "<brand> · <address>" line above it was deleted). */
+    private const UNSUBSCRIBE_LINE_RE = '/^(?<link>' . self::UNSUBSCRIBE_SENTENCE . '[^\r\n]*+)(?=\r?\n|\z)/miu';
+
+    /** A "<brand> · <postal address>" line (and up to four lines its address continues on) that ends the body. */
+    private const TRAILING_BRAND_RE = '/^(?<brand>[^\r\n]*\x{00B7}[^\r\n]*+)(?:\r?\n(?=[^\r\n]*\S)[^\r\n\x{00B7}]++){0,4}\s*\z/mu';
 
     /** @var array<int,array<string,mixed>|null> */
     private array $campaignCache = [];
@@ -400,8 +435,9 @@ final class OutreachEngine {
     // --- Message review -----------------------------------------------------
 
     /**
-     * Saves an edited subject/body (re-attaching the compliance footer if it was removed) and
-     * reports claims violations. An edited message always returns to "draft" for re-approval.
+     * Saves an edited subject/body (re-attaching the compliance footer if it was removed, and replacing a footer
+     * rendered under an earlier postal address, brand or site URL in place) and reports claims violations. An edited
+     * message always returns to "draft" for re-approval.
      *
      * @return array{ok:bool,violations:string[]}
      */
@@ -426,9 +462,12 @@ final class OutreachEngine {
         if ( ! preg_match( '/^[a-f0-9]{32}$/', $token ) ) {
             $token = Crypto::randomToken( 16 );
         }
-        $body = Unsubscribe::refreshLinks( $body, $token );
-        if ( ! $this->compliance->bodyHasFooter( $body, $token ) ) {
-            $body = rtrim( $body ) . "\n\n" . $this->footer( $token );
+        // A stale footer is replaced, not kept above a second, current one. One that cannot be updated without
+        // guessing which edited line holds the old address is left as written and reported.
+        $edited = Unsubscribe::refreshLinks( $body, $token );
+        $body   = $this->withCurrentFooter( $edited, $token );
+        foreach ( $this->footerProblems( $body, $token ) as $v ) {
+            $violations[] = $v;
         }
         foreach ( $this->compliance->checkClaims( $subject, $body ) as $v ) {
             $violations[] = $v;
@@ -444,8 +483,51 @@ final class OutreachEngine {
                 'updated_at'        => OutreachMessages::now(),
             ]
         );
-        $this->audit->record( $this->actor( $userId ), 'outreach.message_updated', 'outreach_message', $id, [ 'violations' => count( $violations ), 'previous_status' => $m['status'] ] );
+        $this->audit->record( $this->actor( $userId ), 'outreach.message_updated', 'outreach_message', $id, [ 'violations' => count( $violations ), 'previous_status' => $m['status'], 'footer_refreshed' => $body !== $edited ] );
         return [ 'ok' => [] === $violations, 'violations' => $violations ];
+    }
+
+    /**
+     * Brings the compliance footer of a message that is not sent yet (draft, approved, scheduled, failed, rejected)
+     * up to date with the current settings: a footer rendered before the postal address (outreach.postal_address, or
+     * the business address under Settings → Site it falls back to), the brand or the site URL changed is rebuilt and
+     * replaced in place, a missing one is appended (withCurrentFooter()). Nothing else in the body changes, the
+     * unsubscribe token stays the same, and sent, replied, closed or opted-out messages are never touched.
+     *
+     * The new body is stored only when it differs, with a compare-and-set on status and updated_at (an edit, approval
+     * or send that happened meanwhile wins and the stored row is looked at again), and each rewrite is recorded once
+     * in the audit log (ACTION_FOOTER_REFRESHED). It approves nothing, so it runs whatever the approval policy says.
+     *
+     * @param int|array<string,mixed> $message Message id, or the row as read.
+     * @param int                     $userId  The person whose action led here (0 = automation).
+     * @return array<string,mixed> The row to continue with (refreshed, or as stored now); [] when it does not exist.
+     */
+    public function refreshFooter( int|array $message, int $userId = 0 ): array {
+        $m = is_array( $message ) ? $message : $this->messages->find( $message );
+        for ( $attempt = 0; is_array( $m ) && ! empty( $m['id'] ) && $attempt < 2; $attempt++ ) {
+            if ( ! in_array( (string) ( $m['status'] ?? '' ), self::EDITABLE_STATUSES, true ) ) {
+                return $m;
+            }
+            $body = (string) ( $m['body'] ?? '' );
+            $new  = $this->withCurrentFooter( $body, (string) ( $m['unsubscribe_token'] ?? '' ) );
+            if ( $new === $body ) {
+                return $m;
+            }
+            $id = (int) $m['id'];
+            if ( $this->transition( $m, [ 'body' => $new ] ) ) {
+                $this->audit->record(
+                    $this->actor( $userId, 'system:outreach' ),
+                    self::ACTION_FOOTER_REFRESHED,
+                    'outreach_message',
+                    $id,
+                    [ 'status' => (string) $m['status'], 'campaign_id' => (int) ( $m['campaign_id'] ?? 0 ), 'sequence' => (int) ( $m['sequence'] ?? 1 ), 'postal_address' => $this->compliance->postalAddress() ]
+                );
+                return $this->messages->find( $id ) ?? [];
+            }
+            // Changed meanwhile (edited, approved, sent): look again at what is stored now.
+            $m = $this->messages->find( $id );
+        }
+        return is_array( $m ) ? $m : [];
     }
 
     /**
@@ -485,6 +567,16 @@ final class OutreachEngine {
                 return [ 'ok' => false, 'violations' => [ 'Campaign is paused; automation does not approve messages in it.' ] ];
             }
         }
+        // A draft built before the postal address, brand or site URL changed carries the footer rendered with the old
+        // values: it is brought up to date first (only the footer block changes), so the check below sees the footer
+        // the email will actually carry instead of refusing the draft as one to edit.
+        $m = $this->refreshFooter( $m, $userId );
+        if ( [] === $m ) {
+            return [ 'ok' => false, 'violations' => [ 'Message not found.' ] ];
+        }
+        if ( ! in_array( (string) $m['status'], self::EDITABLE_STATUSES, true ) ) {
+            return [ 'ok' => false, 'violations' => [ 'Message cannot be approved (status: ' . $m['status'] . ').' ] ];
+        }
         $prospectId = (int) ( $m['prospect_id'] ?? 0 );
         $prospect   = $prospectId > 0 ? $this->prospects->find( $prospectId ) : null;
         // The campaign's own approval is enforced at send time, so messages may be reviewed in any order.
@@ -492,10 +584,12 @@ final class OutreachEngine {
         if ( ! $result['ok'] ) {
             // A problem that clears by itself or with a settings fix (sender identity, the contact cool-down) is not
             // something to edit in the draft: it is noted as "Waiting", so automation approves it once it clears.
-            // Anything else ("Not approved:") needs a person to edit the draft.
-            $prefix = $result['transient'] ? self::WAITING_PREFIX : 'Not approved: ';
-            $this->messages->update( $id, [ 'last_error' => $prefix . implode( ' ', $result['violations'] ), 'updated_at' => OutreachMessages::now() ] );
-            return [ 'ok' => false, 'violations' => $result['violations'] ];
+            // Anything else ("Not approved:") needs a person to edit the draft, a footer that is still missing the
+            // address or link after the refresh above included (it says what to do, and is not retried).
+            $violations = self::withFooterHint( $result['violations'] );
+            $prefix     = $result['transient'] ? self::WAITING_PREFIX : 'Not approved: ';
+            $this->messages->update( $id, [ 'last_error' => $prefix . implode( ' ', $violations ), 'updated_at' => OutreachMessages::now() ] );
+            return [ 'ok' => false, 'violations' => $violations ];
         }
         $this->messages->setStatus( $id, OutreachMessages::STATUS_APPROVED, [ 'last_error' => '' ] );
         $this->audit->record( $this->approver( $userId ), 'outreach.message_approved', 'outreach_message', $id, [ 'campaign_id' => $campaignId, 'prospect_id' => (int) ( $m['prospect_id'] ?? 0 ), 'autopilot' => $userId <= 0 && $this->autopilot()->isOn() ] );
@@ -967,12 +1061,18 @@ final class OutreachEngine {
             $this->transition( $m, [ 'scheduled_at' => gmdate( 'Y-m-d H:i:s', time() + DAY_IN_SECONDS ), 'last_error' => 'Deferred: the website is on hold.' ] );
             return [ 'skipped', 'prospect_on_hold' ];
         }
+        // An approved message whose footer was rendered under an earlier postal address, brand or site URL goes out
+        // with the current one (only the footer block changes); the rest of this send works on the refreshed row.
+        $m = $this->refreshFooter( $m, $userId );
+        if ( (string) ( $m['status'] ?? '' ) !== $status ) {
+            return [ 'skipped', 'changed' ];
+        }
         $validation = $this->compliance->assess( $m, $contact, $campaign, $prospect );
         if ( ! $validation['ok'] ) {
             // Take the row out of the ready set so it cannot hold up every later message: a cool-down defers it
             // until the cool-down ends, an incomplete sender identity (a settings fix) leaves it queued, anything
             // else (contact, website or copy) fails it with the reason so the owner can edit / re-approve it.
-            $note = implode( ' ', $validation['violations'] );
+            $note = implode( ' ', self::withFooterHint( $validation['violations'] ) );
             if ( $validation['transient'] && null !== $validation['retry_at'] ) {
                 $this->transition( $m, [ 'scheduled_at' => gmdate( 'Y-m-d H:i:s', max( time() + MINUTE_IN_SECONDS, (int) $validation['retry_at'] ) ), 'last_error' => 'Deferred: ' . $note ] );
             } elseif ( $validation['transient'] ) {
@@ -1135,15 +1235,154 @@ final class OutreachEngine {
         }
     }
 
+    /** The compliance footer for $token under the current settings (the same text a new draft gets). */
     private function footer( string $token ): string {
-        return $this->personalizer->render(
-            Personalizer::FOOTER_TEMPLATE,
-            [
-                'brand'           => (string) $this->settings->get( 'site.brand_name', 'Pure Peptides Canada' ),
-                'postal_address'  => $this->personalizer->postalAddress(),
-                'unsubscribe_url' => Unsubscribe::urlFor( $token ),
-            ]
-        );
+        return $this->personalizer->footer( Unsubscribe::urlFor( $token ) );
+    }
+
+    /**
+     * $body with its compliance footer for $token brought up to date (refreshFooter(), updateMessage()).
+     *
+     * The footer block (FOOTER_BLOCK_RE) runs from the last "<brand> · <postal address>" line, through the lines its
+     * address continues on and any blank lines an edit added, to the "If you'd rather not hear from us again" line
+     * that carries this token's unsubscribe link (the current URL, or one built under an earlier site URL / permalink
+     * setting, see Unsubscribe::refreshLinks()). It is replaced whole by footer(), so no line of the old address is
+     * left, and older copies of the block for the same token above it (an edit saved by 1.2.0 appended a second footer
+     * under the stale one) are removed. A body without such a block that lacks the current address or link
+     * (Compliance::bodyHasFooter()) gets the footer where bareFooterSpan() says, or appended; when that cannot be done
+     * without guessing which edited line held the old address, the body is left as it is, so approval and sending
+     * refuse it (with FOOTER_EDIT_HINT) instead of mailing the old address above the current one. The rest of the body
+     * stays byte for byte as it was, and a body whose own wording already carries the current address and link is
+     * left alone. While no postal address is configured an existing block is not rewritten (nothing is sent without
+     * one, and the old address is not stripped); a missing footer is still appended.
+     */
+    private function withCurrentFooter( string $body, string $token ): string {
+        $token = strtolower( trim( $token ) );
+        $url   = preg_match( '/^[a-f0-9]{32}$/', $token ) ? Unsubscribe::urlFor( $token ) : '';
+        if ( '' === $url ) {
+            return $body;
+        }
+        $footer   = $this->footer( $token );
+        $complete = $this->compliance->bodyHasFooter( $body, $token );
+        if ( '' === $this->compliance->postalAddress() ) {
+            return $complete ? $body : rtrim( $body ) . "\n\n" . $footer;
+        }
+        $spans = $this->footerSpans( $body, $token, $url );
+        if ( [] === $spans ) {
+            if ( $complete ) {
+                return $body;
+            }
+            $span = $this->bareFooterSpan( $body, $token, $url );
+            if ( null === $span ) {
+                return $body;
+            }
+            if ( [] === $span ) {
+                return rtrim( $body ) . "\n\n" . $footer;
+            }
+            $spans = [ $span ];
+        }
+        [ $offset, $length ] = array_pop( $spans );
+        $out                 = substr( $body, 0, $offset ) . $footer . substr( $body, $offset + $length );
+        // Earlier copies, last first so the offsets before them stay valid, each with the line breaks after it.
+        foreach ( array_reverse( $spans ) as [ $offset, $length ] ) {
+            $end = $offset + $length;
+            $out = substr( $out, 0, $offset ) . substr( $out, $end + strspn( $out, "\r\n", $end ) );
+        }
+        return $out;
+    }
+
+    /**
+     * Byte offset and length of each footer block (FOOTER_BLOCK_RE) in $body whose unsubscribe line carries this
+     * token's link. A signature line that has a "·" is not taken for the footer's first line when it is not directly
+     * above the unsubscribe line (the owner deleted the footer's own first line; the signature stays).
+     *
+     * @return array<int,array{0:int,1:int}>
+     */
+    private function footerSpans( string $body, string $token, string $url ): array {
+        if ( ! preg_match_all( self::FOOTER_BLOCK_RE, $body, $hits, PREG_SET_ORDER | PREG_OFFSET_CAPTURE ) ) {
+            return [];
+        }
+        $out = [];
+        foreach ( $hits as $hit ) {
+            if ( ! self::carriesLink( (string) $hit['link'][0], $token, $url ) ) {
+                continue;
+            }
+            if ( '' !== (string) $hit['more'][0] . (string) $hit['gap'][0] && $this->isSignatureLine( (string) $hit['brand'][0] ) ) {
+                continue;
+            }
+            $out[] = [ (int) $hit[0][1], strlen( (string) $hit[0][0] ) ];
+        }
+        return $out;
+    }
+
+    /**
+     * Where the current footer goes in a body that has no footer block for this token and lacks the current address
+     * or link: the last unsubscribe line for this token when it starts a paragraph (the "<brand> · <address>" line
+     * above it was deleted), or, with no such line, a "<brand> · <address>" line that ends the body (the unsubscribe
+     * line under it was deleted). [] means the footer is appended (there is none). null means it cannot be done
+     * without guessing: the line directly above the unsubscribe line is not a "<brand> · <address>" line (it was
+     * edited, and may still hold the old address), or the link sits in the owner's own wording without the address.
+     *
+     * @return array{0:int,1:int}|array{}|null
+     */
+    private function bareFooterSpan( string $body, string $token, string $url ): ?array {
+        $lines = [];
+        if ( preg_match_all( self::UNSUBSCRIBE_LINE_RE, $body, $hits, PREG_SET_ORDER | PREG_OFFSET_CAPTURE ) ) {
+            foreach ( $hits as $hit ) {
+                if ( self::carriesLink( (string) $hit['link'][0], $token, $url ) ) {
+                    $lines[] = [ (int) $hit[0][1], strlen( (string) $hit[0][0] ) ];
+                }
+            }
+        }
+        if ( [] !== $lines ) {
+            $line  = end( $lines );
+            $above = substr( $body, 0, $line[0] );
+            return '' === trim( $above ) || 1 === preg_match( '/\n[ \t]*\r?\n\z/', $above ) ? $line : null;
+        }
+        if ( self::carriesLink( $body, $token, $url ) ) {
+            return null;
+        }
+        if ( preg_match( self::TRAILING_BRAND_RE, $body, $hit, PREG_OFFSET_CAPTURE ) && ! $this->isSignatureLine( (string) $hit['brand'][0] ) ) {
+            return [ (int) $hit[0][1], strlen( $body ) - (int) $hit[0][1] ];
+        }
+        return [];
+    }
+
+    /** Whether $text carries this token's unsubscribe link (the current URL, or one Unsubscribe::refreshLinks() updates). */
+    private static function carriesLink( string $text, string $token, string $url ): bool {
+        return str_contains( Unsubscribe::refreshLinks( $text, $token ), $url );
+    }
+
+    /** Whether $line is a line of the signature drafts get now. */
+    private function isSignatureLine( string $line ): bool {
+        $line = trim( $line );
+        return '' !== $line && in_array( $line, array_map( 'trim', explode( "\n", $this->personalizer->currentSignature() ) ), true );
+    }
+
+    /**
+     * What updateMessage() reports when the saved body still lacks the current postal address or the unsubscribe
+     * link (withCurrentFooter() left an edited footer as it was): the violation approval would give, and what to do.
+     *
+     * @return string[]
+     */
+    private function footerProblems( string $body, string $token ): array {
+        $url = Unsubscribe::urlFor( $token );
+        if ( '' === $url || $this->compliance->bodyHasFooter( $body, $token ) ) {
+            return [];
+        }
+        return [ self::carriesLink( $body, $token, $url ) ? 'Body must contain the sender postal address.' : 'Body must contain the unsubscribe link.', self::FOOTER_EDIT_HINT ];
+    }
+
+    /**
+     * $violations followed by FOOTER_EDIT_HINT when they include a missing postal address or unsubscribe link: the
+     * footer was refreshed just before the check, so what is left is an edit only a person can sort out.
+     *
+     * @param string[] $violations
+     * @return string[]
+     */
+    private static function withFooterHint( array $violations ): array {
+        $footer = array_intersect( [ 'Body must contain the sender postal address.', 'Body must contain the unsubscribe link.' ], $violations );
+        return [] !== $footer && ! in_array( self::FOOTER_EDIT_HINT, $violations, true ) ? array_merge( $violations, [ self::FOOTER_EDIT_HINT ] ) : $violations;
     }
 
     /** @param array<string,mixed> $settings */

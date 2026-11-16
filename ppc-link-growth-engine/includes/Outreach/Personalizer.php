@@ -28,6 +28,9 @@ final class Personalizer {
     /** Mandatory CASL / CAN-SPAM footer (rendered with brand, postal address and unsubscribe link). */
     public const FOOTER_TEMPLATE = "{{brand}} · {{postal_address}}\nIf you'd rather not hear from us again, reply with \"unsubscribe\" or use this link: {{unsubscribe_url}}";
 
+    /** Stands in for the postal address while footer() tidies the template (a private-use character, never typed). */
+    private const POSTAL_SLOT = "\u{E000}postal_address\u{E000}";
+
     private const MAX_TITLE   = 110;
     private const MAX_SNIPPET = 160;
 
@@ -104,11 +107,7 @@ final class Personalizer {
         ] );
 
         $signature = $this->signature( $senderName, $brand, $homeUrl );
-        $footer    = $this->render( self::FOOTER_TEMPLATE, [
-            'brand'           => $brand,
-            'postal_address'  => $postal,
-            'unsubscribe_url' => $unsubscribeUrl,
-        ] );
+        $footer    = $this->footer( $unsubscribeUrl );
 
         return [
             'greeting'             => $greeting,
@@ -140,6 +139,31 @@ final class Personalizer {
             'city'                 => $city,
             'sender_email'         => $senderEmail,
         ];
+    }
+
+    /**
+     * The mandatory CASL / CAN-SPAM footer (FOOTER_TEMPLATE) rendered with the current brand and postal address and
+     * this unsubscribe link. Drafts, follow-ups and OutreachEngine's footer refresh all build it here, so a footer
+     * rendered under unchanged settings is byte-identical to a fresh one, and it always carries the whole address
+     * Compliance::assess() looks for (postalAddress()).
+     */
+    public function footer( string $unsubscribeUrl ): string {
+        // The address goes in after the template is tidied, so render() cannot re-punctuate it ("Unit 5 : …").
+        $postal = $this->postalAddress();
+        $footer = $this->render(
+            self::FOOTER_TEMPLATE,
+            [
+                'brand'           => $this->brand(),
+                'postal_address'  => '' !== $postal ? self::POSTAL_SLOT : '',
+                'unsubscribe_url' => $unsubscribeUrl,
+            ]
+        );
+        return str_replace( self::POSTAL_SLOT, $postal, $footer );
+    }
+
+    /** The signature drafts get under the current settings (outreach.signature, or sender name, brand and site URL). */
+    public function currentSignature(): string {
+        return $this->signature( trim( (string) $this->settings->get( 'outreach.sender_name', '' ) ), $this->brand(), $this->homeUrl() );
     }
 
     /**
@@ -236,19 +260,17 @@ final class Personalizer {
         return rtrim( $u, '/' );
     }
 
-    /** Postal address from settings, else composed from the business profile. */
+    /**
+     * The postal address the footer carries: exactly the one Compliance checks every email for
+     * (Compliance::effectivePostalAddress(): outreach.postal_address, or the business address under Settings → Site),
+     * written on one line. Nothing is cut, decoded or stripped (the check wants the whole address as configured, so a
+     * footer that shortened it could never be approved); a line break becomes ", " and other runs of white space one
+     * space, which the check treats alike.
+     */
     public function postalAddress(): string {
-        $configured = trim( (string) $this->settings->get( 'outreach.postal_address', '' ) );
-        if ( '' !== $configured ) {
-            return $this->cleanLine( $configured, 200 );
-        }
-        $parts = array_filter( array_map( 'trim', [
-            (string) $this->settings->get( 'site.address', '' ),
-            (string) $this->settings->get( 'site.city', '' ),
-            trim( (string) $this->settings->get( 'site.region', '' ) . ' ' . (string) $this->settings->get( 'site.postal_code', '' ) ),
-            (string) $this->settings->get( 'site.country', '' ),
-        ] ), static fn( string $p ): bool => '' !== $p );
-        return implode( ', ', $parts );
+        $postal = Compliance::effectivePostalAddress( $this->settings );
+        $postal = preg_replace( '/[ \t]*,?[ \t]*(?:\r\n|\r|\n)\s*/u', ', ', $postal ) ?? $postal;
+        return trim( preg_replace( '/\s+/u', ' ', $postal ) ?? $postal );
     }
 
     private function signature( string $senderName, string $brand, string $homeUrl ): string {

@@ -433,6 +433,9 @@ require __DIR__ . '/autopilot.php';
 // 1.2.0 Build B: automatic internal links (and their undo) and competitors found without a search key.
 require __DIR__ . '/autopilot-links.php';
 
+// 1.2.1: drafts whose footer was rendered under an old postal address are refreshed and approved, not stuck.
+require __DIR__ . '/footer-refresh.php';
+
 echo "\n==============================\n";
 printf( "Passed: %d  Failed: %d\n", IT::$pass, IT::$fail );
 foreach ( IT::$failures as $f ) {

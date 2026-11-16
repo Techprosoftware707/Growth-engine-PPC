@@ -57,11 +57,25 @@ final class CampaignFiller {
     public const NEEDS_EDIT = [ 'Needs editing', 'Not approved:' ];
 
     /**
-     * "Not approved:" notes that 1.2.0 builds wrote for problems that clear without editing the draft (the sender
-     * identity, the contact cool-down). New notes of that kind use OutreachEngine::WAITING_PREFIX; these older ones
-     * are retried too instead of being left for a person forever.
+     * "Not approved:" notes (prefixes) that 1.2.0 builds wrote for problems that clear without editing the draft: the
+     * sender identity and the contact cool-down. New notes of that kind use OutreachEngine::WAITING_PREFIX; these
+     * older ones are retried too (and counted as waiting) instead of being left for a person forever; a retry that
+     * still fails for another reason writes that reason, which then counts as needing an edit.
      */
     public const TRANSIENT_NOT_APPROVED = [ 'Not approved: The sender email domain', 'Not approved: Sender identity incomplete', 'Not approved: This website was contacted on' ];
+
+    /**
+     * The whole notes 1.2.0 wrote for a footer rendered before the postal address, brand or site URL changed. Since
+     * 1.2.1 OutreachEngine::refreshFooter() rebuilds the footer before every approval, so these drafts are retried
+     * (and counted as waiting) like TRANSIENT_NOT_APPROVED. They are matched whole: a note with anything more (another
+     * problem, or the OutreachEngine::FOOTER_EDIT_HINT a 1.2.1 approval adds when the rebuilt footer still fails)
+     * needs a person, so a draft whose footer cannot be updated is never retried on every run.
+     */
+    public const STALE_FOOTER_NOTES = [
+        'Not approved: Body must contain the sender postal address.',
+        'Not approved: Body must contain the unsubscribe link.',
+        'Not approved: Body must contain the unsubscribe link. Body must contain the sender postal address.',
+    ];
 
     /** Most candidates looked at per fill. */
     private const MAX_CANDIDATES = 200;
@@ -604,6 +618,9 @@ final class CampaignFiller {
 
     /** Whether a draft's last_error means a person has to edit it before it can be approved. */
     public static function needsEdit( string $lastError ): bool {
+        if ( in_array( $lastError, self::STALE_FOOTER_NOTES, true ) ) {
+            return false;
+        }
         foreach ( self::TRANSIENT_NOT_APPROVED as $prefix ) {
             if ( str_starts_with( $lastError, $prefix ) ) {
                 return false;
