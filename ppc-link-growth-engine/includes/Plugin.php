@@ -83,6 +83,7 @@ use PPC\LinkGrowth\Repositories\Suppression;
 use PPC\LinkGrowth\Scoring\ScoringEngine;
 use PPC\LinkGrowth\Seo\IndexNow;
 use PPC\LinkGrowth\Seo\InternalLinker;
+use PPC\LinkGrowth\Seo\RenderCheck;
 use PPC\LinkGrowth\Seo\SiteAuditor;
 use PPC\LinkGrowth\Submission\AdapterRegistry;
 use PPC\LinkGrowth\Submission\ListingVerifier;
@@ -332,10 +333,12 @@ final class Plugin {
         $c->singleton( Scheduler::class, static fn( Container $c ) => new Scheduler( $c->get( Pipeline::class ), $c->get( Settings::class ), $c->get( Logger::class ) ) );
 
         // --- On-site SEO ---------------------------------------------------
-        // The audit and the link suggestions only read content; links are applied only by an admin's Apply click.
+        // The audit and the link suggestions only read content; links are applied by an admin's Apply click, or under
+        // Autopilot / seo.auto_apply_links after RenderCheck confirmed the page shows the words.
         $c->singleton( SiteAuditor::class, static fn( Container $c ) => new SiteAuditor( $c->get( Settings::class ), $c->get( Logger::class ), $c->get( Locks::class ), $c->get( Client::class ) ) );
         $c->singleton( IndexNow::class, static fn( Container $c ) => new IndexNow( $c->get( Settings::class ), $c->get( Logger::class ), $c->get( Client::class ), $c->get( Locks::class ), $c->get( Audit::class ) ) );
-        $c->singleton( InternalLinker::class, static fn( Container $c ) => new InternalLinker( $c->get( Settings::class ), $c->get( Logger::class ), $c->get( Locks::class ), $c->get( Audit::class ) ) );
+        $c->singleton( RenderCheck::class, static fn( Container $c ) => new RenderCheck( $c->get( Settings::class ), $c->get( Logger::class ), $c->get( Client::class ) ) );
+        $c->singleton( InternalLinker::class, static fn( Container $c ) => new InternalLinker( $c->get( Settings::class ), $c->get( Logger::class ), $c->get( Locks::class ), $c->get( Audit::class ), $c->get( RenderCheck::class ) ) );
 
         // --- Growth run ----------------------------------------------------
         // Resolves JobRunner, Scheduler and the other services lazily (Pipeline -> GrowthRun -> Scheduler -> Pipeline).

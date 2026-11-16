@@ -39,6 +39,30 @@ namespace PPC\LinkGrowth\Tests\Support {
 
         public static string $environment = 'production';
 
+        /**
+         * How the stand-in theme renders an item for the render check (1.2.2): 'content' (default: the post content
+         * inside the theme's header and footer), 'hidden' (a hard-coded template that ignores the content, like the
+         * live front page), 'partial' (only the first paragraph), or a Closure(int $id): string with the whole page.
+         *
+         * @var array<int,string|\Closure>
+         */
+        public static array $render = [];
+
+        /** @var array<int,int|\WP_Error> post id => HTTP status (or a transport error) of its page */
+        public static array $renderStatus = [];
+
+        /** @var array<int,array{url:string,args:array<string,mixed>}> page-check requests served */
+        public static array $renderRequests = [];
+
+        /** wp_update_post() runs wp_kses_post() on the content when the current user lacks unfiltered_html (as core). */
+        public static bool $ksesOnSave = true;
+
+        /** @var int[]|null existing user ids for get_userdata() (null: every id > 0 exists) */
+        public static ?array $users = null;
+
+        /** @var int[] wp_set_current_user() calls */
+        public static array $userSwitches = [];
+
         private static int $nextRevision = 9000;
 
         public static function reset(): void {
@@ -52,10 +76,66 @@ namespace PPC\LinkGrowth\Tests\Support {
             self::$revisionsEnabled  = true;
             self::$environment       = 'production';
             self::$nextRevision      = 9000;
+            self::$render            = [];
+            self::$renderStatus      = [];
+            self::$renderRequests    = [];
+            self::$ksesOnSave        = true;
+            self::$users             = null;
+            self::$userSwitches      = [];
             if ( class_exists( StubsSeoReview::class ) ) {
                 StubsSeoReview::reset();
             }
+            // The render check's page requests are answered by the stand-in theme below, without waiting between them.
+            HttpFixtures::$handler = self::renderHandler();
+            add_filter( 'ppclg_render_check_gap_seconds', static fn(): float => 0.0 );
         }
+
+        /** Answers the render check's requests (they send Cache-Control: no-cache) for the permalinks of the fixtures. */
+        public static function renderHandler(): \Closure {
+            return static function ( string $url, array $args ) {
+                $headers = array_change_key_case( (array) ( $args['headers'] ?? [] ), CASE_LOWER );
+                if ( 'no-cache' !== ( $headers['cache-control'] ?? '' ) ) {
+                    return null;
+                }
+                $id = 0;
+                foreach ( array_keys( self::$posts ) as $pid ) {
+                    if ( self::permalink( (int) $pid ) === $url ) {
+                        $id = (int) $pid;
+                        break;
+                    }
+                }
+                if ( 0 === $id ) {
+                    return null;
+                }
+                self::$renderRequests[] = [ 'url' => $url, 'args' => $args ];
+                $status = self::$renderStatus[ $id ] ?? 200;
+                if ( $status instanceof \WP_Error ) {
+                    return $status;
+                }
+                return [ 'response' => [ 'code' => (int) $status, 'message' => 'OK' ], 'headers' => [ 'content-type' => 'text/html; charset=UTF-8' ], 'body' => 200 === $status ? self::renderPage( $id ) : '<html><body>Error</body></html>', 'cookies' => [] ];
+            };
+        }
+
+        /** The page a visitor gets for an item under the stand-in classic theme. */
+        public static function renderPage( int $id ): string {
+            $p    = self::$posts[ $id ];
+            $mode = self::$render[ $id ] ?? 'content';
+            if ( $mode instanceof \Closure ) {
+                return (string) $mode( $id );
+            }
+            $content = (string) $p['post_content'];
+            $main    = match ( $mode ) {
+                'hidden'  => '<section class="hero"><h1>Research peptides, tested in Canada</h1><p>Every batch ships with an independent lab report and fast tracked delivery across the country.</p><p>Where can I see the lab reports? On every product page, next to the price.</p></section>',
+                'partial' => preg_match( '#^.*?</p>#s', $content, $m ) ? $m[0] : $content,
+                default   => $content,
+            };
+            $class = 'page' === $p['post_type'] ? 'page-template-default page page-id-' . $id : 'single single-' . $p['post_type'] . ' postid-' . $id;
+            return '<!DOCTYPE html><html lang="en"><head><title>' . htmlspecialchars( (string) $p['post_title'] ) . '</title><link rel="canonical" href="' . self::permalink( $id ) . '">'
+                . '<script type="application/ld+json">{"@type":"WebPage","name":"' . htmlspecialchars( (string) $p['post_title'] ) . '"}</script></head>'
+                . '<body class="' . $class . '"><header><nav><a href="/">Home</a> <a href="/shop/">Shop</a> <a href="/product/bacteriostatic-water/">Bacteriostatic Water</a></nav></header>'
+                . '<main>' . $main . '</main><footer><p>Pure Peptides Canada · Research use only</p></footer></body></html>';
+        }
+
 
         /**
          * @param array<string,mixed> $fields
@@ -282,7 +362,15 @@ namespace PPC\LinkGrowth\Seo {
             if ( ! empty( $GLOBALS['ppclg_seo_update_fails'] ) ) {
                 return $wp_error ? new \WP_Error( 'db_update_error', 'Could not update post in the database.' ) : 0;
             }
+            if ( ! empty( $GLOBALS['ppclg_seo_update_throws'] ) ) {
+                throw new \RuntimeException( 'A save_post hook threw.' );
+            }
+            if ( StubsSeo::$ksesOnSave && isset( $data['post_content'] ) && ! current_user_can( 'unfiltered_html' ) ) {
+                $data['post_content'] = wp_kses_post( (string) $data['post_content'] ); // content_save_pre for users without unfiltered_html
+            }
+            $data['_user'] = (int) get_current_user_id();
             StubsSeo::$updates[] = $data;
+            unset( $data['_user'] );
             foreach ( $data as $k => $v ) {
                 if ( 'ID' !== $k ) {
                     StubsSeo::$posts[ $id ][ $k ] = $v;
@@ -294,6 +382,16 @@ namespace PPC\LinkGrowth\Seo {
                 StubsSeo::addRevision( $id );
             }
             return $id;
+        }
+    }
+
+    if ( ! function_exists( __NAMESPACE__ . '\\get_userdata' ) ) {
+        /** Users exist unless StubsSeo::$users lists the ones that do (a deleted consent user). */
+        function get_userdata( int $id ): object|false {
+            if ( $id <= 0 || ( null !== StubsSeo::$users && ! in_array( $id, StubsSeo::$users, true ) ) ) {
+                return false;
+            }
+            return (object) [ 'ID' => $id, 'display_name' => 'User ' . $id ];
         }
     }
 
@@ -314,4 +412,19 @@ namespace PPC\LinkGrowth\Seo {
 
     // Revisions kept before an edit, WooCommerce page ids and the block registry (review fixes).
     require_once __DIR__ . '/StubsSeoReview.php';
+}
+
+namespace {
+
+    use PPC\LinkGrowth\Tests\Support\StubsSeo;
+
+    if ( ! function_exists( 'wp_set_current_user' ) ) {
+        /** Like core: the current user changes; capabilities follow $GLOBALS['ppclg_test_user_caps'][id] (none for 0). */
+        function wp_set_current_user( int $id, string $name = '' ): object {
+            StubsSeo::$userSwitches[]      = $id;
+            $GLOBALS['ppclg_test_user_id'] = $id;
+            $GLOBALS['ppclg_test_caps']    = $id > 0 ? (array) ( $GLOBALS['ppclg_test_user_caps'][ $id ] ?? [] ) : [];
+            return (object) [ 'ID' => $id ];
+        }
+    }
 }

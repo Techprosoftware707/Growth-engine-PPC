@@ -4,8 +4,9 @@
  *
  * Link suggestions change published content through POST /seo/links/apply, which requires confirm=true and is sent
  * by the admin's explicit "Apply" / "Apply all" click on the On-site SEO page, or automatically by the
- * internal_links job when seo.auto_apply_links or Autopilot is on. POST /seo/links/undo-auto (confirm=true) removes
- * every automatic link still present.
+ * internal_links job when seo.auto_apply_links or Autopilot is on (only on items whose public page shows the words,
+ * see Seo\RenderCheck). POST /seo/links/undo-auto (confirm=true) removes every automatic link still present.
+ * GET /seo/links returns one page of suggestions (per_page / page) with the totals.
  *
  * @package PPC\LinkGrowth
  */
@@ -27,6 +28,13 @@ final class SeoController extends Controller {
 
     /** Suggestions applied per request at most. */
     private const APPLY_MAX = 100;
+
+    /** GET /seo/links status filters. */
+    private const LINK_STATUSES = [ 'pending', 'refused', 'not_shown', 'applied', 'dismissed', 'stale', 'all' ];
+
+    /** GET /seo/links page size when per_page is not given, and the largest allowed. */
+    private const DEFAULT_PER_PAGE = 100;
+    private const MAX_PER_PAGE     = 500;
 
     public function register( string $namespace ): void {
         $this->route( $namespace, '/seo/audit', 'GET', [ $this, 'auditStatus' ] );
@@ -129,22 +137,38 @@ final class SeoController extends Controller {
     // Internal links
     // ------------------------------------------------------------------
 
-    /** GET /seo/links?status=pending|applied|dismissed|stale|all @return array<string,mixed> */
+    /**
+     * GET /seo/links?status=pending|refused|not_shown|applied|dismissed|stale|all&per_page=1..500&page=N
+     *
+     * `refused`: pending suggestions automation left for a person (auto_skip says why); `not_shown`: set aside because
+     * the item's page does not show its content or those words (note says why). One page of items (per_page, default
+     * DEFAULT_PER_PAGE) with total / pages / page / per_page.
+     *
+     * @return array<string,mixed>
+     */
     public function links( WP_REST_Request $request ): array {
         $linker = $this->linker();
         if ( null === $linker ) {
             return [ 'available' => false, 'message' => 'Internal-link suggestions are not available.', 'items' => [] ];
         }
         $status = sanitize_key( $this->str( $request, 'status', InternalLinker::STATUS_PENDING, 20 ) );
-        if ( ! in_array( $status, [ 'pending', 'applied', 'dismissed', 'stale', 'all' ], true ) ) {
+        if ( ! in_array( $status, self::LINK_STATUSES, true ) ) {
             $status = InternalLinker::STATUS_PENDING;
         }
-        $items = $linker->suggestions( 'all' === $status ? '' : $status, 500 );
+        $perPage = (int) ( $request->get_param( 'per_page' ) ?? self::DEFAULT_PER_PAGE );
+        $perPage = max( 1, min( self::MAX_PER_PAGE, $perPage > 0 ? $perPage : self::DEFAULT_PER_PAGE ) );
+        $page    = max( 1, (int) ( $request->get_param( 'page' ) ?? 1 ) );
+        $result  = $linker->query( 'all' === $status ? '' : $status, $page, $perPage );
+        $pages   = max( 1, (int) ceil( $result['total'] / $perPage ) );
+        $items   = $result['items'];
         foreach ( $items as &$item ) {
-            $item = self::castInts( $item, [ 'id', 'source_post_id', 'target_id', 'applied_by', 'dismissed_by', 'revision_id', 'restore_revision_id' ] );
-            unset( $item['context_hash'], $item['before_hash'], $item['after_hash'], $item['link_open'], $item['link_start'] );
-            $item['auto'] = ! empty( $item['auto'] );
-            $item['edit_url'] = $this->editLink( (int) $item['source_post_id'] );
+            $item = self::castInts( $item, [ 'id', 'source_post_id', 'target_id', 'applied_by', 'dismissed_by', 'revision_id', 'restore_revision_id', 'saved_as' ] );
+            unset( $item['context_hash'], $item['before_hash'], $item['after_hash'], $item['link_open'], $item['link_start'], $item['link_text'] );
+            $item['auto']        = ! empty( $item['auto'] );
+            $item['auto_skip']   = (string) ( $item['auto_skip'] ?? '' );
+            $item['note']        = (string) ( $item['note'] ?? '' );
+            $item['render_note'] = (string) ( $item['render_note'] ?? '' );
+            $item['edit_url']    = $this->editLink( (int) $item['source_post_id'] );
         }
         unset( $item );
         return [
@@ -156,6 +180,10 @@ final class SeoController extends Controller {
             'counts'             => $linker->counts(),
             'auto'               => $linker->autoInfo(),
             'status'             => $status,
+            'total'              => $result['total'],
+            'pages'              => $pages,
+            'page'               => $page,
+            'per_page'           => $perPage,
             'items'              => $items,
         ];
     }

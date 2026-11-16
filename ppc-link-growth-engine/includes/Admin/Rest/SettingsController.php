@@ -25,6 +25,7 @@ use PPC\LinkGrowth\Integrations\ProviderRegistry;
 use PPC\LinkGrowth\Outreach\Compliance;
 use PPC\LinkGrowth\Repositories\DomainMetrics;
 use PPC\LinkGrowth\Repositories\Opportunities;
+use PPC\LinkGrowth\Seo\InternalLinker;
 use PPC\LinkGrowth\Support\Crypto;
 use PPC\LinkGrowth\Support\Redactor;
 use PPC\LinkGrowth\Support\Secrets;
@@ -264,6 +265,11 @@ final class SettingsController extends Controller {
         if ( [] !== $clean ) {
             $settings->update( $clean );
             $changed = self::diffKeys( $before, $settings->all() );
+        }
+        // Automatic links outside Autopilot act on this confirmation: who gave it is what InternalLinker::autoOwner()
+        // checks before saving an item as that user.
+        if ( in_array( 'auto_apply_links', $enabling, true ) && (bool) $settings->get( 'seo.auto_apply_links', false ) ) {
+            update_option( InternalLinker::OPTION_LINKS_CONSENT, [ 'user_id' => $this->userId(), 'at' => gmdate( 'c' ) ], false );
         }
         $approvedNow = null;
         if ( null !== $autopilotWanted ) {

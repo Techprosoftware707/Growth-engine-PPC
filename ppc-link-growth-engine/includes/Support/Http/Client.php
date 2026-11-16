@@ -173,7 +173,7 @@ final class Client {
             'redirection'         => (int) ( $opts['redirection'] ?? 4 ),
             'user-agent'          => $this->settings->userAgent(),
             'headers'             => $headers,
-            'sslverify'           => true,
+            'sslverify'           => array_key_exists( 'sslverify', $opts ) ? (bool) $opts['sslverify'] : true,
             'reject_unsafe_urls'  => true,
             'limit_response_size' => $limitKb * 1024,
             'decompress'          => true,

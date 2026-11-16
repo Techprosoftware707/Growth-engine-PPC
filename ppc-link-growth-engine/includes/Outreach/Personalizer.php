@@ -161,7 +161,10 @@ final class Personalizer {
         return str_replace( self::POSTAL_SLOT, $postal, $footer );
     }
 
-    /** The signature drafts get under the current settings (outreach.signature, or sender name, brand and site URL). */
+    /**
+     * The signature drafts and follow-ups get under the current settings (outreach.signature, or sender name, brand
+     * and site URL; see signature()).
+     */
     public function currentSignature(): string {
         return $this->signature( trim( (string) $this->settings->get( 'outreach.sender_name', '' ) ), $this->brand(), $this->homeUrl() );
     }
@@ -273,12 +276,39 @@ final class Personalizer {
         return trim( preg_replace( '/\s+/u', ' ', $postal ) ?? $postal );
     }
 
+    /**
+     * outreach.signature when set, else sender name, brand and site URL on their own lines. The sender name is left
+     * out when it is the brand (the sender is the business: "Pure Peptides Canada" twice read as a mistake), and a
+     * line is never repeated right below itself (compared without case and extra spaces), in either form.
+     */
     private function signature( string $senderName, string $brand, string $homeUrl ): string {
         $configured = trim( str_replace( [ "\r\n", "\r" ], "\n", (string) $this->settings->get( 'outreach.signature', '' ) ) );
         if ( '' !== $configured ) {
-            return $configured;
+            return self::withoutRepeatedLines( $configured );
         }
-        return implode( "\n", array_filter( [ $senderName, $brand, $homeUrl ], static fn( string $p ): bool => '' !== $p ) );
+        if ( '' !== $senderName && self::sameLine( $senderName, $brand ) ) {
+            $senderName = '';
+        }
+        return self::withoutRepeatedLines( implode( "\n", array_filter( [ $senderName, $brand, $homeUrl ], static fn( string $p ): bool => '' !== $p ) ) );
+    }
+
+    /** Drops a non-empty line that repeats the line right above it. */
+    private static function withoutRepeatedLines( string $text ): string {
+        $out  = [];
+        $prev = null;
+        foreach ( explode( "\n", $text ) as $line ) {
+            if ( null !== $prev && '' !== trim( $line ) && self::sameLine( $line, $prev ) ) {
+                continue;
+            }
+            $out[] = $line;
+            $prev  = $line;
+        }
+        return implode( "\n", $out );
+    }
+
+    private static function sameLine( string $a, string $b ): bool {
+        $norm = static fn( string $s ): string => mb_strtolower( trim( (string) preg_replace( '/[\s\x{00A0}]+/u', ' ', $s ) ) );
+        return $norm( $a ) === $norm( $b );
     }
 
     private function researchNote(): string {

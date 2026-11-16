@@ -17,11 +17,27 @@
  *
  * Automatic links (setting seo.auto_apply_links, always on under Automation\Autopilot): autoApply(), called by the
  * internal_links job, applies the pending suggestions with the highest relevance first through the same code path
- * and safeguards (opaque blocks, DOM check, kses must leave the content unchanged, a revision before each change,
- * seo.max_links_per_post), at most seo.auto_apply_per_day a day, audit-logged as the automation. undoAuto()
- * (POST /seo/links/undo-auto) removes every automatic link still present: it restores the content from before the
- * change when the item was not edited since, otherwise it removes only the inserted anchor tag. Off, nothing is
- * applied without a click (as before).
+ * and safeguards (opaque blocks, DOM check, a revision before each change, seo.max_links_per_post), at most
+ * seo.auto_apply_per_day a day, audit-logged as the automation. undoAuto() (POST /seo/links/undo-auto) removes every
+ * automatic link still present: it restores the content from before the change when the item was not edited since,
+ * otherwise it removes only the inserted anchor tag. Off, nothing is applied without a click (as before).
+ *
+ * 1.2.2:
+ * - Before an automatic link, RenderCheck confirms that the item's public page shows its content and the words
+ *   around the anchor (certain cases without a request: the posts page and the WooCommerce shop, cart, checkout and
+ *   account pages). An item that does not show its content gets no automatic link: its suggestions move to
+ *   STATUS_NOT_SHOWN with a note (neither applied automatically nor counted as waiting for review), automatic links
+ *   already on it are taken back out through the undo path (exact restore when unedited, else only the <a>; a
+ *   revision first; audited), and they come back to "pending" once the page shows its content again (RenderCheck's
+ *   key: the item's modification time and template, the theme, and whether the item is the front page, the posts
+ *   page or a WooCommerce page). An "unknown" answer (network error, non-200, a page that does not identify itself)
+ *   only skips the item for this run.
+ * - Background saves run without a user, so WordPress' kses filter would rewrite administrator markup (inline SVG,
+ *   JSON-LD) on save. When kses would change the item, the save is made as the owner who gave the standing consent
+ *   (Autopilot's, or the one who switched seo.auto_apply_links on), for that one save, only while that user exists,
+ *   may edit the item and has unfiltered_html; the previous user is restored in a finally block and the audit row
+ *   keeps the automation as the actor with saved_as = that user. Otherwise the suggestion is left for a person as
+ *   before. Only the plugin's own <a href="esc_url(permalink)"> around words already in the item is added.
  *
  * @package PPC\LinkGrowth
  */
@@ -32,6 +48,7 @@ namespace PPC\LinkGrowth\Seo;
 
 use PPC\LinkGrowth\Automation\Audit;
 use PPC\LinkGrowth\Automation\Autopilot;
+use PPC\LinkGrowth\Plugin;
 use PPC\LinkGrowth\Support\Limits;
 use PPC\LinkGrowth\Support\Locks;
 use PPC\LinkGrowth\Support\Logger;
@@ -54,6 +71,21 @@ final class InternalLinker {
     public const STATUS_APPLIED   = 'applied';
     public const STATUS_DISMISSED = 'dismissed';
     public const STATUS_STALE     = 'stale';
+
+    /** Pending suggestion set aside because the item's page does not show it (see RenderCheck). */
+    public const STATUS_NOT_SHOWN = 'not_shown';
+
+    /** GET /seo/links filter: pending suggestions automation left for a person (auto_skip). */
+    public const FILTER_REFUSED = 'refused';
+
+    /** Who switched seo.auto_apply_links on outside Autopilot: {user_id, at} (non-autoloaded). */
+    public const OPTION_LINKS_CONSENT = 'ppclg_auto_links_consent';
+
+    /** Start of the refusal left for a person when kses would re-filter the item and no owner may save it unfiltered. */
+    public const KSES_REFUSAL = 'Not applied automatically: WordPress would re-filter other markup in this item when saving it.';
+
+    /** Note on an automatic link taken back out because the item's page does not show its content. */
+    public const REMOVED_NOTE = 'Removed automatically: this page’s template doesn’t display its content, so visitors and Google never saw this link. It is added again if the page starts showing its content.';
 
     /** Text inside these elements is never linked. */
     public const NO_LINK_TAGS = [ 'a', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'script', 'style', 'code', 'pre', 'figcaption', 'textarea', 'button', 'select', 'option', 'label', 'noscript', 'iframe', 'svg', 'math', 'title', 'template', 'kbd', 'samp', 'object', 'video', 'audio', 'canvas', 'map' ];
@@ -121,7 +153,8 @@ final class InternalLinker {
         private Settings $settings,
         private Logger $logger,
         private Locks $locks,
-        private ?Audit $audit = null
+        private ?Audit $audit = null,
+        private ?RenderCheck $render = null
     ) {}
 
     // ------------------------------------------------------------------
@@ -147,6 +180,72 @@ final class InternalLinker {
 
     private function limits(): Limits {
         return new Limits( $this->settings );
+    }
+
+    private function render(): RenderCheck {
+        if ( null === $this->render ) {
+            try {
+                $svc = Plugin::instance()->get( RenderCheck::class );
+            } catch ( Throwable $e ) {
+                $svc = null;
+            }
+            $this->render = $svc instanceof RenderCheck ? $svc : new RenderCheck( $this->settings, $this->logger );
+        }
+        return $this->render;
+    }
+
+    /**
+     * The user whose standing consent automatic links act on: Autopilot's consent while Autopilot is on, else the one
+     * who switched seo.auto_apply_links on (0 when none is recorded).
+     */
+    private function consentUserId(): int {
+        $autopilot = $this->autopilot();
+        if ( $autopilot->isOn() ) {
+            return (int) ( $autopilot->consent()['user_id'] ?? 0 );
+        }
+        if ( ! (bool) $this->settings->get( 'seo.auto_apply_links', false ) ) {
+            return 0;
+        }
+        $c = get_option( self::OPTION_LINKS_CONSENT, null );
+        return is_array( $c ) ? (int) ( $c['user_id'] ?? 0 ) : 0;
+    }
+
+    /**
+     * The consenting owner an automatic save of this item may be made as: 0 unless that user still exists, may edit
+     * the item and may save unfiltered HTML (on multisite only a super admin; never with DISALLOW_UNFILTERED_HTML).
+     */
+    public function autoOwner( int $sourceId ): int {
+        $uid = $this->consentUserId();
+        if ( $uid <= 0 || $sourceId <= 0 ) {
+            return 0;
+        }
+        $user = get_userdata( $uid );
+        if ( ! is_object( $user ) || (int) ( $user->ID ?? 0 ) !== $uid ) {
+            return 0;
+        }
+        return user_can( $user, 'edit_post', $sourceId ) && user_can( $user, 'unfiltered_html' ) ? $uid : 0;
+    }
+
+    /**
+     * Runs $fn as user $uid (when > 0 and not already current) and switches back to the previous user afterwards,
+     * also when $fn throws. wp_set_current_user() fires set_current_user, so kses_init() drops the kses filters for
+     * that user and puts them back for the previous one.
+     *
+     * @template T
+     * @param callable():T $fn
+     * @return T
+     */
+    private function asUser( int $uid, callable $fn ): mixed {
+        $prev = (int) get_current_user_id();
+        if ( $uid <= 0 || $uid === $prev || ! function_exists( 'wp_set_current_user' ) ) {
+            return $fn();
+        }
+        wp_set_current_user( $uid );
+        try {
+            return $fn();
+        } finally {
+            wp_set_current_user( $prev );
+        }
     }
 
     /**
@@ -205,7 +304,7 @@ final class InternalLinker {
         if ( $done ) {
             // Pending suggestions whose source is no longer a published, eligible item are dropped.
             foreach ( $store['items'] as $id => $item ) {
-                if ( self::STATUS_PENDING === $item['status'] && ! in_array( (int) $item['source_post_id'], $sources, true ) ) {
+                if ( self::isOpen( $item ) && ! in_array( (int) $item['source_post_id'], $sources, true ) ) {
                     unset( $store['items'][ $id ] );
                 }
             }
@@ -250,8 +349,8 @@ final class InternalLinker {
             if ( (int) $item['source_post_id'] !== $sourceId ) {
                 continue;
             }
-            if ( self::STATUS_PENDING === $item['status'] ) {
-                $existing[ (int) $item['target_id'] ] = (int) $id;
+            if ( self::isOpen( $item ) ) {
+                $existing[ (int) $item['target_id'] ] = (int) $id; // pending or set aside (not shown): rebuilt below
             } else {
                 $blocked[ (int) $item['target_id'] ] = true; // applied or dismissed pairs are never suggested again
                 $applied += self::STATUS_APPLIED === $item['status'] ? 1 : 0;
@@ -350,8 +449,24 @@ final class InternalLinker {
             ];
             // A suggestion the automatic safeguards refused stays refused while it is the same link at the same spot:
             // regenerating the list must not make the daily automatic run try it again.
-            if ( ! empty( $prev['auto_skip'] ) && (int) ( $prev['target_id'] ?? 0 ) === $tid && (string) ( $prev['context_hash'] ?? '' ) === (string) $p['o']['context_hash'] ) {
+            $sameSpot = (int) ( $prev['target_id'] ?? 0 ) === $tid && (string) ( $prev['context_hash'] ?? '' ) === (string) $p['o']['context_hash'];
+            if ( ! empty( $prev['auto_skip'] ) && $sameSpot ) {
                 $store['items'][ (string) $id ]['auto_skip'] = (string) $prev['auto_skip'];
+                if ( ! empty( $prev['auto_skip_code'] ) ) {
+                    $store['items'][ (string) $id ]['auto_skip_code'] = (string) $prev['auto_skip_code'];
+                }
+            }
+            // Set aside because the page does not show its content (a page-level verdict, whatever the spot), or
+            // because these words are not on the page (only while the text at that spot is unchanged): it stays so
+            // until the page check says otherwise (autoApply re-checks it when the page or theme changes).
+            if ( self::STATUS_NOT_SHOWN === ( $prev['status'] ?? '' ) && (int) ( $prev['target_id'] ?? 0 ) === $tid && ( 'words' !== ( $prev['render_scope'] ?? '' ) || $sameSpot ) ) {
+                foreach ( [ 'status', 'note', 'render_code', 'render_scope', 'render_at', 'auto', 'removed_at', 'removed_mode', 'removal_failed' ] as $k ) {
+                    if ( array_key_exists( $k, $prev ) ) {
+                        $store['items'][ (string) $id ][ $k ] = $prev[ $k ];
+                    }
+                }
+            } elseif ( ! empty( $prev['render_note'] ) && self::STATUS_PENDING === ( $prev['status'] ?? '' ) ) {
+                $store['items'][ (string) $id ]['render_note'] = (string) $prev['render_note'];
             }
             $keep[ $id ] = true;
         }
@@ -489,6 +604,11 @@ final class InternalLinker {
         return max( 0, min( 100, $score ) );
     }
 
+    /** A suggestion not yet applied, dismissed or closed: pending, or set aside because its page does not show it. */
+    private static function isOpen( array $item ): bool {
+        return in_array( (string) ( $item['status'] ?? '' ), [ self::STATUS_PENDING, self::STATUS_NOT_SHOWN ], true );
+    }
+
     /** @param array<string,mixed> $item stored relevance, or one estimated from the anchor (older suggestions) */
     private static function relevanceOf( array $item ): int {
         if ( isset( $item['relevance'] ) && is_numeric( $item['relevance'] ) ) {
@@ -581,21 +701,41 @@ final class InternalLinker {
      * @return array<int,array<string,mixed>> suggestions with the given status ('' = all), newest first
      */
     public function suggestions( string $status = self::STATUS_PENDING, int $limit = 500 ): array {
+        return $this->query( $status, 1, max( 1, $limit ) )['items'];
+    }
+
+    /**
+     * One page of suggestions with the given status ('' = all; FILTER_REFUSED = pending ones automation left for a
+     * person), ordered by item and id.
+     *
+     * @return array{items:array<int,array<string,mixed>>,total:int}
+     */
+    public function query( string $status, int $page = 1, int $perPage = 100 ): array {
         $items = array_values( $this->store()['items'] );
-        if ( '' !== $status ) {
+        if ( self::FILTER_REFUSED === $status ) {
+            $items = array_values( array_filter( $items, static fn( array $i ): bool => self::STATUS_PENDING === $i['status'] && ! empty( $i['auto_skip'] ) ) );
+        } elseif ( '' !== $status ) {
             $items = array_values( array_filter( $items, static fn( array $i ): bool => $status === $i['status'] ) );
         }
         usort( $items, static fn( array $a, array $b ): int => [ (int) $a['source_post_id'], (int) $a['id'] ] <=> [ (int) $b['source_post_id'], (int) $b['id'] ] );
-        return array_slice( $items, 0, max( 1, $limit ) );
+        $perPage = max( 1, $perPage );
+        return [ 'items' => array_slice( $items, ( max( 1, $page ) - 1 ) * $perPage, $perPage ), 'total' => count( $items ) ];
     }
 
-    /** @return array{pending:int,applied:int,dismissed:int,stale:int} */
+    /**
+     * Counts per status; `refused` counts the pending suggestions automation left for a person (part of `pending`).
+     *
+     * @return array{pending:int,applied:int,dismissed:int,stale:int,not_shown:int,refused:int}
+     */
     public function counts(): array {
-        $out = [ 'pending' => 0, 'applied' => 0, 'dismissed' => 0, 'stale' => 0 ];
+        $out = [ 'pending' => 0, 'applied' => 0, 'dismissed' => 0, 'stale' => 0, 'not_shown' => 0, 'refused' => 0 ];
         foreach ( $this->store()['items'] as $item ) {
             $s = (string) $item['status'];
             if ( isset( $out[ $s ] ) ) {
                 $out[ $s ]++;
+            }
+            if ( self::STATUS_PENDING === $s && ! empty( $item['auto_skip'] ) ) {
+                $out['refused']++;
             }
         }
         return $out;
@@ -658,11 +798,13 @@ final class InternalLinker {
     }
 
     /**
-     * Applies suggestions in order until $stopAfter were applied (the caller holds the lock and saves the store).
+     * Applies suggestions chosen by a person, in order (the caller holds the lock and saves the store). Pending
+     * suggestions and ones set aside because the page does not show them can be applied; the result says so when the
+     * item's page is known not to show its content.
      *
      * @param array<string,mixed> $store
      * @param int[] $ids
-     * @return array{0:int,1:array<int,array{id:int,ok:bool,message:string}>} applied, results
+     * @return array{0:int,1:array<int,array{id:int,ok:bool,message:string,warning?:string}>} applied, results
      */
     private function applyBatch( array &$store, array $ids, int $userId, ?TimeBudget $budget, bool $auto, int $stopAfter ): array {
         $results = [];
@@ -672,9 +814,6 @@ final class InternalLinker {
                 break;
             }
             if ( null !== $budget && ! $budget->has( 3.0 ) ) {
-                if ( $auto ) {
-                    break; // the next run continues
-                }
                 $results[] = [ 'id' => $id, 'ok' => false, 'message' => 'Not attempted: the request ran out of time. Apply it again.' ];
                 continue;
             }
@@ -683,26 +822,78 @@ final class InternalLinker {
                 $results[] = [ 'id' => $id, 'ok' => false, 'message' => 'Suggestion not found; refresh the list.' ];
                 continue;
             }
-            if ( self::STATUS_PENDING !== $item['status'] ) {
+            if ( ! self::isOpen( $item ) ) {
                 $results[] = [ 'id' => $id, 'ok' => false, 'message' => sprintf( 'This suggestion is already %s.', $item['status'] ) ];
                 continue;
             }
-            try {
-                [ $ok, $message, $status, $extra ] = $this->applyOne( $item, $store, $userId, $auto );
-            } catch ( Throwable $e ) {
-                $this->logger->error( 'seo', 'Applying an internal link failed: ' . $e->getMessage(), [ 'suggestion' => $id ] );
-                [ $ok, $message, $status, $extra ] = [ false, 'Nothing was changed: an unexpected error occurred (see Logs).', '', [] ];
-            }
-            if ( '' !== $status ) {
-                $store['items'][ (string) $id ] = array_merge( $item, $extra, [ 'status' => $status, 'updated_at' => gmdate( 'c' ), 'note' => $message ] );
-            } elseif ( $auto && ! $ok ) {
-                // Left for a person (e.g. kses would re-filter the item): never retried automatically.
-                $store['items'][ (string) $id ] = array_merge( $item, [ 'auto_skip' => $message, 'updated_at' => gmdate( 'c' ) ] );
+            // What is known about the page is read before the edit (the edit changes the item's modification time).
+            $warning          = $auto ? '' : $this->visibilityWarning( (int) $item['source_post_id'], $item );
+            [ $ok, $message ] = $this->applyStored( $store, (string) $id, $userId, $auto );
+            $row              = [ 'id' => $id, 'ok' => $ok, 'message' => $message ];
+            if ( $ok && ! $auto ) {
+                $this->render()->rekey( (int) $item['source_post_id'] ); // only an <a> was added: the verdict still holds
+                if ( '' !== $warning ) {
+                    $row['message'] .= ' ' . $warning;
+                    $row['warning']  = $warning;
+                }
             }
             $applied  += $ok ? 1 : 0;
-            $results[] = [ 'id' => $id, 'ok' => $ok, 'message' => $message ];
+            $results[] = $row;
         }
         return [ $applied, $results ];
+    }
+
+    /**
+     * Runs applyOne() for one stored suggestion and records the outcome in the store.
+     *
+     * @param array<string,mixed> $store
+     * @return array{0:bool,1:string} ok, message
+     */
+    private function applyStored( array &$store, string $id, int $userId, bool $auto ): array {
+        $item = $store['items'][ $id ];
+        try {
+            [ $ok, $message, $status, $extra ] = $this->applyOne( $item, $store, $userId, $auto );
+        } catch ( Throwable $e ) {
+            $this->logger->error( 'seo', 'Applying an internal link failed: ' . $e->getMessage(), [ 'suggestion' => (int) $id ] );
+            [ $ok, $message, $status, $extra ] = [ false, 'Nothing was changed: an unexpected error occurred (see Logs).', '', [] ];
+        }
+        if ( '' !== $status ) {
+            $merged = array_merge( $item, $extra, [ 'status' => $status, 'updated_at' => gmdate( 'c' ), 'note' => $message ] );
+            if ( self::STATUS_APPLIED === $status ) {
+                unset( $merged['render_note'], $merged['render_code'], $merged['render_scope'], $merged['removal_failed'], $merged['auto_skip'], $merged['auto_skip_code'] );
+            }
+            $store['items'][ $id ] = $merged;
+        } elseif ( $auto && ! $ok ) {
+            // Left for a person (e.g. kses would re-filter the item and no owner may save it): not retried automatically.
+            $store['items'][ $id ] = array_merge( $item, [ 'auto_skip' => $message, 'auto_skip_code' => (string) ( $extra['auto_skip_code'] ?? 'refused' ), 'updated_at' => gmdate( 'c' ) ] );
+        }
+        return [ $ok, $message ];
+    }
+
+    /** Warning for a person's Apply when the item's page is known (without a request) not to show the link. */
+    private function visibilityWarning( int $sourceId, array $item ): string {
+        try {
+            $known = $this->render()->known( $sourceId );
+        } catch ( Throwable $e ) {
+            return '';
+        }
+        if ( is_array( $known ) && RenderCheck::HIDDEN === ( $known['verdict'] ?? '' ) ) {
+            return 'Note: this page doesn’t display its content (' . self::verdictReason( $known ) . '), so visitors and Google won’t see this link.';
+        }
+        if ( is_array( $known ) && RenderCheck::SHOWN === ( $known['verdict'] ?? '' ) && RenderCheck::WORDS_MISSING === ( $known['found'][ (int) $item['id'] ] ?? '' ) ) {
+            return 'Note: these words were not found on the page visitors see, so they may not see this link.';
+        }
+        return '';
+    }
+
+    /** @param array<string,mixed> $verdict */
+    private static function verdictReason( array $verdict ): string {
+        return match ( (string) ( $verdict['code'] ?? '' ) ) {
+            'posts_page' => 'it is the posts page, where WordPress lists your posts',
+            'shop'       => 'it is the WooCommerce shop page, which shows the product catalogue',
+            'woo_cart', 'woo_checkout', 'woo_myaccount' => 'it is a WooCommerce cart, checkout or account page',
+            default      => 'its template shows other content in its place',
+        };
     }
 
     /**
@@ -710,12 +901,18 @@ final class InternalLinker {
      * highest relevance first, at most seo.max_links_per_post per item and seo.auto_apply_per_day a day, through the
      * same safeguards as apply(). A suggestion the safeguards refuse is left for a person and not retried.
      *
-     * @return array{ran:bool,applied:int,refused:int,closed?:int,today:int,per_day:int,message:string}
+     * Before an item is edited, RenderCheck confirms its page shows the item's content and the words around the
+     * anchor (at most a few page requests per run, inside the budget). An item whose page does not show its content
+     * gets no link: its suggestions are set aside (STATUS_NOT_SHOWN, with a note) and automatic links already on it
+     * are taken back out (undo path, a revision first, audited). Items that could not be checked are left as they
+     * are and tried on a later run. `more` says the run stopped for time or the request limit with work left.
+     *
+     * @return array{ran:bool,applied:int,refused:int,closed:int,not_shown:int,removed:int,unchecked:int,fetches:int,more:bool,today:int,per_day:int,message:string}
      */
     public function autoApply( ?TimeBudget $budget = null ): array {
         $perDay = $this->autopilot()->linksPerDay();
         $today  = $this->limits()->used( self::AUTO_COUNTER );
-        $out    = [ 'ran' => false, 'applied' => 0, 'refused' => 0, 'today' => $today, 'per_day' => $perDay, 'message' => '' ];
+        $out    = [ 'ran' => false, 'applied' => 0, 'refused' => 0, 'closed' => 0, 'not_shown' => 0, 'removed' => 0, 'unchecked' => 0, 'fetches' => 0, 'more' => false, 'today' => $today, 'per_day' => $perDay, 'message' => '' ];
         if ( ! $this->autoApplyEnabled() ) {
             return $out;
         }
@@ -728,50 +925,298 @@ final class InternalLinker {
             $out['message'] = 'Internal-link suggestions are being refreshed right now; automatic links are added on the next run.';
             return $out;
         }
+        $render = $this->render();
+        $render->beginRun();
+        $attempted = 0;
+        $unknown   = []; // items whose page could not be checked this run
         try {
-            $store   = $this->store();
-            $max     = $this->maxPerSource();
-            $applied = [];
-            foreach ( $store['items'] as $item ) {
-                if ( self::STATUS_APPLIED === $item['status'] ) {
-                    $applied[ (int) $item['source_post_id'] ] = ( $applied[ (int) $item['source_post_id'] ] ?? 0 ) + 1;
+            $store = $this->store();
+            $this->clearKsesRefusals( $store );
+
+            // 1. What is known without a request (certain cases and stored verdicts) is applied to every open
+            //    suggestion and automatic link at once.
+            $verdicts = [];
+            foreach ( $this->sourcesOf( $store, true ) as $src ) {
+                $known = $render->known( $src );
+                if ( null !== $known ) {
+                    $verdicts[ $src ] = $known;
+                    $this->syncSource( $store, $src, $known, $out );
                 }
             }
-            $pending = array_values( array_filter( $store['items'], static fn( array $i ): bool => self::STATUS_PENDING === $i['status'] && empty( $i['auto_skip'] ) ) );
-            usort( $pending, static fn( array $a, array $b ): int => [ self::relevanceOf( $b ), (int) $a['id'] ] <=> [ self::relevanceOf( $a ), (int) $b['id'] ] );
-            $ids = [];
-            foreach ( $pending as $item ) {
-                $src = (int) $item['source_post_id'];
-                if ( ( $applied[ $src ] ?? 0 ) >= $max ) {
+            // 2. Items that already carry automatic links are checked first: a link there may be invisible.
+            foreach ( $this->sourcesWithAutoLinks( $store ) as $src ) {
+                if ( isset( $verdicts[ $src ] ) ) {
                     continue;
                 }
-                $applied[ $src ] = ( $applied[ $src ] ?? 0 ) + 1; // planned: keeps the per-item cap across this batch
-                $ids[]           = (int) $item['id'];
+                if ( null !== $budget && ! $budget->has( 9.0 ) ) {
+                    $out['more'] = true;
+                    break;
+                }
+                $v = $render->check( $src, $this->openTerms( $store, $src ), $budget );
+                if ( null === $v ) {
+                    $out['more'] = $out['more'] || '' === $render->stopped();
+                    break;
+                }
+                $verdicts[ $src ] = $v;
+                $this->syncSource( $store, $src, $v, $out );
+                if ( RenderCheck::UNKNOWN === ( $v['verdict'] ?? '' ) ) {
+                    $unknown[ $src ] = true;
+                }
             }
-            [ $done, $results ] = $this->applyBatch( $store, $ids, 0, $budget, true, $room );
+            // 3. Automatic links on items whose page does not show its content are taken back out.
+            foreach ( $verdicts as $src => $v ) {
+                if ( RenderCheck::HIDDEN === ( $v['verdict'] ?? '' ) ) {
+                    if ( null !== $budget && ! $budget->has( 3.0 ) ) {
+                        $out['more'] = true;
+                        break;
+                    }
+                    $this->removeFromHidden( $store, (int) $src, $v, $out );
+                }
+            }
+
+            // 4. The best suggestions, highest relevance first, on items whose page shows the words.
+            $max     = $this->maxPerSource();
+            $planned = [];
+            foreach ( $store['items'] as $item ) {
+                if ( self::STATUS_APPLIED === $item['status'] ) {
+                    $planned[ (int) $item['source_post_id'] ] = ( $planned[ (int) $item['source_post_id'] ] ?? 0 ) + 1;
+                }
+            }
+            $candidates = array_values(
+                array_filter(
+                    $store['items'],
+                    static fn( array $i ): bool => ( self::STATUS_PENDING === $i['status'] && empty( $i['auto_skip'] ) )
+                        // set aside earlier, but its page verdict is no longer valid (the page or theme changed)
+                        || ( self::STATUS_NOT_SHOWN === $i['status'] && ! isset( $verdicts[ (int) $i['source_post_id'] ] ) )
+                )
+            );
+            usort( $candidates, static fn( array $a, array $b ): int => [ self::relevanceOf( $b ), (int) $a['id'] ] <=> [ self::relevanceOf( $a ), (int) $b['id'] ] );
+            foreach ( $candidates as $cand ) {
+                if ( $out['applied'] >= $room ) {
+                    break;
+                }
+                if ( null !== $budget && ! $budget->has( 3.0 ) ) {
+                    $out['more'] = true;
+                    break;
+                }
+                $id  = (string) (int) $cand['id'];
+                $src = (int) $cand['source_post_id'];
+                if ( ( $planned[ $src ] ?? 0 ) >= $max ) {
+                    continue;
+                }
+                $v = $verdicts[ $src ] ?? null;
+                if ( null === $v || ( RenderCheck::SHOWN === ( $v['verdict'] ?? '' ) && ! isset( $v['found'][ (int) $id ] ) ) ) {
+                    $v = $render->check( $src, $this->openTerms( $store, $src ), $budget );
+                    if ( null === $v ) {
+                        $out['more'] = $out['more'] || '' === $render->stopped();
+                        continue; // items already checked can still be applied
+                    }
+                    $verdicts[ $src ] = $v;
+                    $this->syncSource( $store, $src, $v, $out );
+                    if ( RenderCheck::HIDDEN === ( $v['verdict'] ?? '' ) ) {
+                        $this->removeFromHidden( $store, $src, $v, $out );
+                    }
+                }
+                if ( RenderCheck::SHOWN !== ( $v['verdict'] ?? '' ) ) {
+                    if ( RenderCheck::UNKNOWN === ( $v['verdict'] ?? '' ) ) {
+                        $unknown[ $src ] = true;
+                    }
+                    continue;
+                }
+                $item = $store['items'][ $id ] ?? null;
+                if ( ! is_array( $item ) || self::STATUS_PENDING !== $item['status'] || ! empty( $item['auto_skip'] ) ) {
+                    continue; // set aside or left for a person by the check
+                }
+                $attempted++;
+                $planned[ $src ] = ( $planned[ $src ] ?? 0 ) + 1; // keeps the per-item cap across this run
+                [ $ok ] = $this->applyStored( $store, $id, 0, true );
+                if ( $ok ) {
+                    $out['applied']++;
+                    $render->rekey( $src ); // only the inserted <a> changed: the page still shows the same words
+                } elseif ( self::STATUS_PENDING === ( $store['items'][ $id ]['status'] ?? '' ) ) {
+                    $out['refused']++;
+                    $planned[ $src ]--;
+                } else {
+                    $out['closed']++;
+                    $planned[ $src ]--;
+                }
+            }
             $this->saveStore( $store );
         } finally {
             $this->locks->release( self::LOCK );
         }
-        // A refused suggestion either stays pending for a person (auto_skip) or was closed as no longer valid
-        // (stale: the text changed, the item already links there, …); only the first kind is "left for you".
-        $closed = 0;
-        foreach ( $results as $r ) {
-            if ( empty( $r['ok'] ) && self::STATUS_PENDING !== (string) ( $store['items'][ (string) (int) $r['id'] ]['status'] ?? '' ) ) {
-                $closed++;
-            }
-        }
-        $out['ran']     = true;
-        $out['applied'] = $done;
-        $out['refused'] = max( 0, count( $results ) - $done - $closed );
-        $out['closed']  = $closed;
+        $done             = $out['applied'];
+        $out['unchecked'] = count( $unknown );
+        $out['ran']       = true;
+        $out['fetches'] = $render->fetchesUsed();
         $out['today']   = $today + $done;
+        $out['more']    = $out['more'] && $done < $room;
         $tail           = ( $out['refused'] > 0 ? sprintf( '; %d left for you to review', $out['refused'] ) : '' )
-            . ( $closed > 0 ? sprintf( '; %d no longer valid (closed)', $closed ) : '' );
-        $out['message'] = 0 === $done && [] === $ids
+            . ( $out['not_shown'] > 0 ? sprintf( '; %d set aside because the page doesn’t display its content', $out['not_shown'] ) : '' )
+            . ( $out['removed'] > 0 ? sprintf( '; %d automatic %s removed from pages that don’t display their content', $out['removed'], 1 === $out['removed'] ? 'link' : 'links' ) : '' )
+            . ( $out['closed'] > 0 ? sprintf( '; %d no longer valid (closed)', $out['closed'] ) : '' )
+            . ( $out['unchecked'] > 0 ? sprintf( '; %d %s could not be checked (tried again later)', $out['unchecked'], 1 === $out['unchecked'] ? 'page' : 'pages' ) : '' );
+        $out['message'] = 0 === $done && 0 === $attempted && '' === $tail
             ? 'No internal-link suggestion is waiting to be applied automatically.'
             : sprintf( 'Applied %d internal %s automatically (%d of %d today)%s.', $done, 1 === $done ? 'link' : 'links', $today + $done, $perDay, $tail );
         return $out;
+    }
+
+    /**
+     * Items with open suggestions (and, with $withAuto, items carrying automatic links).
+     *
+     * @param array<string,mixed> $store
+     * @return int[]
+     */
+    private function sourcesOf( array $store, bool $withAuto ): array {
+        $out = [];
+        foreach ( $store['items'] as $item ) {
+            if ( self::isOpen( $item ) || ( $withAuto && self::STATUS_APPLIED === $item['status'] && ! empty( $item['auto'] ) ) ) {
+                $out[ (int) $item['source_post_id'] ] = true;
+            }
+        }
+        return array_keys( $out );
+    }
+
+    /**
+     * @param array<string,mixed> $store
+     * @return int[] items with automatic links still present, oldest link first
+     */
+    private function sourcesWithAutoLinks( array $store ): array {
+        $out = [];
+        foreach ( $store['items'] as $item ) {
+            if ( self::STATUS_APPLIED === $item['status'] && ! empty( $item['auto'] ) && empty( $item['removal_failed'] ) ) {
+                $src         = (int) $item['source_post_id'];
+                $at          = (string) ( $item['applied_at'] ?? '' );
+                $out[ $src ] = isset( $out[ $src ] ) ? min( $out[ $src ], $at ) : $at;
+            }
+        }
+        asort( $out );
+        return array_map( 'intval', array_keys( $out ) );
+    }
+
+    /**
+     * Open suggestions of an item as id => anchor term (what the page check compares).
+     *
+     * @param array<string,mixed> $store
+     * @return array<int,string>
+     */
+    private function openTerms( array $store, int $src ): array {
+        $out = [];
+        foreach ( $store['items'] as $id => $item ) {
+            if ( (int) $item['source_post_id'] === $src && self::isOpen( $item ) ) {
+                $out[ (int) $id ] = (string) ( $item['term'] ?? $item['anchor'] ?? '' );
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * Brings an item's open suggestions in line with its page verdict: set aside (not shown) when the page does not
+     * show its content or the words, back to pending when it does, a note while the check is unknown.
+     *
+     * @param array<string,mixed> $store
+     * @param array<string,mixed> $v
+     * @param array<string,int|bool|string> $out counters (not_shown, refused)
+     */
+    private function syncSource( array &$store, int $src, array $v, array &$out ): void {
+        $now     = gmdate( 'c' );
+        $verdict = (string) ( $v['verdict'] ?? '' );
+        foreach ( $store['items'] as $id => $item ) {
+            if ( (int) $item['source_post_id'] !== $src || ! self::isOpen( $item ) ) {
+                continue;
+            }
+            $pending = self::STATUS_PENDING === $item['status'];
+            $word    = (string) ( $v['found'][ (int) $id ] ?? '' );
+            if ( RenderCheck::HIDDEN === $verdict ) {
+                if ( $pending || (string) ( $item['render_code'] ?? '' ) !== (string) $v['code'] ) {
+                    $out['not_shown'] += $pending ? 1 : 0;
+                    $store['items'][ $id ] = array_merge( $item, [ 'status' => self::STATUS_NOT_SHOWN, 'note' => ! empty( $item['removed_at'] ) ? (string) ( $item['note'] ?? self::REMOVED_NOTE ) : (string) $v['note'], 'render_code' => (string) $v['code'], 'render_scope' => 'page', 'render_at' => $now, 'updated_at' => $now ] );
+                    unset( $store['items'][ $id ]['render_note'] );
+                }
+                continue;
+            }
+            if ( RenderCheck::UNKNOWN === $verdict ) {
+                if ( $pending ) {
+                    $store['items'][ $id ]['render_note'] = (string) ( $v['note'] ?? '' );
+                }
+                continue;
+            }
+            // Shown.
+            if ( RenderCheck::WORDS_MISSING === $word ) {
+                if ( $pending || 'words' !== ( $item['render_scope'] ?? '' ) ) {
+                    $out['not_shown'] += $pending ? 1 : 0;
+                    $store['items'][ $id ] = array_merge( $item, [ 'status' => self::STATUS_NOT_SHOWN, 'note' => RenderCheck::NOTE_WORDS, 'render_code' => 'words', 'render_scope' => 'words', 'render_at' => $now, 'updated_at' => $now ] );
+                    unset( $store['items'][ $id ]['render_note'] );
+                }
+                continue;
+            }
+            $fresh = $item;
+            unset( $fresh['render_note'], $fresh['render_code'], $fresh['render_scope'], $fresh['render_at'] );
+            if ( ! $pending ) {
+                $fresh['status']     = self::STATUS_PENDING;
+                $fresh['note']       = '';
+                $fresh['updated_at'] = $now;
+                unset( $fresh['removed_at'], $fresh['removed_mode'], $fresh['removal_failed'] );
+            }
+            if ( RenderCheck::WORDS_SHORT === $word && empty( $fresh['auto_skip'] ) ) {
+                $fresh['auto_skip']      = 'Not applied automatically: there are too few words around this spot to confirm that the page shows them. Apply it by hand if the link belongs there.';
+                $fresh['auto_skip_code'] = 'short';
+                $out['refused']++;
+            }
+            $store['items'][ $id ] = $fresh;
+        }
+    }
+
+    /**
+     * Takes the automatic links back out of an item whose page does not show its content (undo path: the exact
+     * previous content when the item was not edited since, else only the <a>; a revision first) and sets them aside.
+     *
+     * @param array<string,mixed> $store
+     * @param array<string,mixed> $v
+     * @param array<string,int|bool|string> $out counters (removed)
+     */
+    private function removeFromHidden( array &$store, int $src, array $v, array &$out ): void {
+        $ids = [];
+        foreach ( $store['items'] as $id => $item ) {
+            if ( (int) $item['source_post_id'] === $src && self::STATUS_APPLIED === $item['status'] && ! empty( $item['auto'] ) && empty( $item['removal_failed'] ) ) {
+                $ids[] = (string) $id;
+            }
+        }
+        if ( [] === $ids ) {
+            return;
+        }
+        usort( $ids, static fn( string $a, string $b ): int => [ (string) ( $store['items'][ $b ]['applied_at'] ?? '' ), (int) $b ] <=> [ (string) ( $store['items'][ $a ]['applied_at'] ?? '' ), (int) $a ] );
+        $res = $this->undoSource( $src, $ids, $store, 0, [ 'owner' => $this->autoOwner( $src ), 'code' => (string) ( $v['code'] ?? 'template' ) ] );
+        $out['removed'] += $res['restored'] + $res['unlinked'];
+        if ( $res['restored'] + $res['unlinked'] > 0 ) {
+            $this->render()->rekey( $src ); // only our <a> went: the verdict still holds
+        }
+    }
+
+    /**
+     * Suggestions left for a person only because kses would re-filter the item are tried again once an owner may
+     * save it unfiltered (applyOne() then saves as that owner).
+     *
+     * @param array<string,mixed> $store
+     */
+    private function clearKsesRefusals( array &$store ): void {
+        $owners = [];
+        foreach ( $store['items'] as $id => $item ) {
+            if ( self::STATUS_PENDING !== $item['status'] || empty( $item['auto_skip'] ) ) {
+                continue;
+            }
+            $code = (string) ( $item['auto_skip_code'] ?? '' );
+            if ( 'kses' !== $code && ! ( '' === $code && str_starts_with( (string) $item['auto_skip'], self::KSES_REFUSAL ) ) ) {
+                continue;
+            }
+            $src            = (int) $item['source_post_id'];
+            $owners[ $src ] ??= $this->autoOwner( $src );
+            if ( $owners[ $src ] > 0 ) {
+                $store['items'][ $id ] = array_merge( $item, [ 'auto_skip_cleared_at' => gmdate( 'c' ) ] );
+                unset( $store['items'][ $id ]['auto_skip'], $store['items'][ $id ]['auto_skip_code'] );
+            }
+        }
     }
 
     /**
@@ -837,15 +1282,26 @@ final class InternalLinker {
     /**
      * Undoes the automatic links of one item ($ids newest first) and saves it once.
      *
+     * With $auto (autoApply(): the item's page does not show its content) no person is involved: the save is made as
+     * the consenting owner ($auto['owner'], 0 = no user) when kses would otherwise re-filter the item, the links are
+     * set aside (STATUS_NOT_SHOWN with REMOVED_NOTE, so they come back when the page shows its content) instead of
+     * dismissed, and the audit row names the automation.
+     *
      * @param string[] $ids
      * @param array<string,mixed> $store
+     * @param array{owner:int,code:string}|null $auto
      * @return array{restored:int,unlinked:int,already_gone:int,refused:int,message:string}
      */
-    private function undoSource( int $sourceId, array $ids, array &$store, int $userId ): array {
+    private function undoSource( int $sourceId, array $ids, array &$store, int $userId, ?array $auto = null ): array {
         $res  = [ 'restored' => 0, 'unlinked' => 0, 'already_gone' => 0, 'refused' => 0, 'message' => '' ];
         $post = get_post( $sourceId );
         $now  = gmdate( 'c' );
-        $mark = function ( string $id, string $mode ) use ( &$store, $now, $userId ): void {
+        $mark = function ( string $id, string $mode ) use ( &$store, $now, $userId, $auto ): void {
+            if ( null !== $auto ) {
+                $store['items'][ $id ] = array_merge( $store['items'][ $id ], [ 'status' => self::STATUS_NOT_SHOWN, 'removed_at' => $now, 'removed_mode' => $mode, 'render_code' => (string) $auto['code'], 'render_scope' => 'page', 'render_at' => $now, 'updated_at' => $now, 'note' => self::REMOVED_NOTE ] );
+                unset( $store['items'][ $id ]['removal_failed'] );
+                return;
+            }
             $store['items'][ $id ] = array_merge( $store['items'][ $id ], [ 'status' => self::STATUS_DISMISSED, 'undone_at' => $now, 'undone_by' => $userId, 'undo_mode' => $mode, 'dismissed_at' => $now, 'dismissed_by' => $userId, 'updated_at' => $now, 'note' => self::UNDONE_NOTE ] );
         };
         if ( ! is_object( $post ) ) {
@@ -855,7 +1311,8 @@ final class InternalLinker {
             $res['already_gone'] = count( $ids );
             return $res;
         }
-        if ( ! current_user_can( 'edit_post', $sourceId ) ) {
+        // The automation removes what it added on the owner's standing consent, not on a user's capabilities.
+        if ( null === $auto && ! current_user_can( 'edit_post', $sourceId ) ) {
             $res['refused'] = count( $ids );
             $res['message'] = 'Your account may not edit this item.';
             return $res;
@@ -867,18 +1324,29 @@ final class InternalLinker {
             [ $content, $mode ] = self::undoContent( $content, $store['items'][ $id ] );
             $modes[ $id ]       = $mode;
         }
+        $owner = 0;
         if ( $content !== $original ) {
-            $problem = '';
-            if ( ! current_user_can( 'unfiltered_html' ) && wp_kses_post( $content ) !== $content ) {
-                $problem = 'your account cannot save unfiltered HTML, and WordPress would re-filter other markup in this item; remove the link in the editor instead';
-            } elseif ( $this->restorePoint( $sourceId ) <= 0 ) {
-                $problem = 'WordPress could not keep a revision of the current content';
-            } else {
-                $saved = wp_update_post( wp_slash( [ 'ID' => $sourceId, 'post_content' => $content ] ), true );
-                if ( is_wp_error( $saved ) || (int) $saved <= 0 ) {
-                    $problem = is_wp_error( $saved ) ? $saved->get_error_message() : 'WordPress did not save the item';
-                }
+            if ( null !== $auto && ! current_user_can( 'unfiltered_html' ) && wp_kses_post( $content ) !== $content ) {
+                $owner = (int) ( $auto['owner'] ?? 0 );
             }
+            $problem = $this->asUser(
+                $owner,
+                function () use ( $sourceId, $content, $auto ): string {
+                    if ( ! current_user_can( 'unfiltered_html' ) && wp_kses_post( $content ) !== $content ) {
+                        return null !== $auto
+                            ? 'WordPress would re-filter other markup in this item and no account that may save it unchanged gave the consent; remove the link in the editor instead'
+                            : 'your account cannot save unfiltered HTML, and WordPress would re-filter other markup in this item; remove the link in the editor instead';
+                    }
+                    if ( $this->restorePoint( $sourceId ) <= 0 ) {
+                        return 'WordPress could not keep a revision of the current content';
+                    }
+                    $saved = wp_update_post( wp_slash( [ 'ID' => $sourceId, 'post_content' => $content ] ), true );
+                    if ( is_wp_error( $saved ) || (int) $saved <= 0 ) {
+                        return is_wp_error( $saved ) ? $saved->get_error_message() : 'WordPress did not save the item';
+                    }
+                    return '';
+                }
+            );
             if ( '' !== $problem ) {
                 $this->logger->warning( 'seo', 'Automatic internal links could not be removed: ' . $problem, [ 'post_id' => $sourceId ] );
                 $res['refused'] = count( array_filter( $modes, static fn( string $m ): bool => 'gone' !== $m ) );
@@ -887,6 +1355,9 @@ final class InternalLinker {
                     if ( 'gone' === $mode ) {
                         $mark( (string) $id, 'gone' );
                         $res['already_gone']++;
+                    } elseif ( null !== $auto ) {
+                        // Not retried on every run; a person can still use "Undo automatic links".
+                        $store['items'][ (string) $id ]['removal_failed'] = $res['message'];
                     }
                 }
                 return $res;
@@ -896,9 +1367,25 @@ final class InternalLinker {
             $mark( (string) $id, $mode );
             $res[ 'restored' === $mode ? 'restored' : ( 'unlinked' === $mode ? 'unlinked' : 'already_gone' ) ]++;
         }
+        if ( null !== $auto ) {
+            $this->audit?->record(
+                'seo.internal_link_auto_removed',
+                'post',
+                $sourceId,
+                [ 'suggestion_ids' => array_map( 'intval', array_keys( $modes ) ), 'modes' => array_values( $modes ), 'reason' => 'not_displayed', 'render_code' => (string) $auto['code'], 'saved_as' => $owner ],
+                $this->autoActor()
+            );
+            $this->logger->info( 'seo', 'Automatic internal links removed: the page does not display its content', [ 'post_id' => $sourceId, 'modes' => array_values( $modes ), 'saved_as' => $owner ] );
+            return $res;
+        }
         $this->audit?->record( 'seo.internal_link_auto_undone', 'post', $sourceId, [ 'suggestion_ids' => array_map( 'intval', array_keys( $modes ) ), 'modes' => array_values( $modes ) ] );
         $this->logger->info( 'seo', 'Automatic internal links removed', [ 'post_id' => $sourceId, 'modes' => array_values( $modes ) ] );
         return $res;
+    }
+
+    /** Audit actor of what the automation does on the owner's standing consent. */
+    private function autoActor(): string {
+        return $this->autopilot()->isOn() ? Autopilot::ACTOR : 'system';
     }
 
     /**
@@ -931,27 +1418,38 @@ final class InternalLinker {
     }
 
     /**
-     * Automatic-link figures for the On-site SEO page and the growth run.
+     * Automatic-link figures for the On-site SEO page and the growth run: `not_shown` suggestions set aside because
+     * the page does not show them, `left_for_you` pending ones the automation left for a person, `removed` automatic
+     * links taken back out because their page does not show its content.
      *
-     * @return array{enabled:bool,autopilot:bool,per_day:int,today:int,present:int,undone:int}
+     * @return array{enabled:bool,autopilot:bool,per_day:int,today:int,present:int,undone:int,not_shown:int,left_for_you:int,removed:int}
      */
     public function autoInfo(): array {
-        $present = 0;
-        $undone  = 0;
+        $present  = 0;
+        $undone   = 0;
+        $notShown = 0;
+        $left     = 0;
+        $removed  = 0;
         foreach ( $this->store()['items'] as $item ) {
+            $notShown += self::STATUS_NOT_SHOWN === $item['status'] ? 1 : 0;
+            $left     += self::STATUS_PENDING === $item['status'] && ! empty( $item['auto_skip'] ) ? 1 : 0;
             if ( empty( $item['auto'] ) ) {
                 continue;
             }
             $present += self::STATUS_APPLIED === $item['status'] ? 1 : 0;
             $undone  += ! empty( $item['undone_at'] ) ? 1 : 0;
+            $removed += self::STATUS_NOT_SHOWN === $item['status'] && ! empty( $item['removed_at'] ) ? 1 : 0;
         }
         return [
-            'enabled'   => $this->autoApplyEnabled(),
-            'autopilot' => $this->autopilot()->isOn(),
-            'per_day'   => $this->autopilot()->linksPerDay(),
-            'today'     => $this->limits()->used( self::AUTO_COUNTER ),
-            'present'   => $present,
-            'undone'    => $undone,
+            'enabled'      => $this->autoApplyEnabled(),
+            'autopilot'    => $this->autopilot()->isOn(),
+            'per_day'      => $this->autopilot()->linksPerDay(),
+            'today'        => $this->limits()->used( self::AUTO_COUNTER ),
+            'present'      => $present,
+            'undone'       => $undone,
+            'not_shown'    => $notShown,
+            'left_for_you' => $left,
+            'removed'      => $removed,
         ];
     }
 
@@ -1009,20 +1507,39 @@ final class InternalLinker {
         if ( empty( $ok[0] ) ) {
             return [ false, 'Refused: the link would land inside markup that must not contain links, so nothing was edited.', self::STATUS_STALE, [] ];
         }
-        if ( $auto && wp_kses_post( $new ) !== $new ) {
-            // In the background there is no user who may save unfiltered HTML: WordPress would re-filter other markup.
-            return [ false, 'Not applied automatically: WordPress would re-filter other markup in this item when saving it. Apply it by hand from an administrator account, or add the link in the editor.', '', [] ];
+        $owner = 0;
+        if ( $auto ) {
+            // Only the plugin's own link to a page of this site is ever added without a person.
+            if ( ! SiteAuditor::isInternalUrl( $targetUrl ) ) {
+                return [ false, 'Not applied automatically: the link target’s address is not on this site. Apply it by hand if the link belongs there.', '', [ 'auto_skip_code' => 'external' ] ];
+            }
+            if ( wp_kses_post( $new ) !== $new ) {
+                // In the background there is no user, so WordPress would re-filter other markup (inline SVG, JSON-LD)
+                // on save. The save is made as the consenting owner instead, only when that user may save it unchanged.
+                $owner = $this->autoOwner( $sourceId );
+                if ( 0 === $owner ) {
+                    return [ false, self::KSES_REFUSAL . ' The account that gave the consent for automatic links must still exist, be able to edit this item and be allowed to save unfiltered HTML for the automation to save it unchanged. Apply it by hand from an administrator account, or add the link in the editor.', '', [ 'auto_skip_code' => 'kses' ] ];
+                }
+            }
         }
         if ( ! $auto && ! current_user_can( 'unfiltered_html' ) && wp_kses_post( $new ) !== $new ) {
             return [ false, 'Refused: your account cannot save unfiltered HTML, and WordPress would re-filter other markup in this item. Add the link in the editor instead.', '', [] ];
         }
 
-        $restore = $this->restorePoint( $sourceId );
+        // The revision and the save are made as the owner (when needed) and the previous user is restored at once.
+        [ $restore, $result ] = $this->asUser(
+            $owner,
+            function () use ( $sourceId, $new ): array {
+                $restore = $this->restorePoint( $sourceId );
+                if ( $restore <= 0 ) {
+                    return [ 0, null ];
+                }
+                return [ $restore, wp_update_post( wp_slash( [ 'ID' => $sourceId, 'post_content' => $new ] ), true ) ];
+            }
+        );
         if ( $restore <= 0 ) {
             return [ false, 'Refused: WordPress could not keep a revision of the current content, so the previous version could not be restored; nothing was edited.', '', [] ];
         }
-
-        $result = wp_update_post( wp_slash( [ 'ID' => $sourceId, 'post_content' => $new ] ), true );
         if ( is_wp_error( $result ) || (int) $result <= 0 ) {
             $why = is_wp_error( $result ) ? $result->get_error_message() : 'WordPress did not save the item';
             return [ false, 'Nothing was changed: ' . $why . '.', '', [] ];
@@ -1043,10 +1560,10 @@ final class InternalLinker {
             'seo.internal_link_applied',
             'post',
             $sourceId,
-            [ 'suggestion_id' => (int) $item['id'], 'target_id' => $targetId, 'target_url' => $targetUrl, 'anchor' => $occ['text'], 'restore_revision_id' => $restore, 'revision_id' => $revision, 'byte_identical' => $stored === $new, 'automatic' => $auto ],
-            $auto ? ( $this->autopilot()->isOn() ? Autopilot::ACTOR : 'system' ) : null
+            [ 'suggestion_id' => (int) $item['id'], 'target_id' => $targetId, 'target_url' => $targetUrl, 'anchor' => $occ['text'], 'restore_revision_id' => $restore, 'revision_id' => $revision, 'byte_identical' => $stored === $new, 'automatic' => $auto ] + ( $auto ? [ 'saved_as' => $owner ] : [] ),
+            $auto ? $this->autoActor() : null
         );
-        $this->logger->info( 'seo', $auto ? 'Internal link applied automatically' : 'Internal link applied', [ 'post_id' => $sourceId, 'target_id' => $targetId, 'anchor' => $occ['text'], 'restore_revision_id' => $restore ] );
+        $this->logger->info( 'seo', $auto ? 'Internal link applied automatically' : 'Internal link applied', [ 'post_id' => $sourceId, 'target_id' => $targetId, 'anchor' => $occ['text'], 'restore_revision_id' => $restore, 'saved_as' => $owner ] );
         if ( $auto ) {
             $this->limits()->spend( self::AUTO_COUNTER );
         }
@@ -1068,6 +1585,7 @@ final class InternalLinker {
                 'before_hash'         => hash( 'sha256', $content ),
                 'after_hash'          => hash( 'sha256', $stored ),
                 'byte_identical'      => $stored === $new,
+                'saved_as'            => $owner,
             ],
         ];
     }
@@ -1089,7 +1607,7 @@ final class InternalLinker {
             $store = $this->store();
             foreach ( $ids as $id ) {
                 $item = $store['items'][ (string) $id ] ?? null;
-                if ( is_array( $item ) && in_array( $item['status'], [ self::STATUS_PENDING, self::STATUS_STALE ], true ) ) {
+                if ( is_array( $item ) && in_array( $item['status'], [ self::STATUS_PENDING, self::STATUS_STALE, self::STATUS_NOT_SHOWN ], true ) ) {
                     $store['items'][ (string) $id ] = array_merge( $item, [ 'status' => self::STATUS_DISMISSED, 'dismissed_at' => gmdate( 'c' ), 'dismissed_by' => $userId, 'updated_at' => gmdate( 'c' ) ] );
                     $n++;
                 }
@@ -1350,7 +1868,7 @@ final class InternalLinker {
      * The first eligible whole-word, case-insensitive occurrence of $anchor.
      *
      * @param array<string,mixed> $analysis from analyse()
-     * @return array{start:int,end:int,text:string,context_hash:string,excerpt:string}|null byte offsets into the raw HTML
+     * @return array{start:int,end:int,text:string,context_hash:string,excerpt:string,spaced_start:int,spaced_length:int}|null byte offsets into the raw HTML
      */
     public static function locate( array $analysis, string $anchor ): ?array {
         $anchor = trim( $anchor );
@@ -1402,6 +1920,9 @@ final class InternalLinker {
                     'text'         => self::normalizeSpace( (string) $m[0][0] ),
                     'context_hash' => self::contextHash( (string) $analysis['joined'], $jStart, $mLen ),
                     'excerpt'      => self::excerpt( (string) $analysis['spaced'], $sStart, $mLen ),
+                    // Where the words sit in the visible text (RenderCheck compares the words around them).
+                    'spaced_start'  => $sStart,
+                    'spaced_length' => $mLen,
                 ];
             }
         }

@@ -436,6 +436,10 @@ require __DIR__ . '/autopilot-links.php';
 // 1.2.1: drafts whose footer was rendered under an old postal address are refreshed and approved, not stuck.
 require __DIR__ . '/footer-refresh.php';
 
+// 1.2.2: automatic links only on pages that show them (loopback render check); administrator markup saved as the
+// consenting owner instead of being left for a person.
+require __DIR__ . '/render-check.php';
+
 echo "\n==============================\n";
 printf( "Passed: %d  Failed: %d\n", IT::$pass, IT::$fail );
 foreach ( IT::$failures as $f ) {

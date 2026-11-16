@@ -232,6 +232,69 @@ await scenario( 'seoUndo', async () => {
     return out;
 } );
 
+// 1.2.2 On-site SEO: the list comes a page at a time, "Left for you" and "Not shown on the page" say why, and applying
+// a not-shown suggestion by hand warns that visitors will not see it.
+await scenario( 'seoLinksPaging', async () => {
+    const row = ( id, status, extra = {} ) => ( {
+        id, source_post_id: 9000 + id, source_title: `Article ${ id }`, source_url: `https://example.ca/a-${ id }/`, edit_url: `https://example.ca/wp-admin/post.php?post=${ 9000 + id }&action=edit`,
+        anchor: 'receptor tyrosine kinase', term: 'receptor tyrosine kinase', target_id: 11839, target_url: 'https://example.ca/rtk/', target_title: 'Receptor tyrosine kinases',
+        excerpt: '… IGF-1 acts through a receptor tyrosine kinase that autophosphorylates …', relevance: 90, status, auto: false, auto_skip: '', note: '', render_note: '', ...extra,
+    } );
+    const counts = { pending: 120, applied: 1, dismissed: 0, stale: 0, not_shown: 2, refused: 1 };
+    const s = await open( 'seo', ( m, p, body, url ) => {
+        if ( p === '/seo/links' && m === 'GET' ) {
+            const status = url.searchParams.get( 'status' ) || 'pending';
+            const page = Number( url.searchParams.get( 'page' ) || 1 );
+            const per = Number( url.searchParams.get( 'per_page' ) || 100 );
+            let items = [];
+            let total = 0;
+            if ( status === 'pending' ) {
+                total = 120;
+                for ( let i = ( page - 1 ) * per + 1; i <= Math.min( total, page * per ); i++ ) {
+                    items.push( row( i, 'pending', i === 2 ? { auto_skip: 'Not applied automatically: WordPress would re-filter other markup in this item when saving it.' } : ( i === 3 ? { render_note: 'Not checked yet: the page answered HTTP 503, so it could not be confirmed that the page shows this text. It is checked again later.' } : {} ) ) );
+                }
+            } else if ( status === 'refused' ) {
+                total = 1;
+                items = [ row( 2, 'pending', { auto_skip: 'Not applied automatically: WordPress would re-filter other markup in this item when saving it.' } ) ];
+            } else if ( status === 'not_shown' ) {
+                total = 2;
+                items = [ row( 201, 'not_shown', { note: 'Not added: this page’s template doesn’t display its content, so visitors and Google wouldn’t see the link.' } ), row( 202, 'not_shown', { note: 'Removed automatically: this page’s template doesn’t display its content, so visitors and Google never saw this link.', removed_at: '2026-11-16T09:00:00+00:00', auto: true } ) ];
+            }
+            return { available: true, enabled: true, max_links_per_post: 3, generated_at: '2026-11-16T09:00:00+00:00', progress: { running: false }, counts, auto: { enabled: true, autopilot: true, per_day: 20, today: 1, present: 1, undone: 0, not_shown: 2, left_for_you: 1, removed: 1 }, status, total, page, per_page: per, pages: Math.max( 1, Math.ceil( total / per ) ), items };
+        }
+        if ( p === '/seo/links/apply' && m === 'POST' ) {
+            return { ok: true, applied: 1, refused: 0, results: [ { id: body.ids[ 0 ], ok: true, message: 'Linked “receptor tyrosine kinase” to https://example.ca/rtk/. Note: this page doesn’t display its content (its template shows other content in its place), so visitors and Google won’t see this link.', warning: 'Note: this page doesn’t display its content (its template shows other content in its place), so visitors and Google won’t see this link.' } ], counts };
+        }
+        if ( p === '/seo/audit' ) {
+            return { available: true, summary: {}, progress: {}, result: null, issues: [] };
+        }
+        if ( p === '/seo/indexnow' ) {
+            return { available: true, status: { enabled: true }, history: [] };
+        }
+        return undefined;
+    } );
+    await s.settle( 600 );
+    const card = () => s.page.locator( '.ppclg-card', { has: s.page.locator( '.ppclg-card-head', { hasText: 'Internal link suggestions' } ) } ).first();
+    const first = await card().textContent();
+    const firstRows = await card().locator( 'tbody tr' ).count();
+    await card().locator( 'button', { hasText: 'Next' } ).click();
+    await s.settle( 500 );
+    const second = await card().textContent();
+    await card().locator( 'button', { hasText: 'Left for you' } ).click();
+    await s.settle( 500 );
+    const refused = await card().textContent();
+    await card().locator( 'button', { hasText: 'Not shown on the page' } ).click();
+    await s.settle( 500 );
+    const notShown = await card().textContent();
+    await card().locator( 'tbody tr' ).first().locator( 'button', { hasText: 'Apply' } ).click();
+    await s.settle( 700 );
+    const toasts = await s.toasts();
+    const gets = s.requests.filter( ( r ) => r.method === 'GET' && r.path === '/seo/links' ).map( ( r ) => r.query );
+    const out = { first, firstRows, second, refused, notShown, toasts, gets, posts: s.posts( '/seo/links/apply' ).map( ( r ) => r.body ), errors: s.errors };
+    await s.context.close();
+    return out;
+} );
+
 // Settings → Discovery: the automatically found competitors are listed apart from the owner's and can be removed.
 await scenario( 'settingsDiscovery', async () => {
     const settings = {

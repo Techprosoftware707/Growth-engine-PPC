@@ -32,6 +32,7 @@ use PPC\LinkGrowth\Repositories\OutreachMessages;
 use PPC\LinkGrowth\Repositories\Prospects;
 use PPC\LinkGrowth\Seo\IndexNow;
 use PPC\LinkGrowth\Seo\InternalLinker;
+use PPC\LinkGrowth\Seo\RenderCheck;
 use PPC\LinkGrowth\Seo\SiteAuditor;
 use PPC\LinkGrowth\Support\Settings;
 use PPC\LinkGrowth\Support\TimeBudget;
@@ -78,7 +79,7 @@ final class ReleaseWiringTest extends TestCase {
 
     public function testServicesJobsControllersPagesAndSettingsAreRegistered(): void {
         $c = Container::plugin()->container();
-        foreach ( [ StorefrontAudit::class, SiteAuditor::class, IndexNow::class, InternalLinker::class, VerifiedOpportunities::class, GrowthRun::class ] as $class ) {
+        foreach ( [ StorefrontAudit::class, SiteAuditor::class, IndexNow::class, RenderCheck::class, InternalLinker::class, VerifiedOpportunities::class, GrowthRun::class ] as $class ) {
             $this->assertTrue( $c->has( $class ), $class . ' has a factory' );
             $this->assertInstanceOf( $class, $c->get( $class ) );
         }
@@ -115,11 +116,11 @@ final class ReleaseWiringTest extends TestCase {
         $this->assertSame( [ 'evaluate_rounds' => 6, 'step_seconds' => 20 ], $defaults['growth'] );
 
         $main = (string) file_get_contents( self::ROOT . 'ppc-link-growth-engine.php' );
-        $this->assertMatchesRegularExpression( '/\*\s+Version:\s+1\.2\.1\b/', $main );
-        $this->assertStringContainsString( "define( 'PPCLG_VERSION', '1.2.1' );", $main );
+        $this->assertMatchesRegularExpression( '/\*\s+Version:\s+1\.2\.2\b/', $main );
+        $this->assertStringContainsString( "define( 'PPCLG_VERSION', '1.2.2' );", $main );
         $readme = (string) file_get_contents( self::ROOT . 'readme.txt' );
-        $this->assertStringContainsString( 'Stable tag: 1.2.1', $readme );
-        $this->assertStringContainsString( "== Changelog ==\n\n= 1.2.1 =\n", $readme, 'the changelog leads with this version' );
+        $this->assertStringContainsString( 'Stable tag: 1.2.2', $readme );
+        $this->assertStringContainsString( "== Changelog ==\n\n= 1.2.2 =\n", $readme, 'the changelog leads with this version' );
 
         $css = (string) file_get_contents( self::ROOT . 'assets/css/admin.css' );
         foreach ( [ '.ppclg-grow-step--blocked .ppclg-grow-step-icon', '.ppclg-compliance-finding', '.ppclg-owner-steps', '.ppclg-wrap mark' ] as $selector ) {

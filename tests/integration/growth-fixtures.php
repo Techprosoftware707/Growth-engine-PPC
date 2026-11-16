@@ -209,6 +209,10 @@ function ppclg_it_offline_guard(): void {
             if ( str_ends_with( $host, '.test' ) || '127.0.0.1' === $host ) {
                 return $pre; // the mu-plugin routes *.test hosts to the fixture server on 127.0.0.1:8788
             }
+            // This WordPress itself while ppclg_it_self_server() serves it (1.2.2 render check): still offline.
+            if ( ! empty( $GLOBALS['itAllowSelf'] ) && strtolower( (string) wp_parse_url( home_url( '/' ), PHP_URL_HOST ) ) === $host ) {
+                return $pre;
+            }
             $GLOBALS['itBlocked'][ $host ] = ( $GLOBALS['itBlocked'][ $host ] ?? 0 ) + 1;
             return new WP_Error( 'ppclg_it_offline', 'Outbound request refused by the integration test (offline): ' . $host );
         },
@@ -254,4 +258,47 @@ function ppclg_it_step( array $state, string $key ): array {
         }
     }
     return [];
+}
+
+/**
+ * Serves this WordPress over HTTP on its own address (home_url, e.g. localhost:8787) with PHP's built-in server, so
+ * the plugin's loopback page requests (Seo\RenderCheck, 1.2.2) reach real themes and templates, and lets the offline
+ * guard pass requests to that host. Returns a function that stops the server again (only one this call started).
+ */
+function ppclg_it_self_server(): \Closure {
+    $host  = (string) wp_parse_url( home_url( '/' ), PHP_URL_HOST );
+    $port  = (int) ( wp_parse_url( home_url( '/' ), PHP_URL_PORT ) ?: 80 );
+    $up    = static function () use ( $host, $port ): bool {
+        $fp = @fsockopen( '127.0.0.1', $port, $errno, $errstr, 0.5 );
+        if ( is_resource( $fp ) ) {
+            fclose( $fp );
+            return true;
+        }
+        return false;
+    };
+    $GLOBALS['itAllowSelf'] = true;
+    $proc                   = null;
+    if ( ! $up() ) {
+        $log  = sys_get_temp_dir() . '/ppclg-it-self-server.log';
+        $proc = proc_open( [ PHP_BINARY, '-S', $host . ':' . $port, '-t', rtrim( ABSPATH, '/' ) ], [ 0 => [ 'pipe', 'r' ], 1 => [ 'file', $log, 'a' ], 2 => [ 'file', $log, 'a' ] ], $pipes );
+        for ( $i = 0; $i < 50 && ! $up(); $i++ ) {
+            usleep( 100000 );
+        }
+        // A step that throws before stopping it must not leave the server running after the run.
+        register_shutdown_function(
+            static function () use ( &$proc ): void {
+                if ( is_resource( $proc ) ) {
+                    proc_terminate( $proc );
+                }
+            }
+        );
+    }
+    return static function () use ( &$proc ): void {
+        $GLOBALS['itAllowSelf'] = false;
+        if ( is_resource( $proc ) ) {
+            proc_terminate( $proc );
+            proc_close( $proc );
+            $proc = null;
+        }
+    };
 }

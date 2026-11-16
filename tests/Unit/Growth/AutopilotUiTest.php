@@ -73,6 +73,33 @@ final class AutopilotUiTest extends TestCase {
         $this->assertSame( [], $r['errors'] );
     }
 
+    public function testSeoListComesInPagesAndSaysWhyRowsWait(): void {
+        $r = $this->browser( 'seoLinksPaging' );
+        $this->assertSame( [ 'status' => 'pending', 'per_page' => '50', 'page' => '1' ], $r['gets'][0], 'an explicit page size' );
+        $this->assertSame( 50, $r['firstRows'] );
+        $this->assertStringContainsString( 'Showing 1–50 of 120 (page 1 of 3)', (string) $r['first'] );
+        $this->assertStringContainsString( 'Waiting (120)', (string) $r['first'], 'with automatic links on, pending rows are not "for review"' );
+        $this->assertStringContainsString( 'Left for you (1)', (string) $r['first'] );
+        $this->assertStringContainsString( 'Not shown on the page (2)', (string) $r['first'] );
+        $this->assertStringContainsString( 'Left for you Not applied automatically: WordPress would re-filter other markup', (string) $r['first'] );
+        $this->assertStringContainsString( 'Not checked yet: the page answered HTTP 503', (string) $r['first'] );
+        $this->assertStringContainsString( 'not added because the page doesn’t display that text', (string) $r['first'] );
+        $this->assertStringContainsString( 'taken back out of pages that don’t display their content', (string) $r['first'] );
+        $this->assertStringContainsString( 'Apply these 50', (string) $r['first'] );
+        $this->assertSame( '2', $r['gets'][1]['page'] );
+        $this->assertStringContainsString( 'Showing 51–100 of 120 (page 2 of 3)', (string) $r['second'] );
+        $this->assertSame( 'refused', $r['gets'][2]['status'] );
+        $this->assertSame( '1', $r['gets'][2]['page'], 'a new filter starts on its first page' );
+        $this->assertStringContainsString( 'Automation could not add these by itself', (string) $r['refused'] );
+        $this->assertSame( 'not_shown', $r['gets'][3]['status'] );
+        $this->assertStringContainsString( 'Not shown on the page Not added: this page’s template doesn’t display its content', (string) $r['notShown'] );
+        $this->assertStringContainsString( 'Removed: not shown', (string) $r['notShown'] );
+        $this->assertSame( [ [ 'ids' => [ 201 ], 'confirm' => true ] ], $r['posts'] );
+        $this->assertSame( 'warning', $r['toasts'][0]['kind'] ?? '' );
+        $this->assertStringContainsString( 'visitors and Google won’t see this link', $r['toasts'][0]['text'] ?? '' );
+        $this->assertSame( [], $r['errors'] );
+    }
+
     public function testSettingsListTheAutomaticCompetitorsApartAndLetThemBeRemoved(): void {
         $r = $this->browser( 'settingsDiscovery' );
         $this->assertStringContainsString( 'Found automatically by Autopilot', (string) $r['label'] );

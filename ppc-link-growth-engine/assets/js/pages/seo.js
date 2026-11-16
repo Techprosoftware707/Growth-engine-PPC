@@ -5,6 +5,10 @@
  * that click, and "Apply all" only after a confirmation that says it edits published content and creates revisions.
  * With automatic links on (Autopilot or Settings → Automation → On-site SEO) the background job adds the best
  * suggestions itself; "Undo automatic links" (after a confirmation) removes every automatic link still present.
+ *
+ * 1.2.2: suggestions are listed a page at a time (GET /seo/links per_page / page); "Left for you" lists the ones
+ * automation could not add by itself (with the reason), "Not shown on the page" the ones set aside because the
+ * item's page does not display its content (or those words). Both can still be applied by hand (with a warning).
  */
 
 import * as api from '../api.js';
@@ -21,10 +25,18 @@ const SEVERITY = {
 
 const LINK_STATUSES = [
     { id: 'pending', label: 'Waiting for review' },
+    { id: 'refused', label: 'Left for you' },
+    { id: 'not_shown', label: 'Not shown on the page' },
     { id: 'applied', label: 'Applied' },
     { id: 'dismissed', label: 'Dismissed' },
     { id: 'stale', label: 'No longer valid' },
 ];
+
+/** Suggestions per page of the list (GET /seo/links per_page). */
+export const LINKS_PER_PAGE = 50;
+
+/** Statuses whose rows can still be applied or dismissed. */
+const OPEN_STATUSES = [ 'pending', 'refused', 'not_shown' ];
 
 const obj = ( v ) => ( isObject( v ) ? v : {} );
 const arr = ( v ) => ( Array.isArray( v ) ? v : [] );
@@ -44,21 +56,53 @@ function highlight( excerpt, anchor ) {
 /**
  * The "Applied automatically" line of the internal-links card (GET /seo/links `auto`). Exported for tests.
  *
- * @param {object} auto { enabled, autopilot, per_day, today, present, undone }
- * @return {{show: boolean, title: string, text: string, present: number}}
+ * @param {object} auto { enabled, autopilot, per_day, today, present, undone, not_shown, left_for_you, removed }
+ * @return {{show: boolean, title: string, text: string, present: number, extra: string}}
  */
 export function autoLinksText( auto ) {
     const a = obj( auto );
     const present = Number( a.present ) || 0;
     const show = a.enabled === true || present > 0;
     if ( ! show ) {
-        return { show: false, title: '', text: '', present: 0 };
+        return { show: false, title: '', text: '', present: 0, extra: '' };
     }
     const title = `Applied automatically: ${ fmtNumber( present ) }`;
     const text = a.enabled === true
-        ? `${ a.autopilot ? 'Autopilot adds' : 'The engine adds' } the best suggestions by itself, highest relevance first: up to ${ fmtNumber( Number( a.per_day ) || 0 ) } a day (${ fmtNumber( Number( a.today ) || 0 ) } today), at most the per-item limit, with a revision of each page kept. “Undo automatic links” removes every automatic link still on the site.`
+        ? `${ a.autopilot ? 'Autopilot adds' : 'The engine adds' } the best suggestions by itself, highest relevance first: up to ${ fmtNumber( Number( a.per_day ) || 0 ) } a day (${ fmtNumber( Number( a.today ) || 0 ) } today), at most the per-item limit, with a revision of each page kept, and only on pages that show the words to visitors. “Undo automatic links” removes every automatic link still on the site.`
         : 'Automatic links are switched off now; the ones added earlier stay until you undo them.';
-    return { show, title, text, present };
+    const parts = [];
+    const left = Number( a.left_for_you ) || 0;
+    const hidden = Number( a.not_shown ) || 0;
+    const removed = Number( a.removed ) || 0;
+    if ( left > 0 ) {
+        parts.push( `${ plural( left, 'suggestion was', 'suggestions were' ) } left for you (see “Left for you” for the reason)` );
+    }
+    if ( hidden > 0 ) {
+        parts.push( `${ plural( hidden, 'suggestion is', 'suggestions are' ) } not added because the page doesn’t display that text (see “Not shown on the page”)` );
+    }
+    if ( removed > 0 ) {
+        parts.push( `${ plural( removed, 'automatic link was', 'automatic links were' ) } taken back out of pages that don’t display their content` );
+    }
+    const extra = parts.length > 0 ? `${ parts.join( '; ' ) }.` : '';
+    return { show, title, text, present, extra: extra.charAt( 0 ).toUpperCase() + extra.slice( 1 ) };
+}
+
+/**
+ * "Showing 51–100 of 529" for a page of GET /seo/links (older responses without paging fields: every row). Exported for tests.
+ *
+ * @param {object} data { total, page, per_page, pages, items }
+ * @return {{from: number, to: number, total: number, page: number, pages: number, text: string}}
+ */
+export function linksPageInfo( data ) {
+    const d = obj( data );
+    const count = arr( d.items ).length;
+    const total = Number.isFinite( Number( d.total ) ) && d.total !== undefined ? Number( d.total ) : count;
+    const perPage = Number( d.per_page ) > 0 ? Number( d.per_page ) : Math.max( count, 1 );
+    const page = Number( d.page ) > 0 ? Number( d.page ) : 1;
+    const pages = Number( d.pages ) > 0 ? Number( d.pages ) : Math.max( 1, Math.ceil( total / perPage ) );
+    const from = count > 0 ? ( page - 1 ) * perPage + 1 : 0;
+    const to = count > 0 ? from + count - 1 : 0;
+    return { from, to, total, page, pages, text: total > 0 ? `Showing ${ fmtNumber( from ) }–${ fmtNumber( to ) } of ${ fmtNumber( total ) }` : '' };
 }
 
 /** Message from a refusal or failure (ApiError or a { ok:false, message } body). */
@@ -74,6 +118,7 @@ export default async function render( root, ctx ) {
     const state = {
         severity: [ 'high', 'medium', 'low' ].includes( params.severity ) ? params.severity : '',
         linkStatus: LINK_STATUSES.some( ( s ) => s.id === params.links ) ? params.links : 'pending',
+        linkPage: 1,
     };
 
     const auditHost = el( 'div', { class: 'ppclg-section' } );
@@ -341,10 +386,15 @@ export default async function render( root, ctx ) {
         replace( linksHost, card( { title: 'Internal link suggestions', body: loading( 'Loading suggestions…', true ) } ) );
         let data;
         try {
-            data = obj( await api.get( '/seo/links', { status: state.linkStatus }, { silent: true } ) );
+            data = obj( await api.get( '/seo/links', { status: state.linkStatus, per_page: LINKS_PER_PAGE, page: state.linkPage }, { silent: true } ) );
         } catch ( e ) {
             replace( linksHost, card( { title: 'Internal link suggestions', body: errorState( { title: 'Suggestions could not be loaded', message: reason( e, '' ), retry: loadLinks } ) } ) );
             return;
+        }
+        // The page asked for no longer exists (rows were applied or dismissed): show the last one.
+        if ( state.linkPage > 1 && arr( data.items ).length === 0 && Number( data.pages ) > 0 && Number( data.pages ) < state.linkPage ) {
+            state.linkPage = Number( data.pages );
+            return loadLinks();
         }
         renderLinks( data );
     }
@@ -353,6 +403,7 @@ export default async function render( root, ctx ) {
     async function applyIds( ids ) {
         let applied = 0;
         const refused = [];
+        const warnings = [];
         for ( let i = 0; i < ids.length; i += 100 ) {
             let res;
             try {
@@ -365,13 +416,17 @@ export default async function render( root, ctx ) {
             for ( const r of arr( res.results ) ) {
                 if ( ! r.ok ) {
                     refused.push( String( r.message || 'Not applied.' ) );
+                } else if ( r.warning ) {
+                    warnings.push( String( r.warning ) );
                 }
             }
             if ( res.ok === false && arr( res.results ).length === 0 ) {
                 refused.push( reason( res, 'Nothing was applied.' ) );
             }
         }
-        if ( refused.length === 0 && applied > 0 ) {
+        if ( refused.length === 0 && applied > 0 && warnings.length > 0 ) {
+            toast( `${ plural( applied, 'link was', 'links were' ) } added. ${ truncate( warnings[ 0 ], 220 ) }`, 'warning', { timeout: 10000 } );
+        } else if ( refused.length === 0 && applied > 0 ) {
             toast( `${ plural( applied, 'link was', 'links were' ) } added. WordPress saved a revision of each edited item.`, 'success', { timeout: 7000 } );
         } else if ( refused.length > 0 ) {
             toast( `${ plural( applied, 'link was', 'links were' ) } added; ${ fmtNumber( refused.length ) } not applied: ${ truncate( refused[ 0 ], 200 ) }${ refused.length > 1 ? ' (see each row)' : '' }`, applied > 0 ? 'warning' : 'error', { timeout: 10000 } );
@@ -439,22 +494,27 @@ export default async function render( root, ctx ) {
         const counts = obj( data.counts );
         const items = arr( data.items );
         const progress = obj( data.progress );
-        const pendingItems = state.linkStatus === 'pending' ? items : [];
+        const open = OPEN_STATUSES.includes( state.linkStatus );
+        const pendingItems = open ? items : [];
+        const pageInfo = linksPageInfo( data );
+        const autoOn = obj( data.auto ).enabled === true;
 
         const refreshBtn = button( 'Find suggestions', {
             small: true, iconName: 'refresh',
             title: 'Reads published content and lists places where a product or key page could be linked. Nothing is edited.',
             onClick: () => refreshSuggestions(),
         } );
-        const applyAllBtn = button( 'Apply all', {
+        const onePage = pageInfo.pages <= 1;
+        const applyAllBtn = button( onePage ? 'Apply all' : `Apply these ${ fmtNumber( pendingItems.length ) }`, {
             small: true, kind: 'primary', iconName: 'link',
             disabled: pendingItems.length === 0,
-            title: pendingItems.length === 0 ? 'No suggestions are waiting for review.' : 'Adds every suggested link listed below after you confirm.',
+            title: pendingItems.length === 0 ? 'No suggestions are listed here.' : ( onePage ? 'Adds every suggested link listed below after you confirm.' : 'Adds the suggested links on this page of the list after you confirm.' ),
             onClick: async () => {
                 const sources = new Set( pendingItems.map( ( i ) => i.source_post_id ) ).size;
+                const hiddenNote = state.linkStatus === 'not_shown' ? ' These pages don’t display this text to visitors, so the links will not be seen there.' : '';
                 const ok = await confirm(
-                    `This edits ${ plural( sources, 'published item', 'published items' ) } on your live site: ${ plural( pendingItems.length, 'link is', 'links are' ) } added around the existing words shown below. Nothing else in the content changes, and WordPress saves a revision of each item so you can restore the previous version from the editor.`,
-                    { title: 'Apply all suggested links?', confirmText: `Apply ${ plural( pendingItems.length, 'link', 'links' ) }`, danger: true },
+                    `This edits ${ plural( sources, 'published item', 'published items' ) } on your live site: ${ plural( pendingItems.length, 'link is', 'links are' ) } added around the existing words shown below. Nothing else in the content changes, and WordPress saves a revision of each item so you can restore the previous version from the editor.${ hiddenNote }`,
+                    { title: onePage ? 'Apply all suggested links?' : 'Apply the suggested links on this page?', confirmText: `Apply ${ plural( pendingItems.length, 'link', 'links' ) }`, danger: true },
                 );
                 if ( ok ) {
                     await applyIds( pendingItems.map( ( i ) => i.id ) );
@@ -463,17 +523,44 @@ export default async function render( root, ctx ) {
         } );
 
         const statusRow = el( 'div', { class: 'ppclg-row', role: 'group', 'aria-label': 'Show suggestions by status' },
-            LINK_STATUSES.map( ( s ) => button( `${ s.label } (${ fmtNumber( counts[ s.id ] || 0 ) })`, {
+            LINK_STATUSES.filter( ( s ) => ! [ 'refused', 'not_shown' ].includes( s.id ) || Number( counts[ s.id ] ) > 0 || state.linkStatus === s.id ).map( ( s ) => button( `${ s.id === 'pending' && autoOn ? 'Waiting' : s.label } (${ fmtNumber( counts[ s.id ] || 0 ) })`, {
                 small: true,
                 kind: state.linkStatus === s.id ? 'primary' : 'ghost',
                 attrs: { 'aria-pressed': state.linkStatus === s.id ? 'true' : 'false' },
                 onClick: () => {
                     state.linkStatus = s.id;
+                    state.linkPage = 1;
                     keepHash();
                     return loadLinks();
                 },
             } ) ),
         );
+
+        const goTo = ( page ) => {
+            state.linkPage = page;
+            return loadLinks();
+        };
+        const pager = pageInfo.pages > 1 || pageInfo.page > 1
+            ? el( 'div', { class: 'ppclg-row ppclg-links-pager', role: 'group', 'aria-label': 'Pages of suggestions' },
+                el( 'span', { class: 'ppclg-small ppclg-muted', role: 'status' }, `${ pageInfo.text } (page ${ fmtNumber( pageInfo.page ) } of ${ fmtNumber( pageInfo.pages ) })` ),
+                button( 'Previous', { small: true, kind: 'ghost', disabled: pageInfo.page <= 1, onClick: () => goTo( pageInfo.page - 1 ) } ),
+                button( 'Next', { small: true, kind: 'ghost', disabled: pageInfo.page >= pageInfo.pages, onClick: () => goTo( pageInfo.page + 1 ) } ),
+            )
+            : ( pageInfo.total > 0 ? el( 'div', { class: 'ppclg-small ppclg-muted' }, pageInfo.text ) : null );
+
+        /** Why a row waits, was left for a person, or is not shown (open rows). */
+        const rowState = ( r ) => {
+            if ( r.status === 'not_shown' ) {
+                return el( 'div', { class: 'ppclg-small' }, badge( r.removed_at ? 'Removed: not shown' : 'Not shown on the page', 'warning' ), ' ', el( 'span', { class: 'ppclg-muted' }, truncate( String( r.note || '' ), 220 ) ) );
+            }
+            if ( r.auto_skip ) {
+                return el( 'div', { class: 'ppclg-small' }, badge( 'Left for you', 'warning' ), ' ', el( 'span', { class: 'ppclg-muted' }, truncate( String( r.auto_skip ), 220 ) ) );
+            }
+            if ( r.render_note ) {
+                return el( 'div', { class: 'ppclg-small ppclg-muted' }, truncate( String( r.render_note ), 220 ) );
+            }
+            return null;
+        };
 
         const columns = [
             { key: 'source', label: 'In this item', render: ( r ) => el( 'div', {},
@@ -483,11 +570,12 @@ export default async function render( root, ctx ) {
             { key: 'excerpt', label: 'Words to link', render: ( r ) => el( 'div', {},
                 el( 'div', { class: 'ppclg-small' }, highlight( r.excerpt, r.anchor ) ),
                 el( 'div', { class: 'ppclg-small ppclg-muted' }, 'Links to ', extLink( r.target_url, r.target_title || r.target_url, { maxLength: 60 } ) ),
+                open ? rowState( r ) : null,
             ) },
         ];
-        if ( state.linkStatus === 'pending' ) {
+        if ( open ) {
             columns.push( { key: 'actions', label: 'Actions', align: 'right', render: ( r ) => el( 'div', { class: 'ppclg-row ppclg-row--end' },
-                button( 'Apply', { small: true, kind: 'primary', title: 'Adds this one link now (WordPress keeps a revision).', onClick: () => applyIds( [ r.id ] ) } ),
+                button( 'Apply', { small: true, kind: 'primary', title: r.status === 'not_shown' ? 'Adds this link now, although visitors may not see it on this page (WordPress keeps a revision).' : 'Adds this one link now (WordPress keeps a revision).', onClick: () => applyIds( [ r.id ] ) } ),
                 button( 'Dismiss', { small: true, kind: 'ghost', title: 'Hide this suggestion; it will not be suggested again.', onClick: () => dismissIds( [ r.id ] ) } ),
             ) } );
         } else {
@@ -503,7 +591,7 @@ export default async function render( root, ctx ) {
         }
 
         const auto = autoLinksText( data.auto );
-        const autoNode = auto.show ? callout( 'info', auto.title, auto.text, {
+        const autoNode = auto.show ? callout( 'info', auto.title, auto.extra ? `${ auto.text } ${ auto.extra }` : auto.text, {
             actions: button( 'Undo automatic links', {
                 small: true, iconName: 'refresh',
                 disabled: auto.present === 0,
@@ -521,6 +609,8 @@ export default async function render( root, ctx ) {
                 progress.running ? callout( 'info', null, `Suggestions are being refreshed: ${ fmtNumber( progress.checked ) } of ${ fmtNumber( progress.total ) } items checked.` ) : null,
                 el( 'div', { class: 'ppclg-small ppclg-muted' }, data.generated_at ? el( 'span', {}, 'Last refreshed ', timeEl( data.generated_at ) ) : 'Not refreshed yet.' ),
                 statusRow,
+                state.linkStatus === 'not_shown' ? callout( 'info', null, 'These suggestions are on pages whose template doesn’t display the text (for example a hard-coded home page, the posts page or the shop), or the words are not on the page visitors see. Automatic links skip them; they are checked again when the page or the theme changes. You can still apply one by hand.' ) : null,
+                state.linkStatus === 'refused' ? callout( 'info', null, 'Automation could not add these by itself; each row says why. Apply them by hand from an administrator account, or dismiss them.' ) : null,
                 dataTable( {
                     caption: 'Internal link suggestions',
                     rows: items,
@@ -530,6 +620,7 @@ export default async function render( root, ctx ) {
                         : { title: 'Nothing here', compact: true },
                     columns,
                 } ),
+                pager,
             ),
         } ) );
     }
