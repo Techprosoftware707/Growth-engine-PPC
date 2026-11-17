@@ -41,6 +41,14 @@ IndexNow submits only when `wp_get_environment_type()` returns `production`. A l
 add_filter( 'ppclg_indexnow_environment', static fn() => 'production' );
 ```
 
+## Item language (internal links)
+
+Internal links connect only items in the same language (1.2.3). Polylang and WPML are read when active; otherwise `ppclg_post_language` can name an item's language (a code such as `fr` or `fr_CA`; return `''` to let the engine decide from the `ppc_en_counterpart` meta, the address prefix, the item's text (English or French, on an English or French site) or the site language):
+
+```php
+add_filter( 'ppclg_post_language', static fn( string $code, int $postId ): string => str_starts_with( (string) get_post_field( 'post_name', $postId ), 'fr-' ) ? 'fr' : $code, 10, 2 );
+```
+
 ## Outbound HTTP
 
 `ppclg_http_request_args` receives the `wp_remote_request` arguments and the URL for every outbound request (useful for proxies or test routing).

@@ -77,7 +77,7 @@ Settings → Outreach & compliance → *Storefront compliance gate*:
 
 ## Discovery
 
-Geo modifiers (Canadian provinces and cities), competitor domains (use *Suggest from SE Ranking*), the competitors *Found automatically by Autopilot* (`discovery.competitor_domains_auto`: filled by Autopilot through SE Ranking at most once every 30 days while your own list is empty; marketplaces, media, government and health/pharmacy domains are left out; remove any you do not want, a removed one is not added back; both lists are mined), brand terms for unlinked-mention detection, custom queries, excluded domains and custom seeds. The query pool is generated from `data/discovery-queries.json` × topics × geo modifiers; each query is not repeated within the cooldown (30 days).
+Geo modifiers (Canadian provinces and cities), competitor domains (use *Suggest from SE Ranking*), the competitors *Found automatically by Autopilot* (`discovery.competitor_domains_auto`: filled by Autopilot through SE Ranking at most once every 30 days while your own list is empty; marketplaces, media, government and health/pharmacy domains are left out; remove any you do not want, a removed one is not added back; both lists are mined), brand terms for unlinked-mention detection (from 1.2.3 also never used as internal-link text, together with the brand name, the legal name, the site title and the domain: see OPERATIONS.md, *Internal links: never the brand name, never another language*), custom queries, excluded domains and custom seeds. The query pool is generated from `data/discovery-queries.json` × topics × geo modifiers; each query is not repeated within the cooldown (30 days).
 
 ## Outreach and compliance
 

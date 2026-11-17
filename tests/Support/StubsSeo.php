@@ -63,6 +63,15 @@ namespace PPC\LinkGrowth\Tests\Support {
         /** @var int[] wp_set_current_user() calls */
         public static array $userSwitches = [];
 
+        /** get_locale() for the Seo classes (1.2.3 site language). */
+        public static string $locale = 'en_CA';
+
+        /** @var array<int,string|false> Polylang stand-in: post id => locale (pll_get_post_language) */
+        public static array $pll = [];
+
+        /** @var int Polylang stand-in calls (the language is worked out once per item and call) */
+        public static int $pllCalls = 0;
+
         private static int $nextRevision = 9000;
 
         public static function reset(): void {
@@ -82,6 +91,9 @@ namespace PPC\LinkGrowth\Tests\Support {
             self::$ksesOnSave        = true;
             self::$users             = null;
             self::$userSwitches      = [];
+            self::$locale            = 'en_CA';
+            self::$pll               = [];
+            self::$pllCalls          = 0;
             if ( class_exists( StubsSeoReview::class ) ) {
                 StubsSeoReview::reset();
             }
@@ -417,6 +429,25 @@ namespace PPC\LinkGrowth\Seo {
 namespace {
 
     use PPC\LinkGrowth\Tests\Support\StubsSeo;
+
+    if ( ! function_exists( 'get_locale' ) ) {
+        /** Like core: the site locale (StubsSeo::$locale). */
+        function get_locale(): string {
+            return StubsSeo::$locale;
+        }
+    }
+
+    if ( ! function_exists( 'pll_get_post_language' ) ) {
+        /** Polylang stand-in: the language of the items in StubsSeo::$pll, false for the others (as Polylang). */
+        function pll_get_post_language( int $postId, string $field = 'slug' ): string|false {
+            StubsSeo::$pllCalls++;
+            $locale = StubsSeo::$pll[ $postId ] ?? false;
+            if ( ! is_string( $locale ) || '' === $locale ) {
+                return false;
+            }
+            return 'locale' === $field ? $locale : strtolower( substr( $locale, 0, 2 ) );
+        }
+    }
 
     if ( ! function_exists( 'wp_set_current_user' ) ) {
         /** Like core: the current user changes; capabilities follow $GLOBALS['ppclg_test_user_caps'][id] (none for 0). */

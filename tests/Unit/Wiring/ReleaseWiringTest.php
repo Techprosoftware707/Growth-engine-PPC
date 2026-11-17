@@ -116,11 +116,23 @@ final class ReleaseWiringTest extends TestCase {
         $this->assertSame( [ 'evaluate_rounds' => 6, 'step_seconds' => 20 ], $defaults['growth'] );
 
         $main = (string) file_get_contents( self::ROOT . 'ppc-link-growth-engine.php' );
-        $this->assertMatchesRegularExpression( '/\*\s+Version:\s+1\.2\.2\b/', $main );
-        $this->assertStringContainsString( "define( 'PPCLG_VERSION', '1.2.2' );", $main );
+        $this->assertMatchesRegularExpression( '/\*\s+Version:\s+1\.2\.3\b/', $main );
+        $this->assertStringContainsString( "define( 'PPCLG_VERSION', '1.2.3' );", $main );
         $readme = (string) file_get_contents( self::ROOT . 'readme.txt' );
-        $this->assertStringContainsString( 'Stable tag: 1.2.2', $readme );
-        $this->assertStringContainsString( "== Changelog ==\n\n= 1.2.2 =\n", $readme, 'the changelog leads with this version' );
+        $this->assertStringContainsString( 'Stable tag: 1.2.3', $readme );
+        $this->assertStringContainsString( "== Changelog ==\n\n= 1.2.3 =\n", $readme, 'the changelog leads with this version' );
+        // 1.2.3: the changelog states both internal-link rules and the notes on closed suggestions.
+        $entry = (string) strstr( (string) strstr( $readme, "= 1.2.3 =\n" ), "= 1.2.2 =\n", true );
+        foreach ( [ 'New rule, brand name', 'New rule, language', 'Not suggested: the link text is your brand name.', 'Not suggested: the target page is in another language.' ] as $needle ) {
+            $this->assertStringContainsString( $needle, $entry, $needle );
+        }
+        // The brand and language rules are services of the Seo slice, loaded by the autoloader.
+        foreach ( [ \PPC\LinkGrowth\Seo\BrandTerms::class, \PPC\LinkGrowth\Seo\PostLanguage::class ] as $class ) {
+            $this->assertTrue( class_exists( $class ), $class );
+        }
+        $this->assertSame( 'ppclg_post_language', \PPC\LinkGrowth\Seo\PostLanguage::FILTER );
+        $this->assertSame( 'Not suggested: the link text is your brand name.', InternalLinker::BRAND_NOTE );
+        $this->assertSame( 'Not suggested: the target page is in another language.', InternalLinker::LANGUAGE_NOTE );
 
         $css = (string) file_get_contents( self::ROOT . 'assets/css/admin.css' );
         foreach ( [ '.ppclg-grow-step--blocked .ppclg-grow-step-icon', '.ppclg-compliance-finding', '.ppclg-owner-steps', '.ppclg-wrap mark' ] as $selector ) {

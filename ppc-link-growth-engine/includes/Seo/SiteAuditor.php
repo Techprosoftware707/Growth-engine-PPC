@@ -442,6 +442,25 @@ final class SiteAuditor {
         return trim( preg_replace( '/\s+/u', ' ', $first ) ?? $first );
     }
 
+    /**
+     * Every Rank Math focus keyword of an item, in their order (the first is focusKeyword()); a keyword left empty
+     * between commas stays in its place as ''.
+     *
+     * @return string[]
+     */
+    public static function focusKeywords( int $postId ): array {
+        $raw = get_post_meta( $postId, 'rank_math_focus_keyword', true );
+        if ( ! is_string( $raw ) || '' === trim( $raw ) ) {
+            return [];
+        }
+        $out = [];
+        foreach ( explode( ',', $raw ) as $keyword ) {
+            $keyword = html_entity_decode( wp_strip_all_tags( $keyword ), ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+            $out[]   = trim( preg_replace( '/\s+/u', ' ', $keyword ) ?? $keyword );
+        }
+        return $out;
+    }
+
     /** Host of the site's home URL without "www.". */
     public static function siteHost(): string {
         return preg_replace( '/^www\./', '', Url::host( home_url( '/' ) ) ) ?? '';

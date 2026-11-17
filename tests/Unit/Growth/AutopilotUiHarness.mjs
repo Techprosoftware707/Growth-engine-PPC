@@ -242,7 +242,7 @@ await scenario( 'seoLinksPaging', async () => {
         anchor: 'receptor tyrosine kinase', term: 'receptor tyrosine kinase', target_id: 11839, target_url: 'https://example.ca/rtk/', target_title: 'Receptor tyrosine kinases',
         excerpt: '… IGF-1 acts through a receptor tyrosine kinase that autophosphorylates …', relevance: 90, status, auto: false, auto_skip: '', note: '', render_note: '', ...extra,
     } );
-    const counts = { pending: 120, applied: 1, dismissed: 0, stale: 0, not_shown: 2, refused: 1 };
+    const counts = { pending: 120, applied: 1, dismissed: 0, stale: 2, not_shown: 2, refused: 1 };
     const s = await open( 'seo', ( m, p, body, url ) => {
         if ( p === '/seo/links' && m === 'GET' ) {
             const status = url.searchParams.get( 'status' ) || 'pending';
@@ -261,6 +261,13 @@ await scenario( 'seoLinksPaging', async () => {
             } else if ( status === 'not_shown' ) {
                 total = 2;
                 items = [ row( 201, 'not_shown', { note: 'Not added: this page’s template doesn’t display its content, so visitors and Google wouldn’t see the link.' } ), row( 202, 'not_shown', { note: 'Removed automatically: this page’s template doesn’t display its content, so visitors and Google never saw this link.', removed_at: '2026-11-16T09:00:00+00:00', auto: true } ) ];
+            } else if ( status === 'stale' ) {
+                // 1.2.3: suggestions closed because the link text is the brand name or the target is in another language.
+                total = 2;
+                items = [
+                    row( 301, 'stale', { anchor: 'Pure Peptides Canada', term: 'pure peptides canada', target_url: 'https://example.ca/fr/a-propos/', target_title: 'À propos', excerpt: '… belong to Pure Peptides Canada or its licensors …', note: 'Not suggested: the target page is in another language.', closed_rule: 'language' } ),
+                    row( 302, 'stale', { anchor: 'Peptides Canada', term: 'peptides canada', target_url: 'https://example.ca/', target_title: 'Home', excerpt: '… belong to Pure Peptides Canada or its licensors …', note: 'Not suggested: the link text is your brand name.', closed_rule: 'brand' } ),
+                ];
             }
             return { available: true, enabled: true, max_links_per_post: 3, generated_at: '2026-11-16T09:00:00+00:00', progress: { running: false }, counts, auto: { enabled: true, autopilot: true, per_day: 20, today: 1, present: 1, undone: 0, not_shown: 2, left_for_you: 1, removed: 1 }, status, total, page, per_page: per, pages: Math.max( 1, Math.ceil( total / per ) ), items };
         }
@@ -291,8 +298,12 @@ await scenario( 'seoLinksPaging', async () => {
     await card().locator( 'tbody tr' ).first().locator( 'button', { hasText: 'Apply' } ).click();
     await s.settle( 700 );
     const toasts = await s.toasts();
+    await card().locator( 'button', { hasText: 'No longer valid' } ).click();
+    await s.settle( 500 );
+    const stale = await card().textContent();
+    const staleRows = await card().locator( 'tbody tr' ).count();
     const gets = s.requests.filter( ( r ) => r.method === 'GET' && r.path === '/seo/links' ).map( ( r ) => r.query );
-    const out = { first, firstRows, second, refused, notShown, toasts, gets, posts: s.posts( '/seo/links/apply' ).map( ( r ) => r.body ), errors: s.errors };
+    const out = { first, firstRows, second, refused, notShown, stale, staleRows, toasts, gets, posts: s.posts( '/seo/links/apply' ).map( ( r ) => r.body ), errors: s.errors };
     await s.context.close();
     return out;
 } );

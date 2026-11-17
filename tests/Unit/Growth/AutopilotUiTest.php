@@ -100,6 +100,11 @@ final class AutopilotUiTest extends TestCase {
         $this->assertSame( [ [ 'ids' => [ 201 ], 'confirm' => true ] ], $r['posts'] );
         $this->assertSame( 'warning', $r['toasts'][0]['kind'] ?? '' );
         $this->assertStringContainsString( 'visitors and Google won’t see this link', $r['toasts'][0]['text'] ?? '' );
+        // 1.2.3: suggestions closed for the brand name or another language show their reason under "No longer valid".
+        $this->assertSame( 'stale', end( $r['gets'] )['status'] ?? '' );
+        $this->assertSame( 2, $r['staleRows'] );
+        $this->assertStringContainsString( 'Not suggested: the target page is in another language.', (string) $r['stale'] );
+        $this->assertStringContainsString( 'Not suggested: the link text is your brand name.', (string) $r['stale'] );
         $this->assertSame( [], $r['errors'] );
     }
 

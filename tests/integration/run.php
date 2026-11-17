@@ -440,6 +440,9 @@ require __DIR__ . '/footer-refresh.php';
 // consenting owner instead of being left for a person.
 require __DIR__ . '/render-check.php';
 
+// 1.2.3: internal links never use the brand name as link text and never cross languages (the live Terms page case).
+require __DIR__ . '/link-rules.php';
+
 echo "\n==============================\n";
 printf( "Passed: %d  Failed: %d\n", IT::$pass, IT::$fail );
 foreach ( IT::$failures as $f ) {

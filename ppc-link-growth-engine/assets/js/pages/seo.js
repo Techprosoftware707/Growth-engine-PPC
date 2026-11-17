@@ -9,6 +9,10 @@
  * 1.2.2: suggestions are listed a page at a time (GET /seo/links per_page / page); "Left for you" lists the ones
  * automation could not add by itself (with the reason), "Not shown on the page" the ones set aside because the
  * item's page does not display its content (or those words). Both can still be applied by hand (with a warning).
+ *
+ * 1.2.3: suggestions closed because their link text is the brand name ("Not suggested: the link text is your brand
+ * name.") or their target is in another language ("Not suggested: the target page is in another language.") are
+ * listed under "No longer valid" with that note, like the other closed reasons.
  */
 
 import * as api from '../api.js';

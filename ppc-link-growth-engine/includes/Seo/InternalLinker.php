@@ -44,6 +44,24 @@
  *   automation as the actor with saved_as = that user. Otherwise the suggestion is left for a person as before. Only
  *   the plugin's own <a href="esc_url(permalink)"> around words already in the item is added.
  *
+ * 1.2.3 (two live links on the English Terms page: "Pure Peptides Canada" → the French About page, and "Peptides
+ * Canada", the tail of the brand name, → the home page):
+ * - The brand is never link text (BrandTerms: site.brand_name, site.legal_name, discovery.brand_terms, the blogname,
+ *   the domain with and without its TLD; case, spaces, punctuation and accents ignored). A target whose anchor is a
+ *   brand term or consecutive words of one is no target by that anchor. A page whose first Rank Math focus keyword
+ *   is a brand term is a target by its next keyword that is usable (not generic, not a brand term); a first keyword
+ *   that is unusable for another reason keeps the page out, as before. An occurrence inside a brand mention of the
+ *   source, or cutting through one ("Peptides Canada" in "Pure Peptides Canada"), is never linked; the next
+ *   occurrence is looked for.
+ * - Links never cross languages (PostLanguage: Polylang, WPML, the ppclg_post_language filter, the meta
+ *   ppc_en_counterpart with the address prefix, an ISO 639-1 address prefix, the language the item's text is written
+ *   in (English or French, for the French pages at the site root), the site language). A source is offered only
+ *   targets in its own language, and an anchor shared by targets in different languages is not ambiguous.
+ * - Suggestions made under the earlier rules: open ones (pending or not shown) that break a rule are closed (stale)
+ *   at the start of every suggestion run and of every automatic run, with BRAND_NOTE or LANGUAGE_NOTE, and Apply
+ *   (a person's or the automation's) closes them the same way instead of linking. Applied, dismissed and undone ones
+ *   are left as they are.
+ *
  * @package PPC\LinkGrowth
  */
 
@@ -104,6 +122,15 @@ final class InternalLinker {
 
     /** Left for a person: the words are on a later page of an item split with page breaks. */
     public const LATER_PAGE_REFUSAL = 'Not applied automatically: these words are on a later page of this item (it is split with page breaks), and the page check reads only the first page. Apply it by hand if the link belongs there.';
+
+    /** Note on a suggestion closed because its link text is the brand name (1.2.3). */
+    public const BRAND_NOTE = 'Not suggested: the link text is your brand name.';
+
+    /** Note on a suggestion closed because its target is in another language than the item (1.2.3). */
+    public const LANGUAGE_NOTE = 'Not suggested: the target page is in another language.';
+
+    /** Rules a run's work state was built under: a state from an earlier version starts the run again. */
+    private const RULES = '1.2.3';
 
     /** Text inside these elements is never linked. */
     public const NO_LINK_TAGS = [ 'a', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'script', 'style', 'code', 'pre', 'figcaption', 'textarea', 'button', 'select', 'option', 'label', 'noscript', 'iframe', 'svg', 'math', 'title', 'template', 'kbd', 'samp', 'object', 'video', 'audio', 'canvas', 'map' ];
@@ -167,6 +194,12 @@ final class InternalLinker {
     /** Note on a suggestion whose automatic link was removed by "Undo automatic links". */
     public const UNDONE_NOTE = 'Removed by “Undo automatic links”; it will not be added again.';
 
+    /** Brand terms of this call (built from the settings at the start of each run, automatic run or Apply). */
+    private ?BrandTerms $brand = null;
+
+    /** Item languages of this call (a suggestion run seeds it from its work state). */
+    private ?PostLanguage $languages = null;
+
     public function __construct(
         private Settings $settings,
         private Logger $logger,
@@ -210,6 +243,129 @@ final class InternalLinker {
             $this->render = $svc instanceof RenderCheck ? $svc : new RenderCheck( $this->settings, $this->logger );
         }
         return $this->render;
+    }
+
+    private function brand(): BrandTerms {
+        return $this->brand ??= BrandTerms::fromSettings( $this->settings );
+    }
+
+    private function languages(): PostLanguage {
+        return $this->languages ??= new PostLanguage();
+    }
+
+    /** Starts a call with the brand terms and item languages as they are now. */
+    private function freshRules( array $knownLanguages = [] ): void {
+        $this->brand     = null;
+        $this->languages = new PostLanguage( $knownLanguages );
+    }
+
+    /**
+     * The rule an open suggestion breaks: 'language' when its target is not in the item's language, 'brand' when its
+     * link text is the brand name; '' when it breaks neither.
+     *
+     * @param array<string,mixed> $item
+     */
+    private function ruleBreak( array $item ): string {
+        $lang = $this->languages();
+        if ( ! PostLanguage::same( $lang->of( (int) $item['source_post_id'] ), $lang->of( (int) $item['target_id'] ) ) ) {
+            return 'language';
+        }
+        foreach ( [ 'term', 'anchor' ] as $k ) {
+            if ( isset( $item[ $k ] ) && $this->brand()->isBrand( (string) $item[ $k ] ) ) {
+                return 'brand';
+            }
+        }
+        return '';
+    }
+
+    private static function ruleNote( string $rule ): string {
+        return 'language' === $rule ? self::LANGUAGE_NOTE : self::BRAND_NOTE;
+    }
+
+    /**
+     * Fields stored on a suggestion closed for a rule (with the two languages when it is the language rule).
+     *
+     * @return array<string,mixed>
+     */
+    private function ruleFields( array $item, string $rule ): array {
+        $fields = [ 'closed_rule' => $rule ];
+        if ( 'language' === $rule ) {
+            $fields['source_language'] = $this->languages()->of( (int) $item['source_post_id'] );
+            $fields['target_language'] = $this->languages()->of( (int) $item['target_id'] );
+        }
+        return $fields;
+    }
+
+    /**
+     * A suggestion closed (stale) for a rule.
+     *
+     * @param array<string,mixed> $item
+     * @return array<string,mixed>
+     */
+    private function closedForRule( array $item, string $rule ): array {
+        $closed = array_merge( $item, $this->ruleFields( $item, $rule ), [ 'status' => self::STATUS_STALE, 'note' => self::ruleNote( $rule ), 'updated_at' => gmdate( 'c' ) ] );
+        unset( $closed['render_note'], $closed['removal_failed'], $closed['auto_skip'], $closed['auto_skip_code'] );
+        return $closed;
+    }
+
+    /**
+     * Closes every open suggestion (pending or not shown) whose link text is the brand name or whose target is in
+     * another language. Applied, dismissed and closed ones are not touched.
+     *
+     * @param array<string,mixed> $store
+     * @return int suggestions closed
+     */
+    private function closeRuleBreaks( array &$store ): int {
+        $closed = [ 'brand' => 0, 'language' => 0 ];
+        foreach ( $store['items'] as $id => $item ) {
+            if ( ! self::isOpen( $item ) ) {
+                continue;
+            }
+            $rule = $this->ruleBreak( $item );
+            if ( '' !== $rule ) {
+                $store['items'][ $id ] = $this->closedForRule( $item, $rule );
+                $closed[ $rule ]++;
+            }
+        }
+        if ( $closed['brand'] + $closed['language'] > 0 ) {
+            $this->logger->info( 'seo', 'Internal-link suggestions closed: brand name as link text, or a target in another language', $closed );
+        }
+        return $closed['brand'] + $closed['language'];
+    }
+
+    /**
+     * Whether the occurrence a suggestion was made for (the first one under the rules before 1.2.3, at the same
+     * spot) lies inside a brand mention of the source or cuts through one.
+     *
+     * @param array<string,mixed> $analysis from analyse() with the brand patterns
+     */
+    private function cutsBrand( array $analysis, string $term, string $contextHash ): bool {
+        if ( [] === ( $analysis['brand'] ?? [] ) || '' === $term || ! $this->brand()->sharesWord( $term ) ) {
+            return false;
+        }
+        $old = self::locate( array_merge( $analysis, [ 'brand' => [] ] ), $term );
+        return null !== $old && $old['context_hash'] === $contextHash && BrandTerms::cuts( $analysis['brand'], (int) $old['spaced_start'], (int) $old['spaced_start'] + (int) $old['spaced_length'] );
+    }
+
+    /**
+     * The anchor a page or post is a target by: its first Rank Math focus keyword when usable; when that keyword is
+     * the brand name, the next keyword that is usable and not a brand term ('' when none); '' when the first keyword
+     * is unusable for another reason (generic, too short or long), as before 1.2.3.
+     *
+     * @param string[] $keywords from SiteAuditor::focusKeywords()
+     */
+    public static function targetKeyword( array $keywords, BrandTerms $brand ): string {
+        $first = trim( (string) ( $keywords[0] ?? '' ) );
+        if ( ! $brand->isBrand( $first ) ) {
+            return self::usableAnchor( $first ) ? $first : '';
+        }
+        foreach ( array_slice( $keywords, 1 ) as $keyword ) {
+            $keyword = trim( (string) $keyword );
+            if ( self::usableAnchor( $keyword ) && ! $brand->isBrand( $keyword ) ) {
+                return $keyword;
+            }
+        }
+        return '';
     }
 
     /**
@@ -297,16 +453,23 @@ final class InternalLinker {
         $work = get_option( self::OPTION_RUN, [] );
         $work = is_array( $work ) && isset( $work['sources'] ) ? $work : [];
         $age  = [] !== $work ? time() - (int) strtotime( (string) ( $work['started_at'] ?? '' ) ) : 0;
-        if ( [] === $work || ! empty( $opts['restart'] ) || $age > self::STALE_RUN_SECONDS ) {
+        // A run begun under the rules before 1.2.3 holds brand anchors and no languages: it starts again.
+        $fresh = [] === $work || ! empty( $opts['restart'] ) || $age > self::STALE_RUN_SECONDS || self::RULES !== ( $work['rules'] ?? '' );
+        $this->freshRules( $fresh ? [] : (array) ( $work['langs'] ?? [] ) );
+        if ( $fresh ) {
             $work = [
                 'started_at' => gmdate( 'c' ),
+                'rules'      => self::RULES,
                 'sources'    => $this->sourceIds(),
                 'cursor'     => 0,
                 'targets'    => $this->targets(),
                 'suggested'  => 0,
+                'closed'     => 0,
             ];
         }
         $store   = $this->store();
+        // Suggestions made under the earlier rules that use the brand name or cross languages are closed first.
+        $work['closed'] = (int) ( $work['closed'] ?? 0 ) + $this->closeRuleBreaks( $store );
         $sources = array_map( 'intval', (array) $work['sources'] );
         $total   = count( $sources );
         $max     = $this->maxPerSource();
@@ -335,11 +498,13 @@ final class InternalLinker {
         if ( $done ) {
             delete_option( self::OPTION_RUN );
         } else {
+            $work['langs'] = $this->languages()->known(); // worked out once per run
             update_option( self::OPTION_RUN, $work, false );
         }
 
         $pending = $this->pendingCount();
         $checked = (int) $work['cursor'];
+        $closed  = (int) $work['closed'];
         return $this->runOutcome(
             true,
             false,
@@ -351,6 +516,7 @@ final class InternalLinker {
             ! $done,
             $done
                 ? sprintf( 'Checked %d %s against %d link %s; %d %s %s.', $checked, 1 === $checked ? 'item' : 'items', count( (array) $work['targets'] ), 1 === count( (array) $work['targets'] ) ? 'target' : 'targets', $pending, 1 === $pending ? 'suggestion is' : 'suggestions are', $this->autoApplyEnabled() ? 'waiting to be applied automatically' : 'waiting for your review' )
+                    . ( $closed > 0 ? sprintf( ' %d earlier %s closed: the link text was your brand name or the target page is in another language.', $closed, 1 === $closed ? 'suggestion was' : 'suggestions were' ) : '' )
                 : sprintf( 'Checked %d of %d items for internal-link opportunities; %d %s waiting so far.', $checked, $total, $pending, 1 === $pending ? 'suggestion is' : 'suggestions are' )
         );
     }
@@ -395,13 +561,18 @@ final class InternalLinker {
             return 0;
         }
 
-        $analysis = self::analyse( $content );
+        // 1.2.3: brand mentions of the source are never cut by a link, and only targets in its language are offered.
+        $analysis = self::analyse( $content, $this->brand()->patterns() );
         $lower    = mb_strtolower( $analysis['joined'] );
         $linked   = $this->linkedTargets( $content, (string) get_permalink( $sourceId ) );
+        $language = $this->languages()->of( $sourceId );
         $found    = [];
         foreach ( $targets as $t ) {
             $tid = (int) $t['id'];
             if ( $tid === $sourceId || isset( $blocked[ $tid ] ) || isset( $linked['ids'][ $tid ] ) || isset( $linked['paths'][ self::pathKey( (string) $t['url'] ) ] ) ) {
+                continue;
+            }
+            if ( ! PostLanguage::same( $language, (string) ( $t['lang'] ?? $this->languages()->of( $tid ) ) ) || $this->brand()->isBrand( (string) $t['anchor'] ) ) {
                 continue;
             }
             if ( false === mb_strpos( $lower, mb_strtolower( (string) $t['anchor'] ) ) ) {
@@ -492,9 +663,16 @@ final class InternalLinker {
             $keep[ $id ] = true;
         }
         foreach ( $existing as $id ) {
-            if ( ! isset( $keep[ $id ] ) ) {
-                unset( $store['items'][ (string) $id ] );
+            if ( isset( $keep[ $id ] ) ) {
+                continue;
             }
+            // Made for words inside the brand name (before 1.2.3): closed with the reason instead of dropped.
+            $prev = $store['items'][ (string) $id ] ?? null;
+            if ( is_array( $prev ) && $this->cutsBrand( $analysis, (string) ( $prev['term'] ?? $prev['anchor'] ?? '' ), (string) ( $prev['context_hash'] ?? '' ) ) ) {
+                $store['items'][ (string) $id ] = $this->closedForRule( $prev, 'brand' );
+                continue;
+            }
+            unset( $store['items'][ (string) $id ] );
         }
         return $new;
     }
@@ -567,39 +745,41 @@ final class InternalLinker {
     }
 
     /**
-     * Link targets: products by title, posts/pages by their first Rank Math focus keyword. Anchors shared by more
-     * than one target are ambiguous and dropped.
+     * Link targets: products by title, posts/pages by their Rank Math focus keyword (targetKeyword()), never by a
+     * brand term, each with its language. Anchors shared by more than one target of the same language are ambiguous
+     * and dropped.
      *
-     * @return array<int,array{id:int,anchor:string,url:string,title:string}>
+     * @return array<int,array{id:int,anchor:string,url:string,title:string,kind:string,lang:string}>
      */
     private function targets(): array {
-        $out = [];
+        $out   = [];
+        $brand = $this->brand();
         foreach ( $this->publishedIds( 'product', self::MAX_TARGETS ) as $id ) {
             $post = get_post( $id );
             if ( ! is_object( $post ) || '' !== (string) ( $post->post_password ?? '' ) || SiteAuditor::isNoindex( $id, 'product' ) ) {
                 continue;
             }
             $title = self::clean( (string) ( $post->post_title ?? '' ) );
-            if ( self::usableAnchor( $title ) ) {
-                $out[] = [ 'id' => $id, 'anchor' => $title, 'url' => (string) get_permalink( $id ), 'title' => $title, 'kind' => 'product' ];
+            if ( self::usableAnchor( $title ) && ! $brand->isBrand( $title ) ) {
+                $out[] = [ 'id' => $id, 'anchor' => $title, 'url' => (string) get_permalink( $id ), 'title' => $title, 'kind' => 'product', 'lang' => $this->languages()->of( $id ) ];
             }
         }
         foreach ( [ 'page', 'post' ] as $type ) {
             foreach ( $this->publishedIds( $type, self::MAX_TARGETS ) as $id ) {
-                $keyword = SiteAuditor::focusKeyword( $id );
-                if ( ! self::usableAnchor( $keyword ) ) {
+                $keyword = self::targetKeyword( SiteAuditor::focusKeywords( $id ), $brand );
+                if ( '' === $keyword ) {
                     continue;
                 }
                 $post = get_post( $id );
                 if ( ! is_object( $post ) || '' !== (string) ( $post->post_password ?? '' ) || SiteAuditor::isNoindex( $id, $type ) ) {
                     continue;
                 }
-                $out[] = [ 'id' => $id, 'anchor' => $keyword, 'url' => (string) get_permalink( $id ), 'title' => self::clean( (string) ( $post->post_title ?? '' ) ), 'kind' => $type ];
+                $out[] = [ 'id' => $id, 'anchor' => $keyword, 'url' => (string) get_permalink( $id ), 'title' => self::clean( (string) ( $post->post_title ?? '' ) ), 'kind' => $type, 'lang' => $this->languages()->of( $id ) ];
             }
         }
         $byAnchor = [];
         foreach ( $out as $t ) {
-            $byAnchor[ mb_strtolower( $t['anchor'] ) ][] = $t;
+            $byAnchor[ $t['lang'] . '|' . mb_strtolower( $t['anchor'] ) ][] = $t;
         }
         $targets = [];
         foreach ( $byAnchor as $group ) {
@@ -800,6 +980,7 @@ final class InternalLinker {
             return [ 'ok' => false, 'applied' => 0, 'refused' => count( $ids ), 'results' => [], 'message' => 'Suggestions are being refreshed right now; nothing was changed. Try again in a minute.' ];
         }
         try {
+            $this->freshRules();
             $store = $this->store();
             [ $applied, $results ] = $this->applyBatch( $store, $ids, $userId, $budget, false, PHP_INT_MAX );
             $this->saveStore( $store );
@@ -882,6 +1063,8 @@ final class InternalLinker {
             $merged = array_merge( $item, $extra, [ 'status' => $status, 'updated_at' => gmdate( 'c' ), 'note' => $message ] );
             if ( self::STATUS_APPLIED === $status ) {
                 unset( $merged['render_note'], $merged['render_code'], $merged['render_scope'], $merged['removal_failed'], $merged['auto_skip'], $merged['auto_skip_code'] );
+            } elseif ( isset( $extra['closed_rule'] ) ) {
+                unset( $merged['render_note'], $merged['removal_failed'], $merged['auto_skip'], $merged['auto_skip_code'] ); // closed for a 1.2.3 rule
             }
             $store['items'][ $id ] = $merged;
         } elseif ( $auto && ! $ok ) {
@@ -949,12 +1132,15 @@ final class InternalLinker {
         }
         $render = $this->render();
         $render->beginRun();
+        $this->freshRules();
         $attempted = 0;
         $unknown   = []; // items whose page could not be checked this run
         $held      = false; // a page check was held back after host trouble (this run or the pause)
         try {
             $store = $this->store();
             $this->clearKsesRefusals( $store );
+            // 1.2.3: suggestions that use the brand name or cross languages are closed, never applied.
+            $out['closed'] += $this->closeRuleBreaks( $store );
 
             // 1. What is known without a request (certain cases and stored verdicts) is applied to every open
             //    suggestion and automatic link at once.
@@ -1592,6 +1778,11 @@ final class InternalLinker {
         if ( '' === $targetUrl ) {
             return [ false, 'Refused: the link target has no address.', self::STATUS_STALE, [] ];
         }
+        // 1.2.3: a suggestion made under the earlier rules that crosses languages or uses the brand name is closed.
+        $rule = $this->ruleBreak( $item );
+        if ( '' !== $rule ) {
+            return [ false, self::ruleNote( $rule ), self::STATUS_STALE, $this->ruleFields( $item, $rule ) ];
+        }
         $appliedHere = 0;
         foreach ( $store['items'] as $other ) {
             $appliedHere += ( self::STATUS_APPLIED === $other['status'] && (int) $other['source_post_id'] === $sourceId ) ? 1 : 0;
@@ -1605,8 +1796,13 @@ final class InternalLinker {
         if ( isset( $linked['ids'][ $targetId ] ) || isset( $linked['paths'][ self::pathKey( $targetUrl ) ] ) ) {
             return [ false, 'Refused: the item already links to this target.', self::STATUS_STALE, [] ];
         }
-        $occ = self::locate( self::analyse( $content ), (string) ( $item['term'] ?? $item['anchor'] ) );
+        $analysis = self::analyse( $content, $this->brand()->patterns() );
+        $term     = (string) ( $item['term'] ?? $item['anchor'] );
+        $occ      = self::locate( $analysis, $term );
         if ( null === $occ || $occ['context_hash'] !== (string) $item['context_hash'] ) {
+            if ( $this->cutsBrand( $analysis, $term, (string) $item['context_hash'] ) ) {
+                return [ false, self::BRAND_NOTE, self::STATUS_STALE, [ 'closed_rule' => 'brand' ] ]; // words inside the brand name
+            }
             return [ false, 'Refused: the text changed since this suggestion was made, so nothing was edited. Refresh the suggestions.', self::STATUS_STALE, [] ];
         }
 
@@ -1940,9 +2136,13 @@ final class InternalLinker {
     /**
      * Decoded visible text of the content with per-segment offset maps (used by locate()).
      *
-     * @return array{html:string,segments:array<int,array<string,mixed>>,joined:string,spaced:string,shortcodes:array<int,array{0:int,1:int}>}
+     * With $brand (BrandTerms::patterns()), `brand` holds the byte ranges of the brand mentions in `spaced`, and
+     * locate() never returns a match inside one or cutting through one.
+     *
+     * @param string[] $brand
+     * @return array{html:string,segments:array<int,array<string,mixed>>,joined:string,spaced:string,shortcodes:array<int,array{0:int,1:int}>,brand:array<int,array{0:int,1:int}>}
      */
-    public static function analyse( string $html ): array {
+    public static function analyse( string $html, array $brand = [] ): array {
         $segments = [];
         $joined   = '';
         $spaced   = '';
@@ -1969,11 +2169,12 @@ final class InternalLinker {
             $prevEnd        = $seg['end'];
             $segments[]     = $seg;
         }
-        return [ 'html' => $html, 'segments' => $segments, 'joined' => $joined, 'spaced' => $spaced, 'shortcodes' => SiteAuditor::shortcodeRanges( $html ) ];
+        return [ 'html' => $html, 'segments' => $segments, 'joined' => $joined, 'spaced' => $spaced, 'shortcodes' => SiteAuditor::shortcodeRanges( $html ), 'brand' => [] === $brand ? [] : BrandTerms::mentions( $spaced, $brand ) ];
     }
 
     /**
-     * The first eligible whole-word, case-insensitive occurrence of $anchor.
+     * The first eligible whole-word, case-insensitive occurrence of $anchor (outside the brand mentions found by
+     * analyse() when it was given the brand patterns).
      *
      * @param array<string,mixed> $analysis from analyse()
      * @return array{start:int,end:int,text:string,context_hash:string,excerpt:string,spaced_start:int,spaced_length:int}|null byte offsets into the raw HTML
@@ -2022,6 +2223,10 @@ final class InternalLinker {
                 $jStart = (int) $seg['joined'] + $dStart;
                 $sStart = (int) $seg['spaced'] + $dStart;
                 $mLen   = $dEnd - $dStart;
+                // 1.2.3: never inside the brand name or across it ("Peptides Canada" in "Pure Peptides Canada").
+                if ( [] !== ( $analysis['brand'] ?? [] ) && BrandTerms::cuts( $analysis['brand'], $sStart, $sStart + $mLen ) ) {
+                    continue;
+                }
                 return [
                     'start'        => $start,
                     'end'          => $end,

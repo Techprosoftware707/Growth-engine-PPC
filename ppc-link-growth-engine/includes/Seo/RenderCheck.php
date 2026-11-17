@@ -329,7 +329,8 @@ final class RenderCheck {
         if ( '' !== $type && ! str_contains( $type, 'html' ) ) {
             return $this->store( $postId, self::unknown( 'not_html', 'the page did not answer with HTML', $status, $seconds ) );
         }
-        $entry = self::evaluate( $resp->body, $postId, $url, (string) ( $post->post_content ?? '' ), $terms );
+        // The words around each anchor are read at the spot the suggestion uses (never inside the brand name, 1.2.3).
+        $entry = self::evaluate( $resp->body, $postId, $url, (string) ( $post->post_content ?? '' ), $terms, BrandTerms::fromSettings( $this->settings )->patterns() );
         if ( self::HIDDEN === $entry['verdict'] && 'shop' === array_search( $postId, self::wooPages(), true ) ) {
             $entry['code'] = 'shop'; // the shop page answered with the catalogue only (no shop description)
             $entry['note'] = self::NOTE_SHOP;
@@ -412,12 +413,14 @@ final class RenderCheck {
     // ------------------------------------------------------------------
 
     /**
-     * Decides from a fetched page. $terms: suggestion id => anchor term.
+     * Decides from a fetched page. $terms: suggestion id => anchor term; $brand: BrandTerms::patterns() (an anchor is
+     * looked for outside the brand mentions, as InternalLinker places it).
      *
      * @param array<int,string> $terms
+     * @param string[]          $brand
      * @return array{verdict:string,code:string,note:string,samples:int,matched:int,found:array<int,string>}
      */
-    public static function evaluate( string $html, int $postId, string $permalink, string $content, array $terms ): array {
+    public static function evaluate( string $html, int $postId, string $permalink, string $content, array $terms, array $brand = [] ): array {
         if ( ! self::identifies( $html, $postId, $permalink ) ) {
             return self::unknown( 'identity', 'the page that answered does not name this item (a login, maintenance or challenge page may be in the way)' ) + [ 'samples' => 0, 'matched' => 0, 'found' => [] ];
         }
@@ -435,17 +438,17 @@ final class RenderCheck {
         }
         $found = [];
         foreach ( $terms as $id => $term ) {
-            $ctx = self::context( $content, (string) $term );
+            $ctx = self::context( $content, (string) $term, $brand );
             if ( null === $ctx ) {
                 $found[ (int) $id ] = self::WORDS_GONE; // the words are no longer there: applying will close it as stale
                 continue;
             }
             if ( $first !== $content ) {
-                if ( self::pageOf( $content, (string) $term ) > 1 ) {
+                if ( self::pageOf( $content, (string) $term, $brand ) > 1 ) {
                     $found[ (int) $id ] = self::WORDS_LATER; // on page 2 or later: not read, and no evidence either way
                     continue;
                 }
-                $ctx = self::context( $first, (string) $term ) ?? $ctx;
+                $ctx = self::context( $first, (string) $term, $brand ) ?? $ctx;
             }
             if ( 0 === $ctx['left_n'] + $ctx['right_n'] ) {
                 $found[ (int) $id ] = self::WORDS_SHORT; // the anchor alone also appears in menus and listings
@@ -543,9 +546,14 @@ final class RenderCheck {
         return false === $end ? substr( $content, $start ) : substr( $content, $start, $end - $start );
     }
 
-    /** The page (1 = the permalink) that holds the anchor's occurrence in an item split with <!--nextpage-->; 0 when not found. */
-    public static function pageOf( string $content, string $term ): int {
-        $occ = InternalLinker::locate( InternalLinker::analyse( $content ), $term );
+    /**
+     * The page (1 = the permalink) that holds the anchor's occurrence in an item split with <!--nextpage-->; 0 when
+     * not found.
+     *
+     * @param string[] $brand BrandTerms::patterns()
+     */
+    public static function pageOf( string $content, string $term, array $brand = [] ): int {
+        $occ = InternalLinker::locate( InternalLinker::analyse( $content, $brand ), $term );
         if ( null === $occ ) {
             return 0;
         }
@@ -614,10 +622,11 @@ final class RenderCheck {
      * full, left (neighbours + anchor) and right (anchor + neighbours) as " w1 w2 … "; null when the anchor is no
      * longer found.
      *
+     * @param string[] $brand BrandTerms::patterns()
      * @return array{full:string,left:string,right:string,left_n:int,right_n:int,total:int}|null
      */
-    public static function context( string $content, string $term ): ?array {
-        $analysis = InternalLinker::analyse( $content );
+    public static function context( string $content, string $term, array $brand = [] ): ?array {
+        $analysis = InternalLinker::analyse( $content, $brand );
         $occ      = InternalLinker::locate( $analysis, $term );
         if ( null === $occ || ! isset( $occ['spaced_start'], $occ['spaced_length'] ) ) {
             return null;
