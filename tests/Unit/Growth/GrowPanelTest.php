@@ -167,4 +167,50 @@ final class GrowPanelTest extends TestCase {
         $this->assertTrue( $b['blockShown'] );
         $this->assertTrue( $b['legal'] );
     }
+
+    // ------------------------------------------------------------------
+    // 1.2.4: server pressure
+    // ------------------------------------------------------------------
+
+    public function testAPausedStepShowsThePlainReasonWaitsAndThenContinues(): void {
+        $p = $this->harness()['paused'];
+        $this->assertTrue( $p['sawNote'], '"Paused: a backup is running (resumes automatically)." is shown' );
+        $this->assertSame( 1, $p['stepsWhilePaused'], 'no second step request while the pause delay runs' );
+        $this->assertSame( 'completed', $p['finishedStatus'] );
+        $this->assertSame( 2, $p['stepCalls'] );
+        $this->assertTrue( $p['noError'], 'a pause is not an error' );
+
+        $h = $this->harness()['helpers'];
+        $this->assertSame( 60000, $h['delayRetryAfter'], 'paused: the server\'s retry_after (60 s), not every 3 s' );
+        $this->assertSame( 300000, $h['delayCapped'] );
+        $this->assertSame( 3000, $h['delayNotPaused'] );
+        $this->assertSame( 3000, $h['delayNoRetry'] );
+        $this->assertSame( 'Paused: a backup is running (resumes automatically).', $h['pausedText'] );
+        $this->assertSame( 'Paused: a backup is running (resumes automatically).', $h['pausedFromMessage'] );
+        $this->assertSame( '', $h['pausedNone'] );
+        $this->assertTrue( $h['detailOwner'] );
+        $this->assertTrue( $h['detailBackup'] );
+    }
+
+    public function testTheOverviewShowsTheOpcacheNoticeOnlyWhenCritical(): void {
+        $o = $this->harness()['opcache'];
+        $this->assertTrue( $o['rendered'] );
+        $this->assertTrue( $o['danger'] );
+        $this->assertTrue( $o['title'] );
+        $this->assertSame( [ 'opcache.memory_consumption=256', 'opcache.interned_strings_buffer=32', 'opcache.max_accelerated_files=32531' ], $o['codes'] );
+        $this->assertTrue( $o['nowValues'] );
+        $this->assertTrue( $o['restart'] );
+        $this->assertTrue( $o['host'] );
+        $this->assertTrue( $o['recommendedIsNull'] );
+        $this->assertTrue( $o['nullIsNull'] );
+
+        $src = self::source();
+        $this->assertStringContainsString( "from '../server-pressure.js'", $src );
+        $this->assertStringContainsString( 'opcacheCallout( data ? data.opcache : null )', $src );
+        $this->assertStringContainsString( "badge( 'Paused', 'warning'", $src );
+        $automation = (string) file_get_contents( PPCLG_DIR . 'assets/js/pages/automation.js' );
+        $this->assertStringContainsString( 'callout( \'warning\', pausedText( s.paused ), pausedDetail( s.paused ) )', $automation );
+        $this->assertStringContainsString( 'r.warning', $automation, 'Run now shows the pause warning' );
+        $this->assertStringNotContainsString( 'innerHTML', (string) file_get_contents( PPCLG_DIR . 'assets/js/server-pressure.js' ) );
+    }
 }

@@ -49,6 +49,23 @@ Internal links connect only items in the same language (1.2.3). Polylang and WPM
 add_filter( 'ppclg_post_language', static fn( string $code, int $postId ): string => str_starts_with( (string) get_post_field( 'post_name', $postId ), 'fr-' ) ? 'fr' : $code, 10, 2 );
 ```
 
+## Pausing background work (server pressure)
+
+From 1.2.4 background work (the scheduler tick, kicks, Grow now steps) pauses while PHP's code cache restarts, while an UpdraftPlus backup runs and for 10 minutes after an update (see OPERATIONS.md → Server pressure). Two filters extend that:
+
+```php
+// Another backup plugin reports its running backup (return true or the plugin's name).
+add_filter( 'ppclg_backup_running', static fn( bool $running ): bool|string => $running || get_transient( 'my_backup_running' ) ? 'My Backup' : false );
+
+// The site owner or host pauses background work (true or a short message), or lets it run despite a detected reason (false).
+add_filter( 'ppclg_pause_background', static function ( bool|string $pause, ?array $reason ): bool|string {
+    $hour = (int) wp_date( 'G' );
+    return ( $hour >= 1 && $hour < 3 ) ? 'Nightly maintenance window' : $pause;
+}, 10, 2 );
+```
+
+`$reason` is the built-in reason (`code`: `opcache_restart`, `backup` or `just_updated`; `message`, `text`, `until`, `source`) or null. Return the first argument unchanged to keep the plugin's own decision.
+
 ## Outbound HTTP
 
 `ppclg_http_request_args` receives the `wp_remote_request` arguments and the URL for every outbound request (useful for proxies or test routing).

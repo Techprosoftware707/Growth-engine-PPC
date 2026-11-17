@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace PPC\LinkGrowth\Admin\Rest;
 
+use PPC\LinkGrowth\Admin\SiteHealth;
 use PPC\LinkGrowth\Automation\Pipeline;
 use PPC\LinkGrowth\Automation\Scheduler;
 use PPC\LinkGrowth\Integrations\Google\Analytics4;
@@ -77,6 +78,8 @@ final class OverviewController extends Controller {
             'seranking_balance'    => $this->serankingBalance(),
             'limits'               => $this->safe( fn(): array => $this->c->get( Limits::class )->snapshot(), [], 'overview limits' ),
             'missing_integrations' => $this->missingIntegrations(),
+            // PHP's code cache is critically full (the same warning as Tools → Site Health), else null.
+            'opcache'              => $this->safe( fn(): ?array => $this->c->get( SiteHealth::class )->warning(), null, 'overview opcache' ),
             'generated_at'         => gmdate( 'c' ),
         ];
     }

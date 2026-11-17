@@ -10,6 +10,7 @@ import {
 } from '../ui.js';
 import { reportRun } from './outcome.js';
 import { autopilotCard } from '../autopilot.js';
+import { pausedText, pausedDetail } from '../server-pressure.js';
 
 const FLAGS = [
     { key: 'discovery', label: 'Discovery', desc: 'Search-engine queries, the seed catalog, competitor backlink mining and brand-mention scans to find new candidate sites. Bounded by the daily query limit.' },
@@ -80,6 +81,7 @@ function normalizeStatus( res ) {
         scheduler,
         autopilot: isObject( st.autopilot ) ? st.autopilot : null,
         effectiveFlags: obj( pipeline.effective_flags || st.effective_flags ),
+        paused: isObject( pipeline.paused ) ? pipeline.paused : ( isObject( st.paused ) ? st.paused : null ),
     };
 }
 
@@ -191,8 +193,9 @@ export default async function render( root, ctx ) {
         const backendLabel = sched.backend === 'action_scheduler' ? 'Action Scheduler' : ( sched.backend === 'wp_cron' ? 'WP-Cron' : 'Not scheduled' );
         const schedulerCard = card( {
             title: 'Scheduler',
-            actions: s.locked ? badge( 'Runner busy', 'info', { dot: true } ) : badge( 'Idle', 'neutral', { dot: true } ),
+            actions: s.paused ? badge( 'Paused', 'warning', { dot: true } ) : ( s.locked ? badge( 'Runner busy', 'info', { dot: true } ) : badge( 'Idle', 'neutral', { dot: true } ) ),
             body: [
+                s.paused ? callout( 'warning', pausedText( s.paused ), pausedDetail( s.paused ) ) : null,
                 sched.backend === 'none' || ! sched.backend ? callout( 'danger', 'No tick is scheduled', 'The recurring tick could not be registered. Click “Kick” to re-schedule it; if the problem persists check that WP-Cron or Action Scheduler is working.' ) : null,
                 sched.cron_disabled && sched.backend === 'wp_cron' ? callout( 'warning', 'DISABLE_WP_CRON is set', 'WP-Cron only runs if a system cron calls wp-cron.php. Action Scheduler (bundled with WooCommerce) is preferred when available.' ) : null,
                 kv( [
@@ -207,6 +210,12 @@ export default async function render( root, ctx ) {
             footer: [
                 button( 'Kick scheduler', { iconName: 'zap', title: 'Re-register the schedule and trigger an asynchronous tick', onClick: async () => {
                     const res = await api.post( '/automation/kick', {} );
+                    if ( isObject( res ) && isObject( res.paused ) ) {
+                        // Paused for server pressure: nothing was kicked, on purpose.
+                        toast( String( res.message || pausedText( res.paused ) ), 'warning', { timeout: 8000 } );
+                        await load( { quiet: true } );
+                        return;
+                    }
                     toast( res === false || ( isObject( res ) && res.ok === false ) ? 'The scheduler could not be kicked — check the logs.' : 'Tick triggered in the background.', res === false ? 'warning' : 'success' );
                     setTimeout( () => load( { quiet: true } ), 3000 );
                 } } ),
@@ -214,6 +223,11 @@ export default async function render( root, ctx ) {
                     const res = await api.post( '/automation/tick', {} );
                     const r = obj( res && ( res.tick || res.result ) ? ( res.tick || res.result ) : res );
                     const run = obj( r.run );
+                    if ( isObject( r.paused ) ) {
+                        toast( `Tick skipped. ${ pausedText( r.paused ) }`, 'warning', { timeout: 8000 } );
+                        await load( { quiet: true } );
+                        return;
+                    }
                     toast( `Tick finished: ${ arr( r.enqueued ).length } stage(s) enqueued, ${ fmtNumber( run.ran ) } job(s) ran (${ fmtNumber( run.completed ) } completed, ${ fmtNumber( run.failed ) } failed)${ r.skipped_reason ? ` — ${ r.skipped_reason }` : '' }.`, 'success', { timeout: 8000 } );
                     await load( { quiet: true } );
                 } } ),
@@ -274,6 +288,9 @@ export default async function render( root, ctx ) {
                     const r = obj( res );
                     // Failed, skipped and already-queued runs are reported as such, not as "finished".
                     const outcome = reportRun( res, def.label );
+                    if ( r.warning ) {
+                        toast( String( r.warning ), 'warning', { timeout: 9000 } );
+                    }
                     if ( outcome.state !== 'queued' ) {
                         replace( resultHost, details( el( 'span', { class: 'ppclg-row' }, 'Result', badge( 'just now', outcome.kind === 'success' ? 'success' : ( outcome.kind === 'error' ? 'danger' : 'warning' ) ) ), pre( r.result !== undefined ? r.result : r ), { open: true } ) );
                     }

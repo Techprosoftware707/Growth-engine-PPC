@@ -10,6 +10,7 @@ import {
 } from '../ui.js';
 import { barChart, lineChart, histogram, segmentedBar } from '../charts.js';
 import { setAutopilot, autopilotSummary } from '../autopilot.js';
+import { pausedText, opcacheNotice, pausedDelay } from '../server-pressure.js';
 
 // ---------------------------------------------------------------------
 // Storefront compliance banner (assets/js/compliance-banner.js)
@@ -342,7 +343,8 @@ function headline( summary, ctx, policy ) {
  * Creates the panel (exported for tests; the page uses the per-page instance from growPanel()).
  *
  * @param {object} ctx Page context from app.js.
- * @param {{onFinished?: Function, pollDelay?: number, waitDelay?: number, retryDelay?: number}} options
+ * @param {{onFinished?: Function, pollDelay?: number, waitDelay?: number, retryDelay?: number, pausedDelay?: number}} options
+ *   pausedDelay: ms to wait while the server says background work is paused (default: its retry_after).
  * @return {{node: Element, refresh: Function, setFinished: Function, isBusy: Function, ready: Promise}}
  */
 export function createGrowPanel( ctx, options = {} ) {
@@ -354,6 +356,10 @@ export function createGrowPanel( ctx, options = {} ) {
     const pollDelay = Number.isFinite( options.pollDelay ) ? options.pollDelay : 400;
     const waitDelay = Number.isFinite( options.waitDelay ) ? options.waitDelay : 3000;
     const retryDelay = Number.isFinite( options.retryDelay ) ? options.retryDelay : 1500;
+    // While the server is under pressure (a backup, an OPcache restart, a fresh update) the panel asks about once a
+    // minute instead of every few seconds, so the open tab adds no load of its own.
+    const pausedWait = Number.isFinite( options.pausedDelay ) ? options.pausedDelay : null;
+    const waitFor = ( res ) => ( res && res.paused ? ( pausedWait !== null ? pausedWait : pausedDelay( res, waitDelay ) ) : waitDelay );
     const s = { mode: 'loading', run: null, policy: null, busy: false, failures: 0, error: '', errorStatus: 0, errorCode: '', notice: '', elapsedBase: 0, elapsedAt: Date.now(), ticker: null, stoppedByUser: false, storefrontOk: false, autopilot: null, onAutopilot: typeof options.onAutopilot === 'function' ? options.onAutopilot : null, onFinished: typeof options.onFinished === 'function' ? options.onFinished : null };
     let elapsedNode = null;
 
@@ -663,7 +669,7 @@ export function createGrowPanel( ctx, options = {} ) {
                     break;
                 }
                 draw();
-                await sleep( res.waiting ? waitDelay : pollDelay );
+                await sleep( res.waiting ? waitFor( res ) : pollDelay );
             }
         } catch ( e ) {
             setError( e );
@@ -885,6 +891,26 @@ function balanceRows( balance ) {
     return rows;
 }
 
+/**
+ * The notice for a critically full PHP code cache (GET /overview `opcache`; null otherwise). Exported for tests.
+ *
+ * @param {object|null} warning
+ * @return {Element|null}
+ */
+export function opcacheCallout( warning ) {
+    const n = opcacheNotice( warning );
+    if ( ! n ) {
+        return null;
+    }
+    return callout( 'danger', n.title, [
+        n.summary ? el( 'div', {}, n.summary ) : null,
+        n.details ? el( 'div', { class: 'ppclg-small ppclg-muted' }, n.details ) : null,
+        n.intro ? el( 'div', { style: { marginTop: '6px' } }, n.intro ) : null,
+        n.settings.length ? el( 'ul', { class: 'ppclg-list--bullets ppclg-small' }, n.settings.map( ( line ) => el( 'li', {}, el( 'code', {}, line.split( ' ' )[ 0 ] ), line.includes( ' ' ) ? ` ${ line.slice( line.indexOf( ' ' ) + 1 ) }` : '' ) ) ) : null,
+        el( 'div', { class: 'ppclg-small' }, n.host, ' The same check is under Tools → Site Health.' ),
+    ] );
+}
+
 export default async function render( root, ctx ) {
     const { config, shell } = ctx;
     // Compliance banner first, then the "Grow your site" panel; both stay in place while the rest reloads.
@@ -1020,15 +1046,18 @@ export default async function render( root, ctx ) {
     } );
 
     const queue = automation.queue && typeof automation.queue === 'object' ? automation.queue : {};
+    const paused = pausedText( automation.paused );
     const automationCard = card( {
         title: 'Automation',
         actions: linkButton( 'Manage', ctx.pageUrl( 'automation' ), { small: true, iconName: 'zap' } ),
         body: [
             el( 'div', { class: 'ppclg-row', style: { marginBottom: '10px' } },
                 automation.automation_enabled ? badge( 'Master switch on', 'success', { dot: true } ) : badge( 'Master switch off', 'warning', { dot: true } ),
+                paused ? badge( 'Paused', 'warning', { dot: true, title: paused } ) : null,
                 automation.locked ? badge( 'Runner busy', 'info', { dot: true } ) : null,
                 scheduler.cron_disabled && scheduler.backend === 'wp_cron' ? badge( 'WP-Cron disabled', 'danger', { dot: true } ) : null,
             ),
+            paused ? el( 'p', { class: 'ppclg-small ppclg-paused-line' }, paused ) : null,
             kv( [
                 [ 'Scheduler', scheduler.backend === 'action_scheduler' ? 'Action Scheduler' : ( scheduler.backend === 'wp_cron' ? 'WP-Cron' : 'Not scheduled' ) ],
                 [ 'Next run', scheduler.next_run ? timeEl( scheduler.next_run ) : '—' ],
@@ -1066,6 +1095,7 @@ export default async function render( root, ctx ) {
         } ),
         bannerHost,
         grow,
+        opcacheCallout( data ? data.opcache : null ),
         missing.length ? callout( 'warning', 'Some integrations are not configured', el( 'ul', {}, missing.map( ( m ) => el( 'li', {}, String( m ) ) ) ), { actions: linkButton( 'Configure integrations', settingsUrl, { small: true, kind: 'primary' } ) } ) : null,
         ! automation.automation_enabled ? callout( 'info', 'Automation is switched off', 'Discovery, evaluation, monitoring and the submission/outreach queues only run while the master switch is on. Manual actions still work.', { actions: linkButton( 'Open automation', ctx.pageUrl( 'automation' ), { small: true } ) } ) : null,
         tiles,

@@ -14,6 +14,7 @@ declare(strict_types=1);
 namespace PPC\LinkGrowth\Admin\Rest;
 
 use PPC\LinkGrowth\Automation\Autopilot;
+use PPC\LinkGrowth\Automation\LoadGuard;
 use PPC\LinkGrowth\Growth\GrowthRun;
 use PPC\LinkGrowth\Support\Settings;
 use PPC\LinkGrowth\Support\TimeBudget;
@@ -56,6 +57,12 @@ final class GrowthController extends Controller {
             $state['message'] = 'A growth run is already in progress; showing its progress.';
         } elseif ( $running ) {
             $state['message'] = 'Growth run started.';
+            // While the server is under pressure the steps wait; say so at once instead of after the first step.
+            $paused = $this->safe( fn(): ?array => $this->c->get( LoadGuard::class )->pauseReason(), null, 'load guard' );
+            if ( is_array( $paused ) ) {
+                $state['message'] .= ' ' . (string) $paused['text'];
+                $state['paused']   = $paused;
+            }
         } else {
             $state['message'] = '' !== (string) ( $state['note'] ?? '' ) ? (string) $state['note'] : 'The growth run could not be started. Try again in a moment.';
         }

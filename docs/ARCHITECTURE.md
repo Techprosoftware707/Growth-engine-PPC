@@ -27,7 +27,7 @@ ppc-link-growth-engine/
 │   │                            ListingVerifier, SubmissionEngine
 │   ├── Outreach/                Templates, Personalizer, Compliance, Mailer, Unsubscribe, InboundWebhook, FollowUps, OutreachEngine
 │   ├── Monitoring/              Notifier, BacklinkMonitor, BacklinkImporter
-│   ├── Automation/              Scheduler (Action Scheduler / WP-Cron), Pipeline (stage cadence), JobRunner (locks, retries), Jobs/*
+│   ├── Automation/              Scheduler (Action Scheduler / WP-Cron), Pipeline (stage cadence), JobRunner (locks, retries), LoadGuard (server-pressure pauses), Jobs/*
 │   └── Admin/                   Capabilities, Menu, Assets, Notices, Rest/* (ppclg/v1 controllers)
 ├── assets/                      css/admin.css, js/app.js + modules + pages (no build step)
 └── data/                        keywords.json, seeds.json, discovery-queries.json, excluded-domains.json,
@@ -52,6 +52,8 @@ Adapters (`Submission\Adapters\*`) return `status` (`submitted`, `failed` with `
 ## Background execution
 
 `Scheduler` registers `ppclg_tick`. `Pipeline::tick()` records the tick, continues a growth run whose tab was closed, enqueues due stages (deduplicated), and runs `JobRunner` under a lock for `automation.max_execution_seconds` (at least 15 s). Jobs are small, idempotent and re-enqueue themselves when work remains, so with the default 20 s the 30-second PHP limit is never approached. Failed jobs retry with backoff up to three times; stale "running" jobs are recovered by the cleanup stage. Manual runs from the dashboard use `Pipeline::runNow()`; *Send now* on an outreach message takes the same runner lock and is refused (HTTP 409) while a background run holds it.
+
+Server pressure (1.2.4): before anything else each tick asks `Automation\LoadGuard::pauseReason( true )` whether the server is under pressure (OPcache restarting per `Support\Opcache`, an UpdraftPlus resumption in the cron array or the `ppclg_backup_running` filter, the 10-minute window after an update or activation stored in `ppclg_running_version`, or the `ppclg_pause_background` filter). While a reason holds, the tick returns `skipped_reason: paused` without claiming jobs or enqueueing stages, `Scheduler::kick()` queues nothing and `GrowthRun::advance()` returns a waiting state; `LoadGuard::track()` stores the pause in `ppclg_background_pause` and logs its start and end once. The answer is memoised per request (the container's single `LoadGuard`). A full OPcache never pauses; `Admin\SiteHealth` reports it under Tools → Site Health and in `GET /overview` (`opcache`). See OPERATIONS.md → Server pressure.
 
 ## Storefront compliance gate
 
@@ -88,4 +90,4 @@ Weighted sum of seven components (see README). Component details are stored in `
 
 ## Extensibility
 
-Filters: `ppclg_metrics_providers`, `ppclg_backlink_sources`, `ppclg_search_providers`, `ppclg_submission_adapters`, `ppclg_job_types`, `ppclg_rest_controllers`, `ppclg_taxonomy`, `ppclg_discovery_queries`, `ppclg_seed_catalog`, `ppclg_excluded_domains`, `ppclg_http_request_args`, `ppclg_indexnow_environment`. Action: `ppclg_booted`. See EXTENDING.md.
+Filters: `ppclg_metrics_providers`, `ppclg_backlink_sources`, `ppclg_search_providers`, `ppclg_submission_adapters`, `ppclg_job_types`, `ppclg_rest_controllers`, `ppclg_taxonomy`, `ppclg_discovery_queries`, `ppclg_seed_catalog`, `ppclg_excluded_domains`, `ppclg_http_request_args`, `ppclg_indexnow_environment`, `ppclg_post_language`, `ppclg_pause_background`, `ppclg_backup_running`. Action: `ppclg_booted`. See EXTENDING.md.

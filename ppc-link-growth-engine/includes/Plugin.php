@@ -14,6 +14,7 @@ use PPC\LinkGrowth\Admin\Capabilities;
 use PPC\LinkGrowth\Admin\Menu;
 use PPC\LinkGrowth\Admin\Notices;
 use PPC\LinkGrowth\Admin\Rest\RestApi;
+use PPC\LinkGrowth\Admin\SiteHealth;
 use PPC\LinkGrowth\Analysis\ContactExtractor;
 use PPC\LinkGrowth\Analysis\FormDetector;
 use PPC\LinkGrowth\Analysis\PageAnalyzer;
@@ -25,6 +26,7 @@ use PPC\LinkGrowth\Analysis\Taxonomy;
 use PPC\LinkGrowth\Automation\Audit;
 use PPC\LinkGrowth\Automation\Autopilot;
 use PPC\LinkGrowth\Automation\JobRunner;
+use PPC\LinkGrowth\Automation\LoadGuard;
 use PPC\LinkGrowth\Automation\Pipeline;
 use PPC\LinkGrowth\Automation\Scheduler;
 use PPC\LinkGrowth\Compliance\StorefrontAudit;
@@ -96,6 +98,7 @@ use PPC\LinkGrowth\Support\Http\RobotsTxt;
 use PPC\LinkGrowth\Support\Limits;
 use PPC\LinkGrowth\Support\Locks;
 use PPC\LinkGrowth\Support\Logger;
+use PPC\LinkGrowth\Support\Opcache;
 use PPC\LinkGrowth\Support\Secrets;
 use PPC\LinkGrowth\Support\Settings;
 
@@ -148,6 +151,15 @@ final class Plugin {
 
         // REST API (admin + public endpoints).
         add_action( 'rest_api_init', [ $this->get( RestApi::class ), 'register' ] );
+
+        // Server pressure (1.2.4): an update starts the 10-minute quiet window on the first request that runs the new
+        // version (one in-memory option compare otherwise), and Site Health warns when PHP's code cache is full.
+        try {
+            $this->get( LoadGuard::class )->noteVersion();
+            $this->get( SiteHealth::class )->register();
+        } catch ( \Throwable $e ) {
+            unset( $e );
+        }
 
         // Background automation.
         $this->get( Scheduler::class )->register();
@@ -328,9 +340,12 @@ final class Plugin {
 
         // --- Automation ----------------------------------------------------
         $c->singleton( Audit::class, static fn( Container $c ) => new Audit( $c->get( AuditLog::class ) ) );
+        // Server pressure: background work pauses while OPcache restarts, a backup runs or the plugin was just updated.
+        $c->singleton( Opcache::class, static fn() => new Opcache() );
+        $c->singleton( LoadGuard::class, static fn( Container $c ) => new LoadGuard( $c->get( Opcache::class ) ) );
         $c->singleton( JobRunner::class, static fn( Container $c ) => new JobRunner( $c, $c->get( Jobs::class ), $c->get( Locks::class ), $c->get( Settings::class ), $c->get( Logger::class ), $c->get( AuditLog::class ) ) );
-        $c->singleton( Pipeline::class, static fn( Container $c ) => new Pipeline( $c->get( Jobs::class ), $c->get( JobRunner::class ), $c->get( Settings::class ), $c->get( Limits::class ), $c->get( Logger::class ) ) );
-        $c->singleton( Scheduler::class, static fn( Container $c ) => new Scheduler( $c->get( Pipeline::class ), $c->get( Settings::class ), $c->get( Logger::class ) ) );
+        $c->singleton( Pipeline::class, static fn( Container $c ) => new Pipeline( $c->get( Jobs::class ), $c->get( JobRunner::class ), $c->get( Settings::class ), $c->get( Limits::class ), $c->get( Logger::class ), $c->get( LoadGuard::class ) ) );
+        $c->singleton( Scheduler::class, static fn( Container $c ) => new Scheduler( $c->get( Pipeline::class ), $c->get( Settings::class ), $c->get( Logger::class ), $c->get( LoadGuard::class ) ) );
 
         // --- On-site SEO ---------------------------------------------------
         // The audit and the link suggestions only read content; links are applied by an admin's Apply click, or under
@@ -349,6 +364,7 @@ final class Plugin {
         $c->singleton( Menu::class, static fn( Container $c ) => new Menu( $c->get( Settings::class ), $c->get( Notifications::class ) ) );
         $c->singleton( Assets::class, static fn( Container $c ) => new Assets( $c->get( Settings::class ) ) );
         $c->singleton( Notices::class, static fn( Container $c ) => new Notices( $c->get( Settings::class ), $c->get( ProviderRegistry::class ), $c->get( Compliance::class ) ) );
+        $c->singleton( SiteHealth::class, static fn( Container $c ) => new SiteHealth( $c->get( Opcache::class ) ) );
         $c->singleton( RestApi::class, static fn( Container $c ) => new RestApi( $c ) );
     }
 }

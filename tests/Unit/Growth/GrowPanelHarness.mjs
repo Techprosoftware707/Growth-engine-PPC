@@ -517,5 +517,70 @@ const fast = { pollDelay: 1, waitDelay: 1, retryDelay: 1 };
     out.fallback = { paused: host.textContent.includes( 'paused' ) && host.textContent.includes( 'x' ), passEmpty: hostPass.childNodes.length === 0 };
 }
 
+// 10. 1.2.4: a step paused for server pressure shows the plain reason, waits (pausedDelay) and the run then continues.
+{
+    requests.length = 0;
+    const note = 'Paused: a backup is running (resumes automatically).';
+    routes = {
+        'GET /growth/status': [ { status: 200, body: running( [ 'pending' ] ) } ],
+        'POST /growth/step': [
+            { status: 200, body: { ...running( [ 'pending' ] ), ok: true, waiting: true, note, message: note, paused: { code: 'backup', message: 'a backup is running', text: note }, retry_after: 60 } },
+            { status: 200, body: completed },
+        ],
+    };
+    let finished = null;
+    const panel = mod.createGrowPanel( ctx, { ...fast, pausedDelay: 150, onFinished: ( run ) => {
+        finished = run;
+    } } );
+    await panel.ready;
+    const sawNote = await until( () => panel.node.textContent.includes( note ), 1000 );
+    const stepsWhilePaused = requests.filter( ( r ) => r === 'POST /growth/step' ).length;
+    await until( () => finished !== null );
+    out.paused = {
+        sawNote,
+        stepsWhilePaused,
+        finishedStatus: finished ? finished.status : null,
+        stepCalls: requests.filter( ( r ) => r === 'POST /growth/step' ).length,
+        noError: ! panel.node.textContent.includes( 'Lost contact' ) && ! panel.node.textContent.includes( 'reported an error' ),
+    };
+}
+
+// 11. 1.2.4: the OPcache notice (critical only) and the server-pressure helpers.
+{
+    const sp = await import( pathToFileURL( path.join( pluginDir, 'assets/js/server-pressure.js' ) ).href );
+    const warning = {
+        level: 'critical',
+        title: "PHP's code cache (OPcache) is full",
+        summary: 'PHP keeps compiled WordPress, WooCommerce and plugin code in a fixed amount of memory (OPcache). That memory is full.',
+        details: 'Memory in use: 128 MB of 128 MB (100%).',
+        remedy: [ 'Raise these settings in the php.ini (or a file in the conf.d folder) that PHP-FPM uses, then restart PHP-FPM:', 'opcache.memory_consumption=256 (now 128)', 'opcache.interned_strings_buffer=32 (now 8)', 'opcache.max_accelerated_files=32531 (now 10000)' ],
+        host: 'On managed hosting, ask your host to make this change.',
+    };
+    const node = mod.opcacheCallout( warning );
+    const codes = node ? find( node, ( n ) => n.tagName === 'CODE' ).map( ( n ) => n.textContent ) : [];
+    out.opcache = {
+        rendered: node !== null,
+        danger: node ? String( node.attributes.class || node.className || '' ).includes( 'ppclg-callout--danger' ) : false,
+        title: node ? node.textContent.includes( "PHP's code cache (OPcache) is full" ) : false,
+        codes,
+        nowValues: node ? node.textContent.includes( '(now 128)' ) && node.textContent.includes( '(now 10000)' ) : false,
+        host: node ? node.textContent.includes( 'ask your host' ) && node.textContent.includes( 'Site Health' ) : false,
+        restart: node ? node.textContent.includes( 'restart PHP-FPM' ) : false,
+        recommendedIsNull: mod.opcacheCallout( { ...warning, level: 'recommended' } ) === null,
+        nullIsNull: mod.opcacheCallout( null ) === null,
+    };
+    out.helpers = {
+        pausedText: sp.pausedText( { code: 'backup', text: 'Paused: a backup is running (resumes automatically).' } ),
+        pausedFromMessage: sp.pausedText( { code: 'backup', message: 'a backup is running.' } ),
+        pausedNone: sp.pausedText( null ),
+        detailOwner: sp.pausedDetail( { code: 'owner' } ).includes( 'ppclg_pause_background' ),
+        detailBackup: sp.pausedDetail( { code: 'backup' } ).includes( 'nothing is lost' ),
+        delayRetryAfter: sp.pausedDelay( { paused: { code: 'backup' }, retry_after: 60 }, 3000 ),
+        delayCapped: sp.pausedDelay( { paused: { code: 'backup' }, retry_after: 9999 }, 3000 ),
+        delayNotPaused: sp.pausedDelay( { waiting: true, retry_after: 60 }, 3000 ),
+        delayNoRetry: sp.pausedDelay( { paused: { code: 'backup' } }, 3000 ),
+    };
+}
+
 process.stdout.write( JSON.stringify( out ) );
 process.exit( 0 );

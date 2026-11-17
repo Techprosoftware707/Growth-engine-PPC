@@ -45,14 +45,20 @@ final class Pipeline {
         private JobRunner $runner,
         private Settings $settings,
         private Limits $limits,
-        private Logger $logger
+        private Logger $logger,
+        private ?LoadGuard $guard = null
     ) {}
 
     /**
      * One scheduler tick: continue an active growth run whose browser tab went away, enqueue due stages (when
      * automation is enabled) and run the queue.
      *
-     * @return array{enqueued:string[],run:array{ran:int,completed:int,failed:int,skipped:bool},skipped_reason:string,growth:?array<string,mixed>}
+     * While the server is under pressure (LoadGuard: OPcache restarting, a backup running, the plugin just updated,
+     * or the ppclg_pause_background filter) the tick does nothing else: no job is claimed, no stage is enqueued, no
+     * growth step runs and no limit is spent; it returns skipped_reason "paused" with the reason, which is logged and
+     * stored once per pause. The first tick after the pause logs the resume and works as usual.
+     *
+     * @return array{enqueued:string[],run:array{ran:int,completed:int,failed:int,skipped:bool},skipped_reason:string,growth:?array<string,mixed>,paused:?array<string,mixed>}
      */
     public function tick(): array {
         update_option( self::OPTION_LAST_TICK, gmdate( 'c' ), false );
@@ -61,7 +67,22 @@ final class Pipeline {
             'run'            => [ 'ran' => 0, 'completed' => 0, 'failed' => 0, 'skipped' => false ],
             'skipped_reason' => '',
             'growth'         => null,
+            'paused'         => null,
         ];
+
+        // Asked afresh on every tick; the growth run and kicks in the same request reuse this answer.
+        $paused = null;
+        try {
+            $guard         = $this->loadGuard();
+            $paused        = $guard->pauseReason( true );
+            $out['paused'] = $guard->track( $paused, $this->logger );
+        } catch ( Throwable $e ) {
+            $paused = null; // a guard that cannot answer never stops the tick
+        }
+        if ( null !== $paused ) {
+            $out['skipped_reason'] = 'paused';
+            return $out;
+        }
 
         try {
             $recovered = $this->jobs->recoverStale( self::STALE_SECONDS );
@@ -213,6 +234,12 @@ final class Pipeline {
         }
         $lastTick = get_option( self::OPTION_LAST_TICK, '' );
         $results  = get_option( JobRunner::OPTION_STAGE_RESULTS, [] );
+        $paused   = null;
+        try {
+            $paused = $this->loadGuard()->status();
+        } catch ( Throwable $e ) {
+            unset( $e );
+        }
 
         return [
             'automation_enabled'    => (bool) $this->settings->get( 'automation.enabled', false ),
@@ -230,7 +257,23 @@ final class Pipeline {
             'locked'                => $this->runner->isLocked(),
             'max_execution_seconds' => $this->maxSeconds(),
             'tick_interval'         => max( 60, (int) $this->settings->get( 'automation.tick_interval', 300 ) ),
+            // Background work paused because the server is under pressure: {code, message, text, until, since,
+            // source}, e.g. text "Paused: a backup is running (resumes automatically)."; null while it runs.
+            'paused'                => $paused,
         ];
+    }
+
+    /** The server-pressure guard (the container's, so a request asks it once). */
+    public function loadGuard(): LoadGuard {
+        if ( null === $this->guard ) {
+            try {
+                $svc = $this->container()->get( LoadGuard::class );
+                $this->guard = $svc instanceof LoadGuard ? $svc : new LoadGuard();
+            } catch ( Throwable $e ) {
+                $this->guard = new LoadGuard();
+            }
+        }
+        return $this->guard;
     }
 
     /** Cancels queued jobs (optionally of one type). */

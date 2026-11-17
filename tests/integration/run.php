@@ -36,7 +36,15 @@ final class IT {
             echo "  ✘ {$label}" . ( '' !== $detail ? " — {$detail}" : '' ) . "\n";
         }
     }
+    /** Steps always run, also with PPCLG_IT_ONLY (they set up the plugin for every other step). */
+    private const SETUP = [ 'Activation and schema', 'Configure for the fixture environment' ];
+
     public static function step( string $title, callable $fn ): void {
+        // PPCLG_IT_ONLY=<part of a step title>: run only the matching steps (plus setup), for iterating on one section.
+        $only = (string) getenv( 'PPCLG_IT_ONLY' );
+        if ( '' !== $only && ! in_array( $title, self::SETUP, true ) && false === stripos( $title, $only ) ) {
+            return;
+        }
         echo "\n== {$title}\n";
         try {
             $fn();
@@ -92,6 +100,18 @@ IT::step( 'Activation and schema', static function (): void {
     IT::check( get_role( 'administrator' )->has_cap( 'ppclg_manage' ), 'administrator has ppclg_manage' );
     IT::check( ! ppclg()->get( \PPC\LinkGrowth\Database\Migrator::class )->needsMigration(), 'no pending migration' );
     IT::check( ppclg()->get( \PPC\LinkGrowth\Automation\Scheduler::class )->status()['backend'] !== 'none', 'scheduler registered a backend' );
+    // 1.2.4: an activation starts the 10-minute quiet window in which background work waits (Automation\LoadGuard);
+    // the rest of the run starts after it.
+    if ( class_exists( \PPC\LinkGrowth\Automation\LoadGuard::class ) ) {
+        $guard = ppclg()->get( \PPC\LinkGrowth\Automation\LoadGuard::class );
+        if ( '0' !== (string) getenv( 'PPCLG_RESET' ) ) {
+            $reason = $guard->pauseReason( true );
+            IT::check( 'just_updated' === ( $reason['code'] ?? null ), 'the activation starts the quiet window', (string) wp_json_encode( $reason ) );
+        }
+        update_option( 'ppclg_running_version', [ 'version' => PPCLG_VERSION, 'since' => time() - HOUR_IN_SECONDS, 'from' => '' ], true );
+        $guard->forget();
+        IT::check( null === $guard->pauseReason( true ), 'the run starts after the quiet window' );
+    }
 } );
 
 IT::step( 'Configure for the fixture environment', static function (): void {
@@ -442,6 +462,9 @@ require __DIR__ . '/render-check.php';
 
 // 1.2.3: internal links never use the brand name as link text and never cross languages (the live Terms page case).
 require __DIR__ . '/link-rules.php';
+
+// 1.2.4: no background work while a backup runs, OPcache restarts or the plugin was just updated; the OPcache warning.
+require __DIR__ . '/server-pressure.php';
 
 echo "\n==============================\n";
 printf( "Passed: %d  Failed: %d\n", IT::$pass, IT::$fail );

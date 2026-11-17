@@ -2892,6 +2892,15 @@
     border-radius: var(--ppclg-radius-xs, 3px);
 }
 
+/* 1.2.4 server pressure: the pause line on the Overview automation card. */
+.ppclg-paused-line {
+    margin: 0 0 10px;
+    padding: 6px 10px;
+    border-left: 3px solid var(--ppclg-warning);
+    background: var(--ppclg-warning-soft);
+    border-radius: 4px;
+}
+
 @media print {
     .ppclg-subnav,
     .ppclg-header-actions,

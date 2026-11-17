@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace PPC\LinkGrowth;
 
 use PPC\LinkGrowth\Admin\Capabilities;
+use PPC\LinkGrowth\Automation\LoadGuard;
 use PPC\LinkGrowth\Automation\Scheduler;
 use PPC\LinkGrowth\Database\Migrator;
 use PPC\LinkGrowth\Support\Settings;
@@ -34,6 +35,8 @@ final class Activator {
         $plugin->get( Scheduler::class )->schedule();
 
         update_option( 'ppclg_activated_at', gmdate( 'c' ), false );
+        // Background work waits 10 minutes after an activation (LoadGuard::UPDATE_QUIET_SECONDS), like after an update.
+        $plugin->get( LoadGuard::class )->recordActivation();
         set_transient( 'ppclg_activation_redirect', 1, 60 );
     }
 }

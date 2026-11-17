@@ -306,7 +306,7 @@ function wp_safe_remote_post( string $url, array $args = [] ): array|WP_Error { 
 function wp_mail( mixed $to, string $subject, string $message, mixed $headers = '', mixed $attachments = [] ): bool { $GLOBALS['ppclg_test_mail'][] = [ 'to' => $to, 'subject' => $subject, 'message' => $message, 'headers' => $headers ]; return empty( $GLOBALS['ppclg_test_mail_fail'] ); }
 function wp_next_scheduled( string $hook, array $args = [] ): int|false { return false; }
 function wp_schedule_event( int $ts, string $recurrence, string $hook, array $args = [] ): bool { return true; }
-function wp_schedule_single_event( int $ts, string $hook, array $args = [] ): bool { return true; }
+function wp_schedule_single_event( int $ts, string $hook, array $args = [] ): bool { $GLOBALS['ppclg_test_cron_single'][] = [ 'ts' => $ts, 'hook' => $hook, 'args' => $args ]; return true; }
 function wp_clear_scheduled_hook( string $hook, array $args = [] ): int { return 0; }
 function wp_unschedule_event( int $ts, string $hook, array $args = [] ): bool { return true; }
 function spawn_cron( int $gmt = 0 ): bool { return true; }
@@ -338,7 +338,7 @@ function dbDelta( mixed $queries, bool $execute = true ): array { foreach ( (arr
 function as_schedule_recurring_action( mixed ...$a ): int { return 1; }
 function as_has_scheduled_action( mixed ...$a ): bool { return false; }
 function as_unschedule_all_actions( mixed ...$a ): void {}
-function as_enqueue_async_action( mixed ...$a ): int { return 1; }
+function as_enqueue_async_action( mixed ...$a ): int { $GLOBALS['ppclg_test_as_async'][] = $a; return 1; }
 function as_next_scheduled_action( mixed ...$a ): int|false { return false; }
 function get_admin_url( mixed ...$a ): string { return admin_url(); }
 function wp_doing_cron(): bool { return false; }

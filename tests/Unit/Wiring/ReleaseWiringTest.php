@@ -116,11 +116,16 @@ final class ReleaseWiringTest extends TestCase {
         $this->assertSame( [ 'evaluate_rounds' => 6, 'step_seconds' => 20 ], $defaults['growth'] );
 
         $main = (string) file_get_contents( self::ROOT . 'ppc-link-growth-engine.php' );
-        $this->assertMatchesRegularExpression( '/\*\s+Version:\s+1\.2\.3\b/', $main );
-        $this->assertStringContainsString( "define( 'PPCLG_VERSION', '1.2.3' );", $main );
+        $this->assertMatchesRegularExpression( '/\*\s+Version:\s+1\.2\.4\b/', $main );
+        $this->assertStringContainsString( "define( 'PPCLG_VERSION', '1.2.4' );", $main );
         $readme = (string) file_get_contents( self::ROOT . 'readme.txt' );
-        $this->assertStringContainsString( 'Stable tag: 1.2.3', $readme );
-        $this->assertStringContainsString( "== Changelog ==\n\n= 1.2.3 =\n", $readme, 'the changelog leads with this version' );
+        $this->assertStringContainsString( 'Stable tag: 1.2.4', $readme );
+        $this->assertStringContainsString( "== Changelog ==\n\n= 1.2.4 =\n", $readme, 'the changelog leads with this version' );
+        // 1.2.4: the changelog names the pauses, the plain dashboard text, both filters and the exact OPcache remedy.
+        $latest = (string) strstr( (string) strstr( $readme, "= 1.2.4 =\n" ), "= 1.2.3 =\n", true );
+        foreach ( [ 'Paused: a backup is running (resumes automatically).', 'ppclg_backup_running', 'ppclg_pause_background', '10 minutes after the plugin is updated or activated', "PHP's code cache (OPcache) is full", 'opcache.memory_consumption=256', 'opcache.interned_strings_buffer=32', 'opcache.max_accelerated_files=32531', 'restart PHP-FPM', 'ask your host', 'A full cache alone never pauses anything', 'nothing is lost, only delayed' ] as $needle ) {
+            $this->assertStringContainsString( $needle, $latest, $needle );
+        }
         // 1.2.3: the changelog states both internal-link rules and the notes on closed suggestions.
         $entry = (string) strstr( (string) strstr( $readme, "= 1.2.3 =\n" ), "= 1.2.2 =\n", true );
         foreach ( [ 'New rule, brand name', 'New rule, language', 'Not suggested: the link text is your brand name.', 'Not suggested: the target page is in another language.' ] as $needle ) {
@@ -159,6 +164,49 @@ final class ReleaseWiringTest extends TestCase {
         Container::plugin()->maybeServeIndexNowKey( null );
         $this->assertSame( '', ob_get_clean() );
         unset( $_SERVER['REQUEST_URI'] );
+    }
+
+    public function testServerPressureServicesHooksAndDocsAreWired(): void {
+        $c = Container::plugin()->container();
+        foreach ( [ \PPC\LinkGrowth\Automation\LoadGuard::class, \PPC\LinkGrowth\Support\Opcache::class, \PPC\LinkGrowth\Admin\SiteHealth::class ] as $class ) {
+            $this->assertTrue( $c->has( $class ), $class . ' has a factory' );
+            $this->assertInstanceOf( $class, $c->get( $class ) );
+        }
+        $pipeline = $c->get( Pipeline::class );
+        $this->assertSame( $c->get( \PPC\LinkGrowth\Automation\LoadGuard::class ), $pipeline->loadGuard(), 'one guard per request' );
+        $this->assertArrayHasKey( 'paused', $pipeline->status() );
+
+        $this->assertSame( 'ppclg_running_version', \PPC\LinkGrowth\Automation\LoadGuard::OPTION_VERSION );
+        $this->assertSame( 'ppclg_background_pause', \PPC\LinkGrowth\Automation\LoadGuard::OPTION_PAUSE, 'ppclg_ prefix: removed on uninstall' );
+        $this->assertSame( 600, \PPC\LinkGrowth\Automation\LoadGuard::UPDATE_QUIET_SECONDS );
+        $this->assertSame( 1800, \PPC\LinkGrowth\Automation\LoadGuard::BACKUP_LOOKAHEAD_SECONDS );
+        $this->assertSame( 'updraft_backup_resume', \PPC\LinkGrowth\Automation\LoadGuard::UPDRAFT_RESUME_HOOK );
+        $this->assertSame( [ 'opcache.memory_consumption' => '256', 'opcache.interned_strings_buffer' => '32', 'opcache.max_accelerated_files' => '32531' ], \PPC\LinkGrowth\Support\Opcache::RECOMMENDED_SETTINGS );
+
+        // Boot registers the Site Health test on every request (the weekly check runs in cron) and records the version.
+        delete_option( \PPC\LinkGrowth\Automation\LoadGuard::OPTION_VERSION );
+        Container::plugin()->boot();
+        $this->assertNotEmpty( $GLOBALS['ppclg_test_filters']['site_status_tests'] ?? [], 'site_status_tests is hooked' );
+        $this->assertSame( PPCLG_VERSION, get_option( \PPC\LinkGrowth\Automation\LoadGuard::OPTION_VERSION )['version'] ?? null, 'the first request on a new version starts the quiet window' );
+
+        // Activation starts the window too.
+        $activator = (string) file_get_contents( self::ROOT . 'includes/Activator.php' );
+        $this->assertStringContainsString( 'LoadGuard::class )->recordActivation()', $activator );
+
+        $css = (string) file_get_contents( self::ROOT . 'assets/css/admin.css' );
+        $this->assertStringContainsString( '.ppclg-paused-line {', $css );
+        $this->assertFileExists( self::ROOT . 'assets/js/server-pressure.js' );
+
+        $ops = (string) file_get_contents( self::ROOT . '../docs/OPERATIONS.md' );
+        $this->assertStringContainsString( '## Server pressure', $ops );
+        foreach ( [ 'updraft_backup_resume', 'ppclg_pause_background', 'ppclg_backup_running', 'opcache.memory_consumption=256', 'opcache.interned_strings_buffer=32', 'opcache.max_accelerated_files=32531' ] as $needle ) {
+            $this->assertStringContainsString( $needle, $ops, $needle );
+        }
+        $testing = (string) file_get_contents( self::ROOT . '../docs/TESTING.md' );
+        $this->assertStringContainsString( 'tests/Unit/Automation/LoadGuardTest.php', $testing );
+        $this->assertStringContainsString( 'tests/integration/server-pressure.php', $testing );
+        $run = (string) file_get_contents( self::ROOT . '../tests/integration/run.php' );
+        $this->assertStringContainsString( "require __DIR__ . '/server-pressure.php';", $run );
     }
 
     public function testSettingsCannotWriteTheAcknowledgementOrTheIndexNowKey(): void {

@@ -14,8 +14,12 @@ abstract class TestCase extends BaseTestCase {
 
     protected function setUp(): void {
         parent::setUp();
-        $GLOBALS['ppclg_test_options']    = [];
+        // The running version is already recorded, so the 10-minute quiet window after an update or activation
+        // (Automation\LoadGuard) does not pause the ticks of every test; LoadGuard tests set it themselves.
+        $GLOBALS['ppclg_test_options']    = [ 'ppclg_running_version' => [ 'version' => PPCLG_VERSION, 'since' => 0, 'from' => '' ] ];
         $GLOBALS['ppclg_test_transients'] = [];
+        $GLOBALS['ppclg_test_as_async']   = [];
+        $GLOBALS['ppclg_test_cron_single'] = [];
         $GLOBALS['ppclg_test_mail']       = [];
         $GLOBALS['ppclg_test_actions']    = [];
         $GLOBALS['ppclg_test_filters']    = [];

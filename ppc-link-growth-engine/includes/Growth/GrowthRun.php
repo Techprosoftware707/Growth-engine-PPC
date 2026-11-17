@@ -27,6 +27,7 @@ namespace PPC\LinkGrowth\Growth;
 use PPC\LinkGrowth\Automation\Audit;
 use PPC\LinkGrowth\Automation\Autopilot;
 use PPC\LinkGrowth\Automation\JobRunner;
+use PPC\LinkGrowth\Automation\LoadGuard;
 use PPC\LinkGrowth\Automation\Pipeline;
 use PPC\LinkGrowth\Automation\Scheduler;
 use PPC\LinkGrowth\Compliance\StorefrontAudit;
@@ -220,12 +221,21 @@ final class GrowthRun {
      * Runs as many steps as fit in the budget (no step starts with fewer than MIN_STEP_SECONDS left) and saves the
      * state after every step. Returns the state; `waiting` is true when the runner or another advance was busy.
      *
+     * While background work is paused (Automation\LoadGuard: PHP's code cache restarting, a backup running, the
+     * plugin just updated) no step runs and nothing is written: the state comes back `waiting` with the plain reason
+     * as `note` ("Paused: a backup is running (resumes automatically)."), `paused` and `retry_after` seconds, and the
+     * run continues where it was once the pause is over. A paused step never fails.
+     *
      * @return array<string,mixed> state()
      */
     public function advance( TimeBudget $budget ): array {
         $state = $this->load();
         if ( null === $state || self::STATUS_RUNNING !== $state['status'] ) {
             return $this->decorate( $state ?? self::blank() );
+        }
+        $paused = $this->pauseReason();
+        if ( null !== $paused ) {
+            return $this->paused( $state, $paused );
         }
         $locks = $this->locks();
         if ( ! $locks->acquire( self::LOCK, (int) ceil( $budget->remaining() ) + 60 ) ) {
@@ -1317,6 +1327,40 @@ final class GrowthRun {
         $out            = $this->decorate( $state );
         $out['waiting'] = true;
         $out['note']    = $note;
+        return $out;
+    }
+
+    /**
+     * The server-pressure pause (Automation\LoadGuard), or null; a guard that cannot answer never stops the run.
+     *
+     * @return array<string,mixed>|null
+     */
+    private function pauseReason(): ?array {
+        try {
+            $guard = $this->c->get( LoadGuard::class );
+            return $guard instanceof LoadGuard ? $guard->pauseReason() : null;
+        } catch ( Throwable $e ) {
+            return null;
+        }
+    }
+
+    /**
+     * The waiting state while paused (logged once per pause through the guard's record).
+     *
+     * @param array<string,mixed> $state
+     * @param array<string,mixed> $reason
+     * @return array<string,mixed>
+     */
+    private function paused( array $state, array $reason ): array {
+        $tracked = null;
+        try {
+            $tracked = $this->c->get( LoadGuard::class )->track( $reason, $this->c->get( Logger::class ) );
+        } catch ( Throwable $e ) {
+            unset( $e );
+        }
+        $out                = $this->waiting( $state, (string) $reason['text'] );
+        $out['paused']      = $tracked ?? $reason;
+        $out['retry_after'] = LoadGuard::RETRY_AFTER_SECONDS;
         return $out;
     }
 

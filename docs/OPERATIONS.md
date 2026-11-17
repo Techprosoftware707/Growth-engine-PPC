@@ -19,6 +19,35 @@ Every tick (default every 5 minutes via Action Scheduler) the pipeline enqueues 
 
 Every automated action is written to the audit log (Logs → Audit).
 
+## Server pressure
+
+From 1.2.4 the plugin never adds background work while the server is struggling. On the live store a plugin update left PHP's code cache (OPcache) full while an UpdraftPlus backup held PHP-FPM workers for minutes; the plugin's tick kept taking another worker for up to 20 seconds every 5 minutes and the store answered 504 for about 20 minutes.
+
+**When background work pauses.** Before each tick (and before a kick or a Grow now step) the plugin asks `Automation\LoadGuard`, which checks, without any HTTP request:
+
+| Reason | How it is detected | Dashboard text |
+|---|---|---|
+| PHP's code cache is restarting | `opcache_get_status(false)` reports `restart_pending` or `restart_in_progress` (a warning from `opcache.restrict_api` or a missing function counts as "nothing known") | Paused: PHP's code cache is restarting (resumes automatically). |
+| A backup is running | UpdraftPlus: a `updraft_backup_resume` event (every running UpdraftPlus backup keeps its next resumption scheduled) or a "Backup now" event (`updraft_backupnow_backup*`) in the cron array, due within the next 30 minutes or overdue by less than an hour, unless that backup's own record `updraft_jobdata_<nonce>` says `finished`. The cron array is an autoloaded option, so this costs no database query; the job record is read only when such an event exists, and other options are never scanned. Other backup plugins report through the `ppclg_backup_running` filter (return `true` or the plugin's name). | Paused: a backup is running (resumes automatically). |
+| The plugin was just updated or activated | The first request that runs a new `PPCLG_VERSION` (or the activation) stores `ppclg_running_version` with the time; for 10 minutes after that OPcache can warm up and other plugins finish their own post-update work. | Paused: the plugin was just updated (resumes automatically in about N minutes). |
+| The site owner or host says so | `add_filter( 'ppclg_pause_background', … )`: return `true` or a short message to pause, `false` to let the work run even when a reason above was found. | Paused: *your message*. |
+
+The answer is kept for the rest of the request; every tick asks afresh.
+
+**What a pause does.** The tick (also *Run tick now* on the Automation page) returns at once with `skipped_reason: paused`: no job is claimed, no stage is enqueued, no growth step runs, no limit is spent and no stage's cadence is used up. *Kick scheduler* starts nothing (its answer says why). A Grow now run waits instead of failing: `POST /growth/step` answers `waiting: true` with the text above, `paused` and `retry_after: 60`, and the panel asks again about once a minute instead of every 3 seconds. *Run now* on a single stage still runs it (you asked for it), and its answer carries the warning. Outreach keeps its send window and daily limits; nothing is lost, only delayed. The first check that finds no reason resumes everything. Each pause is written to Logs → Automation once when it starts and once when it ends ("Background work resumed after 12 minutes (a backup is running)."), and the Overview's Automation card and the Automation page show it while it lasts (`paused` in `GET /automation/status` and `GET /overview` → `automation`).
+
+**A full OPcache does not pause anything.** That state can last for months; pausing on it would stop Autopilot for good. Instead Tools → Site Health shows the test "PHP's code cache (OPcache) is full" (critical: OPcache reports `cache_full`, less than 5% of its memory is free, or the interned strings buffer is full) or "… is almost full" (recommended: more than 90% of the memory or of the interned strings buffer in use), with the numbers and the fix. While it is critical the Overview shows the same notice (`opcache` in `GET /overview`). When PHP does not let plugins read the status the test passes with "nothing to report".
+
+**Recommended OPcache sizes** for a WooCommerce store with this plugin and a backup plugin. In the `php.ini` (or a file in the `conf.d` folder) that **PHP-FPM** uses (not the CLI one), set:
+
+```ini
+opcache.memory_consumption=256
+opcache.interned_strings_buffer=32
+opcache.max_accelerated_files=32531
+```
+
+then restart PHP-FPM (for example `systemctl restart php8.5-fpm`). On managed hosting, ask your host to make this change. Every plugin update leaves the replaced code in the cache as wasted memory until OPcache restarts, so a cache sized with room to spare is what keeps updates from slowing the store.
+
 ## Campaigns: what happens after "Create campaign"
 
 Creating a campaign (Outreach → New campaign) builds its drafts straight away, for every eligible prospect whose best opportunity fits the approach: qualified, approved or in-progress websites with an active, conspicuously published contact, not on the suppression list, not contacted within the cool-down (`outreach.min_days_between_contacts`), without an open message in another campaign (one open message per website) and not a verified-database owner task. Unsent drafts that an "Auto:" campaign holds for the same approach move into your campaign. The toast says how many drafts were made; anything that did not fit the 15-second request continues in the background.
@@ -209,4 +238,7 @@ Each prospect drawer shows the seven components with their weight, raw score, da
 | Pending rows say "Not checked yet: …" | The page check could not reach the page (timeout, HTTP 5xx, a login or challenge page in front of it, or the server cannot request its own address: Tools → Site Health → loopback request). Nothing is added there until a check succeeds; it is retried after about 6 hours. |
 | *Left for you*: "WordPress would re-filter other markup … The account that gave the consent …" | The item has markup only an administrator may save (inline SVG, JSON-LD) and the user who switched Autopilot on no longer exists, may not edit the item or may not save unfiltered HTML, or Autopilot was switched on before 1.2.2 (its consent predates the text that covers saving as your account; the Autopilot card says so). Switch Autopilot off and on again from an administrator account, or apply the link by hand. |
 | The job summary says "page checks are paused for a few minutes" | A page check timed out or got HTTP 429 / 5xx, a security challenge or a slow answer, so page checks wait 10 minutes before the site is asked again. Nothing needs doing; if it happens on every run, check the host's load and Tools → Site Health → loopback request. |
+| Automation says "Paused: a backup is running (resumes automatically)." | An UpdraftPlus backup is running (or another backup plugin reports one); background work continues by itself when it ends. If it never ends, look in UpdraftPlus for a stuck backup, or in Tools → Site Health → Info → Scheduled events for an old `updraft_backup_resume` event. A host that knows better can let the work run with the `ppclg_pause_background` filter returning `false`. |
+| Automation says "Paused: the plugin was just updated …" | Normal for 10 minutes after an update or activation. |
+| Site Health says "PHP's code cache (OPcache) is full" | Raise the OPcache sizes as shown under [Server pressure](#server-pressure) and restart PHP-FPM, or ask your host. |
 | Errors in Logs | Each entry has channel and context; provider errors also appear on the provider card. |

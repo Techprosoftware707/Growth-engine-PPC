@@ -30,7 +30,8 @@ final class Scheduler {
     public function __construct(
         private Pipeline $pipeline,
         private Settings $settings,
-        private Logger $logger
+        private Logger $logger,
+        private ?LoadGuard $guard = null
     ) {}
 
     public function register(): void {
@@ -186,8 +187,20 @@ final class Scheduler {
         ];
     }
 
-    /** Triggers a tick as soon as possible (asynchronously). */
+    /**
+     * Triggers a tick as soon as possible (asynchronously). Does nothing (false) while background work is paused
+     * (LoadGuard): the recurring tick picks the work up once the pause is over, so nothing is lost.
+     */
     public function kick(): bool {
+        try {
+            $paused = ( $this->guard ?? $this->pipeline->loadGuard() )->pauseReason();
+            if ( null !== $paused ) {
+                $this->logger->debug( 'automation', 'Kick skipped: ' . (string) $paused['text'], [ 'code' => (string) $paused['code'] ] );
+                return false;
+            }
+        } catch ( Throwable $e ) {
+            unset( $e ); // a guard that cannot answer never blocks the kick
+        }
         try {
             if ( function_exists( 'as_enqueue_async_action' ) && did_action( 'init' ) ) {
                 // A kick carries an argument so that it never matches the recurring action's empty args: otherwise

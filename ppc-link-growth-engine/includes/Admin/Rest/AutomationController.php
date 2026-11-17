@@ -11,6 +11,7 @@ namespace PPC\LinkGrowth\Admin\Rest;
 
 use PPC\LinkGrowth\Automation\Autopilot;
 use PPC\LinkGrowth\Automation\JobRunner;
+use PPC\LinkGrowth\Automation\LoadGuard;
 use PPC\LinkGrowth\Automation\Pipeline;
 use PPC\LinkGrowth\Automation\Scheduler;
 use PPC\LinkGrowth\Outreach\CampaignFiller;
@@ -77,7 +78,7 @@ final class AutomationController extends Controller {
         }
         $options = $this->sanitizeOptions( $this->arr( $request, 'options' ) );
         $run     = $this->c->get( Pipeline::class )->runNow( $stage, $options, self::RUN_SECONDS );
-        return [
+        $out     = [
             'ok'      => (bool) ( $run['result']['ok'] ?? true ),
             'stage'   => $stage,
             'label'   => self::STAGE_LABELS[ $stage ] ?? $stage,
@@ -85,6 +86,18 @@ final class AutomationController extends Controller {
             'job_id'  => $run['job_id'] ?? null,
             'status'  => $this->statusPayload(),
         ];
+        // A stage you start yourself still runs while background work is paused; the answer says so.
+        $paused = $this->pausedReason();
+        if ( null !== $paused ) {
+            $out['paused']  = $paused;
+            $out['warning'] = LoadGuard::warning( $paused ) . ' This stage ran because you started it.';
+        }
+        return $out;
+    }
+
+    /** @return array<string,mixed>|null the server-pressure pause (Automation\LoadGuard), or null */
+    private function pausedReason(): ?array {
+        return $this->safe( fn(): ?array => $this->c->get( LoadGuard::class )->pauseReason(), null, 'load guard' );
     }
 
     /** POST /automation/toggle {key, value, confirm} @return array<string,mixed>|\WP_Error */
@@ -207,10 +220,23 @@ final class AutomationController extends Controller {
         // Re-register the recurring tick first (as the dashboard promises), so a lost schedule is repaired now
         // instead of after the hourly self-heal; the async kick queued afterwards cannot mask a missing recurrence.
         $this->safe( static function () use ( $scheduler ): void { $scheduler->schedule(); }, null, 'schedule on kick' );
+        $paused = $this->pausedReason();
+        if ( null !== $paused ) {
+            // Kicks add no background load while the server is under pressure; the recurring tick resumes the work.
+            $this->audit( 'automation.kicked', 'job', 0, [ 'ok' => false, 'paused' => (string) $paused['code'] ] );
+            return [
+                'ok'        => true,
+                'kicked'    => false,
+                'paused'    => $paused,
+                'message'   => LoadGuard::warning( $paused ) . ' No extra tick was started.',
+                'scheduler' => $this->safe( fn(): array => $this->c->get( Scheduler::class )->status(), null, 'scheduler status' ),
+            ];
+        }
         $ok = (bool) $scheduler->kick();
         $this->audit( 'automation.kicked', 'job', 0, [ 'ok' => $ok ] );
         return [
             'ok'        => $ok,
+            'kicked'    => $ok,
             'message'   => $ok ? __( 'A background tick has been requested.', 'ppc-link-growth-engine' ) : __( 'The background tick could not be triggered; run a tick manually instead.', 'ppc-link-growth-engine' ),
             'scheduler' => $this->safe( fn(): array => $this->c->get( Scheduler::class )->status(), null, 'scheduler status' ),
         ];
