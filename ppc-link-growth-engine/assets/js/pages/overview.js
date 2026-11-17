@@ -360,6 +360,17 @@ export function createGrowPanel( ctx, options = {} ) {
     // minute instead of every few seconds, so the open tab adds no load of its own.
     const pausedWait = Number.isFinite( options.pausedDelay ) ? options.pausedDelay : null;
     const waitFor = ( res ) => ( res && res.paused ? ( pausedWait !== null ? pausedWait : pausedDelay( res, waitDelay ) ) : waitDelay );
+    // The wait before the next step; Stop ends it at once (wakeUp), so a paused run does not hold the panel a minute.
+    let wakeUp = null;
+    const nap = ( ms ) => new Promise( ( resolve ) => {
+        const done = () => {
+            clearTimeout( timer );
+            wakeUp = null;
+            resolve();
+        };
+        const timer = setTimeout( done, ms );
+        wakeUp = done;
+    } );
     const s = { mode: 'loading', run: null, policy: null, busy: false, failures: 0, error: '', errorStatus: 0, errorCode: '', notice: '', elapsedBase: 0, elapsedAt: Date.now(), ticker: null, stoppedByUser: false, storefrontOk: false, autopilot: null, onAutopilot: typeof options.onAutopilot === 'function' ? options.onAutopilot : null, onFinished: typeof options.onFinished === 'function' ? options.onFinished : null };
     let elapsedNode = null;
 
@@ -669,7 +680,11 @@ export function createGrowPanel( ctx, options = {} ) {
                     break;
                 }
                 draw();
-                await sleep( res.waiting ? waitFor( res ) : pollDelay );
+                await nap( res.waiting ? waitFor( res ) : pollDelay );
+                if ( s.run && s.run.status !== 'running' ) {
+                    s.mode = 'idle'; // stopped during the wait: nothing more to ask the server
+                    break;
+                }
             }
         } catch ( e ) {
             setError( e );
@@ -757,6 +772,9 @@ export function createGrowPanel( ctx, options = {} ) {
             toast( res && res.message ? String( res.message ) : 'The growth run could not be stopped.', 'warning' );
         }
         setRun( res );
+        if ( wakeUp && s.run && s.run.status !== 'running' ) {
+            wakeUp(); // the loop ends now instead of after its wait (up to a minute while paused)
+        }
         draw();
         refocusIfLost( 'Stop' );
     }

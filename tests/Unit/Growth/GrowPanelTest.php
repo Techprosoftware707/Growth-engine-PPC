@@ -192,6 +192,22 @@ final class GrowPanelTest extends TestCase {
         $this->assertTrue( $h['detailBackup'] );
     }
 
+    public function testStopDuringAPauseFreesThePanelAtOnce(): void {
+        // The page's own delays: a paused step waits retry_after (60 s) before the next request.
+        $p = $this->harness()['stopWhilePaused'];
+        $this->assertTrue( $p['sawNote'] );
+        $this->assertTrue( $p['confirmShown'] );
+        $this->assertTrue( $p['cancelled'] );
+        $this->assertTrue( $p['freed'], 'Stop ends the minute-long wait: the panel offers "Grow now" again within 2 s' );
+        $this->assertFalse( $p['busy'] );
+        $this->assertSame( [ 'Grow now' ], $p['buttons'] );
+        $this->assertTrue( $p['stopped'], 'the stopped run is shown' );
+        $this->assertSame( 1, $p['stepCalls'], 'no step request for the stopped run' );
+        $this->assertSame( 'cancelled', $p['finishedStatus'] );
+        $this->assertSame( [ 'POST /growth/start', 'POST /growth/step' ], $p['restart']['requests'], 'a new run starts at once' );
+        $this->assertSame( 'completed', $p['restart']['finishedStatus'] );
+    }
+
     public function testTheOverviewShowsTheOpcacheNoticeOnlyWhenCritical(): void {
         $o = $this->harness()['opcache'];
         $this->assertTrue( $o['rendered'] );

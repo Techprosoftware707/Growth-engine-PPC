@@ -40,8 +40,14 @@ final class Opcache {
         'opcache.max_accelerated_files'   => '32531',
     ];
 
+    /** OPcache's largest opcache.max_accelerated_files (bigger values are clamped to it). */
+    public const MAX_ACCELERATED_FILES = 1000000;
+
     /** @var Closure():mixed|null */
     private ?Closure $reader;
+
+    /** @var array<string,string>|null */
+    private ?array $settings;
 
     private bool $read = false;
 
@@ -49,10 +55,12 @@ final class Opcache {
     private ?array $status = null;
 
     /**
-     * @param callable|null $reader Returns what opcache_get_status(false) returns (tests inject one); null = PHP's own.
+     * @param callable|null             $reader   Returns what opcache_get_status(false) returns (tests inject one); null = PHP's own.
+     * @param array<string,string>|null $settings The current values of the RECOMMENDED_SETTINGS directives (tests inject them); null = ini_get.
      */
-    public function __construct( ?callable $reader = null ) {
-        $this->reader = null === $reader ? null : Closure::fromCallable( $reader );
+    public function __construct( ?callable $reader = null, ?array $settings = null ) {
+        $this->reader   = null === $reader ? null : Closure::fromCallable( $reader );
+        $this->settings = $settings;
     }
 
     /**
@@ -193,6 +201,15 @@ final class Opcache {
             $out[ $directive ] = false === $value ? '' : (string) $value;
         }
         return $out;
+    }
+
+    /**
+     * The current values of the three settings the warning names for this server (see currentSettings()).
+     *
+     * @return array<string,string>
+     */
+    public function settings(): array {
+        return $this->settings ?? self::currentSettings();
     }
 
     /** Megabytes with one decimal, for the messages. */

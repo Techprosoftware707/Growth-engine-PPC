@@ -545,6 +545,55 @@ const fast = { pollDelay: 1, waitDelay: 1, retryDelay: 1 };
     };
 }
 
+// 10b. 1.2.4: Stop during the pause (the page's real delays: a minute until the next step) frees the panel at once
+//      and "Grow now" starts a new run.
+{
+    requests.length = 0;
+    const note = 'Paused: a backup is running (resumes automatically).';
+    routes = {
+        'GET /growth/status': [ { status: 200, body: running( [ 'pending' ] ) } ],
+        'POST /growth/step': [ { status: 200, body: { ...running( [ 'pending' ] ), ok: true, waiting: true, note, message: note, paused: { code: 'backup', message: 'a backup is running', text: note }, retry_after: 60 } } ],
+        'POST /growth/cancel': [ { status: 200, body: { ...running( [ 'skipped' ] ), status: 'cancelled', finished_at: new Date().toISOString(), ok: true, message: 'Growth run stopped. Work already done is kept.', cancelled_jobs: 0 } } ],
+    };
+    let finished = null;
+    const panel = panelOf( mod.createGrowPanel( ctx, { onFinished: ( run ) => {
+        finished = run;
+    } } ) );
+    await panel.ready;
+    const sawNote = await until( () => panel.node.textContent.includes( note ), 1000 );
+    const pending = buttonByLabel( panel.node, 'Stop' ).click();
+    await new Promise( ( r ) => setTimeout( r, 5 ) );
+    const confirmStop = find( body, ( n ) => n.tagName === 'BUTTON' && n.textContent.trim() === 'Stop run' ).pop();
+    if ( confirmStop ) {
+        await confirmStop.click();
+    }
+    await pending;
+    const freed = await until( () => ! panel.isBusy() && buttonLabels( panel.node ).includes( 'Grow now' ), 2000 );
+    out.stopWhilePaused = {
+        sawNote,
+        confirmShown: Boolean( confirmStop ),
+        freed,
+        busy: panel.isBusy(),
+        buttons: buttonLabels( panel.node ),
+        stepCalls: requests.filter( ( r ) => r === 'POST /growth/step' ).length,
+        cancelled: requests.includes( 'POST /growth/cancel' ),
+        finishedStatus: finished ? finished.status : null,
+        stopped: panel.node.textContent.includes( 'Stopped' ),
+    };
+    routes = {
+        'POST /growth/start': [ { status: 200, body: { ...running( [] ), ok: true, message: 'Growth run started.' } } ],
+        'POST /growth/step': [ { status: 200, body: completed } ],
+    };
+    requests.length = 0;
+    finished = null;
+    const grow = buttonByLabel( panel.node, 'Grow now' );
+    if ( grow ) {
+        await grow.click();
+    }
+    await until( () => finished !== null, 2000 );
+    out.stopWhilePaused.restart = { requests: [ ...requests ], finishedStatus: finished ? finished.status : null };
+}
+
 // 11. 1.2.4: the OPcache notice (critical only) and the server-pressure helpers.
 {
     const sp = await import( pathToFileURL( path.join( pluginDir, 'assets/js/server-pressure.js' ) ).href );

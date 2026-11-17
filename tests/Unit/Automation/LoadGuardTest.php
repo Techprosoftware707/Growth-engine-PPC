@@ -457,6 +457,138 @@ final class LoadGuardTest extends TestCase {
         }
     }
 
+    /**
+     * An opcache_get_status(false) answer for any sizes: $usedPercent of $memoryMb in use (nothing wasted), the
+     * interned strings $internedPercent of $stringsMb, $cached of $maxKeys files.
+     *
+     * @return array<string,mixed>
+     */
+    private static function sizedStatus( int $memoryMb, float $usedPercent, int $stringsMb, float $internedPercent, int $cached = 9100, int $maxKeys = 65407 ): array {
+        $total  = $memoryMb * 1048576;
+        $free   = (int) round( $total * ( 100 - $usedPercent ) / 100 );
+        $buffer = $stringsMb * 1048576;
+        $sfree  = (int) round( $buffer * ( 100 - $internedPercent ) / 100 );
+        return [
+            'opcache_enabled'        => true,
+            'cache_full'             => false,
+            'restart_pending'        => false,
+            'restart_in_progress'    => false,
+            'memory_usage'           => [ 'used_memory' => $total - $free, 'free_memory' => $free, 'wasted_memory' => 0, 'current_wasted_percentage' => 0.0 ],
+            'interned_strings_usage' => [ 'buffer_size' => $buffer, 'used_memory' => $buffer - $sfree, 'free_memory' => $sfree, 'number_of_strings' => 9000 ],
+            'opcache_statistics'     => [ 'num_cached_scripts' => $cached, 'num_cached_keys' => $cached, 'max_cached_keys' => $maxKeys, 'opcache_hit_rate' => 97.0 ],
+        ];
+    }
+
+    /** The php.ini values the Site Health test reads (memory_consumption, interned_strings_buffer, max_accelerated_files). */
+    private static function iniSizes( string $memory, string $strings, string $files ): array {
+        return [ 'opcache.memory_consumption' => $memory, 'opcache.interned_strings_buffer' => $strings, 'opcache.max_accelerated_files' => $files ];
+    }
+
+    /** Every remedy line raises its setting: the value it names is above the current one. */
+    private function assertEveryLineRaises( array $remedy, string $label ): void {
+        $this->assertStringStartsWith( 'Raise these settings', (string) array_shift( $remedy ), $label );
+        $this->assertNotEmpty( $remedy, $label . ': at least one setting to change' );
+        foreach ( $remedy as $line ) {
+            $this->assertMatchesRegularExpression( '/^opcache\.[a-z_]+=(\d+)(?: \(now (\d+)\))?$/', $line, $label );
+            preg_match( '/=(\d+)(?: \(now (\d+)\))?$/', $line, $m );
+            if ( isset( $m[2] ) ) {
+                $this->assertGreaterThan( (int) $m[2], (int) $m[1], $label . ': ' . $line );
+            }
+        }
+    }
+
+    public function testSiteHealthRemedyNeverAdvisesSmallerSettingsThanTheServerHas(): void {
+        // Already above the recommendation (512 / 64 / 60000), memory 97 % used, interned strings full, files have room.
+        $health = new SiteHealth( new Opcache( static fn() => self::sizedStatus( 512, 97, 64, 100, 9100, 65407 ), self::iniSizes( '512', '64', '60000' ) ) );
+        $r      = $health->opcacheTest();
+        $this->assertSame( 'critical', $r['status'] );
+        $this->assertStringContainsString( '<code>opcache.memory_consumption=1024</code> (now 512)', $r['actions'], 'about double the current size' );
+        $this->assertStringContainsString( '<code>opcache.interned_strings_buffer=128</code> (now 64)', $r['actions'] );
+        $this->assertStringNotContainsString( 'opcache.max_accelerated_files', $r['actions'], '9,100 of 65,407 files: nothing to change' );
+        foreach ( [ 'memory_consumption=256', 'interned_strings_buffer=32<', 'max_accelerated_files=32531' ] as $smaller ) {
+            $this->assertStringNotContainsString( $smaller, $r['actions'], 'never a smaller value: ' . $smaller );
+        }
+        $w = $health->warning();
+        $this->assertIsArray( $w );
+        $this->assertSame( [ 'Raise these settings in the php.ini (or a file in the conf.d folder) that PHP-FPM uses, then restart PHP-FPM:', 'opcache.memory_consumption=1024 (now 512)', 'opcache.interned_strings_buffer=128 (now 64)' ], $w['remedy'] );
+        $this->assertSame( [ 'now' => '512', 'recommended' => '1024' ], $w['settings']['opcache.memory_consumption'] );
+        $this->assertSame( [ 'now' => '64', 'recommended' => '128' ], $w['settings']['opcache.interned_strings_buffer'] );
+        $this->assertSame( [ 'now' => '60000', 'recommended' => '60000' ], $w['settings']['opcache.max_accelerated_files'], 'kept as it is' );
+
+        // Exactly the recommended sizes and full again after updates: never "raise to the value it already has".
+        $health = new SiteHealth( new Opcache( static fn() => self::sizedStatus( 256, 97, 32, 50, 31000, 32531 ), self::iniSizes( '256', '32', '32531' ) ) );
+        $w      = $health->warning();
+        $this->assertIsArray( $w );
+        $this->assertSame( [ 'opcache.memory_consumption=512 (now 256)', 'opcache.max_accelerated_files=65062 (now 32531)' ], array_slice( $w['remedy'], 1 ), 'the interned strings have room' );
+        $this->assertEveryLineRaises( $w['remedy'], 'at the recommendation' );
+        $this->assertEveryLineRaises( self::actionLines( $health->opcacheTest()['actions'] ), 'Site Health at the recommendation' );
+
+        // Below the recommendation the recommended sizes stay the advice; a setting above it with room is left out.
+        $health = new SiteHealth( new Opcache( static fn() => self::sizedStatus( 128, 97, 64, 30, 9100, 65407 ), self::iniSizes( '128', '64', '60000' ) ) );
+        $this->assertSame( [ 'opcache.memory_consumption=256 (now 128)' ], array_slice( (array) $health->warning()['remedy'], 1 ) );
+        $health = new SiteHealth( new Opcache( static fn() => self::sizedStatus( 128, 97, 8, 100, 9100, 16229 ), self::iniSizes( '128', '8', '10000' ) ) );
+        $this->assertSame( [ 'opcache.memory_consumption=256 (now 128)', 'opcache.interned_strings_buffer=32 (now 8)', 'opcache.max_accelerated_files=32531 (now 10000)' ], array_slice( (array) $health->warning()['remedy'], 1 ), 'the live sizes: unchanged advice' );
+
+        // OPcache takes at most 1000000 files; recommended (almost full) gets the same check.
+        $health = new SiteHealth( new Opcache( static fn() => self::sizedStatus( 2048, 92, 256, 40, 500000, 524521 ), self::iniSizes( '2048', '256', '400000' ) ) );
+        $r      = $health->opcacheTest();
+        $this->assertSame( 'recommended', $r['status'] );
+        $this->assertEveryLineRaises( self::actionLines( $r['actions'] ), 'recommended above the recommendation' );
+        $this->assertStringContainsString( '<code>opcache.memory_consumption=4096</code> (now 2048)', $r['actions'] );
+        $this->assertStringContainsString( '<code>opcache.max_accelerated_files=1000000</code> (now 400000)', $r['actions'] );
+        $health = new SiteHealth( new Opcache( static fn() => self::sizedStatus( 2048, 97, 256, 40, 1000000, 1048793 ), self::iniSizes( '2048', '256', '1000000' ) ) );
+        $this->assertSame( [ 'opcache.memory_consumption=4096 (now 2048)' ], array_slice( (array) $health->warning()['remedy'], 1 ), 'no larger file table exists' );
+
+        // OPcache rounds the file count up to its next table size (max_cached_keys): the advice is larger than that.
+        $health = new SiteHealth( new Opcache( static fn() => self::sizedStatus( 512, 97, 64, 40, 62000, 65407 ), self::iniSizes( '512', '64', '40000' ) ) );
+        $this->assertSame( [ 'opcache.memory_consumption=1024 (now 512)', 'opcache.max_accelerated_files=130814 (now 40000)' ], array_slice( (array) $health->warning()['remedy'], 1 ) );
+        $health = new SiteHealth( new Opcache( static fn() => self::sizedStatus( 256, 97, 32, 30, 9100, 32531 ), self::iniSizes( '256', '32', '30000' ) ) );
+        $this->assertSame( [ 'opcache.memory_consumption=512 (now 256)' ], array_slice( (array) $health->warning()['remedy'], 1 ), '30000 already gives the 32531 table, with room' );
+    }
+
+    /** The Site Health actions as remedy lines ("intro", "setting=value (now x)", …). */
+    private static function actionLines( string $actions ): array {
+        preg_match( '#<p>(.*?)</p>#', $actions, $intro );
+        preg_match_all( '#<li><code>(.*?)</code>(.*?)</li>#', $actions, $items, PREG_SET_ORDER );
+        return array_merge( [ html_entity_decode( $intro[1] ?? '', ENT_QUOTES ) ], array_map( static fn( array $m ): string => $m[1] . $m[2], $items ) );
+    }
+
+    public function testSiteHealthSaysWhichPartOfTheCacheIsFull(): void {
+        // Only the interned strings buffer is full; the cache memory is 40 % used: still critical, but no claim
+        // that PHP stops caching code or that pages time out.
+        $status = self::sizedStatus( 128, 40, 8, 100, 4200, 16229 );
+        $health = new SiteHealth( new Opcache( static fn() => $status, self::iniSizes( '128', '8', '10000' ) ) );
+        $r      = $health->opcacheTest();
+        $this->assertSame( 'critical', $r['status'] );
+        $this->assertStringContainsString( 'Memory in use: 51.2 MB of 128 MB (40%).', $r['description'] );
+        $this->assertStringContainsString( 'Interned strings: 100% of 8 MB.', $r['description'] );
+        $this->assertStringContainsString( 'interned strings buffer', $r['description'] );
+        $this->assertStringContainsString( 'PHP still caches code', $r['description'] );
+        foreach ( [ 'That memory is full', 'PHP stops caching code', 'HTTP 504', 'restarts the cache' ] as $false ) {
+            $this->assertStringNotContainsString( $false, $r['description'], $false );
+        }
+        $this->assertStringContainsString( '<code>opcache.interned_strings_buffer=32</code> (now 8)', $r['actions'] );
+        $w = $health->warning();
+        $this->assertIsArray( $w );
+        $this->assertStringContainsString( 'PHP still caches code', $w['summary'] );
+        $this->assertStringNotContainsString( 'That memory is full', $w['summary'] );
+
+        // Almost full: the same distinction.
+        $r = ( new SiteHealth( new Opcache( static fn() => self::sizedStatus( 128, 40, 8, 93, 4200, 16229 ) ) ) )->opcacheTest();
+        $this->assertSame( 'recommended', $r['status'] );
+        $this->assertStringContainsString( 'interned strings buffer', $r['description'] );
+        $this->assertStringNotContainsString( 'That memory is almost full', $r['description'] );
+
+        // When the cache memory itself is full the 504 explanation stays, also with full interned strings.
+        foreach ( [ 'memory' => self::sizedStatus( 128, 97, 8, 30 ), 'both' => self::sizedStatus( 128, 97, 8, 100 ), 'cache_full' => [ 'cache_full' => true ] + self::sizedStatus( 128, 40, 8, 100 ) ] as $label => $full ) {
+            $d = ( new SiteHealth( new Opcache( static fn() => $full ) ) )->opcacheTest()['description'];
+            $this->assertStringContainsString( 'That memory is full.', $d, $label );
+            $this->assertStringContainsString( 'HTTP 504', $d, $label );
+        }
+        $d = ( new SiteHealth( new Opcache( static fn() => self::sizedStatus( 128, 92, 8, 30 ) ) ) )->opcacheTest()['description'];
+        $this->assertStringContainsString( 'That memory is almost full.', $d );
+    }
+
     public function testSiteHealthKeepsOtherTestsAndToleratesOddInput(): void {
         $health = new SiteHealth( new Opcache( static fn() => false ) );
         $tests  = $health->addTests( [ 'direct' => [ 'php_version' => [ 'label' => 'PHP', 'test' => 'php_version' ] ], 'async' => [ 'dotorg' => [] ] ] );

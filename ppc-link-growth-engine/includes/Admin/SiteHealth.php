@@ -9,6 +9,8 @@
  * Status: critical when OPcache reports cache_full, less than 5 % of its memory is free or the interned strings
  * buffer is full; recommended above 90 % used; good otherwise, and also when PHP does not let plugins read the
  * OPcache status (nothing to report then). Registered on every request (the weekly Site Health check runs in cron).
+ * The text says which part is full (the cache memory, or only the interned strings buffer), and the remedy never
+ * names a smaller value than the server has (see advice()).
  *
  * @package PPC\LinkGrowth
  */
@@ -71,7 +73,7 @@ final class SiteHealth {
         if ( Opcache::LEVEL_CRITICAL === $level || Opcache::LEVEL_RECOMMENDED === $level ) {
             $critical       = Opcache::LEVEL_CRITICAL === $level;
             $badge['color'] = $critical ? 'red' : 'orange';
-            $description    = '<p>' . esc_html( self::explanation( $critical ) ) . '</p>';
+            $description    = '<p>' . esc_html( self::explanation( $pressure, $critical ) ) . '</p>';
             $numbers        = self::numbers( $pressure );
             if ( '' !== $numbers ) {
                 $description .= '<p>' . esc_html( $numbers ) . '</p>';
@@ -81,7 +83,7 @@ final class SiteHealth {
                 'status'      => $critical ? 'critical' : 'recommended',
                 'badge'       => $badge,
                 'description' => $description,
-                'actions'     => self::actionsHtml(),
+                'actions'     => self::actionsHtml( self::advice( $pressure, $this->opcache->settings() ) ),
                 'test'        => self::TEST,
             ];
         }
@@ -114,17 +116,17 @@ final class SiteHealth {
         if ( Opcache::LEVEL_CRITICAL !== $pressure['level'] ) {
             return null;
         }
+        $advice   = self::advice( $pressure, $this->opcache->settings() );
         $settings = [];
-        $current  = Opcache::currentSettings();
-        foreach ( Opcache::RECOMMENDED_SETTINGS as $directive => $value ) {
-            $settings[ $directive ] = [ 'now' => (string) ( $current[ $directive ] ?? '' ), 'recommended' => $value ];
+        foreach ( $advice as $directive => $a ) {
+            $settings[ $directive ] = [ 'now' => $a['now'], 'recommended' => $a['value'] ];
         }
         return [
             'level'    => Opcache::LEVEL_CRITICAL,
             'title'    => self::LABEL_CRITICAL,
-            'summary'  => self::explanation( true ),
+            'summary'  => self::explanation( $pressure, true ),
             'details'  => self::numbers( $pressure ),
-            'remedy'   => self::remedyLines(),
+            'remedy'   => self::remedyLines( $advice ),
             'host'     => 'On managed hosting, ask your host to make this change.',
             'settings' => $settings,
         ];
@@ -132,8 +134,20 @@ final class SiteHealth {
 
     // ------------------------------------------------------------------
 
-    private static function explanation( bool $critical ): string {
+    private static function explanation( array $pressure, bool $critical ): string {
         $intro = 'PHP keeps compiled WordPress, WooCommerce and plugin code in a fixed amount of memory (OPcache) so it does not have to compile it again for every page view.';
+        // Which limit was hit: the cache memory (PHP then stops caching code and restarts the cache after updates), or
+        // only the interned strings buffer (PHP keeps caching code; each file then stores its own copy of the strings).
+        $mem    = is_array( $pressure['memory'] ?? null ) ? $pressure['memory'] : null;
+        $memory = ! empty( $pressure['cache_full'] ) || ( null !== $mem && ( $critical
+            ? (float) $mem['free_percent'] < Opcache::CRITICAL_FREE_PERCENT
+            : (float) $mem['used_percent'] > Opcache::RECOMMENDED_USED_PERCENT ) );
+        if ( ! $memory && is_array( $pressure['interned'] ?? null ) ) {
+            $strings = ' The part of it that holds the names and texts all that code shares (the interned strings buffer)';
+            return $intro . ( $critical
+                ? $strings . ' is full. PHP still caches code, but every file it caches from now on keeps its own copy of those strings, so the rest of the cache fills up sooner; once that is full too, pages get slow or time out right after plugin updates.'
+                : $strings . ' is almost full. Once it is full, every file PHP caches keeps its own copy of those strings, so the rest of the cache fills up sooner.' );
+        }
         if ( $critical ) {
             return $intro . ' That memory is full. While it is full, PHP stops caching code and, after updates, restarts the cache, which makes every page wait until the requests already running finish. Pages then get slow or time out (HTTP 504), most of all right after plugin updates, because every update leaves the replaced code in the cache.';
         }
@@ -165,19 +179,63 @@ final class SiteHealth {
         return implode( ' ', $parts );
     }
 
-    /** @return string[] */
-    private static function remedyLines(): array {
-        $current = Opcache::currentSettings();
-        $out     = [ "Raise these settings in the php.ini (or a file in the conf.d folder) that PHP-FPM uses, then restart PHP-FPM:" ];
-        foreach ( Opcache::RECOMMENDED_SETTINGS as $directive => $value ) {
-            $now   = (string) ( $current[ $directive ] ?? '' );
-            $out[] = sprintf( '%s=%s', $directive, $value ) . ( '' !== $now ? sprintf( ' (now %s)', $now ) : '' );
+    /**
+     * What each setting should be set to, never less than the server has: the recommended size while the server has
+     * less (or does not say); about double the current size when it already has at least that and this limit is
+     * the one running out (more than 90 % used, or OPcache reports cache_full for the memory); otherwise the current
+     * value, unchanged (raise false). max_accelerated_files counts from the table size OPcache really uses
+     * (max_cached_keys, the configured value rounded up) and stops at OPcache's maximum.
+     *
+     * @param array<string,mixed>  $pressure Opcache::classify()
+     * @param array<string,string> $current  Opcache::settings()
+     * @return array<string,array{now:string,value:string,raise:bool}>
+     */
+    private static function advice( array $pressure, array $current ): array {
+        $mem     = is_array( $pressure['memory'] ?? null ) ? $pressure['memory'] : null;
+        $str     = is_array( $pressure['interned'] ?? null ) ? $pressure['interned'] : null;
+        $scripts = is_array( $pressure['scripts'] ?? null ) ? $pressure['scripts'] : null;
+        $keys    = null !== $scripts ? max( 0, (int) $scripts['max'] ) : 0;
+        $tight   = [
+            'opcache.memory_consumption'      => ! empty( $pressure['cache_full'] ) || ( null !== $mem && (float) $mem['used_percent'] > Opcache::RECOMMENDED_USED_PERCENT ),
+            'opcache.interned_strings_buffer' => null !== $str && (float) $str['used_percent'] > Opcache::RECOMMENDED_USED_PERCENT,
+            'opcache.max_accelerated_files'   => $keys > 0 && (int) $scripts['cached'] / $keys * 100 > Opcache::RECOMMENDED_USED_PERCENT,
+        ];
+        $out = [];
+        foreach ( Opcache::RECOMMENDED_SETTINGS as $directive => $recommended ) {
+            $now   = trim( (string) ( $current[ $directive ] ?? '' ) );
+            $files = 'opcache.max_accelerated_files' === $directive;
+            $size  = 1 === preg_match( '/^\d+/', $now, $m ) ? (int) $m[0] : null;
+            if ( null !== $size && $files ) {
+                $size = max( $size, $keys );
+            }
+            if ( null === $size || $size < (int) $recommended ) {
+                $out[ $directive ] = [ 'now' => $now, 'value' => $recommended, 'raise' => true ];
+                continue;
+            }
+            $value             = $files ? min( $size * 2, Opcache::MAX_ACCELERATED_FILES ) : $size * 2;
+            $raise             = ! empty( $tight[ $directive ] ) && $value > $size;
+            $out[ $directive ] = [ 'now' => $now, 'value' => $raise ? (string) $value : $now, 'raise' => $raise ];
         }
         return $out;
     }
 
-    private static function actionsHtml(): string {
-        $lines = self::remedyLines();
+    /**
+     * @param array<string,array{now:string,value:string,raise:bool}> $advice
+     * @return string[]
+     */
+    private static function remedyLines( array $advice ): array {
+        $out = [ "Raise these settings in the php.ini (or a file in the conf.d folder) that PHP-FPM uses, then restart PHP-FPM:" ];
+        foreach ( $advice as $directive => $a ) {
+            if ( $a['raise'] ) {
+                $out[] = sprintf( '%s=%s', $directive, $a['value'] ) . ( '' !== $a['now'] ? sprintf( ' (now %s)', $a['now'] ) : '' );
+            }
+        }
+        return $out;
+    }
+
+    /** @param array<string,array{now:string,value:string,raise:bool}> $advice */
+    private static function actionsHtml( array $advice ): string {
+        $lines = self::remedyLines( $advice );
         $intro = array_shift( $lines );
         $html  = '<p>' . esc_html( (string) $intro ) . '</p><ul>';
         foreach ( $lines as $line ) {
