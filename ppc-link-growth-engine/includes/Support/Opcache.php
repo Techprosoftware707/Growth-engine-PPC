@@ -40,6 +40,28 @@ final class Opcache {
         'opcache.max_accelerated_files'   => '32531',
     ];
 
+    /**
+     * The sizes for a server with less than 2 GB of memory (see SMALL_SERVER_BYTES): there a bigger code cache takes
+     * memory that PHP-FPM and the database need, so the advice stops here (the live store has 960 MB).
+     */
+    public const SMALL_SERVER_SETTINGS = [
+        'opcache.memory_consumption'      => '160',
+        'opcache.interned_strings_buffer' => '16',
+        'opcache.max_accelerated_files'   => '20000',
+    ];
+
+    /**
+     * "Less than 2 GB" is MemTotal below 1.75 GiB (1792 MiB): the kernel keeps part of the memory for itself, so a
+     * 2 GB server reports about 1.9 GiB and a 1 GB server about 960 MB.
+     */
+    public const SMALL_SERVER_BYTES = 1879048192;
+
+    /**
+     * On such a server opcache.memory_consumption is never advised above this share of MemTotal (rounded down to
+     * 16 MB), and opcache.interned_strings_buffer, which is part of that memory, never above a quarter of it.
+     */
+    public const SMALL_SERVER_CACHE_SHARE = 0.25;
+
     /** OPcache's largest opcache.max_accelerated_files (bigger values are clamped to it). */
     public const MAX_ACCELERATED_FILES = 1000000;
 

@@ -54,7 +54,8 @@ final class Pipeline {
      * automation is enabled) and run the queue.
      *
      * While the server is under pressure (LoadGuard: OPcache restarting, a backup running, the plugin just updated,
-     * or the ppclg_pause_background filter) the tick does nothing else: no job is claimed, no stage is enqueued, no
+     * the load above 2 per CPU, less than 10 % of the memory available, or the ppclg_pause_background filter) the
+     * tick does nothing else: no job is claimed, no stage is enqueued, no
      * growth step runs and no limit is spent; it returns skipped_reason "paused" with the reason, which is logged and
      * stored once per pause. The first tick after the pause logs the resume and works as usual.
      *

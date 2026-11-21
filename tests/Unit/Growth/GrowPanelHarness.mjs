@@ -629,6 +629,25 @@ const fast = { pollDelay: 1, waitDelay: 1, retryDelay: 1 };
         delayNotPaused: sp.pausedDelay( { waiting: true, retry_after: 60 }, 3000 ),
         delayNoRetry: sp.pausedDelay( { paused: { code: 'backup' } }, 3000 ),
     };
+    // 1.2.4: the load and memory pauses carry their numbers (`measured`); a server with less than 2 GB gets the RAM line.
+    const busy = { code: 'server_busy', text: 'Paused: the server is busy (load 6.53 on 1 CPU) — resumes when it calms down.', measured: { load: 6.53, cpus: 1, cpus_known: true, load_per_cpu: 6.53, max_load_per_cpu: 2 } };
+    const memoryLine = 'This server has 960 MB of memory; a bigger code cache takes memory from PHP and the database, so more RAM is the lasting fix.';
+    const small = mod.opcacheCallout( { ...warning, remedy: [ warning.remedy[ 0 ], 'opcache.memory_consumption=160 (now 128)' ], memory: memoryLine } );
+    out.pressure = {
+        busyText: sp.pausedText( busy ),
+        busyDetail: sp.pausedDetail( busy ),
+        busyUnknownCpus: sp.pausedDetail( { ...busy, measured: { ...busy.measured, cpus_known: false, load: 2.5, load_per_cpu: 2.5 } } ),
+        busyFourCpus: sp.pausedDetail( { ...busy, measured: { load: 8.4, cpus: 4, cpus_known: true, load_per_cpu: 2.1, max_load_per_cpu: 2 } } ),
+        memoryText: sp.pausedText( { code: 'low_memory', text: 'Paused: the server is low on free memory — resumes when memory frees up.' } ),
+        memoryDetail: sp.pausedDetail( { code: 'low_memory', measured: { available_mb: 88, total_mb: 960, available_percent: 9.2, min_percent: 10 } } ),
+        noNumbers: sp.pausedDetail( { code: 'server_busy', measured: { load: 'x' } } ),
+        backupDetail: sp.pausedDetail( { code: 'backup', measured: null } ),
+        noticeMemory: sp.opcacheNotice( { ...warning, memory: memoryLine } ).memory,
+        noticeNoMemory: sp.opcacheNotice( warning ).memory,
+        calloutMemory: small ? small.textContent.includes( memoryLine ) : false,
+        calloutCodes: small ? find( small, ( n ) => n.tagName === 'CODE' ).map( ( n ) => n.textContent ) : [],
+        calloutWithoutMemory: node ? ! node.textContent.includes( 'This server has' ) : false,
+    };
 }
 
 process.stdout.write( JSON.stringify( out ) );

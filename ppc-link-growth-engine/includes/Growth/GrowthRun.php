@@ -222,7 +222,7 @@ final class GrowthRun {
      * state after every step. Returns the state; `waiting` is true when the runner or another advance was busy.
      *
      * While background work is paused (Automation\LoadGuard: PHP's code cache restarting, a backup running, the
-     * plugin just updated) no step runs and nothing is written: the state comes back `waiting` with the plain reason
+     * plugin just updated, the server busy or low on free memory) no step runs and nothing is written: the state comes back `waiting` with the plain reason
      * as `note` ("Paused: a backup is running (resumes automatically)."), `paused` and `retry_after` seconds, and the
      * run continues where it was once the pause is over. A paused step never fails.
      *

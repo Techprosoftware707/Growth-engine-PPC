@@ -199,11 +199,20 @@ final class ReleaseWiringTest extends TestCase {
 
         $ops = (string) file_get_contents( self::ROOT . '../docs/OPERATIONS.md' );
         $this->assertStringContainsString( '## Server pressure', $ops );
-        foreach ( [ 'updraft_backup_resume', 'ppclg_pause_background', 'ppclg_backup_running', 'opcache.memory_consumption=256', 'opcache.interned_strings_buffer=32', 'opcache.max_accelerated_files=32531' ] as $needle ) {
+        foreach ( [ 'updraft_backup_resume', 'ppclg_pause_background', 'ppclg_backup_running', 'opcache.memory_consumption=256', 'opcache.interned_strings_buffer=32', 'opcache.max_accelerated_files=32531', 'ppclg_max_load_per_cpu', 'ppclg_min_free_memory_ratio', 'opcache.memory_consumption=160', 'opcache.interned_strings_buffer=16', 'opcache.max_accelerated_files=20000', 'ppclg_cpu_count' ] as $needle ) {
             $this->assertStringContainsString( $needle, $ops, $needle );
         }
         $testing = (string) file_get_contents( self::ROOT . '../docs/TESTING.md' );
         $this->assertStringContainsString( 'tests/Unit/Automation/LoadGuardTest.php', $testing );
+        $this->assertStringContainsString( 'tests/Unit/Automation/ServerLoadTest.php', $testing );
+        $this->assertSame( 'ppclg_cpu_count', \PPC\LinkGrowth\Support\ServerResources::OPTION_CPUS, 'ppclg_ prefix: removed on uninstall' );
+        $this->assertSame( [ 'opcache.memory_consumption' => '160', 'opcache.interned_strings_buffer' => '16', 'opcache.max_accelerated_files' => '20000' ], \PPC\LinkGrowth\Support\Opcache::SMALL_SERVER_SETTINGS );
+        $plugin = (string) file_get_contents( self::ROOT . 'includes/Plugin.php' );
+        $this->assertStringContainsString( 'new LoadGuard( $c->get( Opcache::class ), $c->get( ServerResources::class ) )', $plugin, 'the guard reads the server through the container' );
+        $this->assertStringContainsString( 'new SiteHealth( $c->get( Opcache::class ), $c->get( ServerResources::class ) )', $plugin, 'Site Health reads the memory through the container' );
+        $readme = (string) file_get_contents( self::ROOT . 'readme.txt' );
+        $this->assertStringContainsString( 'Paused: the server is busy (load 6.5 on 1 CPU) — resumes when it calms down.', $readme );
+        $this->assertStringContainsString( 'more RAM is the lasting fix', $readme );
         $this->assertStringContainsString( 'tests/integration/server-pressure.php', $testing );
         $run = (string) file_get_contents( self::ROOT . '../tests/integration/run.php' );
         $this->assertStringContainsString( "require __DIR__ . '/server-pressure.php';", $run );

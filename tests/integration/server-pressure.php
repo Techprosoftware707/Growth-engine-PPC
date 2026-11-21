@@ -14,6 +14,12 @@
  *
  * Observable values are written out (not read from the 1.2.4 classes), so the section also runs against 1.2.3.
  * Everything it schedules is removed at the end.
+ *
+ * The second step covers the load and memory pauses on this machine's real /proc and /sys, forced and lifted
+ * through their filters: a threshold below zero for ppclg_max_load_per_cpu makes any load count as busy, a share of
+ * 1.0 for ppclg_min_free_memory_ratio makes any memory in use count as short. INF and 0 switch the checks off, so a
+ * genuinely busy test machine cannot hold the step. The text must name this machine's own CPU count and memory,
+ * read here independently of the plugin.
  */
 
 declare(strict_types=1);
@@ -161,4 +167,140 @@ IT::step( '1.2.4: background work pauses while a backup runs (the live UpdraftPl
         IT::check( 'good' === ( $result['status'] ?? '' ), 'OPcache is off in the CLI: the test passes with nothing to report' );
     }
     IT::check( isset( $tests['direct']['php_version'] ), 'the core tests are still listed' );
+} );
+
+IT::step( '1.2.4: background work pauses while the server is busy or low on free memory (load and memory filters)', static function (): void {
+    global $wpdb;
+    wp_set_current_user( 1 );
+    $pipeline = ppclg()->get( Pipeline::class );
+    $jobs     = ppclg()->get( Jobs::class );
+    $logs     = ppclg()->get( Logs::class );
+    ppclg()->get( \PPC\LinkGrowth\Support\Settings::class )->set( 'automation.enabled', true );
+    $busyText   = '/^Paused: the server is busy \(load (\d+(?:\.\d+)?) on (\d+) (CPU|CPUs)\) — resumes when it calms down\.$/u';
+    $memoryText = 'Paused: the server is low on free memory — resumes when memory frees up.';
+
+    // What this machine has, read here without the plugin's classes.
+    $online = trim( (string) @file_get_contents( '/sys/devices/system/cpu/online' ) ); // phpcs:ignore
+    $cpus   = 0;
+    if ( 1 === preg_match( '/^\d+(?:-\d+)?(?:,\d+(?:-\d+)?)*$/', $online ) ) {
+        foreach ( explode( ',', $online ) as $range ) {
+            $ends  = array_map( 'intval', explode( '-', $range ) );
+            $cpus += count( $ends ) > 1 ? $ends[1] - $ends[0] + 1 : 1;
+        }
+    } else {
+        $cpus = (int) preg_match_all( '/^processor\s*:/m', (string) @file_get_contents( '/proc/cpuinfo' ) ); // phpcs:ignore
+    }
+    $totalKb = preg_match( '/^MemTotal:\s+(\d+) kB/m', (string) @file_get_contents( '/proc/meminfo' ), $m ) ? (int) $m[1] : 0; // phpcs:ignore
+    IT::check( 'Linux' === PHP_OS_FAMILY && function_exists( 'sys_getloadavg' ) && $cpus > 0 && $totalKb > 0, 'this machine reports its load, CPU count and memory', PHP_OS_FAMILY . ", {$cpus} CPUs, {$totalKb} kB" );
+
+    // Entries that start with $prefix (the debug line "Kick skipped: Paused: …" is not a pause of its own).
+    $logged = static function ( string $prefix ) use ( $logs ): int {
+        $n = 0;
+        foreach ( $logs->findBy( [ 'channel' => 'automation' ], 'id', 'DESC', 200 ) as $row ) {
+            if ( str_starts_with( (string) $row['message'], $prefix ) ) {
+                $n++;
+            }
+        }
+        return $n;
+    };
+    $busyBefore    = $logged( 'Paused: the server is busy' );
+    $memoryBefore  = $logged( 'Paused: the server is low on free memory' );
+    $resumedBefore = $logged( 'Background work resumed' );
+    delete_option( 'ppclg_cpu_count' );
+
+    $jobs->cancelQueued( 'cleanup' );
+    $jobId = (int) $jobs->enqueue( 'cleanup', [ 'manual' => true ], 1 );
+    IT::check( $jobId > 0, 'a manual cleanup job is queued' );
+
+    // --- Busy -------------------------------------------------------------------------------------------------
+    $busy = static fn(): float => -1.0;
+    add_filter( 'ppclg_max_load_per_cpu', $busy );
+    $tick = $pipeline->tick();
+    $text = (string) ( $tick['paused']['text'] ?? '' );
+    IT::check( 'paused' === ( $tick['skipped_reason'] ?? '' ) && 'server_busy' === ( $tick['paused']['code'] ?? null ), 'the tick is skipped as paused: the server is busy', (string) wp_json_encode( [ $tick['skipped_reason'] ?? null, $tick['paused'] ?? null ] ) );
+    IT::check( 1 === preg_match( $busyText, $text, $tm ) && (int) $tm[2] === $cpus && ( 1 === $cpus ) === ( 'CPU' === $tm[3] ), "the text names the load and this machine's {$cpus} CPUs", $text );
+    IT::check( 0 === (int) ( $tick['run']['ran'] ?? -1 ) && [] === ( $tick['enqueued'] ?? null ), 'no job ran and no stage was enqueued' );
+    $job = $jobs->find( $jobId );
+    IT::check( Jobs::STATUS_QUEUED === ( $job['status'] ?? '' ) && 0 === (int) ( $job['attempts'] ?? -1 ), 'the queued job was not claimed', (string) wp_json_encode( [ $job['status'] ?? null, $job['attempts'] ?? null ] ) );
+    $measured = (array) ( $tick['paused']['measured'] ?? [] );
+    IT::check( $cpus === ( $measured['cpus'] ?? null ) && true === ( $measured['cpus_known'] ?? null ) && -1.0 === ( $measured['max_load_per_cpu'] ?? null ) && is_float( $measured['load'] ?? null ), 'the reason carries the measured numbers', (string) wp_json_encode( $measured ) );
+    $stored   = get_option( 'ppclg_cpu_count' );
+    $autoload = (string) $wpdb->get_var( $wpdb->prepare( "SELECT autoload FROM {$wpdb->options} WHERE option_name = %s", 'ppclg_cpu_count' ) );
+    IT::check( is_array( $stored ) && $cpus === ( $stored['count'] ?? null ) && in_array( $autoload, [ 'no', 'off' ], true ), 'the CPU count is stored once, not autoloaded', (string) wp_json_encode( [ $stored, $autoload ] ) );
+    IT::check( $text === ( $pipeline->status()['paused']['text'] ?? null ), 'the automation status shows the same text' );
+    $rest = ppclg_it_rest( 'GET', '/automation/status' );
+    IT::check( 200 === $rest->get_status() && 'server_busy' === ( $rest->get_data()['paused']['code'] ?? null ) && $cpus === ( $rest->get_data()['paused']['measured']['cpus'] ?? null ), 'GET /automation/status carries the pause and its numbers' );
+    $overview = ppclg_it_rest( 'GET', '/overview' );
+    IT::check( 200 === $overview->get_status() && 'server_busy' === ( $overview->get_data()['automation']['paused']['code'] ?? null ), 'GET /overview carries the pause for the dashboard' );
+    $kick = (array) ppclg_it_rest( 'POST', '/automation/kick' )->get_data();
+    IT::check( false === ( $kick['kicked'] ?? null ) && str_contains( (string) ( $kick['message'] ?? '' ), 'the server is busy' ), 'POST /automation/kick starts nothing and says why', (string) wp_json_encode( $kick['message'] ?? null ) );
+    $start = (array) ppclg_it_rest( 'POST', '/growth/start' )->get_data();
+    IT::check( 'running' === ( $start['status'] ?? '' ) && str_contains( (string) ( $start['message'] ?? '' ), 'Paused: the server is busy' ), 'Grow now starts and says it waits', (string) wp_json_encode( $start['message'] ?? null ) );
+    $step = (array) ppclg_it_rest( 'POST', '/growth/step' )->get_data();
+    IT::check( true === ( $step['waiting'] ?? null ) && 1 === preg_match( $busyText, (string) ( $step['message'] ?? '' ) ) && 'server_busy' === ( $step['paused']['code'] ?? null ), 'the Grow now step waits with the busy text', (string) wp_json_encode( [ $step['waiting'] ?? null, $step['message'] ?? null ] ) );
+    ppclg_it_rest( 'POST', '/growth/cancel' );
+    $pipeline->tick();
+    IT::check( 1 === $logged( 'Paused: the server is busy' ) - $busyBefore, 'the pause is logged once over two ticks' );
+    remove_filter( 'ppclg_max_load_per_cpu', $busy );
+
+    // --- Low on free memory ------------------------------------------------------------------------------------
+    $off   = static fn(): float => INF; // this machine's own load never decides the rest of the step
+    $short = static fn(): float => 1.0;
+    add_filter( 'ppclg_max_load_per_cpu', $off );
+    add_filter( 'ppclg_min_free_memory_ratio', $short );
+    $tick = $pipeline->tick();
+    IT::check( 'low_memory' === ( $tick['paused']['code'] ?? null ) && $memoryText === ( $tick['paused']['text'] ?? null ), 'the tick is paused: "' . $memoryText . '"', (string) wp_json_encode( $tick['paused'] ?? null ) );
+    IT::check( (int) round( $totalKb / 1024 ) === ( $tick['paused']['measured']['total_mb'] ?? null ) && 100.0 === ( $tick['paused']['measured']['min_percent'] ?? null ), "with this machine's memory (" . (int) round( $totalKb / 1024 ) . ' MB)', (string) wp_json_encode( $tick['paused']['measured'] ?? null ) );
+    IT::check( 0 === (int) ( $tick['run']['ran'] ?? -1 ) && Jobs::STATUS_QUEUED === ( $jobs->find( $jobId )['status'] ?? '' ), 'no job ran; the job still waits' );
+    IT::check( $memoryText === ( $pipeline->status()['paused']['text'] ?? null ), 'the automation status shows it' );
+    ppclg_it_rest( 'POST', '/growth/start' );
+    $step = (array) ppclg_it_rest( 'POST', '/growth/step' )->get_data();
+    IT::check( true === ( $step['waiting'] ?? null ) && $memoryText === ( $step['message'] ?? null ), 'the Grow now step waits with the memory text', (string) wp_json_encode( $step['message'] ?? null ) );
+    ppclg_it_rest( 'POST', '/growth/cancel' );
+    IT::check( 1 === $logged( 'Paused: the server is low on free memory' ) - $memoryBefore, 'the memory pause is logged once' );
+
+    // --- Lifted: the next tick runs the waiting job and logs the resume --------------------------------------
+    remove_filter( 'ppclg_min_free_memory_ratio', $short );
+    $none = static fn(): float => 0.0;
+    add_filter( 'ppclg_min_free_memory_ratio', $none );
+    $tick = $pipeline->tick();
+    IT::check( 'paused' !== ( $tick['skipped_reason'] ?? '' ) && array_key_exists( 'paused', $tick ) && null === $tick['paused'], 'with the checks lifted the tick is not paused', (string) wp_json_encode( $tick['paused'] ?? null ) );
+    IT::check( Jobs::STATUS_COMPLETED === ( $jobs->find( $jobId )['status'] ?? '' ), 'the waiting job ran (nothing was lost)', (string) ( $jobs->find( $jobId )['status'] ?? '' ) );
+    IT::check( 1 === $logged( 'Background work resumed' ) - $resumedBefore, 'the resume is logged once' );
+    $status = $pipeline->status();
+    IT::check( array_key_exists( 'paused', $status ) && null === $status['paused'], 'the status no longer shows a pause' );
+    remove_filter( 'ppclg_min_free_memory_ratio', $none );
+    remove_filter( 'ppclg_max_load_per_cpu', $off );
+
+    // --- The owner's filter still decides ----------------------------------------------------------------------
+    $run = static fn(): bool => false;
+    add_filter( 'ppclg_max_load_per_cpu', $busy );
+    add_filter( 'ppclg_pause_background', $run );
+    $tick = $pipeline->tick();
+    IT::check( 'paused' !== ( $tick['skipped_reason'] ?? '' ), 'ppclg_pause_background returning false lets the work run on a busy server' );
+    remove_filter( 'ppclg_pause_background', $run );
+    remove_filter( 'ppclg_max_load_per_cpu', $busy );
+
+    // --- The OPcache advice follows this machine's memory (OPcache is off in the CLI: a stand-in status) ------
+    $full   = [
+        'opcache_enabled'        => true,
+        'cache_full'             => true,
+        'memory_usage'           => [ 'used_memory' => 134217000, 'free_memory' => 728, 'wasted_memory' => 0 ],
+        'interned_strings_usage' => [ 'buffer_size' => 8388608, 'used_memory' => 8388608, 'free_memory' => 0 ],
+        'opcache_statistics'     => [ 'num_cached_scripts' => 9100, 'max_cached_keys' => 16229 ],
+    ];
+    $health = new \PPC\LinkGrowth\Admin\SiteHealth(
+        new \PPC\LinkGrowth\Support\Opcache( static fn(): array => $full, [ 'opcache.memory_consumption' => '128', 'opcache.interned_strings_buffer' => '8', 'opcache.max_accelerated_files' => '10000' ] ),
+        ppclg()->get( \PPC\LinkGrowth\Support\ServerResources::class )
+    );
+    $warning = (array) $health->warning();
+    $small   = $totalKb * 1024 < 1879048192;
+    $first   = (string) ( $warning['remedy'][1] ?? '' );
+    IT::check(
+        $small
+            ? 'opcache.memory_consumption=160 (now 128)' === $first && str_contains( (string) ( $warning['memory'] ?? '' ), 'This server has ' . (int) round( $totalKb / 1024 ) . ' MB of memory' )
+            : 'opcache.memory_consumption=256 (now 128)' === $first && '' === ( $warning['memory'] ?? null ),
+        'the OPcache advice fits this machine\'s ' . (int) round( $totalKb / 1024 ) . ' MB',
+        (string) wp_json_encode( [ $first, $warning['memory'] ?? null ] )
+    );
 } );

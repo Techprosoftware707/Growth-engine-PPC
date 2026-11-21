@@ -21,7 +21,7 @@ Every automated action is written to the audit log (Logs → Audit).
 
 ## Server pressure
 
-From 1.2.4 the plugin never adds background work while the server is struggling. On the live store a plugin update left PHP's code cache (OPcache) full while an UpdraftPlus backup held PHP-FPM workers for minutes; the plugin's tick kept taking another worker for up to 20 seconds every 5 minutes and the store answered 504 for about 20 minutes.
+From 1.2.4 the plugin never adds background work while the server is struggling. On the live store a plugin update left PHP's code cache (OPcache) full while an UpdraftPlus backup held PHP-FPM workers for minutes; the plugin's tick kept taking another worker for up to 20 seconds every 5 minutes and the store answered 504 for about 20 minutes. The server (1 CPU, 960 MB of memory and 975 MB of swap) had a 1-minute load average of about 6.5, 207 MB of memory available with 673 MB of swap in use, and PHP-FPM workers were killed after 45 to 245 seconds.
 
 **When background work pauses.** Before each tick (and before a kick or a Grow now step) the plugin asks `Automation\LoadGuard`, which checks, without any HTTP request:
 
@@ -30,9 +30,23 @@ From 1.2.4 the plugin never adds background work while the server is struggling.
 | PHP's code cache is restarting | `opcache_get_status(false)` reports `restart_pending` or `restart_in_progress` (a warning from `opcache.restrict_api` or a missing function counts as "nothing known") | Paused: PHP's code cache is restarting (resumes automatically). |
 | A backup is running | UpdraftPlus: a `updraft_backup_resume` event (every running UpdraftPlus backup keeps its next resumption scheduled) or a "Backup now" event (`updraft_backupnow_backup*`) in the cron array, due within the next 30 minutes or overdue by less than an hour, unless that backup's own record `updraft_jobdata_<nonce>` says `finished`. The cron array is an autoloaded option, so this costs no database query; the job record is read only when such an event exists, and other options are never scanned. Other backup plugins report through the `ppclg_backup_running` filter (return `true` or the plugin's name). | Paused: a backup is running (resumes automatically). |
 | The plugin was just updated or activated | The first request that runs a new `PPCLG_VERSION` (or the activation) stores `ppclg_running_version` with the time; for 10 minutes after that OPcache can warm up and other plugins finish their own post-update work. | Paused: the plugin was just updated (resumes automatically in about N minutes). |
+| The server is busy | The 1-minute load average (`sys_getloadavg()`) divided by the number of CPUs is above 2.0 (filter `ppclg_max_load_per_cpu`). The CPU count comes from `/sys/devices/system/cpu/online`, else from the `processor` lines of `/proc/cpuinfo`, and is kept for a day in the non-autoloaded option `ppclg_cpu_count`; when neither file can be read it counts as 1 and the text says "CPU count unknown, counted as 1". On Linux the load also counts processes waiting for the disk, so a server that swaps shows up here. | Paused: the server is busy (load 6.5 on 1 CPU) — resumes when it calms down. |
+| The server is low on free memory | `/proc/meminfo`: `MemAvailable` is below 10% of `MemTotal` (filter `ppclg_min_free_memory_ratio`). | Paused: the server is low on free memory — resumes when memory frees up. |
 | The site owner or host says so | `add_filter( 'ppclg_pause_background', … )`: return `true` or a short message to pause, `false` to let the work run even when a reason above was found. | Paused: *your message*. |
 
 The answer is kept for the rest of the request; every tick asks afresh.
+
+**Load and memory.** These two are checked last: only when none of the reasons above holds, and only while a pause is being decided (a tick, a kick, a Grow now step, the dashboard's automation status), never on a page view. Each is one system call or one small file read (the first 4 KB of `/proc/meminfo`; the CPU files about once a day) with warnings suppressed, behind an `@is_readable()` so `open_basedir` cannot put a warning in the log. Where they cannot be read (not Linux, `open_basedir`, no `/proc`) they never pause anything. The reason carries the numbers in `measured` (`load`, `cpus`, `cpus_known`, `load_per_cpu`, `max_load_per_cpu`; or `available_mb`, `total_mb`, `available_percent`, `min_percent`), which the Automation page shows under the pause line, for example "Free memory: 88 MB of 960 MB (9.2%); background work waits while less than 10% is free." With the live numbers the load check would have paused the outage (6.5 per CPU); the memory check would not have (207 MB of 960 MB is 22% available).
+
+```php
+// A server that is always this busy: pause only above 4 per CPU (a very large number, or INF, switches the check off).
+add_filter( 'ppclg_max_load_per_cpu', static fn( float $max, float $load, int $cpus ): float => 4.0, 10, 3 );
+
+// Keep 15% of the memory free (a share between 0 and 1; 0 switches the check off; other values count as 0.10).
+add_filter( 'ppclg_min_free_memory_ratio', static fn( float $min, int $available, int $total ): float => 0.15, 10, 3 );
+```
+
+`ppclg_pause_background` returning `false` still lets the work run whatever these two measure.
 
 **What a pause does.** The tick (also *Run tick now* on the Automation page) returns at once with `skipped_reason: paused`: no job is claimed, no stage is enqueued, no growth step runs, no limit is spent and no stage's cadence is used up. *Kick scheduler* starts nothing (its answer says why). A Grow now run waits instead of failing: `POST /growth/step` answers `waiting: true` with the text above, `paused` and `retry_after: 60`, and the panel asks again about once a minute instead of every 3 seconds (Stop ends that wait at once). *Run now* on a single stage still runs it (you asked for it), and its answer carries the warning. Outreach keeps its send window and daily limits; nothing is lost, only delayed. The first check that finds no reason resumes everything. Each pause is written to Logs → Automation once when it starts and once when it ends ("Background work resumed after 12 minutes (a backup is running)."), and the Overview's Automation card and the Automation page show it while it lasts (`paused` in `GET /automation/status` and `GET /overview` → `automation`).
 
@@ -49,6 +63,16 @@ opcache.max_accelerated_files=32531
 then restart PHP-FPM (for example `systemctl restart php8.5-fpm`). On managed hosting, ask your host to make this change. Every plugin update leaves the replaced code in the cache as wasted memory until OPcache restarts, so a cache sized with room to spare is what keeps updates from slowing the store.
 
 On a server that already has at least these sizes, the warning names about double the current value of each limit that is running out (more than 90% used, or `cache_full` for the memory; `max_accelerated_files` counted from the table size OPcache really uses, `max_cached_keys`, and at most 1000000) and leaves the others out. It never names a smaller value than the server has.
+
+**On a server with less than 2 GB of memory** (`MemTotal` in `/proc/meminfo` below 1.75 GiB, because a 2 GB plan reports about 1.9 GiB) a bigger code cache takes memory from PHP-FPM and the database, so the advice is smaller:
+
+```ini
+opcache.memory_consumption=160
+opcache.interned_strings_buffer=16
+opcache.max_accelerated_files=20000
+```
+
+and the warning adds one line, for example "This server has 960 MB of memory; a bigger code cache takes memory from PHP and the database, so more RAM is the lasting fix." At or above these sizes it still names about double what runs out, but never more than a quarter of the memory for `opcache.memory_consumption` (rounded down to 16 MB: 240 on 960 MB, 128 on 512 MB) and never more than a quarter of that for `opcache.interned_strings_buffer`, which lives inside it. A setting already at or above that limit stays as it is (it is never lowered); when nothing can be raised the warning says that the code cache already has as much memory as the server can spare and suggests a plan with more memory. When the memory cannot be read, and from 2 GB up, the advice is the one above.
 
 ## Campaigns: what happens after "Create campaign"
 
@@ -242,5 +266,7 @@ Each prospect drawer shows the seven components with their weight, raw score, da
 | The job summary says "page checks are paused for a few minutes" | A page check timed out or got HTTP 429 / 5xx, a security challenge or a slow answer, so page checks wait 10 minutes before the site is asked again. Nothing needs doing; if it happens on every run, check the host's load and Tools → Site Health → loopback request. |
 | Automation says "Paused: a backup is running (resumes automatically)." | An UpdraftPlus backup is running (or another backup plugin reports one); background work continues by itself when it ends. If it never ends, look in UpdraftPlus for a stuck backup, or in Tools → Site Health → Info → Scheduled events for an old `updraft_backup_resume` event. A host that knows better can let the work run with the `ppclg_pause_background` filter returning `false`. |
 | Automation says "Paused: the plugin was just updated …" | Normal for 10 minutes after an update or activation. |
+| Automation says "Paused: the server is busy (load … on … CPU) — resumes when it calms down." | The 1-minute load average is above 2 per CPU. Background work continues by itself once it falls. If it stays high, look for what keeps the CPU or the disk busy (a backup, swapping, too many PHP-FPM children for the memory, bots); on a server that is always this busy raise the threshold with `ppclg_max_load_per_cpu`. |
+| Automation says "Paused: the server is low on free memory — resumes when memory frees up." | Less than 10% of the memory is available. Background work continues by itself once memory frees up; if it stays low, lower `pm.max_children` or move to a plan with more memory. `ppclg_min_free_memory_ratio` changes the share. |
 | Site Health says "PHP's code cache (OPcache) is full" | Raise the OPcache sizes as shown under [Server pressure](#server-pressure) and restart PHP-FPM, or ask your host. |
 | Errors in Logs | Each entry has channel and context; provider errors also appear on the provider card. |

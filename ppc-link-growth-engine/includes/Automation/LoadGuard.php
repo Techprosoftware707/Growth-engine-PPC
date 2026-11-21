@@ -15,15 +15,25 @@
  *     'ppclg_backup_running' filter;
  *  3. the plugin was updated or activated less than 10 minutes ago, so OPcache can warm up and other plugins finish
  *     their own post-update work;
- *  4. the 'ppclg_pause_background' filter says so (true or a message pauses; false lets the work run even when one
+ *  4. the server is busy: the 1-minute load average divided by the number of CPUs is above 2 (filter
+ *     'ppclg_max_load_per_cpu'); during the outage the 1-CPU store had a load of about 6.5;
+ *  5. the server is low on memory: /proc/meminfo's MemAvailable is below 10 % of MemTotal (filter
+ *     'ppclg_min_free_memory_ratio');
+ *  6. the 'ppclg_pause_background' filter says so (true or a message pauses; false lets the work run even when one
  *     of the reasons above was found).
+ *
+ * Reasons 4 and 5 come from Support\ServerResources (sys_getloadavg(), one small read of /proc/meminfo, the CPU count
+ * kept for a day). They are checked last, only while a pause is being decided (never on a page view), and only when
+ * no earlier reason holds. A server where they cannot be read (not Linux, open_basedir, no /proc) never pauses for
+ * them.
  *
  * A full OPcache on its own never pauses anything (that state can last for months and would stop Autopilot for
  * good); Admin\SiteHealth tells the owner about it instead.
  *
  * Cheap by design: no HTTP request; the cron array and the version marker are autoloaded options (already in
- * memory), opcache_get_status(false) skips the script list, and the only database read is one UpdraftPlus job record
- * when a resumption event exists. The answer is kept for the rest of the request; Pipeline::tick() asks afresh.
+ * memory), opcache_get_status(false) skips the script list, the only database reads are one UpdraftPlus job record
+ * when a resumption event exists and the stored CPU count, and the load and memory are a system call and one 4 KB
+ * file read. The answer is kept for the rest of the request; Pipeline::tick() asks afresh.
  *
  * Nothing is lost while paused, only delayed: queued jobs stay queued, cadences are not consumed, outreach keeps its
  * send window and limits.
@@ -37,6 +47,7 @@ namespace PPC\LinkGrowth\Automation;
 
 use PPC\LinkGrowth\Support\Logger;
 use PPC\LinkGrowth\Support\Opcache;
+use PPC\LinkGrowth\Support\ServerResources;
 use Throwable;
 
 final class LoadGuard {
@@ -65,13 +76,23 @@ final class LoadGuard {
     /** UpdraftPlus job record, per backup nonce. */
     public const UPDRAFT_JOBDATA_PREFIX = 'updraft_jobdata_';
 
-    public const FILTER_BACKUP = 'ppclg_backup_running';
-    public const FILTER_PAUSE  = 'ppclg_pause_background';
+    public const FILTER_BACKUP     = 'ppclg_backup_running';
+    public const FILTER_PAUSE      = 'ppclg_pause_background';
+    public const FILTER_MAX_LOAD   = 'ppclg_max_load_per_cpu';
+    public const FILTER_MIN_MEMORY = 'ppclg_min_free_memory_ratio';
 
     public const CODE_OPCACHE_RESTART = 'opcache_restart';
     public const CODE_BACKUP          = 'backup';
     public const CODE_UPDATED         = 'just_updated';
+    public const CODE_SERVER_BUSY     = 'server_busy';
+    public const CODE_LOW_MEMORY      = 'low_memory';
     public const CODE_OWNER           = 'owner';
+
+    /** Busy above this 1-minute load average per CPU. */
+    public const MAX_LOAD_PER_CPU = 2.0;
+
+    /** Low on memory below this share of MemTotal available. */
+    public const MIN_FREE_MEMORY_RATIO = 0.10;
 
     /** How long the Grow now panel waits before it asks again while paused. */
     public const RETRY_AFTER_SECONDS = 60;
@@ -81,27 +102,29 @@ final class LoadGuard {
     /** @var array<string,mixed>|null */
     private ?array $reason = null;
 
-    public function __construct( private ?Opcache $opcache = null ) {}
+    public function __construct( private ?Opcache $opcache = null, private ?ServerResources $server = null ) {}
 
     /**
      * Why background work should pause now, or null to go.
      *
      * @param bool $fresh Check again instead of using this request's earlier answer.
-     * @return array{code:string,message:string,text:string,until:?string,source:string}|null
+     * @return array{code:string,message:string,text:string,until:?string,source:string,measured:?array<string,mixed>}|null
      */
     public function pauseReason( bool $fresh = false ): ?array {
         if ( $this->checked && ! $fresh ) {
             return $this->reason;
         }
-        if ( $fresh && null !== $this->opcache ) {
-            $this->opcache->forget();
+        if ( $fresh ) {
+            $this->opcache?->forget();
+            $this->server?->forget();
         }
         $this->checked = true;
         $this->noteVersion();
 
         $reason = null;
         try {
-            $reason = $this->opcacheRestarting() ?? $this->backupRunning() ?? $this->justUpdated();
+            // Most severe first; the server's load and memory are read only when nothing before them holds.
+            $reason = $this->opcacheRestarting() ?? $this->backupRunning() ?? $this->justUpdated() ?? $this->serverBusy() ?? $this->lowMemory();
         } catch ( Throwable $e ) {
             $reason = null; // a check that fails never stops the plugin's work
         }
@@ -112,7 +135,7 @@ final class LoadGuard {
              * Return true or a short message to pause, false to run even when a reason above was found.
              *
              * @param bool|string $pause  Whether a built-in reason was found.
-             * @param array|null  $reason The built-in reason ({code, message, text, until, source}) or null.
+             * @param array|null  $reason The built-in reason ({code, message, text, until, source, measured}) or null.
              */
             $filtered = apply_filters( self::FILTER_PAUSE, null !== $reason, $reason );
             if ( false === $filtered ) {
@@ -134,9 +157,8 @@ final class LoadGuard {
     public function forget(): void {
         $this->checked = false;
         $this->reason  = null;
-        if ( null !== $this->opcache ) {
-            $this->opcache->forget();
-        }
+        $this->opcache?->forget();
+        $this->server?->forget();
     }
 
     /**
@@ -203,7 +225,7 @@ final class LoadGuard {
             [ 'code' => (string) $reason['code'], 'message' => (string) $reason['message'], 'text' => (string) $reason['text'], 'since' => $reason['since'], 'source' => (string) ( $reason['source'] ?? '' ) ],
             false
         );
-        $this->log( $logger, $reason['text'], [ 'code' => (string) $reason['code'], 'source' => (string) ( $reason['source'] ?? '' ), 'until' => $reason['until'] ?? null ] );
+        $this->log( $logger, $reason['text'], [ 'code' => (string) $reason['code'], 'source' => (string) ( $reason['source'] ?? '' ), 'until' => $reason['until'] ?? null, 'measured' => $reason['measured'] ?? null ] );
         return $reason;
     }
 
@@ -339,12 +361,101 @@ final class LoadGuard {
         return self::reason( self::CODE_UPDATED, 'the plugin was just updated', gmdate( 'c', $until ), 'update' );
     }
 
+    /**
+     * The 1-minute load average per CPU is above MAX_LOAD_PER_CPU (filter 'ppclg_max_load_per_cpu'). On Linux the
+     * load counts the processes running or waiting for the CPU and those stuck waiting for the disk (swapping), so a
+     * server that swaps shows it too.
+     *
+     * @return array<string,mixed>|null
+     */
+    private function serverBusy(): ?array {
+        $server = $this->server();
+        $load   = $server->load();
+        if ( null === $load ) {
+            return null; // not Linux, or sys_getloadavg() unavailable: nothing known, no pause
+        }
+        $cpus  = $server->cpus();
+        $count = max( 1, (int) $cpus['count'] );
+        /**
+         * The 1-minute load average per CPU above which background work pauses (default 2.0). Return a larger
+         * number to pause less often; a very large one switches this check off.
+         *
+         * @param float $max   The threshold.
+         * @param float $load  The 1-minute load average.
+         * @param int   $cpus  The CPU count (1 when it cannot be read).
+         */
+        $max     = self::threshold( apply_filters( self::FILTER_MAX_LOAD, self::MAX_LOAD_PER_CPU, $load, $count ), self::MAX_LOAD_PER_CPU, null, null );
+        $perCpu  = $load / $count;
+        if ( $perCpu <= $max ) {
+            return null;
+        }
+        $known   = ! empty( $cpus['known'] );
+        $numbers = $known
+            ? sprintf( 'load %s on %d %s', self::number( $load ), $count, 1 === $count ? 'CPU' : 'CPUs' )
+            : sprintf( 'load %s; CPU count unknown, counted as 1', self::number( $load ) );
+        return self::reason(
+            self::CODE_SERVER_BUSY,
+            'the server is busy',
+            null,
+            'load',
+            sprintf( 'Paused: the server is busy (%s) — resumes when it calms down.', $numbers ),
+            [ 'load' => round( $load, 2 ), 'cpus' => $count, 'cpus_known' => $known, 'load_per_cpu' => round( $perCpu, 2 ), 'max_load_per_cpu' => $max ]
+        );
+    }
+
+    /**
+     * MemAvailable is below MIN_FREE_MEMORY_RATIO of MemTotal (filter 'ppclg_min_free_memory_ratio').
+     *
+     * @return array<string,mixed>|null
+     */
+    private function lowMemory(): ?array {
+        $memory = $this->server()->memory();
+        if ( null === $memory || null === $memory['available'] || $memory['total'] <= 0 ) {
+            return null; // no /proc/meminfo (or no MemAvailable): nothing known, no pause
+        }
+        /**
+         * The share of the memory that must be available (MemAvailable / MemTotal) for background work to run,
+         * between 0 and 1 (default 0.10). 0 switches this check off; anything else outside 0–1 counts as 0.10.
+         *
+         * @param float $min       The share.
+         * @param int   $available MemAvailable in bytes.
+         * @param int   $total     MemTotal in bytes.
+         */
+        $min   = self::threshold( apply_filters( self::FILTER_MIN_MEMORY, self::MIN_FREE_MEMORY_RATIO, $memory['available'], $memory['total'] ), self::MIN_FREE_MEMORY_RATIO, 0.0, 1.0 );
+        $ratio = $memory['available'] / $memory['total'];
+        if ( $ratio >= $min ) {
+            return null;
+        }
+        return self::reason(
+            self::CODE_LOW_MEMORY,
+            'the server is low on free memory',
+            null,
+            'memory',
+            'Paused: the server is low on free memory — resumes when memory frees up.',
+            [
+                'available_mb'      => (int) round( $memory['available'] / 1048576 ),
+                'total_mb'          => (int) round( $memory['total'] / 1048576 ),
+                'available_percent' => round( $ratio * 100, 1 ),
+                'min_percent'       => round( $min * 100, 1 ),
+            ]
+        );
+    }
+
+    private function server(): ServerResources {
+        return $this->server ??= new ServerResources();
+    }
+
     // ------------------------------------------------------------------
 
     /**
-     * @return array{code:string,message:string,text:string,until:?string,source:string}
+     * @param string|null              $text     The dashboard line, when it is not "Paused: <message> (resumes automatically)."
+     * @param array<string,mixed>|null $measured The numbers behind the reason (load, memory), for the dashboard.
+     * @return array{code:string,message:string,text:string,until:?string,source:string,measured:?array<string,mixed>}
      */
-    private static function reason( string $code, string $message, ?string $until, string $source ): array {
+    private static function reason( string $code, string $message, ?string $until, string $source, ?string $text = null, ?array $measured = null ): array {
+        if ( null !== $text ) {
+            return [ 'code' => $code, 'message' => $message, 'text' => $text, 'until' => $until, 'source' => $source, 'measured' => $measured ];
+        }
         $text = sprintf( 'Paused: %s (resumes automatically).', $message );
         if ( self::CODE_OWNER === $code ) {
             $text = sprintf( 'Paused: %s.', $message ); // lasts as long as the site's own filter says so
@@ -352,7 +463,26 @@ final class LoadGuard {
             $left = (int) ceil( max( 0, (int) strtotime( $until ) - time() ) / 60 );
             $text = sprintf( 'Paused: %s (resumes automatically in about %d %s).', $message, max( 1, $left ), 1 === max( 1, $left ) ? 'minute' : 'minutes' );
         }
-        return [ 'code' => $code, 'message' => $message, 'text' => $text, 'until' => $until, 'source' => $source ];
+        return [ 'code' => $code, 'message' => $message, 'text' => $text, 'until' => $until, 'source' => $source, 'measured' => $measured ];
+    }
+
+    /**
+     * A filtered threshold: a number (not NAN) within [$min, $max] when they are given, else $default.
+     */
+    private static function threshold( mixed $value, float $default, ?float $min, ?float $max ): float {
+        if ( ! is_int( $value ) && ! is_float( $value ) && ! ( is_string( $value ) && is_numeric( trim( $value ) ) ) ) {
+            return $default;
+        }
+        $value = (float) ( is_string( $value ) ? trim( $value ) : $value );
+        if ( is_nan( $value ) || ( null !== $min && $value < $min ) || ( null !== $max && $value > $max ) ) {
+            return $default;
+        }
+        return $value;
+    }
+
+    /** 6.53 => "6.53", 6.5 => "6.5", 7.0 => "7". */
+    private static function number( float $value ): string {
+        return rtrim( rtrim( number_format( $value, 2, '.', '' ), '0' ), '.' );
     }
 
     private static function running(): string {

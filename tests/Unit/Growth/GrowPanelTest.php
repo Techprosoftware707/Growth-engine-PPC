@@ -229,4 +229,24 @@ final class GrowPanelTest extends TestCase {
         $this->assertStringContainsString( 'r.warning', $automation, 'Run now shows the pause warning' );
         $this->assertStringNotContainsString( 'innerHTML', (string) file_get_contents( PPCLG_DIR . 'assets/js/server-pressure.js' ) );
     }
+
+    public function testTheDashboardShowsTheLoadAndMemoryNumbersAndTheRamLine(): void {
+        $p = $this->harness()['pressure'];
+        $this->assertSame( 'Paused: the server is busy (load 6.53 on 1 CPU) — resumes when it calms down.', $p['busyText'] );
+        $this->assertStringStartsWith( 'Load over the last minute: 6.53 on 1 CPU, 6.53 per CPU; background work waits while it is above 2 per CPU. The scheduler tick', $p['busyDetail'] );
+        $this->assertStringContainsString( 'nothing is lost', $p['busyDetail'] );
+        $this->assertStringStartsWith( 'Load over the last minute: 2.5 on 1 CPU (the CPU count could not be read, so it counts as 1), 2.5 per CPU;', $p['busyUnknownCpus'] );
+        $this->assertStringStartsWith( 'Load over the last minute: 8.4 on 4 CPUs, 2.1 per CPU;', $p['busyFourCpus'] );
+        $this->assertSame( 'Paused: the server is low on free memory — resumes when memory frees up.', $p['memoryText'] );
+        $this->assertStringStartsWith( 'Free memory: 88 MB of 960 MB (9.2%); background work waits while less than 10% is free. The scheduler tick', $p['memoryDetail'] );
+        $this->assertStringStartsWith( 'The scheduler tick', $p['noNumbers'], 'incomplete numbers: the plain detail only' );
+        $this->assertStringStartsWith( 'The scheduler tick', $p['backupDetail'] );
+
+        $line = 'This server has 960 MB of memory; a bigger code cache takes memory from PHP and the database, so more RAM is the lasting fix.';
+        $this->assertSame( $line, $p['noticeMemory'] );
+        $this->assertSame( '', $p['noticeNoMemory'] );
+        $this->assertTrue( $p['calloutMemory'], 'the Overview notice shows the RAM line' );
+        $this->assertSame( [ 'opcache.memory_consumption=160' ], $p['calloutCodes'], 'the RAM line is not a setting' );
+        $this->assertTrue( $p['calloutWithoutMemory'], 'no RAM line when the server does not have one' );
+    }
 }

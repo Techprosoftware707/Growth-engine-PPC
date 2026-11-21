@@ -100,6 +100,7 @@ use PPC\LinkGrowth\Support\Locks;
 use PPC\LinkGrowth\Support\Logger;
 use PPC\LinkGrowth\Support\Opcache;
 use PPC\LinkGrowth\Support\Secrets;
+use PPC\LinkGrowth\Support\ServerResources;
 use PPC\LinkGrowth\Support\Settings;
 
 final class Plugin {
@@ -340,9 +341,11 @@ final class Plugin {
 
         // --- Automation ----------------------------------------------------
         $c->singleton( Audit::class, static fn( Container $c ) => new Audit( $c->get( AuditLog::class ) ) );
-        // Server pressure: background work pauses while OPcache restarts, a backup runs or the plugin was just updated.
+        // Server pressure: background work pauses while OPcache restarts, a backup runs, the plugin was just updated,
+        // or the server is busy or low on memory (ServerResources: read only while a pause is decided).
         $c->singleton( Opcache::class, static fn() => new Opcache() );
-        $c->singleton( LoadGuard::class, static fn( Container $c ) => new LoadGuard( $c->get( Opcache::class ) ) );
+        $c->singleton( ServerResources::class, static fn() => new ServerResources() );
+        $c->singleton( LoadGuard::class, static fn( Container $c ) => new LoadGuard( $c->get( Opcache::class ), $c->get( ServerResources::class ) ) );
         $c->singleton( JobRunner::class, static fn( Container $c ) => new JobRunner( $c, $c->get( Jobs::class ), $c->get( Locks::class ), $c->get( Settings::class ), $c->get( Logger::class ), $c->get( AuditLog::class ) ) );
         $c->singleton( Pipeline::class, static fn( Container $c ) => new Pipeline( $c->get( Jobs::class ), $c->get( JobRunner::class ), $c->get( Settings::class ), $c->get( Limits::class ), $c->get( Logger::class ), $c->get( LoadGuard::class ) ) );
         $c->singleton( Scheduler::class, static fn( Container $c ) => new Scheduler( $c->get( Pipeline::class ), $c->get( Settings::class ), $c->get( Logger::class ), $c->get( LoadGuard::class ) ) );
@@ -364,7 +367,7 @@ final class Plugin {
         $c->singleton( Menu::class, static fn( Container $c ) => new Menu( $c->get( Settings::class ), $c->get( Notifications::class ) ) );
         $c->singleton( Assets::class, static fn( Container $c ) => new Assets( $c->get( Settings::class ) ) );
         $c->singleton( Notices::class, static fn( Container $c ) => new Notices( $c->get( Settings::class ), $c->get( ProviderRegistry::class ), $c->get( Compliance::class ) ) );
-        $c->singleton( SiteHealth::class, static fn( Container $c ) => new SiteHealth( $c->get( Opcache::class ) ) );
+        $c->singleton( SiteHealth::class, static fn( Container $c ) => new SiteHealth( $c->get( Opcache::class ), $c->get( ServerResources::class ) ) );
         $c->singleton( RestApi::class, static fn( Container $c ) => new RestApi( $c ) );
     }
 }

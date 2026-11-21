@@ -22,8 +22,16 @@ final class Container {
     public static function plugin(): \PPC\LinkGrowth\Plugin {
         if ( null === self::$plugin ) {
             self::$plugin = \PPC\LinkGrowth\Plugin::instance();
+            // The test machine's own load and memory never pause a test (1.2.4 Automation\LoadGuard); tests of
+            // those pauses set a Support\ServerResources with their own readers.
+            self::$plugin->container()->set( \PPC\LinkGrowth\Support\ServerResources::class, self::quietServer() );
         }
         return self::$plugin;
+    }
+
+    /** A Support\ServerResources that knows nothing (no load, no CPU count, no memory), as on a server without /proc. */
+    public static function quietServer(): \PPC\LinkGrowth\Support\ServerResources {
+        return new \PPC\LinkGrowth\Support\ServerResources( static fn() => null, static fn() => null );
     }
 
     /**

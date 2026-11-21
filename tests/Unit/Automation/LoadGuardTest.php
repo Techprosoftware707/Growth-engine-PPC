@@ -88,7 +88,7 @@ final class LoadGuardTest extends TestCase {
         } );
         $c = Container::plugin()->container();
         $c->set( Opcache::class, $opcache );
-        $guard = new LoadGuard( $opcache );
+        $guard = new LoadGuard( $opcache, self::quietServer() );
         $c->set( LoadGuard::class, $guard );
         return $guard;
     }
@@ -102,7 +102,12 @@ final class LoadGuardTest extends TestCase {
     }
 
     private function guard(): LoadGuard {
-        return new LoadGuard( new Opcache( static fn() => false ) );
+        return new LoadGuard( new Opcache( static fn() => false ), self::quietServer() );
+    }
+
+    /** The Site Health test over $opcache on a server whose memory is not known (the advice for any size). */
+    private static function health( Opcache $opcache ): SiteHealth {
+        return new SiteHealth( $opcache, self::quietServer() );
     }
 
     // ------------------------------------------------------------------
@@ -417,7 +422,7 @@ final class LoadGuardTest extends TestCase {
     // ------------------------------------------------------------------
 
     public function testSiteHealthCriticalWithTheExactRemedy(): void {
-        $health = new SiteHealth( new Opcache( static fn() => self::liveStatus() ) );
+        $health = self::health( new Opcache( static fn() => self::liveStatus() ) );
         $r      = $health->opcacheTest();
         $this->assertSame( 'critical', $r['status'] );
         $this->assertSame( "PHP's code cache (OPcache) is full", $r['label'] );
@@ -436,22 +441,22 @@ final class LoadGuardTest extends TestCase {
         $this->assertStringContainsString( '(now ' . ini_get( 'opcache.memory_consumption' ) . ')', $r['actions'] );
 
         foreach ( [ 'free < 5 %' => self::opStatus( 97, 30 ), 'interned full' => self::opStatus( 30, 100 ), 'cache_full' => self::opStatus( 30, 30, [ 'cache_full' => true ] ) ] as $label => $status ) {
-            $this->assertSame( 'critical', ( new SiteHealth( new Opcache( static fn() => $status ) ) )->opcacheTest()['status'], $label );
+            $this->assertSame( 'critical', ( self::health( new Opcache( static fn() => $status ) ) )->opcacheTest()['status'], $label );
         }
     }
 
     public function testSiteHealthRecommendedAndGood(): void {
-        $r = ( new SiteHealth( new Opcache( static fn() => self::opStatus( 92, 40 ) ) ) )->opcacheTest();
+        $r = ( self::health( new Opcache( static fn() => self::opStatus( 92, 40 ) ) ) )->opcacheTest();
         $this->assertSame( [ 'recommended', "PHP's code cache (OPcache) is almost full", 'orange' ], [ $r['status'], $r['label'], $r['badge']['color'] ] );
         $this->assertStringContainsString( 'opcache.memory_consumption=256', $r['actions'] );
 
-        $r = ( new SiteHealth( new Opcache( static fn() => self::opStatus( 60, 60 ) ) ) )->opcacheTest();
+        $r = ( self::health( new Opcache( static fn() => self::opStatus( 60, 60 ) ) ) )->opcacheTest();
         $this->assertSame( [ 'good', "PHP's code cache (OPcache) has room", '' ], [ $r['status'], $r['label'], $r['actions'] ] );
 
         foreach ( [ static fn() => false, static function () {
             throw new RuntimeException( 'restricted' );
         } ] as $reader ) {
-            $r = ( new SiteHealth( new Opcache( $reader ) ) )->opcacheTest();
+            $r = ( self::health( new Opcache( $reader ) ) )->opcacheTest();
             $this->assertSame( 'good', $r['status'], 'unavailable: nothing to report' );
             $this->assertSame( "PHP's code cache (OPcache) has nothing to report", $r['label'] );
         }
@@ -499,7 +504,7 @@ final class LoadGuardTest extends TestCase {
 
     public function testSiteHealthRemedyNeverAdvisesSmallerSettingsThanTheServerHas(): void {
         // Already above the recommendation (512 / 64 / 60000), memory 97 % used, interned strings full, files have room.
-        $health = new SiteHealth( new Opcache( static fn() => self::sizedStatus( 512, 97, 64, 100, 9100, 65407 ), self::iniSizes( '512', '64', '60000' ) ) );
+        $health = self::health( new Opcache( static fn() => self::sizedStatus( 512, 97, 64, 100, 9100, 65407 ), self::iniSizes( '512', '64', '60000' ) ) );
         $r      = $health->opcacheTest();
         $this->assertSame( 'critical', $r['status'] );
         $this->assertStringContainsString( '<code>opcache.memory_consumption=1024</code> (now 512)', $r['actions'], 'about double the current size' );
@@ -516,7 +521,7 @@ final class LoadGuardTest extends TestCase {
         $this->assertSame( [ 'now' => '60000', 'recommended' => '60000' ], $w['settings']['opcache.max_accelerated_files'], 'kept as it is' );
 
         // Exactly the recommended sizes and full again after updates: never "raise to the value it already has".
-        $health = new SiteHealth( new Opcache( static fn() => self::sizedStatus( 256, 97, 32, 50, 31000, 32531 ), self::iniSizes( '256', '32', '32531' ) ) );
+        $health = self::health( new Opcache( static fn() => self::sizedStatus( 256, 97, 32, 50, 31000, 32531 ), self::iniSizes( '256', '32', '32531' ) ) );
         $w      = $health->warning();
         $this->assertIsArray( $w );
         $this->assertSame( [ 'opcache.memory_consumption=512 (now 256)', 'opcache.max_accelerated_files=65062 (now 32531)' ], array_slice( $w['remedy'], 1 ), 'the interned strings have room' );
@@ -524,25 +529,25 @@ final class LoadGuardTest extends TestCase {
         $this->assertEveryLineRaises( self::actionLines( $health->opcacheTest()['actions'] ), 'Site Health at the recommendation' );
 
         // Below the recommendation the recommended sizes stay the advice; a setting above it with room is left out.
-        $health = new SiteHealth( new Opcache( static fn() => self::sizedStatus( 128, 97, 64, 30, 9100, 65407 ), self::iniSizes( '128', '64', '60000' ) ) );
+        $health = self::health( new Opcache( static fn() => self::sizedStatus( 128, 97, 64, 30, 9100, 65407 ), self::iniSizes( '128', '64', '60000' ) ) );
         $this->assertSame( [ 'opcache.memory_consumption=256 (now 128)' ], array_slice( (array) $health->warning()['remedy'], 1 ) );
-        $health = new SiteHealth( new Opcache( static fn() => self::sizedStatus( 128, 97, 8, 100, 9100, 16229 ), self::iniSizes( '128', '8', '10000' ) ) );
+        $health = self::health( new Opcache( static fn() => self::sizedStatus( 128, 97, 8, 100, 9100, 16229 ), self::iniSizes( '128', '8', '10000' ) ) );
         $this->assertSame( [ 'opcache.memory_consumption=256 (now 128)', 'opcache.interned_strings_buffer=32 (now 8)', 'opcache.max_accelerated_files=32531 (now 10000)' ], array_slice( (array) $health->warning()['remedy'], 1 ), 'the live sizes: unchanged advice' );
 
         // OPcache takes at most 1000000 files; recommended (almost full) gets the same check.
-        $health = new SiteHealth( new Opcache( static fn() => self::sizedStatus( 2048, 92, 256, 40, 500000, 524521 ), self::iniSizes( '2048', '256', '400000' ) ) );
+        $health = self::health( new Opcache( static fn() => self::sizedStatus( 2048, 92, 256, 40, 500000, 524521 ), self::iniSizes( '2048', '256', '400000' ) ) );
         $r      = $health->opcacheTest();
         $this->assertSame( 'recommended', $r['status'] );
         $this->assertEveryLineRaises( self::actionLines( $r['actions'] ), 'recommended above the recommendation' );
         $this->assertStringContainsString( '<code>opcache.memory_consumption=4096</code> (now 2048)', $r['actions'] );
         $this->assertStringContainsString( '<code>opcache.max_accelerated_files=1000000</code> (now 400000)', $r['actions'] );
-        $health = new SiteHealth( new Opcache( static fn() => self::sizedStatus( 2048, 97, 256, 40, 1000000, 1048793 ), self::iniSizes( '2048', '256', '1000000' ) ) );
+        $health = self::health( new Opcache( static fn() => self::sizedStatus( 2048, 97, 256, 40, 1000000, 1048793 ), self::iniSizes( '2048', '256', '1000000' ) ) );
         $this->assertSame( [ 'opcache.memory_consumption=4096 (now 2048)' ], array_slice( (array) $health->warning()['remedy'], 1 ), 'no larger file table exists' );
 
         // OPcache rounds the file count up to its next table size (max_cached_keys): the advice is larger than that.
-        $health = new SiteHealth( new Opcache( static fn() => self::sizedStatus( 512, 97, 64, 40, 62000, 65407 ), self::iniSizes( '512', '64', '40000' ) ) );
+        $health = self::health( new Opcache( static fn() => self::sizedStatus( 512, 97, 64, 40, 62000, 65407 ), self::iniSizes( '512', '64', '40000' ) ) );
         $this->assertSame( [ 'opcache.memory_consumption=1024 (now 512)', 'opcache.max_accelerated_files=130814 (now 40000)' ], array_slice( (array) $health->warning()['remedy'], 1 ) );
-        $health = new SiteHealth( new Opcache( static fn() => self::sizedStatus( 256, 97, 32, 30, 9100, 32531 ), self::iniSizes( '256', '32', '30000' ) ) );
+        $health = self::health( new Opcache( static fn() => self::sizedStatus( 256, 97, 32, 30, 9100, 32531 ), self::iniSizes( '256', '32', '30000' ) ) );
         $this->assertSame( [ 'opcache.memory_consumption=512 (now 256)' ], array_slice( (array) $health->warning()['remedy'], 1 ), '30000 already gives the 32531 table, with room' );
     }
 
@@ -557,7 +562,7 @@ final class LoadGuardTest extends TestCase {
         // Only the interned strings buffer is full; the cache memory is 40 % used: still critical, but no claim
         // that PHP stops caching code or that pages time out.
         $status = self::sizedStatus( 128, 40, 8, 100, 4200, 16229 );
-        $health = new SiteHealth( new Opcache( static fn() => $status, self::iniSizes( '128', '8', '10000' ) ) );
+        $health = self::health( new Opcache( static fn() => $status, self::iniSizes( '128', '8', '10000' ) ) );
         $r      = $health->opcacheTest();
         $this->assertSame( 'critical', $r['status'] );
         $this->assertStringContainsString( 'Memory in use: 51.2 MB of 128 MB (40%).', $r['description'] );
@@ -574,23 +579,23 @@ final class LoadGuardTest extends TestCase {
         $this->assertStringNotContainsString( 'That memory is full', $w['summary'] );
 
         // Almost full: the same distinction.
-        $r = ( new SiteHealth( new Opcache( static fn() => self::sizedStatus( 128, 40, 8, 93, 4200, 16229 ) ) ) )->opcacheTest();
+        $r = ( self::health( new Opcache( static fn() => self::sizedStatus( 128, 40, 8, 93, 4200, 16229 ) ) ) )->opcacheTest();
         $this->assertSame( 'recommended', $r['status'] );
         $this->assertStringContainsString( 'interned strings buffer', $r['description'] );
         $this->assertStringNotContainsString( 'That memory is almost full', $r['description'] );
 
         // When the cache memory itself is full the 504 explanation stays, also with full interned strings.
         foreach ( [ 'memory' => self::sizedStatus( 128, 97, 8, 30 ), 'both' => self::sizedStatus( 128, 97, 8, 100 ), 'cache_full' => [ 'cache_full' => true ] + self::sizedStatus( 128, 40, 8, 100 ) ] as $label => $full ) {
-            $d = ( new SiteHealth( new Opcache( static fn() => $full ) ) )->opcacheTest()['description'];
+            $d = ( self::health( new Opcache( static fn() => $full ) ) )->opcacheTest()['description'];
             $this->assertStringContainsString( 'That memory is full.', $d, $label );
             $this->assertStringContainsString( 'HTTP 504', $d, $label );
         }
-        $d = ( new SiteHealth( new Opcache( static fn() => self::sizedStatus( 128, 92, 8, 30 ) ) ) )->opcacheTest()['description'];
+        $d = ( self::health( new Opcache( static fn() => self::sizedStatus( 128, 92, 8, 30 ) ) ) )->opcacheTest()['description'];
         $this->assertStringContainsString( 'That memory is almost full.', $d );
     }
 
     public function testSiteHealthKeepsOtherTestsAndToleratesOddInput(): void {
-        $health = new SiteHealth( new Opcache( static fn() => false ) );
+        $health = self::health( new Opcache( static fn() => false ) );
         $tests  = $health->addTests( [ 'direct' => [ 'php_version' => [ 'label' => 'PHP', 'test' => 'php_version' ] ], 'async' => [ 'dotorg' => [] ] ] );
         $this->assertSame( [ 'php_version', 'ppclg_opcache' ], array_keys( $tests['direct'] ) );
         $this->assertArrayHasKey( 'dotorg', $tests['async'] );
@@ -600,7 +605,7 @@ final class LoadGuardTest extends TestCase {
 
     public function testOverviewCarriesTheWarningOnlyWhenCritical(): void {
         $c = Container::plugin()->container();
-        $c->set( SiteHealth::class, new SiteHealth( new Opcache( static fn() => self::liveStatus() ) ) );
+        $c->set( SiteHealth::class, self::health( new Opcache( static fn() => self::liveStatus() ) ) );
         $GLOBALS['ppclg_test_caps'] = [ 'manage_options' => true ];
         $data = ( new OverviewController( $c ) )->overview( new WP_REST_Request( 'GET', '/ppclg/v1/overview' ) );
         $this->assertIsArray( $data['opcache'] );
@@ -613,7 +618,7 @@ final class LoadGuardTest extends TestCase {
         $this->assertArrayHasKey( 'paused', $data['automation'], 'the automation status says whether work is paused' );
 
         foreach ( [ self::opStatus( 92, 40 ), self::opStatus( 40, 40 ) ] as $status ) {
-            $c->set( SiteHealth::class, new SiteHealth( new Opcache( static fn() => $status ) ) );
+            $c->set( SiteHealth::class, self::health( new Opcache( static fn() => $status ) ) );
             $data = ( new OverviewController( $c ) )->overview( new WP_REST_Request( 'GET', '/ppclg/v1/overview' ) );
             $this->assertNull( $data['opcache'], 'recommended or good: Site Health only' );
         }

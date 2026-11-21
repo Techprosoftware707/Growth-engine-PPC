@@ -925,6 +925,7 @@ export function opcacheCallout( warning ) {
         n.details ? el( 'div', { class: 'ppclg-small ppclg-muted' }, n.details ) : null,
         n.intro ? el( 'div', { style: { marginTop: '6px' } }, n.intro ) : null,
         n.settings.length ? el( 'ul', { class: 'ppclg-list--bullets ppclg-small' }, n.settings.map( ( line ) => el( 'li', {}, el( 'code', {}, line.split( ' ' )[ 0 ] ), line.includes( ' ' ) ? ` ${ line.slice( line.indexOf( ' ' ) + 1 ) }` : '' ) ) ) : null,
+        n.memory ? el( 'div', { class: 'ppclg-small ppclg-opcache-memory' }, n.memory ) : null,
         el( 'div', { class: 'ppclg-small' }, n.host, ' The same check is under Tools → Site Health.' ),
     ] );
 }

@@ -30,6 +30,14 @@ abstract class TestCase extends BaseTestCase {
             $GLOBALS['wpdb']->createFromMysql( $sql );
         }
         \PPC\LinkGrowth\Tests\Support\Container::reset();
+        // Created now so that its Support\ServerResources reads nothing (see Container::plugin()): the test machine's
+        // own load and memory never pause a test's tick or change the OPcache advice.
+        \PPC\LinkGrowth\Tests\Support\Container::plugin();
+    }
+
+    /** A Support\ServerResources that knows nothing (no load, no CPU count, no memory), as on a server without /proc. */
+    protected static function quietServer(): \PPC\LinkGrowth\Support\ServerResources {
+        return \PPC\LinkGrowth\Tests\Support\Container::quietServer();
     }
 
     protected function fixture( string $relative ): string {

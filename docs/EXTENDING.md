@@ -51,7 +51,7 @@ add_filter( 'ppclg_post_language', static fn( string $code, int $postId ): strin
 
 ## Pausing background work (server pressure)
 
-From 1.2.4 background work (the scheduler tick, kicks, Grow now steps) pauses while PHP's code cache restarts, while an UpdraftPlus backup runs and for 10 minutes after an update (see OPERATIONS.md → Server pressure). Two filters extend that:
+From 1.2.4 background work (the scheduler tick, kicks, Grow now steps) pauses while PHP's code cache restarts, while an UpdraftPlus backup runs, for 10 minutes after an update, while the 1-minute load average is above 2 per CPU and while less than 10% of the memory is available (see OPERATIONS.md → Server pressure). Four filters extend that:
 
 ```php
 // Another backup plugin reports its running backup (return true or the plugin's name).
@@ -62,9 +62,15 @@ add_filter( 'ppclg_pause_background', static function ( bool|string $pause, ?arr
     $hour = (int) wp_date( 'G' );
     return ( $hour >= 1 && $hour < 3 ) ? 'Nightly maintenance window' : $pause;
 }, 10, 2 );
+
+// The load per CPU above which background work pauses (default 2.0; receives the 1-minute load and the CPU count).
+add_filter( 'ppclg_max_load_per_cpu', static fn( float $max, float $load, int $cpus ): float => 3.0, 10, 3 );
+
+// The share of the memory that must be available (default 0.10; receives MemAvailable and MemTotal in bytes; 0 = off).
+add_filter( 'ppclg_min_free_memory_ratio', static fn( float $min, int $available, int $total ): float => 0.05, 10, 3 );
 ```
 
-`$reason` is the built-in reason (`code`: `opcache_restart`, `backup` or `just_updated`; `message`, `text`, `until`, `source`) or null. Return the first argument unchanged to keep the plugin's own decision.
+`$reason` is the built-in reason (`code`: `opcache_restart`, `backup`, `just_updated`, `server_busy` or `low_memory`; `message`, `text`, `until`, `source`, and `measured` with the numbers behind a load or memory pause, else null) or null. Return the first argument unchanged to keep the plugin's own decision. A threshold that is not a number (or, for the memory share, outside 0–1) counts as the default.
 
 ## Outbound HTTP
 
