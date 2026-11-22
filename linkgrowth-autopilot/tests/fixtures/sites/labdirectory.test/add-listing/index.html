@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en-US">
+<head><meta charset="utf-8"><title>Add your laboratory business | LabDirectory</title><meta name="description" content="Submit a free listing for your laboratory or industrial supply business."></head>
+<body>
+<header><nav><a href="/">Home</a> <a href="/add-listing/">Add your business</a></nav></header>
+<main>
+<h1>Add your laboratory business</h1>
+<p>Complete the form to submit a free listing. Listings are reviewed by our editorial team within five business days.</p>
+<form id="listing-form" method="post" action="/add-listing/submit">
+<input type="hidden" name="form_token" value="tok-7f3a9c">
+<label for="business_name">Business name</label><input type="text" id="business_name" name="business_name" required maxlength="120">
+<label for="website">Website URL</label><input type="url" id="website" name="website" required>
+<label for="email">Contact email</label><input type="email" id="email" name="email" required>
+<label for="phone">Phone</label><input type="tel" id="phone" name="phone">
+<label for="category">Category</label>
+<select id="category" name="category" required>
+<option value="">Choose a category</option>
+<option value="12">Laboratory Equipment</option>
+<option value="18">Scientific Supplies &amp; Reagents</option>
+<option value="21">Biotechnology Services</option>
+<option value="30">Medical Devices</option>
+<option value="44">Industrial Supplies</option>
+</select>
+<label for="description">Business description (max 600 characters)</label><textarea id="description" name="description" required maxlength="600"></textarea>
+<label for="address">Street address</label><input type="text" id="address" name="address">
+<label for="city">City</label><input type="text" id="city" name="city" required>
+<label for="state">State</label>
+<select id="state" name="state" required><option value="">Select</option><option value="AK">Alaska</option><option value="AZ">Arizona</option><option value="CA">California</option><option value="CO">Colorado</option><option value="ID">Idaho</option><option value="MT">Montana</option><option value="NV">Nevada</option><option value="NM">New Mexico</option><option value="OR">Oregon</option><option value="UT">Utah</option><option value="WA">Washington</option><option value="WY">Wyoming</option></select>
+<label for="postal_code">ZIP code</label><input type="text" id="postal_code" name="postal_code">
+<label><input type="checkbox" name="accuracy" value="1" required> I confirm this information is accurate and I agree to the listing terms.</label>
+<label><input type="checkbox" name="newsletter" value="1"> Subscribe to the supplier newsletter</label>
+<button type="submit">Submit listing</button>
+</form>
+</main>
+<footer><p>LabDirectory · 120 Market St, Portland, OR 97204</p></footer>
+</body>
+</html>

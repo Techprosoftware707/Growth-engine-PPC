@@ -1,0 +1,203 @@
+<?php
+/**
+ * Unauthenticated endpoints: recipient unsubscribe (GET confirmation page, POST opt-out / RFC 8058 one-click)
+ * and the inbound email webhook.
+ *
+ * Every route is public by design; each one validates strictly and is rate limited per client address.
+ * A GET never changes state: mail-security gateways fetch every link in a message before the recipient
+ * reads it, so the opt-out only happens on POST (the page's button, or the List-Unsubscribe-Post one-click).
+ *
+ * @package LinkGrowth\Autopilot
+ */
+
+declare(strict_types=1);
+
+namespace LinkGrowth\Autopilot\Admin\Rest;
+
+use LinkGrowth\Autopilot\Outreach\InboundWebhook;
+use LinkGrowth\Autopilot\Outreach\Unsubscribe;
+use LinkGrowth\Autopilot\Repositories\OutreachMessages;
+use WP_REST_Request;
+
+final class PublicController extends Controller {
+
+    private const UNSUBSCRIBE_PER_MINUTE = 30;
+    private const INBOUND_PER_MINUTE     = 120;
+    private const INBOUND_MAX_BYTES      = 1048576;
+
+    public function register( string $namespace ): void {
+        $tokenArg = [
+            't' => [
+                'type'              => 'string',
+                'required'          => false,
+                'sanitize_callback' => static fn( $value ): string => is_scalar( $value ) ? substr( preg_replace( '/[^a-f0-9]/', '', strtolower( trim( (string) $value ) ) ) ?? '', 0, 32 ) : '',
+            ],
+        ];
+        $this->route( $namespace, '/unsubscribe', 'GET', [ $this, 'unsubscribePage' ], $tokenArg, true );
+        $this->route( $namespace, '/unsubscribe', 'POST', [ $this, 'unsubscribePost' ], $tokenArg, true );
+        $this->route( $namespace, '/inbound', 'POST', [ $this, 'inbound' ], [], true );
+
+        // The inbound webhook may carry its secret as an HTTP Basic auth password (https://lga:SECRET@site/...).
+        // WordPress would otherwise read those credentials as an Application Password login for a user named
+        // "lga" and reject the request (401) before it reaches this public route, so Application Password
+        // authentication is not attempted on it. No user is logged in either way; the secret is checked below.
+        $inboundRoute = '/' . trim( $namespace, '/' ) . '/inbound';
+        add_filter(
+            'application_password_is_api_request',
+            static function ( $isApiRequest ) use ( $inboundRoute ) {
+                $route = $GLOBALS['wp']->query_vars['rest_route'] ?? '';
+                return is_string( $route ) && 0 === strcasecmp( $inboundRoute, rtrim( $route, '/' ) ) ? false : $isApiRequest;
+            }
+        );
+    }
+
+    /**
+     * GET /unsubscribe?t= — checks the token and renders a page whose button POSTs the opt-out.
+     * Nothing is changed here, so a link scanner that opens the URL does not unsubscribe anyone.
+     */
+    public function unsubscribePage( WP_REST_Request $request ) {
+        $limited = $this->rateLimit( $request, self::UNSUBSCRIBE_PER_MINUTE, 'ip' );
+        if ( true !== $limited ) {
+            return $this->raw( $this->plainPage( 'Too many requests', 'Please wait a minute and open the link again.' ), 'text/html; charset=utf-8', 429, [ 'Retry-After' => '60' ] );
+        }
+        $headers = [ 'Cache-Control' => 'no-store, max-age=0', 'X-Robots-Tag' => 'noindex, nofollow', 'Referrer-Policy' => 'no-referrer' ];
+        $token   = $this->token( $request );
+        $message = '' !== $token ? $this->safe( fn(): ?array => $this->c->get( OutreachMessages::class )->findByToken( $token ), null, 'unsubscribe lookup' ) : null;
+        if ( null === $message ) {
+            $html = $this->c->get( Unsubscribe::class )->renderPage( [ 'ok' => false, 'email' => '' ] );
+            return $this->raw( $html, 'text/html; charset=utf-8', 404, $headers );
+        }
+        return $this->raw( $this->confirmPage( $token ), 'text/html; charset=utf-8', 200, $headers );
+    }
+
+    /** POST /unsubscribe — RFC 8058 one-click (form-encoded) or a confirmation form post. */
+    public function unsubscribePost( WP_REST_Request $request ) {
+        $limited = $this->rateLimit( $request, self::UNSUBSCRIBE_PER_MINUTE, 'ip' );
+        if ( true !== $limited ) {
+            return $limited;
+        }
+        $result = $this->process( $request );
+        $accept = strtolower( (string) $request->get_header( 'accept' ) );
+        if ( str_contains( $accept, 'text/html' ) ) {
+            $html = $this->c->get( Unsubscribe::class )->renderPage( $result );
+            return $this->raw( $html, 'text/html; charset=utf-8', 200, [ 'Cache-Control' => 'no-store, max-age=0', 'X-Robots-Tag' => 'noindex, nofollow' ] );
+        }
+        return $this->ok( [ 'ok' => (bool) $result['ok'] ], $result['ok'] ? 200 : 404 );
+    }
+
+    /**
+     * POST /inbound — reply / bounce webhook from the mail provider. The shared secret is read, in this order,
+     * from the X-LGA-Secret header, the body "secret" field, the "secret" query parameter
+     * (/inbound?secret=…) or the HTTP Basic auth password (https://lga:SECRET@site/…) for providers that can
+     * only be configured with a URL. Header and body are preferred: a query-string secret can end up in
+     * server access logs.
+     */
+    public function inbound( WP_REST_Request $request ) {
+        $limited = $this->rateLimit( $request, self::INBOUND_PER_MINUTE, 'ip' );
+        if ( true !== $limited ) {
+            return $limited;
+        }
+        if ( strlen( (string) $request->get_body() ) > self::INBOUND_MAX_BYTES ) {
+            return $this->fail( 'lga_payload_too_large', __( 'Payload too large.', 'linkgrowth-autopilot' ), 413 );
+        }
+        $secret = trim( (string) $request->get_header( 'x-lga-secret' ) );
+        $params = $request->get_json_params();
+        if ( ! is_array( $params ) ) {
+            $params = $request->get_body_params();
+        }
+        if ( ! is_array( $params ) ) {
+            $params = [];
+        }
+        if ( '' === $secret && isset( $params['secret'] ) && is_scalar( $params['secret'] ) ) {
+            $secret = trim( (string) $params['secret'] );
+        }
+        unset( $params['secret'] );
+        if ( '' === $secret ) {
+            $query = $request->get_query_params();
+            if ( is_array( $query ) && isset( $query['secret'] ) && is_scalar( $query['secret'] ) ) {
+                $secret = trim( (string) $query['secret'] );
+            }
+        }
+        if ( '' === $secret ) {
+            $secret = $this->basicAuthPassword( $request );
+        }
+        if ( '' === $secret ) {
+            return $this->fail( 'lga_inbound_unauthorized', __( 'Missing webhook secret.', 'linkgrowth-autopilot' ), 401 );
+        }
+
+        $result = $this->c->get( InboundWebhook::class )->handle( $params, $secret );
+        if ( empty( $result['ok'] ) ) {
+            $error  = (string) ( $result['error'] ?? 'Webhook processing failed.' );
+            $lower  = strtolower( $error );
+            $status = 500;
+            if ( str_contains( $lower, 'not configured' ) ) {
+                $status = 503;
+            } elseif ( str_contains( $lower, 'invalid' ) || str_contains( $lower, 'secret' ) ) {
+                $status = 403;
+            }
+            return $this->fail( 'lga_inbound_rejected', $error, $status );
+        }
+        return [ 'ok' => true, 'matched' => (int) ( $result['matched'] ?? 0 ) ];
+    }
+
+    // ------------------------------------------------------------------
+
+    /**
+     * Password of an HTTP Basic Authorization header ("Basic base64(user:password)"), or of PHP's own parse of
+     * it ($_SERVER['PHP_AUTH_PW']); '' when there is none. Only the password is used (the user name is ignored).
+     */
+    private function basicAuthPassword( WP_REST_Request $request ): string {
+        $header = trim( (string) $request->get_header( 'authorization' ) );
+        if ( 1 === preg_match( '/^Basic\s+([A-Za-z0-9+\/=]+)$/i', $header, $m ) ) {
+            $pair = base64_decode( $m[1], true );
+            if ( is_string( $pair ) && str_contains( $pair, ':' ) ) {
+                return trim( explode( ':', $pair, 2 )[1] );
+            }
+        }
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- compared with hash_equals() only, never stored or echoed
+        $pw = $_SERVER['PHP_AUTH_PW'] ?? '';
+        return is_string( $pw ) ? trim( $pw ) : '';
+    }
+
+    /** The request's unsubscribe token when it is well formed, else ''. */
+    private function token( WP_REST_Request $request ): string {
+        $token = $request->get_param( 't' );
+        $token = is_scalar( $token ) ? strtolower( trim( (string) $token ) ) : '';
+        return 1 === preg_match( '/^[a-f0-9]{32}$/D', $token ) ? $token : '';
+    }
+
+    /** @return array{ok:bool,email:string} */
+    private function process( WP_REST_Request $request ): array {
+        $token = $this->token( $request );
+        if ( '' === $token ) {
+            return [ 'ok' => false, 'email' => '' ];
+        }
+        try {
+            return $this->c->get( Unsubscribe::class )->process( $token );
+        } catch ( \Throwable $e ) {
+            $this->safe( fn() => $this->logger()->error( 'outreach', 'Unsubscribe processing failed: ' . $e->getMessage() ), null );
+            return [ 'ok' => false, 'email' => '' ];
+        }
+    }
+
+    /** Confirmation page: one button that POSTs the token back to this endpoint (no scripts, no tracking). */
+    private function confirmPage( string $token ): string {
+        $action = Unsubscribe::urlFor( $token );
+        $site   = function_exists( 'get_bloginfo' ) ? trim( (string) get_bloginfo( 'name' ) ) : '';
+        $text   = '' !== $site
+            ? 'Click the button below and ' . $site . ' will not email you again.'
+            : 'Click the button below and we will not email you again.';
+        return '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex, nofollow"><meta name="referrer" content="no-referrer"><title>Unsubscribe</title>'
+            . '<style>body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#f6f7f9;color:#1d2433}main{max-width:520px;margin:12vh auto;padding:32px;background:#fff;border:1px solid #e3e6eb;border-radius:12px}h1{font-size:1.4rem;margin:0 0 12px}p{line-height:1.5;margin:0 0 16px}button{font:inherit;font-weight:600;padding:10px 20px;border:0;border-radius:8px;background:#1d2433;color:#fff;cursor:pointer}</style></head>'
+            . '<body><main><h1>Unsubscribe</h1><p>' . esc_html( $text ) . '</p>'
+            . '<form method="post" action="' . esc_url( $action ) . '"><input type="hidden" name="t" value="' . esc_attr( $token ) . '"><button type="submit">Unsubscribe</button></form>'
+            . '</main></body></html>';
+    }
+
+    /** Minimal escaped HTML page used when the renderer cannot be reached (rate limits). */
+    private function plainPage( string $title, string $text ): string {
+        return '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex, nofollow"><title>' . esc_html( $title ) . '</title>'
+            . '<style>body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#f6f7f9;color:#1d2433}main{max-width:520px;margin:12vh auto;padding:32px;background:#fff;border:1px solid #e3e6eb;border-radius:12px}h1{font-size:1.4rem;margin:0 0 12px}p{line-height:1.5;margin:0}</style></head>'
+            . '<body><main><h1>' . esc_html( $title ) . '</h1><p>' . esc_html( $text ) . '</p></main></body></html>';
+    }
+}

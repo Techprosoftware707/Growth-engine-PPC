@@ -1,0 +1,83 @@
+<?php
+/**
+ * Shared plumbing for API providers.
+ *
+ * @package LinkGrowth\Autopilot
+ */
+
+declare(strict_types=1);
+
+namespace LinkGrowth\Autopilot\Integrations\Providers;
+
+use LinkGrowth\Autopilot\Support\Http\Client;
+use LinkGrowth\Autopilot\Support\Http\Response;
+use LinkGrowth\Autopilot\Support\Logger;
+use LinkGrowth\Autopilot\Support\Secrets;
+use LinkGrowth\Autopilot\Support\Settings;
+
+abstract class AbstractProvider {
+
+    protected string $lastError = '';
+
+    public function __construct(
+        protected Secrets $secrets,
+        protected Settings $settings,
+        protected Client $client,
+        protected Logger $logger
+    ) {}
+
+    public function lastError(): string {
+        return $this->lastError;
+    }
+
+    public function isEnabled(): bool {
+        return (bool) $this->settings->get( 'providers.' . $this->id() . '.enabled', false );
+    }
+
+    abstract public function id(): string;
+
+    protected function fail( string $message, array $context = [] ): void {
+        $this->lastError = $message;
+        if ( $this->client->lastWasDeadline() ) {
+            // The job's time ran out before (or while) asking: nothing is known about the provider, so no failure is
+            // recorded and no "provider failing" notice is shown; the lookup is asked again on a later run.
+            $this->logger->debug( 'provider:' . $this->id(), 'Not asked: the time budget of this run is used up.', $context );
+            return;
+        }
+        $this->logger->warning( 'provider:' . $this->id(), $message, $context );
+        update_option( 'lga_provider_error_' . $this->id(), [ 'message' => $message, 'at' => gmdate( 'c' ) ], false );
+    }
+
+    protected function succeed(): void {
+        $this->lastError = '';
+        delete_option( 'lga_provider_error_' . $this->id() );
+    }
+
+    protected function describe( Response $r ): string {
+        if ( $r->error ) {
+            return $r->error;
+        }
+        $body = trim( mb_substr( wp_strip_all_tags( $r->body ), 0, 200 ) );
+        return sprintf( 'HTTP %d %s', $r->status, $body );
+    }
+
+    protected static function num( mixed $v ): ?float {
+        if ( null === $v || '' === $v || ! is_numeric( $v ) ) {
+            return null;
+        }
+        return (float) $v;
+    }
+
+    /** First numeric value found for any of the candidate keys. */
+    protected static function pick( array $row, array $keys ): ?float {
+        foreach ( $keys as $k ) {
+            if ( array_key_exists( $k, $row ) ) {
+                $n = self::num( $row[ $k ] );
+                if ( null !== $n ) {
+                    return $n;
+                }
+            }
+        }
+        return null;
+    }
+}

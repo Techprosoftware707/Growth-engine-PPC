@@ -1,0 +1,75 @@
+# Pending neutrality hits (bin/neutrality.sh, DESIGN.md §1.7 B and C) left in the WP1 fork for the work package
+# that rewrites the file. Format: <pattern> <most matching lines allowed> <path> <work package that removes them>.
+# Rules: a listed file may not gain hits, a file that is not listed may have none, and tests may never have a B hit
+# (B entries are shipped files only). Each package lowers or removes its rows when it rewrites a file; the release
+# gate (WP31) runs bin/neutrality.sh --strict, which ignores this list, and the source ZIP check (--source) never
+# reads it.
+
+# Pattern B: none left (the content engine and outreach templates ship no store data since WP1 part 2).
+
+# Pattern C
+C 2 assets/js/compliance-banner.js WP7
+C 3 assets/js/pages/outreach.js WP8
+C 1 assets/js/pages/overview.js WP3
+C 1 assets/js/pages/prospects.js WP3
+C 7 assets/js/pages/settings.js WP4a
+C 5 assets/js/pages/submissions.js WP3
+C 1 data/universal/excluded-domains.json WP4a
+C 7 data/universal/keywords.json WP4a
+C 2 includes/Admin/Rest/SettingsController.php WP4a
+C 1 includes/Analysis/RelevanceScorer.php WP6
+C 1 includes/Analysis/RiskAnalyzer.php WP6
+C 1 includes/Analysis/SiteProfiler.php WP6
+C 3 includes/Analysis/Taxonomy.php WP6
+C 4 includes/Automation/Autopilot.php WP4b
+C 6 includes/Compliance/PositioningGate.php WP7
+C 4 includes/Content/ClaimsFilter.php WP7
+C 21 includes/Content/ContentGenerator.php WP7
+C 12 includes/Discovery/CatalogImporter.php WP9
+C 3 includes/Discovery/CompetitorBacklinkSource.php WP6
+C 1 includes/Discovery/ProspectIntake.php WP6
+C 1 includes/Discovery/QueryGenerator.php WP6
+C 1 includes/Growth/GrowthRun.php WP4b
+C 1 includes/Outreach/CampaignFiller.php WP8
+C 11 includes/Outreach/Compliance.php WP8
+C 1 includes/Outreach/Mailer.php WP8
+C 2 includes/Outreach/OutreachEngine.php WP8
+C 7 includes/Outreach/Personalizer.php WP8
+C 6 includes/Outreach/Templates.php WP8
+C 1 includes/Submission/PackageBuilder.php WP8
+C 1 includes/Submission/Policy.php WP8
+C 1 includes/Support/Settings.php WP4a
+C 1 includes/Support/Url.php WP6
+C 1 tests/Support/StubsSeo.php WP6
+C 1 tests/Unit/Admin/AdminRest2FixesTest.php WP4a
+C 1 tests/Unit/Admin/SubmitterUiHarness.mjs WP4a
+C 6 tests/Unit/Analysis/AnalysisScoringFixesTest.php WP6
+C 1 tests/Unit/Automation/BoundedBackgroundWorkTest.php WP4b
+C 2 tests/Unit/Compliance/ComplianceBannerTest.php WP7
+C 1 tests/Unit/Compliance/PositioningGateTest.php WP7
+C 5 tests/Unit/Compliance/StorefrontFixtures.php WP7
+C 1 tests/Unit/Compliance/StorefrontGateTest.php WP7
+C 6 tests/Unit/Content/ContentTest.php WP7
+C 16 tests/Unit/Content/DiscoveryContentFixesTest.php WP7
+C 1 tests/Unit/CrossSlice/OutreachFollowupsTest.php WP8
+C 1 tests/Unit/CrossSlice/SettingsAutomationFollowupsTest.php WP4a
+C 2 tests/Unit/CrossSlice/SubmissionProspectsFollowupsTest.php WP8
+C 4 tests/Unit/CrossSlice/SupportMonitoringFollowupsTest.php WP6
+C 5 tests/Unit/Discovery/DiscoveryContentFixesTest.php WP6
+C 2 tests/Unit/Discovery/DiscoveryTest.php WP6
+C 2 tests/Unit/Growth/AutopilotDiscoveryTest.php WP4b
+C 1 tests/Unit/Monitoring/IntegrationsMonitoringFixesTest.php WP6
+C 4 tests/Unit/Outreach/CampaignUiHarness.mjs WP8
+C 4 tests/Unit/Outreach/CampaignUiTest.php WP8
+C 1 tests/Unit/Outreach/FooterRefreshTest.php WP8
+C 4 tests/Unit/Outreach/OutreachFixesTest.php WP8
+C 5 tests/Unit/Seo/RenderCheckReviewFixesTest.php WP6
+C 1 tests/Unit/Seo/RenderCheckTest.php WP6
+C 2 tests/Unit/Seo/SeoReviewFixesTest.php WP6
+C 2 tests/Unit/Seo/SiteAuditorTest.php WP6
+C 2 tests/Unit/Support/DataSupportCoreFixesTest.php WP4a
+C 1 tests/Unit/Support/UrlTest.php WP6
+C 1 tests/Unit/Verified/CatalogImporterTest.php WP9
+C 2 tests/Unit/Verified/OwnerTaskBrowserHarness.mjs WP9
+C 2 tests/Unit/Verified/OwnerTaskUiHarness.mjs WP9
+C 1 tests/Unit/Verified/OwnerTaskUiTest.php WP9

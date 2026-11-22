@@ -1,0 +1,163 @@
+<?php
+/**
+ * Admin\Rest\GrowthController: admin-only routes, honest ok/message on every write, step budget clamping.
+ */
+
+declare(strict_types=1);
+
+namespace LinkGrowth\Autopilot\Tests\Unit\Growth;
+
+use LinkGrowth\Autopilot\Admin\Rest\GrowthController;
+use LinkGrowth\Autopilot\Compliance\PositioningGate;
+use LinkGrowth\Autopilot\Growth\GrowthRun;
+use LinkGrowth\Autopilot\Support\Settings;
+use LinkGrowth\Autopilot\Tests\Support\Container;
+use LinkGrowth\Autopilot\Tests\Support\TestCase;
+use WP_Error;
+use WP_REST_Request;
+use WP_REST_Response;
+
+require_once __DIR__ . '/GrowthFakes.php';
+
+final class GrowthControllerTest extends TestCase {
+
+    protected function setUp(): void {
+        parent::setUp();
+        GrowthFakeJob::reset();
+        $GLOBALS['lga_test_filters']['lga_job_types'] = [ static fn() => GrowthFakeJob::registry() ];
+        Container::plugin()->container()->set( PositioningGate::class, new FakeStorefront() );
+        $GLOBALS['lga_test_user_id'] = 1;
+        $GLOBALS['lga_test_caps']    = [ 'manage_options' => true ];
+        $GLOBALS['lga_test_routes']  = [];
+    }
+
+    protected function tearDown(): void {
+        $GLOBALS['lga_test_user_id'] = 0;
+        $GLOBALS['lga_test_caps']    = [];
+        parent::tearDown();
+    }
+
+    private function controller(): GrowthController {
+        return new GrowthController( Container::plugin()->container() );
+    }
+
+    /** Dispatches through the registered route (permission callback + wrapper), like WordPress does. */
+    private function dispatch( string $method, string $route ): mixed {
+        $handler = $GLOBALS['lga_test_routes'][ 'lga/v1' . $route ][0][0] ?? null;
+        $this->assertIsArray( $handler, 'route registered: ' . $route );
+        $this->assertStringContainsString( $method, (string) $handler['methods'] );
+        $request = new WP_REST_Request( $method, '/lga/v1' . $route );
+        $allowed = ( $handler['permission_callback'] )( $request );
+        if ( true !== $allowed ) {
+            return $allowed;
+        }
+        $response = ( $handler['callback'] )( $request );
+        return $response instanceof WP_REST_Response ? $response->get_data() : $response;
+    }
+
+    public function testRoutesAreAdminOnly(): void {
+        $this->controller()->register( 'lga/v1' );
+        foreach ( [ '/growth/start', '/growth/step', '/growth/status', '/growth/cancel' ] as $route ) {
+            $handler = $GLOBALS['lga_test_routes'][ 'lga/v1' . $route ][0][0] ?? null;
+            $this->assertIsArray( $handler, $route );
+            $this->assertNotSame( '__return_true', $handler['permission_callback'], $route . ' is not public' );
+        }
+        $GLOBALS['lga_test_caps'] = [];
+        $denied = $this->dispatch( 'POST', '/growth/start' );
+        $this->assertInstanceOf( WP_Error::class, $denied );
+        $this->assertSame( 'lga_forbidden', $denied->get_error_code() );
+        $this->assertFalse( Container::get( GrowthRun::class )->isActive(), 'nothing started without the capability' );
+    }
+
+    public function testStartStepStatusAndCancelReportHonestly(): void {
+        $this->controller()->register( 'lga/v1' );
+
+        $idle = $this->dispatch( 'GET', '/growth/status' );
+        $this->assertSame( 'idle', $idle['status'] );
+        $this->assertSame( 20, $idle['step_seconds'] );
+
+        $step = $this->dispatch( 'POST', '/growth/step' );
+        $this->assertFalse( $step['ok'], 'stepping without a run is refused' );
+        $this->assertSame( 'No growth run has been started yet.', $step['message'] );
+
+        $cancel = $this->dispatch( 'POST', '/growth/cancel' );
+        $this->assertFalse( $cancel['ok'] );
+        $this->assertSame( 'No growth run is in progress.', $cancel['message'] );
+
+        $start = $this->dispatch( 'POST', '/growth/start' );
+        $this->assertTrue( $start['ok'] );
+        $this->assertSame( 'Growth run started.', $start['message'] );
+        $this->assertFalse( $start['already_running'] );
+        $this->assertSame( 1, $start['started_by'] );
+
+        $again = $this->dispatch( 'POST', '/growth/start' );
+        $this->assertTrue( $again['ok'] );
+        $this->assertTrue( $again['already_running'] );
+        $this->assertSame( $start['id'], $again['id'] );
+
+        $stopped = $this->dispatch( 'POST', '/growth/cancel' );
+        $this->assertTrue( $stopped['ok'] );
+        $this->assertSame( 'cancelled', $stopped['status'] );
+        $this->assertStringContainsString( 'Work already done is kept', $stopped['message'] );
+
+        $after = $this->dispatch( 'POST', '/growth/step' );
+        $this->assertFalse( $after['ok'] );
+        $this->assertSame( 'This growth run is no longer running.', $after['message'] );
+    }
+
+    public function testStepRunsTheRunToCompletion(): void {
+        $this->controller()->register( 'lga/v1' );
+        $this->dispatch( 'POST', '/growth/start' );
+        $state = [];
+        for ( $n = 0; $n < 10; $n++ ) {
+            $state = $this->dispatch( 'POST', '/growth/step' );
+            $this->assertTrue( $state['ok'] );
+            if ( 'running' !== $state['status'] ) {
+                break;
+            }
+        }
+        $this->assertSame( 'completed', $state['status'] );
+        $this->assertSame( $state['progress']['total'], $state['progress']['done'] );
+        $this->assertIsArray( $state['next_actions'] );
+        $this->assertIsArray( $state['summary'] );
+    }
+
+    /** 1.2.4 performance: on a 1-2 CPU server every step that ran asks the panel to rest as long as the step took. */
+    public function testASmallServerGetsARestAfterEveryStep(): void {
+        $pace = new \ReflectionMethod( GrowthController::class, 'pace' );
+        $seen = [];
+        $GLOBALS['lga_test_filters']['lga_growth_pace'] = [ static function ( $share, $cpus, $elapsed ) use ( &$seen ) {
+            $seen[] = [ $share, $cpus ];
+            return $share;
+        } ];
+        // The test server's CPU count is unknown: counted as 1, like the live store.
+        $this->assertSame( 12500, $pace->invoke( $this->controller(), 12.5 ), 'a 12.5 s step: 12.5 s of rest' );
+        $this->assertSame( GrowthController::MAX_PACE_MS, $pace->invoke( $this->controller(), 41.0 ), 'at most 30 s' );
+        $this->assertSame( [ 1.0, 1 ], $seen[0] );
+
+        // Four CPUs: no rest by default.
+        $four = new \LinkGrowth\Autopilot\Support\ServerResources( static fn( string $path ) => str_contains( $path, 'cpu/online' ) ? '0-3' : null, static fn() => [ 0.1, 0.1, 0.1 ], 'Linux' );
+        Container::plugin()->container()->set( \LinkGrowth\Autopilot\Support\ServerResources::class, $four );
+        delete_option( \LinkGrowth\Autopilot\Support\ServerResources::OPTION_CPUS ); // the stored count from the first server
+        $this->assertSame( 0, $pace->invoke( $this->controller(), 12.5 ) );
+        $this->assertSame( [ 0.0, 4 ], $seen[2] );
+
+        // A finished run asks for no rest; the step answer carries pace_ms only while the run goes on.
+        $GLOBALS['lga_test_filters']['lga_growth_pace'] = [ static fn() => 1.0 ];
+        $this->controller()->register( 'lga/v1' );
+        $this->dispatch( 'POST', '/growth/start' );
+        $state = $this->dispatch( 'POST', '/growth/step' );
+        $this->assertSame( 'running' === $state['status'], isset( $state['pace_ms'] ) );
+    }
+
+    public function testStepSecondsAreClamped(): void {
+        $this->controller()->register( 'lga/v1' );
+        $settings = Container::get( Settings::class );
+        $settings->set( 'growth.step_seconds', 300 );
+        $this->assertSame( GrowthController::MAX_STEP_SECONDS, $this->dispatch( 'GET', '/growth/status' )['step_seconds'] );
+        $settings->set( 'growth.step_seconds', 2 );
+        $this->assertSame( GrowthController::MIN_STEP_SECONDS, $this->dispatch( 'GET', '/growth/status' )['step_seconds'] );
+        $settings->set( 'growth.step_seconds', 0 );
+        $this->assertSame( GrowthController::DEFAULT_STEP_SECONDS, $this->dispatch( 'GET', '/growth/status' )['step_seconds'] );
+    }
+}

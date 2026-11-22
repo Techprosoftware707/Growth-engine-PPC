@@ -1,0 +1,5 @@
+/dist/
+/.phpunit.cache/
+/bin/phpunit.phar
+/vendor/
+/node_modules/

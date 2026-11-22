@@ -1,0 +1,145 @@
+<?php
+/**
+ * Static/runtime wiring audit (no WordPress needed):
+ *  1. Every service registered in Plugin.php can be constructed (constructor signatures match).
+ *  2. Every REST route the plugin registers vs. every path the admin JS calls.
+ *  3. Every job type registered with the runner resolves to a class implementing JobInterface.
+ *
+ * Usage: php tests/integration/wiring-audit.php   (exit code 1 on problems)
+ */
+
+declare(strict_types=1);
+
+require __DIR__ . '/../bootstrap.php';
+
+$problems = [];
+$GLOBALS['wpdb'] = new \LinkGrowth\Autopilot\Tests\Support\FakeWpdb();
+foreach ( ( new \LinkGrowth\Autopilot\Database\Schema() )->statements() as $sql ) {
+    $GLOBALS['wpdb']->createFromMysql( $sql );
+}
+
+// 1. Services.
+$plugin    = \LinkGrowth\Autopilot\Plugin::instance();
+$container = $plugin->container();
+$ref       = new ReflectionClass( $container );
+$prop      = $ref->getProperty( 'factories' );
+$ids = array_keys( $prop->getValue( $container ) );
+$ok  = 0;
+foreach ( $ids as $id ) {
+    try {
+        $plugin->get( $id );
+        $ok++;
+    } catch ( \Throwable $e ) {
+        $problems[] = "service {$id}: " . get_class( $e ) . ': ' . $e->getMessage();
+    }
+}
+echo "Services constructed: {$ok}/" . count( $ids ) . "\n";
+
+// 2. REST routes vs JS.
+$GLOBALS['lga_test_routes'] = [];
+$GLOBALS['lga_test_caps']   = [ 'lga_manage' => true, 'manage_options' => true ];
+try {
+    $plugin->get( \LinkGrowth\Autopilot\Admin\Rest\RestApi::class )->register();
+} catch ( \Throwable $e ) {
+    $problems[] = 'RestApi::register threw: ' . $e->getMessage();
+}
+$routes = [];
+foreach ( $GLOBALS['lga_test_routes'] as $full => $registrations ) {
+    $route   = preg_replace( '#^lga/v1#', '', $full );
+    $methods = [];
+    $defs    = [];
+    foreach ( $registrations as $args ) {
+        foreach ( isset( $args['callback'] ) ? [ $args ] : $args as $d ) {
+            $defs[] = $d;
+        }
+    }
+    foreach ( $defs as $def ) {
+        if ( is_array( $def ) && isset( $def['methods'] ) ) {
+            foreach ( preg_split( '/[,\s]+/', strtoupper( (string) $def['methods'] ) ) as $m ) {
+                if ( '' !== $m ) {
+                    $methods[] = 'PUT' === $m || 'PATCH' === $m ? 'POST' : $m;
+                }
+            }
+            if ( empty( $def['permission_callback'] ) ) {
+                $problems[] = "route {$route} has no permission_callback";
+            }
+        }
+    }
+    $routes[ $route ] = array_unique( $methods );
+}
+echo 'REST routes registered: ' . count( $routes ) . "\n";
+
+$jsDir = LGA_DIR . 'assets/js';
+$calls = [];
+foreach ( new RecursiveIteratorIterator( new RecursiveDirectoryIterator( $jsDir ) ) as $file ) {
+    if ( ! str_ends_with( (string) $file, '.js' ) ) {
+        continue;
+    }
+    $src = (string) file_get_contents( (string) $file );
+    if ( preg_match_all( '/\b(?:api\.)?(get|post|del|put)\s*\(\s*[`\'"](\/[^`\'"]*)[`\'"]/', $src, $m, PREG_SET_ORDER ) ) {
+        foreach ( $m as $hit ) {
+            $calls[] = [ 'file' => basename( (string) $file ), 'method' => strtoupper( 'del' === $hit[1] ? 'DELETE' : ( 'put' === $hit[1] ? 'POST' : $hit[1] ) ), 'path' => $hit[2] ];
+        }
+    }
+}
+echo 'JS API calls found: ' . count( $calls ) . "\n";
+$matchRoute = static function ( string $path, string $method ) use ( $routes ): bool {
+    $path     = preg_replace( '/\?.*$/', '', $path ) ?? $path;
+    $concrete = preg_replace( '/\$\{[^}]+\}/', '123', $path ) ?? $path;
+    $jsRegex  = '#^' . preg_replace( '/\\\$\\\{[^}]+\\\}/', '[^/]+', preg_quote( $path, '#' ) ) . '/?$#';
+    foreach ( $routes as $route => $methods ) {
+        $allowed = empty( $methods ) || in_array( $method, $methods, true );
+        // (a) concrete JS path against the route's own regex.
+        if ( @preg_match( '#^' . $route . '/?$#', $concrete ) ) {
+            return $allowed;
+        }
+        // (b) JS wildcard pattern against a sample built from the route (first alternation, 123 for digits).
+        $sample = preg_replace_callback(
+            '/\(\?P<\w+>([^)]*)\)/',
+            static function ( array $m ): string {
+                $inner = $m[1];
+                if ( str_contains( $inner, '|' ) ) {
+                    return (string) explode( '|', trim( $inner, '()' ) )[0];
+                }
+                return str_contains( $inner, 'd' ) ? '123' : 'sample';
+            },
+            $route
+        ) ?? $route;
+        $sample = preg_replace( '/\[[^\]]+\][+*]?/', 'x', $sample ) ?? $sample;
+        if ( preg_match( $jsRegex, $sample ) ) {
+            return $allowed;
+        }
+    }
+    return false;
+};
+foreach ( $calls as $c ) {
+    if ( ! $matchRoute( $c['path'], $c['method'] ) ) {
+        $problems[] = "JS {$c['file']} calls {$c['method']} {$c['path']} but no matching REST route/method";
+    }
+}
+
+// 3. Job types.
+try {
+    $runner = $plugin->get( \LinkGrowth\Autopilot\Automation\JobRunner::class );
+    $types  = $runner->types();
+    foreach ( $types as $type => $class ) {
+        if ( ! class_exists( $class ) ) {
+            $problems[] = "job type {$type}: class {$class} missing";
+        } elseif ( ! in_array( \LinkGrowth\Autopilot\Automation\Jobs\JobInterface::class, class_implements( $class ) ?: [], true ) ) {
+            $problems[] = "job type {$type}: {$class} does not implement JobInterface";
+        }
+    }
+    echo 'Job types: ' . count( $types ) . "\n";
+} catch ( \Throwable $e ) {
+    $problems[] = 'JobRunner::types threw: ' . $e->getMessage();
+}
+
+if ( empty( $problems ) ) {
+    echo "Wiring audit OK\n";
+    exit( 0 );
+}
+echo "Problems:\n";
+foreach ( $problems as $p ) {
+    echo " - {$p}\n";
+}
+exit( 1 );

@@ -1,0 +1,276 @@
+<?php
+/**
+ * /seo — on-site audit, IndexNow and internal-link suggestions.
+ *
+ * Link suggestions change published content through POST /seo/links/apply, which requires confirm=true and is sent
+ * by the admin's explicit "Apply" / "Apply all" click on the On-site SEO page, or automatically by the
+ * internal_links job when seo.auto_apply_links or Autopilot is on (only on items whose public page shows the words,
+ * see Seo\RenderCheck). POST /seo/links/undo-auto (confirm=true) removes every automatic link still present.
+ * GET /seo/links returns one page of suggestions (per_page / page) with the totals.
+ *
+ * @package LinkGrowth\Autopilot
+ */
+
+declare(strict_types=1);
+
+namespace LinkGrowth\Autopilot\Admin\Rest;
+
+use LinkGrowth\Autopilot\Seo\IndexNow;
+use LinkGrowth\Autopilot\Seo\InternalLinker;
+use LinkGrowth\Autopilot\Seo\SiteAuditor;
+use LinkGrowth\Autopilot\Support\TimeBudget;
+use WP_REST_Request;
+
+final class SeoController extends Controller {
+
+    /** Seconds one admin request may work (the page repeats the call while more work remains). */
+    private const RUN_SECONDS = 20.0;
+
+    /** Suggestions applied per request at most. */
+    private const APPLY_MAX = 100;
+
+    /** GET /seo/links status filters. */
+    private const LINK_STATUSES = [ 'pending', 'refused', 'not_shown', 'applied', 'dismissed', 'stale', 'all' ];
+
+    /** GET /seo/links page size when per_page is not given, and the largest allowed. */
+    private const DEFAULT_PER_PAGE = 100;
+    private const MAX_PER_PAGE     = 500;
+
+    public function register( string $namespace ): void {
+        $this->route( $namespace, '/seo/audit', 'GET', [ $this, 'auditStatus' ] );
+        $this->route( $namespace, '/seo/audit/run', 'POST', [ $this, 'auditRun' ] );
+        $this->route( $namespace, '/seo/indexnow', 'GET', [ $this, 'indexnow' ] );
+        $this->route( $namespace, '/seo/indexnow/run', 'POST', [ $this, 'indexnowRun' ] );
+        $this->route( $namespace, '/seo/links', 'GET', [ $this, 'links' ] );
+        $this->route( $namespace, '/seo/links/run', 'POST', [ $this, 'linksRun' ] );
+        $this->route( $namespace, '/seo/links/apply', 'POST', [ $this, 'linksApply' ] );
+        $this->route( $namespace, '/seo/links/dismiss', 'POST', [ $this, 'linksDismiss' ] );
+        $this->route( $namespace, '/seo/links/undo-auto', 'POST', [ $this, 'linksUndoAuto' ] );
+    }
+
+    // ------------------------------------------------------------------
+    // Audit
+    // ------------------------------------------------------------------
+
+    /** GET /seo/audit @return array<string,mixed> */
+    public function auditStatus( WP_REST_Request $request ): array {
+        unset( $request );
+        $auditor = $this->auditor();
+        if ( null === $auditor ) {
+            return [ 'available' => false, 'message' => 'The site audit is not available.' ];
+        }
+        $result = $auditor->result();
+        return [
+            'available' => true,
+            'summary'   => $auditor->summary(),
+            'progress'  => $auditor->progress(),
+            'result'    => [] === $result ? null : [
+                'checked_at'      => $result['checked_at'] ?? null,
+                'pages'           => (int) ( $result['pages'] ?? 0 ),
+                'by_type'         => is_array( $result['by_type'] ?? null ) ? $result['by_type'] : [],
+                'capped'          => ! empty( $result['capped'] ),
+                'max_pages'       => (int) ( $result['max_pages'] ?? 0 ),
+                'orphans_checked' => ! empty( $result['orphans_checked'] ),
+                'counts'          => is_array( $result['counts'] ?? null ) ? $result['counts'] : [],
+                'issues_total'    => (int) ( $result['issues_total'] ?? 0 ),
+                'stats'           => is_array( $result['stats'] ?? null ) ? $result['stats'] : [],
+                'sample'          => is_array( $result['sample'] ?? null ) ? $result['sample'] : [],
+            ],
+            'issues'    => array_values( is_array( $result['issues'] ?? null ) ? $result['issues'] : [] ),
+        ];
+    }
+
+    /** POST /seo/audit/run {restart?: bool} @return array<string,mixed> */
+    public function auditRun( WP_REST_Request $request ): array {
+        $auditor = $this->auditor();
+        if ( null === $auditor ) {
+            return [ 'ok' => false, 'message' => 'The site audit is not available.' ];
+        }
+        $restart = $this->bool( $request, 'restart', false );
+        $res     = $auditor->run( TimeBudget::seconds( self::RUN_SECONDS ), [ 'restart' => $restart ] );
+        if ( ! empty( $res['done'] ) || $restart ) {
+            $this->audit( 'seo.audit_run', 'seo', 0, [ 'checked' => $res['checked'], 'issues' => $res['issues'], 'done' => ! empty( $res['done'] ), 'restart' => $restart ] );
+        }
+        return array_merge( $res, [ 'message' => (string) $res['summary'], 'summary_data' => $auditor->summary() ] );
+    }
+
+    // ------------------------------------------------------------------
+    // IndexNow
+    // ------------------------------------------------------------------
+
+    /** GET /seo/indexnow @return array<string,mixed> */
+    public function indexnow( WP_REST_Request $request ): array {
+        unset( $request );
+        $indexnow = $this->indexNowService();
+        if ( null === $indexnow ) {
+            return [ 'available' => false, 'message' => 'IndexNow is not available.' ];
+        }
+        if ( $indexnow->enabled() ) {
+            // The admin opened the On-site SEO page: create the key now (once) so its file can be checked before the
+            // first submission. IndexNow::status() itself never writes settings.
+            $this->safe( static fn(): string => $indexnow->key( true ), '', 'IndexNow key' );
+        }
+        return [
+            'available' => true,
+            'status'    => $indexnow->status(),
+            'history'   => $indexnow->history(),
+            'endpoint'  => IndexNow::ENDPOINT,
+        ];
+    }
+
+    /** POST /seo/indexnow/run ("Submit now") @return array<string,mixed> */
+    public function indexnowRun( WP_REST_Request $request ): array {
+        $indexnow = $this->indexNowService();
+        if ( null === $indexnow ) {
+            return [ 'ok' => false, 'message' => 'IndexNow is not available.' ];
+        }
+        // An explicit click compares every public URL now and may retry before the hourly back-off ends, except
+        // after an HTTP 429 (IndexNow::run() then refuses until the requested wait is over).
+        $res = $indexnow->run( TimeBudget::seconds( self::RUN_SECONDS ), [ 'full' => true, 'force' => true ] );
+        if ( empty( $res['skipped'] ) ) {
+            $this->audit( 'seo.indexnow_run', 'seo', 0, [ 'submitted' => $res['submitted'], 'status' => $res['status'], 'ok' => (bool) $res['ok'] ] );
+        }
+        return array_merge( $res, [ 'message' => (string) $res['summary'], 'status_data' => $indexnow->status() ] );
+    }
+
+    // ------------------------------------------------------------------
+    // Internal links
+    // ------------------------------------------------------------------
+
+    /**
+     * GET /seo/links?status=pending|refused|not_shown|applied|dismissed|stale|all&per_page=1..500&page=N
+     *
+     * `refused`: pending suggestions automation left for a person (auto_skip says why); `not_shown`: set aside because
+     * the item's page does not show its content or those words (note says why). One page of items (per_page, default
+     * DEFAULT_PER_PAGE) with total / pages / page / per_page.
+     *
+     * @return array<string,mixed>
+     */
+    public function links( WP_REST_Request $request ): array {
+        $linker = $this->linker();
+        if ( null === $linker ) {
+            return [ 'available' => false, 'message' => 'Internal-link suggestions are not available.', 'items' => [] ];
+        }
+        $status = sanitize_key( $this->str( $request, 'status', InternalLinker::STATUS_PENDING, 20 ) );
+        if ( ! in_array( $status, self::LINK_STATUSES, true ) ) {
+            $status = InternalLinker::STATUS_PENDING;
+        }
+        $perPage = (int) ( $request->get_param( 'per_page' ) ?? self::DEFAULT_PER_PAGE );
+        $perPage = max( 1, min( self::MAX_PER_PAGE, $perPage > 0 ? $perPage : self::DEFAULT_PER_PAGE ) );
+        $page    = max( 1, (int) ( $request->get_param( 'page' ) ?? 1 ) );
+        $result  = $linker->query( 'all' === $status ? '' : $status, $page, $perPage );
+        $pages   = max( 1, (int) ceil( $result['total'] / $perPage ) );
+        $items   = $result['items'];
+        foreach ( $items as &$item ) {
+            $item = self::castInts( $item, [ 'id', 'source_post_id', 'target_id', 'applied_by', 'dismissed_by', 'revision_id', 'restore_revision_id', 'saved_as' ] );
+            unset( $item['context_hash'], $item['before_hash'], $item['after_hash'], $item['link_open'], $item['link_start'], $item['link_text'] );
+            $item['auto']        = ! empty( $item['auto'] );
+            $item['auto_skip']   = (string) ( $item['auto_skip'] ?? '' );
+            $item['note']        = (string) ( $item['note'] ?? '' );
+            $item['render_note'] = (string) ( $item['render_note'] ?? '' );
+            $item['edit_url']    = $this->editLink( (int) $item['source_post_id'] );
+        }
+        unset( $item );
+        return [
+            'available'          => true,
+            'enabled'            => $linker->enabled(),
+            'max_links_per_post' => $linker->maxPerSource(),
+            'generated_at'       => $linker->generatedAt(),
+            'progress'           => $linker->progress(),
+            'counts'             => $linker->counts(),
+            'auto'               => $linker->autoInfo(),
+            'status'             => $status,
+            'total'              => $result['total'],
+            'pages'              => $pages,
+            'page'               => $page,
+            'per_page'           => $perPage,
+            'items'              => $items,
+        ];
+    }
+
+    /** POST /seo/links/run {restart?: bool} — refreshes suggestions (never edits content). @return array<string,mixed> */
+    public function linksRun( WP_REST_Request $request ): array {
+        $linker = $this->linker();
+        if ( null === $linker ) {
+            return [ 'ok' => false, 'message' => 'Internal-link suggestions are not available.' ];
+        }
+        $res = $linker->run( TimeBudget::seconds( self::RUN_SECONDS ), [ 'restart' => $this->bool( $request, 'restart', false ), 'manual' => true ] );
+        return array_merge( $res, [ 'message' => (string) $res['summary'] ] );
+    }
+
+    /** POST /seo/links/apply {ids: int[], confirm: true} @return array<string,mixed>|\WP_Error */
+    public function linksApply( WP_REST_Request $request ) {
+        $linker = $this->linker();
+        if ( null === $linker ) {
+            return [ 'ok' => false, 'message' => 'Internal-link suggestions are not available.' ];
+        }
+        $ids = $this->intList( $request, 'ids', self::APPLY_MAX );
+        if ( [] === $ids ) {
+            return $this->fail( 'lga_no_ids', __( 'Select at least one suggestion to apply.', 'linkgrowth-autopilot' ), 400 );
+        }
+        if ( true !== $this->bool( $request, 'confirm', false ) ) {
+            return $this->fail(
+                'lga_confirmation_required',
+                __( 'Applying a suggestion edits published content (WordPress keeps a revision). Confirm to continue.', 'linkgrowth-autopilot' ),
+                400,
+                [ 'confirm_required' => true ]
+            );
+        }
+        $res = $linker->apply( $ids, $this->userId(), TimeBudget::seconds( self::RUN_SECONDS + 5 ) );
+        $this->audit( 'seo.internal_links_apply', 'seo', 0, [ 'requested' => count( $ids ), 'applied' => $res['applied'], 'refused' => $res['refused'] ] );
+        return array_merge( $res, [ 'counts' => $linker->counts() ] );
+    }
+
+    /** POST /seo/links/undo-auto {confirm: true} — removes every automatic link still present. @return array<string,mixed>|\WP_Error */
+    public function linksUndoAuto( WP_REST_Request $request ) {
+        $linker = $this->linker();
+        if ( null === $linker ) {
+            return [ 'ok' => false, 'message' => 'Internal-link suggestions are not available.' ];
+        }
+        if ( true !== $this->bool( $request, 'confirm', false ) ) {
+            return $this->fail(
+                'lga_confirmation_required',
+                __( 'Undoing the automatic links edits published content (WordPress keeps a revision). Confirm to continue.', 'linkgrowth-autopilot' ),
+                400,
+                [ 'confirm_required' => true ]
+            );
+        }
+        $res = $linker->undoAuto( $this->userId(), TimeBudget::seconds( self::RUN_SECONDS + 5 ) );
+        unset( $res['results'] );
+        return array_merge( $res, [ 'counts' => $linker->counts(), 'auto' => $linker->autoInfo() ] );
+    }
+
+    /** POST /seo/links/dismiss {ids: int[]} @return array<string,mixed>|\WP_Error */
+    public function linksDismiss( WP_REST_Request $request ) {
+        $linker = $this->linker();
+        if ( null === $linker ) {
+            return [ 'ok' => false, 'message' => 'Internal-link suggestions are not available.' ];
+        }
+        $ids = $this->intList( $request, 'ids', 500 );
+        if ( [] === $ids ) {
+            return $this->fail( 'lga_no_ids', __( 'Select at least one suggestion to dismiss.', 'linkgrowth-autopilot' ), 400 );
+        }
+        return array_merge( $linker->dismiss( $ids, $this->userId() ), [ 'counts' => $linker->counts() ] );
+    }
+
+    // ------------------------------------------------------------------
+    // Services (degrade to "not available" when unregistered)
+    // ------------------------------------------------------------------
+
+    private function auditor(): ?SiteAuditor {
+        return $this->safe( fn(): ?SiteAuditor => class_exists( SiteAuditor::class ) ? $this->c->get( SiteAuditor::class ) : null, null, 'site auditor' );
+    }
+
+    private function indexNowService(): ?IndexNow {
+        return $this->safe( fn(): ?IndexNow => class_exists( IndexNow::class ) ? $this->c->get( IndexNow::class ) : null, null, 'IndexNow' );
+    }
+
+    private function linker(): ?InternalLinker {
+        return $this->safe( fn(): ?InternalLinker => class_exists( InternalLinker::class ) ? $this->c->get( InternalLinker::class ) : null, null, 'internal linker' );
+    }
+
+    private function editLink( int $postId ): string {
+        $link = function_exists( 'get_edit_post_link' ) ? get_edit_post_link( $postId, 'raw' ) : '';
+        return is_string( $link ) && '' !== $link ? $link : admin_url( sprintf( 'post.php?post=%d&action=edit', $postId ) );
+    }
+}
