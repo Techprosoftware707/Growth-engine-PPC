@@ -17,6 +17,7 @@ use PPC\LinkGrowth\Analysis\RiskAnalyzer;
 use PPC\LinkGrowth\Analysis\SiteProfile;
 use PPC\LinkGrowth\Analysis\SiteProfiler;
 use PPC\LinkGrowth\Analysis\SubmissionPageFinder;
+use PPC\LinkGrowth\Automation\JobRunner;
 use PPC\LinkGrowth\Container;
 use PPC\LinkGrowth\Discovery\Classifier;
 use PPC\LinkGrowth\Integrations\MetricsAggregator;
@@ -25,6 +26,8 @@ use PPC\LinkGrowth\Repositories\Contacts;
 use PPC\LinkGrowth\Repositories\Opportunities;
 use PPC\LinkGrowth\Repositories\Prospects;
 use PPC\LinkGrowth\Scoring\ScoringEngine;
+use PPC\LinkGrowth\Support\Http\Client;
+use PPC\LinkGrowth\Support\Settings;
 use PPC\LinkGrowth\Support\TimeBudget;
 use Throwable;
 
@@ -145,7 +148,13 @@ final class EvaluateJob extends AbstractJob {
             $id = (int) $prospect['id'];
             $this->markInflight( $id );
             try {
-                $item = $this->evaluateOne( $prospect, $c, $budget );
+                // "Evaluate now" (the owner's click on one prospect) gives its verdict in that request: when the time runs
+                // out after the homepage, the site is judged on the pages fetched, as on the last run of a deferred one.
+                $item = $this->evaluateOne( $prospect, $c, $budget, $single > 0 && $this->isManual( $payload ) );
+                if ( 'deferred' === ( $item['outcome'] ?? '' ) ) {
+                    $stats['deferred']++; // nothing stored or spent; the prospect stays due
+                    continue;
+                }
                 $stats['evaluated']++;
                 $stats[ $item['outcome'] ] = (int) ( $stats[ $item['outcome'] ] ?? 0 ) + 1;
                 $stats['items'][]          = $item;
@@ -166,6 +175,15 @@ final class EvaluateJob extends AbstractJob {
             $stats['continued'] = null !== $this->continueLater( $c, $payload, 30 );
         }
         return $this->result( $stats );
+    }
+
+    /**
+     * Seconds a run must have left to give a homepage its whole timeout: the request timeout, but never more than a
+     * tick's first job has (the tick ceiling less the runner's 2 s reserve, the client's 1 s margin and 1 s for the
+     * work before the request), so that such a run always comes.
+     */
+    private static function homeSeconds( Settings $settings ): float {
+        return min( (float) max( 3, (int) $settings->get( 'advanced.request_timeout', 15 ) ), JobRunner::effectiveMaxSeconds( $settings ) - 4.0 );
     }
 
     /**
@@ -284,9 +302,9 @@ final class EvaluateJob extends AbstractJob {
 
     /**
      * @param array<string,mixed> $prospect
-     * @return array<string,mixed> item summary with key "outcome" (qualified|rejected|unreachable|kept)
+     * @return array<string,mixed> item summary with key "outcome" (qualified|rejected|unreachable|kept|deferred)
      */
-    private function evaluateOne( array $prospect, Container $c, TimeBudget $budget ): array {
+    private function evaluateOne( array $prospect, Container $c, TimeBudget $budget, bool $judgeNow = false ): array {
         $prospects = $c->get( Prospects::class );
         $settings  = $this->settings( $c );
         $limits    = $this->limits( $c );
@@ -300,11 +318,35 @@ final class EvaluateJob extends AbstractJob {
         // The stored status is left untouched until the outcome is written: a worker that dies mid-evaluation
         // (FPM kill, OOM, restart) must not erase a human-set status. The in-flight marker (markInflight)
         // lets the next run detect and park such a prospect.
-        $profile    = $c->get( SiteProfiler::class )->profile( $domain, (string) ( $prospect['homepage_url'] ?? '' ), 2 );
+        // Requests the HTTP client refuses or cuts short because this run's time is up (Client::DEADLINE) stop the
+        // evaluation without a verdict: the pages fetched so far are kept and the next run continues (at most
+        // SiteProfiler::MAX_DEFERRALS times), so a slow host is judged on the same pages as a fast one.
+        $client   = $c->has( Client::class ) ? $c->get( Client::class ) : null;
+        $profiler = $c->get( SiteProfiler::class );
+        // After MAX_DEFERRALS runs without its homepage, the site is asked only by a run that can give the homepage
+        // its whole timeout: a shorter run (a job late in its tick) moves on to the next prospect at once instead of
+        // cutting the same page short again, and a timeout in a run that had the time is the site's own.
+        $patient = $client instanceof Client && $profiler->waitsForHome( $domain );
+        $left    = $client instanceof Client ? $client->timeLeft() : null;
+        if ( $patient && null !== $left && $left < self::homeSeconds( $settings ) ) {
+            return [ 'prospect_id' => $id, 'domain' => $domain, 'outcome' => 'deferred' ];
+        }
+        $misses     = $client instanceof Client ? $client->deadlineMisses() : 0;
+        $profile    = $profiler->profile( $domain, (string) ( $prospect['homepage_url'] ?? '' ), 2 );
         $profileArr = $profile->toArray();
+        // A homepage that this run's own deadline did not send or cut short says nothing about the site: never
+        // "unreachable", however many runs it takes.
+        $homeCut  = $profile->deferred && ! ( $patient && Client::DEADLINE_MESSAGE !== $profile->error );
+        $cutShort = static fn(): bool => $homeCut || ( $client instanceof Client && $client->deadlineMisses() > $misses && ! $judgeNow && $profile->deferrals < SiteProfiler::MAX_DEFERRALS );
 
+        if ( $cutShort() ) {
+            $profiler->carry( $profile );
+            return [ 'prospect_id' => $id, 'domain' => $domain, 'outcome' => 'deferred' ];
+        }
         if ( ! $profile->reachable || null === $profile->home ) {
-            return $this->storeUnreachable( $c, $prospect, $profile, $profileArr, $protected );
+            $item = $this->storeUnreachable( $c, $prospect, $profile, $profileArr, $protected );
+            $profiler->forget( $profile );
+            return $item;
         }
 
         $home      = $profile->home;
@@ -363,6 +405,11 @@ final class EvaluateJob extends AbstractJob {
             }
         }
         $hasListingForm = is_array( $submissionForm ) && FormDetector::KIND_LISTING === (string) ( $submissionForm['kind'] ?? '' );
+        if ( $cutShort() ) {
+            // The domain age, the metrics or the submission page did not fit: continue on the next run.
+            $profiler->carry( $profile );
+            return [ 'prospect_id' => $id, 'domain' => $domain, 'outcome' => 'deferred' ];
+        }
 
         // Classification refined with the real homepage analysis.
         $classification = $c->get( Classifier::class )->classify( $profile->homepageUrl ?: 'https://' . $domain . '/', $home->title, $profile->description, $home );
@@ -434,6 +481,7 @@ final class EvaluateJob extends AbstractJob {
 
         $contactsNew = $this->upsertContacts( $c, $id, $profile->contacts );
         $limits->spend( 'evaluations' );
+        $profiler->forget( $profile );
 
         $this->audit( $c )->record(
             'prospect.evaluated',

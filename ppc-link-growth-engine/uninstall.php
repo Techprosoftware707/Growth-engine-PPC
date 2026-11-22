@@ -69,13 +69,28 @@ foreach ( (array) $ppclg_option_names as $ppclg_option ) {
     delete_option( (string) $ppclg_option );
 }
 
-// Transients (caps sync, schedule check, overview caches, rate limits, activation redirect).
+// Transients (caps sync, schedule check, overview caches, rate limits, activation redirect): each one through the
+// transient API, so its cached copy goes too, then any leftover rows. The whole object cache is not flushed (1.2.4):
+// on a Redis-backed store that would throw away every cached object of WooCommerce and the other plugins at once.
+// With a persistent object cache the plugin's transients live only there and expire on their own; nothing reads
+// them once the plugin is gone.
+// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+$ppclg_transients = $wpdb->get_col( "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE '\\_transient\\_ppclg\\_%' OR option_name LIKE '\\_site\\_transient\\_ppclg\\_%'" );
+foreach ( (array) $ppclg_transients as $ppclg_transient ) {
+    $ppclg_transient = (string) $ppclg_transient;
+    if ( str_starts_with( $ppclg_transient, '_site_transient_' ) ) {
+        delete_site_transient( substr( $ppclg_transient, strlen( '_site_transient_' ) ) );
+    } else {
+        delete_transient( substr( $ppclg_transient, strlen( '_transient_' ) ) );
+    }
+}
 // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 $wpdb->query( "DELETE FROM {$wpdb->options} WHERE option_name LIKE '\\_transient\\_ppclg\\_%' OR option_name LIKE '\\_transient\\_timeout\\_ppclg\\_%' OR option_name LIKE '\\_site\\_transient\\_ppclg\\_%' OR option_name LIKE '\\_site\\_transient\\_timeout\\_ppclg\\_%'" );
+wp_cache_delete( 'alloptions', 'options' );
+wp_cache_delete( 'notoptions', 'options' );
 
 // Per-user dismissed admin notices.
 delete_metadata( 'user', 0, 'ppclg_dismissed_notices', '', true );
-wp_cache_flush();
 
 if ( function_exists( 'as_unschedule_all_actions' ) ) {
     as_unschedule_all_actions( 'ppclg_tick' );

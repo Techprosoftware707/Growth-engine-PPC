@@ -356,6 +356,27 @@ final class OutreachFollowupsTest extends TestCase {
         $this->assertTrue( $this->outreachDue() );
     }
 
+    /**
+     * 1.2.4 performance: outside the send window the stage could only skip every message ("outside_send_window"), so
+     * it is not queued at all (measured before: a no-op send job on 148 of 150 weekend ticks). A stale claim still is.
+     */
+    public function testSendStageIsNotDueOutsideTheSendWindow(): void {
+        $camp = $this->campaign( Campaigns::STATUS_APPROVED );
+        $this->lead( $camp, 'window.test' );
+        $this->assertTrue( $this->outreachDue(), 'inside the window (all day, every day in this test)' );
+
+        $today = (int) ( new \DateTimeImmutable( 'now', Container::get( \PPC\LinkGrowth\Outreach\Compliance::class )->sendTimezone() ) )->format( 'N' );
+        $this->settings()->set( 'outreach.send_days', [ 1 === $today ? 2 : 1 ] ); // any day but today
+        Container::reset();
+        $this->assertTrue( $this->engine()->hasSendable(), 'the message is ready' );
+        $this->assertFalse( $this->outreachDue(), 'but could not go out now' );
+        $this->assertNotContains( 'outreach_send', Container::get( Pipeline::class )->tick()['enqueued'] );
+
+        $claim = $this->lead( $camp, 'crashed-window.test', OutreachMessages::STATUS_SENDING );
+        $GLOBALS['wpdb']->update( Schema::table( 'outreach_messages' ), [ 'updated_at' => gmdate( 'Y-m-d H:i:s', time() - 1200 ) ], [ 'id' => $claim ] );
+        $this->assertTrue( $this->outreachDue(), 'a stale claim is released whatever the time' );
+    }
+
     public function testStaleSendingClaimMakesTheSendStageDueEvenWhenNothingIsSendable(): void {
         $camp = $this->campaign( Campaigns::STATUS_PAUSED );
         $this->lead( $camp, 'held-approved.test' ); // held back by its paused campaign

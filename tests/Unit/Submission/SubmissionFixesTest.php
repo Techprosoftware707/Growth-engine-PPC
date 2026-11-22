@@ -165,6 +165,31 @@ final class SubmissionFixesTest extends TestCase {
         $this->assertSame( Submissions::STATUS_NEEDS_MANUAL, $row['status'] );
     }
 
+    /**
+     * 1.2.4 performance: when the job's time runs out before the form page can be fetched (Client::DEADLINE), nothing
+     * is posted, no attempt is counted and the row stays queued and due without a leftover claim.
+     */
+    public function testAFormPageTheRunHadNoTimeForIsNotAnAttempt(): void {
+        $sid    = $this->packageQueued( $this->prospect() );
+        $client = Container::get( \PPC\LinkGrowth\Support\Http\Client::class );
+        $stats  = $client->within( TimeBudget::seconds( 2.0 ), fn() => $this->runQueue() );
+        $row    = $this->subs()->find( $sid );
+        $this->assertSame( [], $this->posts );
+        $this->assertSame( 1, $stats['deferred'] ?? 0 );
+        $this->assertSame( 0, (int) $stats['failed'] );
+        $this->assertSame( Submissions::STATUS_QUEUED, $row['status'] );
+        $this->assertSame( 0, (int) $row['attempts'], 'not counted as an attempt' );
+        $this->assertArrayNotHasKey( '_claim', array_filter( (array) $row['response'], 'is_array' ), 'no claim left behind' );
+        foreach ( (array) $row['response'] as $value ) {
+            $this->assertFalse( is_array( $value ) && isset( $value['until'], $value['since'] ), 'no claim marker left behind' );
+        }
+
+        // The next run (with time) submits it as usual.
+        $this->runQueue();
+        $this->assertCount( 1, $this->posts );
+        $this->assertSame( Submissions::STATUS_SUBMITTED, $this->subs()->find( $sid )['status'] );
+    }
+
     // ------------------------------------------------------------------ submission-2
 
     public function testRowRejectedDuringARunIsNeverPosted(): void {

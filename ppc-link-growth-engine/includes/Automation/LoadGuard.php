@@ -19,7 +19,12 @@
  *     'ppclg_max_load_per_cpu'); during the outage the 1-CPU store had a load of about 6.5;
  *  5. the server is low on memory: /proc/meminfo's MemAvailable is below 10 % of MemTotal (filter
  *     'ppclg_min_free_memory_ratio');
- *  6. the 'ppclg_pause_background' filter says so (true or a message pauses; false lets the work run even when one
+ *  6. every PHP-FPM worker of the pool is busy, or requests are waiting for one (fpm_get_status(): no idle worker,
+ *     except under pm = ondemand, which keeps none, or a listen queue): a worker that sits in a slow outbound request
+ *     or a sleep raises no load average, so on the
+ *     3-worker store reason 4 cannot see the pool filling up (filter 'ppclg_pause_when_workers_busy', false switches
+ *     it off). Only under PHP-FPM; elsewhere nothing is known and nothing pauses;
+ *  7. the 'ppclg_pause_background' filter says so (true or a message pauses; false lets the work run even when one
  *     of the reasons above was found).
  *
  * Reasons 4 and 5 come from Support\ServerResources (sys_getloadavg(), one small read of /proc/meminfo, the CPU count
@@ -80,12 +85,14 @@ final class LoadGuard {
     public const FILTER_PAUSE      = 'ppclg_pause_background';
     public const FILTER_MAX_LOAD   = 'ppclg_max_load_per_cpu';
     public const FILTER_MIN_MEMORY = 'ppclg_min_free_memory_ratio';
+    public const FILTER_WORKERS    = 'ppclg_pause_when_workers_busy';
 
     public const CODE_OPCACHE_RESTART = 'opcache_restart';
     public const CODE_BACKUP          = 'backup';
     public const CODE_UPDATED         = 'just_updated';
     public const CODE_SERVER_BUSY     = 'server_busy';
     public const CODE_LOW_MEMORY      = 'low_memory';
+    public const CODE_WORKERS_BUSY    = 'workers_busy';
     public const CODE_OWNER           = 'owner';
 
     /** Busy above this 1-minute load average per CPU. */
@@ -124,7 +131,7 @@ final class LoadGuard {
         $reason = null;
         try {
             // Most severe first; the server's load and memory are read only when nothing before them holds.
-            $reason = $this->opcacheRestarting() ?? $this->backupRunning() ?? $this->justUpdated() ?? $this->serverBusy() ?? $this->lowMemory();
+            $reason = $this->opcacheRestarting() ?? $this->backupRunning() ?? $this->justUpdated() ?? $this->serverBusy() ?? $this->lowMemory() ?? $this->workersBusy();
         } catch ( Throwable $e ) {
             $reason = null; // a check that fails never stops the plugin's work
         }
@@ -438,6 +445,42 @@ final class LoadGuard {
                 'available_percent' => round( $ratio * 100, 1 ),
                 'min_percent'       => round( $min * 100, 1 ),
             ]
+        );
+    }
+
+    /**
+     * Every worker of this PHP-FPM pool is busy (this request included) or requests are queued for one: the next
+     * shopper would wait for this job to end. Filter 'ppclg_pause_when_workers_busy' (false switches it off).
+     *
+     * A pool with `pm = ondemand` keeps no idle worker by design and starts one per request, so there only waiting
+     * requests count; with `static` and `dynamic` (which keeps spare workers until the pool is at pm.max_children)
+     * no idle worker means the pool is full.
+     *
+     * @return array<string,mixed>|null
+     */
+    private function workersBusy(): ?array {
+        $fpm = $this->server()->fpm();
+        if ( null === $fpm || $fpm['total'] <= 0 ) {
+            return null; // not PHP-FPM (CLI, built-in server, mod_php) or not readable: nothing known, no pause
+        }
+        $busy = $fpm['queue'] > 0 || ( 0 === $fpm['idle'] && 'ondemand' !== $fpm['manager'] );
+        /**
+         * Whether background work pauses while every PHP-FPM worker is busy or requests wait for one (default: yes).
+         *
+         * @param bool                                          $busy Whether the pool is full right now.
+         * @param array{idle:int,active:int,total:int,queue:int,manager:string} $fpm The pool's numbers.
+         */
+        if ( ! $busy || false === apply_filters( self::FILTER_WORKERS, true, $fpm ) ) {
+            return null;
+        }
+        $numbers = sprintf( '%d of %d busy', $fpm['active'], $fpm['total'] ) . ( $fpm['queue'] > 0 ? sprintf( ', %d waiting', $fpm['queue'] ) : '' );
+        return self::reason(
+            self::CODE_WORKERS_BUSY,
+            'every PHP worker is busy',
+            null,
+            'fpm',
+            sprintf( 'Paused: every PHP worker is busy (%s) — resumes when one is free.', $numbers ),
+            $fpm
         );
     }
 

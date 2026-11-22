@@ -94,6 +94,21 @@ final class Url {
         return is_string( $host ) ? strtolower( $host ) : '';
     }
 
+    /**
+     * "scheme://host" of $url, with the port when it is not the scheme's default ("http://localhost:8791"): where
+     * that origin's robots.txt lives. '' for a URL without a host.
+     */
+    public static function origin( string $url ): string {
+        $parts = wp_parse_url( self::normalize( $url ) ?: $url );
+        if ( ! is_array( $parts ) || empty( $parts['host'] ) ) {
+            return '';
+        }
+        $scheme = strtolower( (string) ( $parts['scheme'] ?? 'https' ) );
+        $port   = isset( $parts['port'] ) ? (int) $parts['port'] : 0;
+        $port   = ( 'http' === $scheme && 80 === $port ) || ( 'https' === $scheme && 443 === $port ) ? 0 : $port;
+        return $scheme . '://' . strtolower( (string) $parts['host'] ) . ( $port > 0 ? ':' . $port : '' );
+    }
+
     /** Registrable domain: "sub.example.co.uk" => "example.co.uk"; strips leading www. */
     public static function registrableDomain( string $hostOrUrl ): string {
         $host = str_contains( $hostOrUrl, '/' ) || str_contains( $hostOrUrl, ':' ) ? self::host( $hostOrUrl ) : strtolower( trim( $hostOrUrl ) );

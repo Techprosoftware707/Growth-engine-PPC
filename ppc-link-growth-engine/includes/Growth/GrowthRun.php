@@ -261,6 +261,11 @@ final class GrowthRun {
                 if ( ! $budget->has( self::MIN_STEP_SECONDS ) ) {
                     break;
                 }
+                // Asked again before every further step (about 25 µs): a pause that starts during this request ends it
+                // after the step that ran; the next /growth/step call then answers "waiting" with the reason.
+                if ( $finishedHere > 0 && null !== $this->pauseReason( true ) ) {
+                    break;
+                }
                 $outcome = $this->runStep( $state, $cursor, $budget, $finishedHere );
                 if ( 'cancelled' === $outcome ) {
                     break;
@@ -1335,10 +1340,10 @@ final class GrowthRun {
      *
      * @return array<string,mixed>|null
      */
-    private function pauseReason(): ?array {
+    private function pauseReason( bool $fresh = false ): ?array {
         try {
             $guard = $this->c->get( LoadGuard::class );
-            return $guard instanceof LoadGuard ? $guard->pauseReason() : null;
+            return $guard instanceof LoadGuard ? $guard->pauseReason( $fresh ) : null;
         } catch ( Throwable $e ) {
             return null;
         }

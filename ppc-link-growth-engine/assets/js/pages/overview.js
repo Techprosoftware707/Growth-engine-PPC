@@ -10,7 +10,7 @@ import {
 } from '../ui.js';
 import { barChart, lineChart, histogram, segmentedBar } from '../charts.js';
 import { setAutopilot, autopilotSummary } from '../autopilot.js';
-import { pausedText, opcacheNotice, pausedDelay } from '../server-pressure.js';
+import { pausedText, opcacheNotice, pausedDelay, paceDelay } from '../server-pressure.js';
 
 // ---------------------------------------------------------------------
 // Storefront compliance banner (assets/js/compliance-banner.js)
@@ -680,7 +680,7 @@ export function createGrowPanel( ctx, options = {} ) {
                     break;
                 }
                 draw();
-                await nap( res.waiting ? waitFor( res ) : pollDelay );
+                await nap( res.waiting ? waitFor( res ) : paceDelay( res, pollDelay ) );
                 if ( s.run && s.run.status !== 'running' ) {
                     s.mode = 'idle'; // stopped during the wait: nothing more to ask the server
                     break;

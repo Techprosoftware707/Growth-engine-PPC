@@ -85,6 +85,13 @@ abstract class AbstractSearch implements SearchProvider {
 
     protected function fail( string $message ): array {
         $this->lastError = $message;
+        if ( $this->client->lastWasDeadline() ) {
+            // The job's time ran out (the request was not sent, or our shortened timeout ended it): the query gets its
+            // quota back, no provider failure is recorded, and lastError stays set so the caller retries the query.
+            $this->refund();
+            $this->logger->debug( 'search:' . $this->id(), 'Not asked: the time budget of this run is used up.' );
+            return [];
+        }
         $this->logger->warning( 'search:' . $this->id(), $message );
         update_option( 'ppclg_provider_error_' . $this->id(), [ 'message' => $message, 'at' => gmdate( 'c' ) ], false );
         return [];

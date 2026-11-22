@@ -16,6 +16,7 @@ namespace PPC\LinkGrowth\Admin\Rest;
 use PPC\LinkGrowth\Automation\Autopilot;
 use PPC\LinkGrowth\Automation\LoadGuard;
 use PPC\LinkGrowth\Growth\GrowthRun;
+use PPC\LinkGrowth\Support\ServerResources;
 use PPC\LinkGrowth\Support\Settings;
 use PPC\LinkGrowth\Support\TimeBudget;
 use Throwable;
@@ -32,6 +33,12 @@ final class GrowthController extends Controller {
 
     /** Floor per request (enough for one step to start). */
     public const MIN_STEP_SECONDS = 8;
+
+    /** Servers with at most this many CPUs get a rest after every step (pace_ms, see pace()). */
+    public const PACE_MAX_CPUS = 2;
+
+    /** Longest rest asked for between two steps (ms). */
+    public const MAX_PACE_MS = 30000;
 
     public function register( string $namespace ): void {
         $this->route( $namespace, '/growth/start', 'POST', [ $this, 'start' ] );
@@ -82,10 +89,36 @@ final class GrowthController extends Controller {
             $state['message'] = GrowthRun::STATUS_IDLE === ( $state['status'] ?? '' ) ? 'No growth run has been started yet.' : 'This growth run is no longer running.';
             return $state;
         }
+        $started          = microtime( true );
         $state            = $run->advance( TimeBudget::seconds( (float) $this->stepSeconds() ) );
         $state['ok']      = true;
         $state['message'] = ! empty( $state['waiting'] ) ? (string) $state['note'] : '';
+        if ( empty( $state['waiting'] ) && GrowthRun::STATUS_RUNNING === ( $state['status'] ?? '' ) ) {
+            $pace = $this->pace( microtime( true ) - $started );
+            if ( $pace > 0 ) {
+                $state['pace_ms'] = $pace;
+            }
+        }
         return $state;
+    }
+
+    /**
+     * How long the panel rests before the next step (ms), 0 for no rest. On a server with 1 or 2 CPUs (the live store
+     * has 1) the rest is as long as the step took, so a run uses at most about half of the CPU and of one PHP worker's
+     * time instead of about 98 % (a 20 s step followed by the panel's 400 ms delay). The run takes about twice as
+     * long there; what it does is unchanged. Filter 'ppclg_growth_pace': the rest as a share of the step's time
+     * (default 1 on 1-2 CPUs, 0 elsewhere; 0 switches it off).
+     */
+    private function pace( float $elapsed ): int {
+        $cpus = 1;
+        try {
+            $cpus = max( 1, (int) ( $this->c->get( ServerResources::class )->cpus()['count'] ?? 1 ) );
+        } catch ( Throwable $e ) {
+            $cpus = 1; // unknown counts as the smallest server, as Automation\LoadGuard does
+        }
+        $share = apply_filters( 'ppclg_growth_pace', $cpus <= self::PACE_MAX_CPUS ? 1.0 : 0.0, $cpus, $elapsed );
+        $share = is_numeric( $share ) ? max( 0.0, min( 3.0, (float) $share ) ) : 0.0;
+        return (int) min( self::MAX_PACE_MS, round( max( 0.0, $elapsed ) * 1000 * $share ) );
     }
 
     /** GET /growth/status — the active or last run. @return array<string,mixed>|WP_Error */

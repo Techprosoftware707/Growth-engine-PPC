@@ -192,6 +192,21 @@ final class GrowPanelTest extends TestCase {
         $this->assertTrue( $h['detailBackup'] );
     }
 
+    /** 1.2.4 performance: on a 1-2 CPU server the panel rests as long as the step ran (the server's pace_ms). */
+    public function testTheNextStepWaitsForTheServersPace(): void {
+        $p = $this->harness()['paced'];
+        $this->assertSame( 2, $p['stepCalls'] );
+        $this->assertSame( 'completed', $p['finishedStatus'] );
+        $this->assertNotNull( $p['gapMs'] );
+        $this->assertGreaterThanOrEqual( 230, $p['gapMs'], 'about 250 ms between the steps, not the 1 ms poll delay' );
+
+        $h = $this->harness()['helpers'];
+        $this->assertSame( 9000, $h['paceFromServer'] );
+        $this->assertSame( 30000, $h['paceCapped'], 'at most 30 s' );
+        $this->assertSame( 400, $h['paceNone'], 'no pace: the panel delay' );
+        $this->assertSame( 400, $h['paceShort'], 'never shorter than the panel delay' );
+    }
+
     public function testStopDuringAPauseFreesThePanelAtOnce(): void {
         // The page's own delays: a paused step waits retry_after (60 s) before the next request.
         $p = $this->harness()['stopWhilePaused'];

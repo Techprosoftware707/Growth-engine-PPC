@@ -18,6 +18,11 @@ abstract class TestCase extends BaseTestCase {
         // (Automation\LoadGuard) does not pause the ticks of every test; LoadGuard tests set it themselves.
         $GLOBALS['ppclg_test_options']    = [ 'ppclg_running_version' => [ 'version' => PPCLG_VERSION, 'since' => 0, 'from' => '' ] ];
         $GLOBALS['ppclg_test_transients'] = [];
+        $GLOBALS['ppclg_test_option_writes'] = []; // update_option() calls per option name
+        $GLOBALS['ppclg_test_primed']        = []; // _prime_post_caches() batches
+        $GLOBALS['ppclg_test_did']           = []; // did_action() answers (hook => count)
+        $GLOBALS['ppclg_test_is_admin']      = false; // is_admin()
+        $GLOBALS['ppclg_test_doing_ajax']    = false; // wp_doing_ajax()
         $GLOBALS['ppclg_test_as_async']   = [];
         $GLOBALS['ppclg_test_cron_single'] = [];
         $GLOBALS['ppclg_test_mail']       = [];

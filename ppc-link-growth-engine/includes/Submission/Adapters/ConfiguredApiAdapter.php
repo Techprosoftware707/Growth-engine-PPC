@@ -149,7 +149,9 @@ final class ConfiguredApiAdapter implements AdapterInterface {
         }
 
         $this->dispatched = true;
-        $resp             = $this->client->api( $cfg['method'], $cfg['endpoint'], $headers, $body, self::TIMEOUT );
+        // Never bounded by a job's time budget (Client::within()), even for a GET: a submission that our shortened
+        // timeout cut off may still have reached the partner, so it must never look like a request that was not sent.
+        $resp             = $this->client->api( $cfg['method'], $cfg['endpoint'], $headers, $body, self::TIMEOUT, false );
         $this->logger->info( 'submission', 'Partner API called', [ 'submission_id' => $sid, 'host' => Url::host( $cfg['endpoint'] ), 'http_status' => $resp->status ] );
 
         return $this->interpret( $resp, $cfg );

@@ -160,6 +160,33 @@ final class GrowthRunTest extends TestCase {
         $this->assertNotSame( $state['id'], $next['id'], 'a new start after completion begins a new run' );
     }
 
+    /**
+     * 1.2.4 performance: the server-pressure pause is asked again before every further step of a /growth/step
+     * request (before: once per request), so a backup that starts during a request ends it after the step that ran.
+     */
+    public function testAPauseThatStartsDuringARequestEndsItAfterTheStepThatRan(): void {
+        $start = (int) $this->growth()->start( 1 )['cursor'];
+        $calls = 0;
+        $GLOBALS['ppclg_test_filters'][ \PPC\LinkGrowth\Automation\LoadGuard::FILTER_PAUSE ] = [ static function ( $pause ) use ( &$calls ) {
+            return 0 === $calls++ ? $pause : 'A backup started';
+        } ];
+        $state = $this->growth()->advance( TimeBudget::seconds( 60.0 ) );
+        $this->assertSame( GrowthRun::STATUS_RUNNING, $state['status'] );
+        // (The answer from start() is kept for the request's first step.) Asked afresh before the second step: no pause
+        // yet; before the third: a backup started, so the request ends there (before: every step in one request).
+        $this->assertSame( 2, $calls );
+        $this->assertSame( $start + 2, (int) $state['cursor'], 'two steps ran, then the request stopped' );
+        $this->assertSame( 'pending', $state['steps'][ $start + 2 ]['status'] );
+
+        $paused = $this->growth()->advance( TimeBudget::seconds( 60.0 ) );
+        $this->assertTrue( $paused['waiting'] );
+        $this->assertSame( $start + 2, (int) $paused['cursor'], 'the next request waits with the reason' );
+
+        unset( $GLOBALS['ppclg_test_filters'][ \PPC\LinkGrowth\Automation\LoadGuard::FILTER_PAUSE ] );
+        Container::get( \PPC\LinkGrowth\Automation\LoadGuard::class )->forget(); // a later request asks afresh
+        $this->assertSame( GrowthRun::STATUS_COMPLETED, $this->runToEnd()['status'], 'and the run continues once the pause is over' );
+    }
+
     public function testUnregisteredJobTypeIsSkippedNotFatal(): void {
         $this->growth()->start( 1 );
         $state = $this->growth()->advance( TimeBudget::seconds( 60.0 ) );

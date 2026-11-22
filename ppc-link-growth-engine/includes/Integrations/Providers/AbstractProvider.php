@@ -38,6 +38,12 @@ abstract class AbstractProvider {
 
     protected function fail( string $message, array $context = [] ): void {
         $this->lastError = $message;
+        if ( $this->client->lastWasDeadline() ) {
+            // The job's time ran out before (or while) asking: nothing is known about the provider, so no failure is
+            // recorded and no "provider failing" notice is shown; the lookup is asked again on a later run.
+            $this->logger->debug( 'provider:' . $this->id(), 'Not asked: the time budget of this run is used up.', $context );
+            return;
+        }
         $this->logger->warning( 'provider:' . $this->id(), $message, $context );
         update_option( 'ppclg_provider_error_' . $this->id(), [ 'message' => $message, 'at' => gmdate( 'c' ) ], false );
     }

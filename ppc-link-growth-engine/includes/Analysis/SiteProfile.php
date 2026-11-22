@@ -31,6 +31,26 @@ final class SiteProfile {
     public string $registrationDate = '';
     public string $lastContentDate = '';
     public bool $reachable = false;
+
+    /**
+     * The homepage was not fetched because the run's time budget was used up (Client::DEADLINE): nothing is known
+     * about the site yet, so the evaluation is tried again later instead of calling the site unreachable.
+     */
+    public bool $deferred = false;
+
+    /** Earlier runs that stopped this evaluation for lack of time (SiteProfiler::carry()). */
+    public int $deferrals = 0;
+
+    /** Pages came from an earlier, deferred run (SiteProfiler::forget() then removes them). */
+    public bool $carried = false;
+
+    /**
+     * Homepage addresses that already failed for real in this or an earlier deferred run: address => error. A
+     * deferred run continues with the next address instead of trying the same one again.
+     *
+     * @var array<string,string>
+     */
+    public array $tried = [];
     public bool $https = false;
     public string $error = '';
     public int $fetches = 0;

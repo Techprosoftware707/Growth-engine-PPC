@@ -134,15 +134,23 @@ final class BacklinkMonitor {
                 $out['more_due'] = ! empty( $this->dueRows( 1 ) );
                 return $out;
             }
-            $rows = $this->dueRows( $n );
-            $need = min( 12.0, $this->timeout() + 2.0 );
+            $rows     = $this->dueRows( $n );
+            $need     = min( 12.0, $this->timeout() + 2.0 );
+            $deferred = 0;
             foreach ( $rows as $row ) {
                 if ( ! $budget->has( $need ) ) {
                     $out['note'] = 'Time budget exhausted.';
                     break;
                 }
-                $this->limits->spend( self::LIMIT_KEY );
                 $r = $this->check( $row );
+                if ( ! empty( $r['deferred'] ) ) {
+                    // Not fetched (e.g. a second page on a host whose Crawl-delay does not fit in this run): the link
+                    // stays due and no check is counted against the limit. Links on other hosts are still checked;
+                    // the budget check above ends the loop once the time is really used up.
+                    ++$deferred;
+                    continue;
+                }
+                $this->limits->spend( self::LIMIT_KEY );
                 ++$out['checked'];
                 if ( $r['lost'] ) {
                     ++$out['lost'];
@@ -155,6 +163,9 @@ final class BacklinkMonitor {
                 }
             }
             $out['more_due'] = ! empty( $this->dueRows( 1 ) );
+            if ( '' === $out['note'] && $deferred > 0 ) {
+                $out['note'] = 1 === $deferred ? '1 check did not fit in this run and stays due.' : $deferred . ' checks did not fit in this run and stay due.';
+            }
             if ( '' === $out['note'] && empty( $rows ) ) {
                 $out['note'] = 'No backlinks due for a check.';
             }
@@ -266,6 +277,14 @@ final class BacklinkMonitor {
         }
 
         $resp = $this->client->crawl( $sourceUrl, [ 'timeout' => $this->timeout() ] );
+
+        // 0. Not fetched because the job's time ran out (Client::DEADLINE): nothing is recorded and the link stays due,
+        //    so the next run checks it (not "a temporary error, retrying tomorrow").
+        if ( Client::DEADLINE === $resp->errorCode ) {
+            $result['note']     = 'Not checked: the time budget of this run is used up.';
+            $result['deferred'] = true;
+            return $result;
+        }
 
         // 1. The crawler refused the page because of robots.txt. It also refuses when robots.txt itself
         //    cannot be fetched (network error, DNS failure, 5xx): that is an outage, not a Disallow, so
@@ -556,7 +575,7 @@ final class BacklinkMonitor {
      */
     private function robotsVerdict( string $url ): array {
         $scheme = (string) ( wp_parse_url( $url, PHP_URL_SCHEME ) ?: 'https' );
-        $origin = $scheme . '://' . Url::host( $url );
+        $origin = Url::origin( $url ) ?: $scheme . '://' . Url::host( $url ); // keeps a non-default port
         $probe  = $this->robotsProbes[ $origin ] ?? null;
         if ( null === $probe || $probe['at'] < time() - self::ROBOTS_PROBE_TTL ) {
             $r     = $this->client->rawRequest( 'GET', $origin . '/robots.txt', [ 'timeout' => self::ROBOTS_PROBE_TIMEOUT ] );

@@ -27,6 +27,9 @@ final class Rdap {
             return '' === $cached ? null : $cached;
         }
         $r    = $this->client->api( 'GET', 'https://rdap.org/domain/' . rawurlencode( $domain ), [ 'Accept' => 'application/rdap+json, application/json' ], null, 12 );
+        if ( Client::DEADLINE === $r->errorCode ) {
+            return null; // not asked (the run's time was up): nothing to remember, the next evaluation asks again
+        }
         $date = null;
         if ( $r->ok() ) {
             foreach ( (array) ( $r->json()['events'] ?? [] ) as $ev ) {

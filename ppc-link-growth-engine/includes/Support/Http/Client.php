@@ -7,6 +7,13 @@
  *  - Per-host crawl delay (the setting or the host's robots.txt Crawl-delay, whichever is longer),
  *    response size cap, timeouts.
  *  - Refuses private/loopback targets via wp_http_validate_url (SSRF protection).
+ *  - Inside a background job (JobRunner::execute() / runType() call within()), crawls, probes and API reads end
+ *    before the job's time budget does: each timeout is capped to the time left, a crawl delay that does not fit
+ *    is not waited out, and a request that cannot fit is not sent (error code DEADLINE, "try again later").
+ *    Measured before 1.2.4: one evaluation ran 60.06 s (Crawl-delay: 30) and 42.06 s (a host answering in 14 s per
+ *    page) against its 20 s budget, holding a PHP worker the whole time. Form POSTs, other POSTs and partner
+ *    submission calls (api() with $bounded false) are never refused or cut short: a request whose answer we stop
+ *    waiting for may still have been received.
  *
  * @package PPC\LinkGrowth
  */
@@ -17,6 +24,7 @@ namespace PPC\LinkGrowth\Support\Http;
 
 use PPC\LinkGrowth\Support\Logger;
 use PPC\LinkGrowth\Support\Settings;
+use PPC\LinkGrowth\Support\TimeBudget;
 use PPC\LinkGrowth\Support\Url;
 
 final class Client {
@@ -32,6 +40,29 @@ final class Client {
 
     /** robots.txt fetch timeout (seconds) unless the caller's own timeout, or crawl()'s robots_timeout, is shorter. */
     private const ROBOTS_TIMEOUT = 8;
+
+    /** Error code of a request this client did not send (or cut short) because the job's time budget ran out. */
+    public const DEADLINE = 'deadline';
+
+    public const DEADLINE_MESSAGE = 'Not requested: the time budget of this run is used up (it is tried again on a later run).';
+
+    /** Least time a crawl, probe or API read needs to be worth starting under a deadline (seconds). */
+    private const MIN_REQUEST_SECONDS = 3.0;
+
+    /** Kept free before the deadline for the job's own bookkeeping (seconds). */
+    private const DEADLINE_MARGIN = 1.0;
+
+    /** microtime() by which bounded requests must be over (set by within()), or null. */
+    private ?float $deadline = null;
+
+    /** Requests refused or cut short by the deadline in this request (callers compare before/after). */
+    private int $deadlineMisses = 0;
+
+    /** Whether the last response this client returned was a DEADLINE one (see lastWasDeadline()). */
+    private bool $lastDeadline = false;
+
+    /** Least time a bounded request (a redirect hop, the page after its robots.txt) is still sent with (seconds). */
+    private const MIN_HOP_SECONDS = 2.0;
 
     /**
      * Transport errors that prove no web server answers on the host (DNS failure, connection refused).
@@ -56,6 +87,43 @@ final class Client {
     ) {}
 
     /**
+     * Runs $fn with every crawl, probe and API read (GET/HEAD) of this client bounded by $budget (and by an outer
+     * deadline already set, whichever ends first). Returns what $fn returns.
+     *
+     * @template T
+     * @param callable():T $fn
+     * @return T
+     */
+    public function within( TimeBudget $budget, callable $fn ): mixed {
+        $previous       = $this->deadline;
+        $at             = microtime( true ) + $budget->remaining();
+        $this->deadline = null === $previous ? $at : min( $previous, $at );
+        try {
+            return $fn();
+        } finally {
+            $this->deadline = $previous;
+        }
+    }
+
+    /** Seconds a bounded request may still use (deadline minus the margin), or null outside within(). */
+    public function timeLeft(): ?float {
+        return null === $this->deadline ? null : $this->deadline - microtime( true ) - self::DEADLINE_MARGIN;
+    }
+
+    /** How many requests the deadline refused or cut short so far in this PHP request. */
+    public function deadlineMisses(): int {
+        return $this->deadlineMisses;
+    }
+
+    /**
+     * Whether the most recent request answered DEADLINE (not sent, or our shortened timeout ran out). Providers ask
+     * this before recording a failure: a request the run had no time for says nothing about the provider.
+     */
+    public function lastWasDeadline(): bool {
+        return $this->lastDeadline;
+    }
+
+    /**
      * Crawl a third-party page: robots-aware, throttled, HTML-oriented.
      *
      * Redirects are followed here, one hop at a time, so each target is checked against its own host's
@@ -68,6 +136,7 @@ final class Client {
      * @param array<string,mixed> $opts { allow_robots_skip?: bool, timeout?: int, robots_timeout?: int, cache?: bool, redirection?: int }
      */
     public function crawl( string $url, array $opts = [] ): Response {
+        $this->lastDeadline = false;
         $url = Url::normalize( $url );
         if ( '' === $url ) {
             return Response::error( $url, 'Invalid URL.', 'invalid_url' );
@@ -75,16 +144,23 @@ final class Client {
         if ( ! empty( $opts['cache'] ) && isset( $this->cache[ $url ] ) ) {
             return $this->cache[ $url ];
         }
-        $robots = empty( $opts['allow_robots_skip'] );
+        if ( ! $this->fits( self::MIN_REQUEST_SECONDS ) ) {
+            return $this->refuse( $url );
+        }
+        $opts['_bounded'] = true;
+        $robots           = empty( $opts['allow_robots_skip'] );
         if ( $robots ) {
-            $blocked = $this->robotsGate( $url, $this->robotsTimeout( $opts ), false );
+            $wanted  = $this->robotsTimeout( $opts );
+            $blocked = $this->robotsGate( $url, $this->cap( $wanted ), false, $this->cap( $wanted ) < $wanted );
             if ( null !== $blocked ) {
                 return $blocked;
             }
         }
-        $this->throttle( Url::host( $url ), $robots ? $this->robotsDelay( $url ) : 0.0 );
+        if ( ! $this->throttle( Url::host( $url ), $robots ? $this->robotsDelay( $url ) : 0.0 ) ) {
+            return $this->refuse( $url );
+        }
         $resp = $this->follow( 'GET', $url, $opts, $robots, false );
-        if ( ! empty( $opts['cache'] ) ) {
+        if ( ! empty( $opts['cache'] ) && self::DEADLINE !== $resp->errorCode ) {
             $this->cache[ $url ] = $resp;
         }
         return $resp;
@@ -101,22 +177,31 @@ final class Client {
      * that failure for itself (and a confirming probe re-tries it).
      */
     public function probe( string $url, array $opts = [] ): Response {
+        $this->lastDeadline = false;
         $url = Url::normalize( $url );
         if ( '' === $url ) {
             return Response::error( $url, 'Invalid URL.', 'invalid_url' );
         }
-        $timeout = (int) ( $opts['timeout'] ?? 10 );
-        $blocked = $this->robotsGate( $url, $timeout, true );
+        if ( ! $this->fits( self::MIN_REQUEST_SECONDS ) ) {
+            return $this->refuse( $url );
+        }
+        $opts['_bounded'] = true;
+        $timeout          = (int) ( $opts['timeout'] ?? 10 );
+        $blocked          = $this->robotsGate( $url, $this->cap( $timeout ), true, $this->cap( $timeout ) < $timeout );
         if ( null !== $blocked ) {
             return $blocked;
         }
-        $this->throttle( Url::host( $url ), $this->robotsDelay( $url ) );
+        if ( ! $this->throttle( Url::host( $url ), $this->robotsDelay( $url ) ) ) {
+            return $this->refuse( $url );
+        }
         $resp = $this->follow( 'HEAD', $url, array_merge( [ 'timeout' => 10 ], $opts ), true, true );
-        if ( in_array( (string) $resp->errorCode, [ 'robots_disallow', 'robots_unavailable' ], true ) ) {
-            return $resp; // a redirect led to a URL our bot may not fetch
+        if ( in_array( (string) $resp->errorCode, [ 'robots_disallow', 'robots_unavailable', self::DEADLINE ], true ) ) {
+            return $resp; // a redirect led to a URL our bot may not fetch, or the time is up
         }
         if ( $resp->error || in_array( $resp->status, [ 403, 405, 501 ], true ) ) {
-            $this->throttle( Url::host( $url ), $this->robotsDelay( $url ) );
+            if ( ! $this->fits( self::MIN_REQUEST_SECONDS ) || ! $this->throttle( Url::host( $url ), $this->robotsDelay( $url ) ) ) {
+                return $this->refuse( $url );
+            }
             $resp = $this->follow( 'GET', $url, array_merge( [ 'timeout' => 10, 'limit_kb' => 64 ], $opts ), true, true );
         }
         return $resp;
@@ -128,8 +213,17 @@ final class Client {
      * @param array<string,string> $headers
      * @param array<string,mixed>|string|null $body
      */
-    public function api( string $method, string $url, array $headers = [], array|string|null $body = null, int $timeout = 20 ): Response {
+    public function api( string $method, string $url, array $headers = [], array|string|null $body = null, int $timeout = 20, bool $bounded = true ): Response {
+        $this->lastDeadline = false;
         $opts = [ 'headers' => $headers, 'timeout' => $timeout, 'limit_kb' => 8192 ];
+        if ( $bounded && in_array( strtoupper( $method ), [ 'GET', 'HEAD' ], true ) ) {
+            // Reads only: a POST (token exchange, IndexNow, a paid generation call) is never refused or cut short, nor
+            // is a call made with $bounded false (a partner submission API, whatever its method: not idempotent).
+            if ( ! $this->fits( self::MIN_REQUEST_SECONDS ) ) {
+                return $this->refuse( $url );
+            }
+            $opts['_bounded'] = true;
+        }
         if ( null !== $body ) {
             if ( is_array( $body ) ) {
                 $opts['body']                    = wp_json_encode( $body );
@@ -148,7 +242,8 @@ final class Client {
      * @param array<string,string> $headers
      */
     public function postForm( string $url, array $fields, array $headers = [], array $cookies = [] ): Response {
-        $this->throttle( Url::host( $url ) );
+        $this->lastDeadline = false;
+        $this->throttle( Url::host( $url ), 0.0, false ); // never cut short: see the class comment
         return $this->rawRequest( 'POST', $url, [ 'body' => $fields, 'headers' => $headers, 'cookies' => $cookies, 'timeout' => 25 ] );
     }
 
@@ -156,9 +251,20 @@ final class Client {
      * @param array<string,mixed> $opts
      */
     public function rawRequest( string $method, string $url, array $opts = [] ): Response {
+        $this->lastDeadline = false;
         $start   = microtime( true );
         $timeout = (int) ( $opts['timeout'] ?? $this->settings->get( 'advanced.request_timeout', 15 ) );
         $limitKb = (int) ( $opts['limit_kb'] ?? $this->settings->get( 'advanced.max_response_kb', 1536 ) );
+        $capped  = false;
+        if ( ! empty( $opts['_bounded'] ) && null !== $this->deadline ) {
+            if ( ! $this->fits( self::MIN_HOP_SECONDS ) ) {
+                return $this->refuse( $url );
+            }
+            $bounded = $this->cap( max( 3, $timeout ) );
+            $capped  = $bounded < max( 3, $timeout );
+            $timeout = $bounded;
+        }
+        unset( $opts['_bounded'] );
         $headers = array_merge(
             [
                 'Accept'          => 'text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8',
@@ -169,7 +275,7 @@ final class Client {
 
         $args = [
             'method'              => $method,
-            'timeout'             => max( 3, $timeout ),
+            'timeout'             => $capped ? max( 1, $timeout ) : max( 3, $timeout ),
             'redirection'         => (int) ( $opts['redirection'] ?? 4 ),
             'user-agent'          => $this->settings->userAgent(),
             'headers'             => $headers,
@@ -198,6 +304,12 @@ final class Client {
 
         if ( is_wp_error( $result ) ) {
             $this->logger->debug( 'http', 'Request failed', [ 'url' => $url, 'error' => $result->get_error_message() ] );
+            if ( $capped && preg_match( '/timed?\s?out|timeout/i', $result->get_error_message() ) ) {
+                // Our shortened timeout ran out, not the host's normal one: "try again later", never "unreachable".
+                $this->deadlineMisses++;
+                $this->lastDeadline = true;
+                return Response::error( $url, $result->get_error_message(), self::DEADLINE, $elapsed );
+            }
             return Response::error( $url, $result->get_error_message(), (string) $result->get_error_code(), $elapsed );
         }
 
@@ -255,14 +367,24 @@ final class Client {
                 break;
             }
             $hops++;
+            if ( ! empty( $opts['_bounded'] ) && ! $this->fits( self::MIN_REQUEST_SECONDS ) ) {
+                return $this->refuse( $url ); // no time left for the redirect target (and its robots.txt)
+            }
             if ( $checkRobots ) {
-                $blocked = $this->robotsGate( $next, min( $this->robotsTimeout( $opts ), $timeout ), $allowUnreachable );
+                $wanted  = min( $this->robotsTimeout( $opts ), $timeout );
+                $robotsT = ! empty( $opts['_bounded'] ) ? $this->cap( $wanted ) : $wanted;
+                $blocked = $this->robotsGate( $next, $robotsT, $allowUnreachable, $robotsT < $wanted );
+                if ( null !== $blocked && self::DEADLINE === $blocked->errorCode ) {
+                    return $blocked;
+                }
                 if ( null !== $blocked ) {
                     $this->logger->debug( 'http', 'Redirect target blocked by robots.txt', [ 'url' => $url, 'target' => $next ] );
                     return new Response( 0, [], '', $url, $next, microtime( true ) - $start, (string) $blocked->error, (string) $blocked->errorCode );
                 }
             }
-            $this->throttle( Url::host( $next ), $checkRobots ? $this->robotsDelay( $next ) : 0.0 );
+            if ( ! $this->throttle( Url::host( $next ), $checkRobots ? $this->robotsDelay( $next ) : 0.0 ) ) {
+                return $this->refuse( $url );
+            }
             $current = $next;
         }
         if ( $current === $url && 0 === $hops ) {
@@ -276,7 +398,7 @@ final class Client {
      * With $allowUnreachable a host whose robots.txt failed with a DNS / connection-refused error passes
      * (see probe()).
      */
-    private function robotsGate( string $url, int $timeout, bool $allowUnreachable ): ?Response {
+    private function robotsGate( string $url, int $timeout, bool $allowUnreachable, bool $deadlineCapped = false ): ?Response {
         $fetcher = $this->robotsFetcher( $timeout );
         // A robots.txt request shorter than ROBOTS_TIMEOUT that times out is not cached for other callers.
         $shortened = self::robotsFetchTimeout( $timeout ) < self::ROBOTS_TIMEOUT;
@@ -284,6 +406,9 @@ final class Client {
             return null;
         }
         $error = $this->robots->fetchError( $url, $fetcher, $shortened );
+        if ( null !== $error && $deadlineCapped && preg_match( '/timed?\s?out|timeout/i', $error ) ) {
+            return $this->refuse( $url ); // robots.txt only ran out of the time this run had left: not a "disallow"
+        }
         if ( null !== $error ) {
             if ( $allowUnreachable && preg_match( self::UNREACHABLE_ERROR, $error ) && ! preg_match( '/timed?\s?out|timeout/i', $error ) ) {
                 return null;
@@ -350,10 +475,14 @@ final class Client {
      * Waits until at least the per-host delay has passed since the previous request to $host: the larger of
      * the advanced.crawl_delay_seconds setting and the host's robots.txt Crawl-delay. The whole remaining
      * delay is waited (up to MAX_DELAY_SECONDS); a request is never sent early.
+     *
+     * Under a deadline ($bounded, inside within()) a wait that would leave less than MIN_REQUEST_SECONDS for the
+     * request is not started: false is returned, nothing is recorded, and the caller does not send the request
+     * (the host is asked again on a later run, still after its whole delay).
      */
-    private function throttle( string $host, float $robotsDelay = 0.0 ): void {
+    private function throttle( string $host, float $robotsDelay = 0.0, bool $bounded = true ): bool {
         if ( '' === $host ) {
-            return;
+            return true;
         }
         $delay = $this->delaySeconds( $robotsDelay );
         $last  = $this->lastHitAt( $host );
@@ -361,12 +490,39 @@ final class Client {
             // min(): a timestamp from the future (another server's clock) never makes the wait longer than the delay.
             $wait = min( $delay, $delay - ( microtime( true ) - $last ) );
             if ( $wait > 0 ) {
+                if ( $bounded && ! $this->fits( $wait + self::MIN_REQUEST_SECONDS ) ) {
+                    return false;
+                }
                 $this->pause( $wait );
             }
         }
         $now                     = microtime( true );
         $this->lastHit[ $host ] = $now;
         set_transient( 'ppclg_hit_' . md5( $host ), $now, max( 60, (int) ceil( $delay ) + 5 ) );
+        return true;
+    }
+
+    /** Whether $seconds still fit before the deadline (always true outside within()). */
+    private function fits( float $seconds ): bool {
+        $left = $this->timeLeft();
+        return null === $left || $left >= $seconds;
+    }
+
+    /** $timeout (seconds) capped to the time left before the deadline (at least 1), unchanged outside within(). */
+    private function cap( int $timeout ): int {
+        $left = $this->timeLeft();
+        if ( null === $left ) {
+            return $timeout;
+        }
+        return max( 1, min( $timeout, (int) floor( $left ) ) );
+    }
+
+    /** The answer for a request the deadline does not let us send. */
+    private function refuse( string $url ): Response {
+        $this->deadlineMisses++;
+        $this->lastDeadline = true;
+        $this->logger->debug( 'http', 'Request not sent: the time budget of this run is used up.', [ 'url' => $url ] );
+        return Response::error( $url, self::DEADLINE_MESSAGE, self::DEADLINE );
     }
 
     /** When $host was last requested (this request, or another one within its delay), 0.0 when unknown. */

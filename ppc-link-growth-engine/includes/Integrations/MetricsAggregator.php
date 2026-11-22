@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace PPC\LinkGrowth\Integrations;
 
 use PPC\LinkGrowth\Repositories\DomainMetrics;
+use PPC\LinkGrowth\Support\Http\Client;
 use PPC\LinkGrowth\Support\Logger;
 use PPC\LinkGrowth\Support\Settings;
 
@@ -19,7 +20,8 @@ final class MetricsAggregator {
         private ProviderRegistry $registry,
         private DomainMetrics $cache,
         private Settings $settings,
-        private Logger $logger
+        private Logger $logger,
+        private ?Client $client = null
     ) {}
 
     public function hasAnyProvider(): bool {
@@ -50,11 +52,19 @@ final class MetricsAggregator {
                 $missing[ $id ] = 'lookup deferred (limit reached)';
                 continue;
             }
+            $misses = null !== $this->client ? $this->client->deadlineMisses() : 0;
             try {
                 $m = $provider->domainMetrics( $domain );
             } catch ( \Throwable $e ) {
                 $this->logger->warning( 'metrics', 'Provider exception: ' . $e->getMessage(), [ 'provider' => $id, 'domain' => $domain ] );
                 $m = null;
+            }
+            if ( null !== $this->client && $this->client->deadlineMisses() > $misses ) {
+                // Not (fully) asked because the run's time was up: nothing is cached, neither a "miss" (that would hide
+                // the domain's metrics for 3 days) nor a partial answer (missing values for the whole cache period);
+                // the next evaluation asks again (EvaluateJob defers the prospect when this happens).
+                $missing[ $id ] = 'lookup deferred (time budget)';
+                continue;
             }
             if ( is_array( $m ) ) {
                 $m['fetched_at']      = gmdate( 'c' );

@@ -69,6 +69,19 @@ final class InternalLinkerTest extends TestCase {
         return array_values( array_filter( $linker->suggestions(), static fn( array $s ): bool => $source === (int) $s['source_post_id'] ) );
     }
 
+    /** 1.2.4 performance: targets and sources are loaded in batches, not one query per post (measured: 1,183 → 43 queries). */
+    public function testTargetsAndSourcesAreLoadedInBatches(): void {
+        $this->seedTargets();
+        StubsSeo::addPost( 200, [ 'post_title' => 'Reconstitution Notes', 'post_content' => '<p>Reconstitute with bacteriostatic water before use. Read about peptide storage first.</p>' ] );
+        $linker = $this->linker();
+        $linker->run( TimeBudget::seconds( 30 ) );
+        $this->assertSame( 2, $linker->pendingCount() );
+        $primed = array_merge( ...$GLOBALS['ppclg_test_primed'] );
+        foreach ( [ 100, 102, 104, 105, 200 ] as $id ) {
+            $this->assertContains( $id, $primed );
+        }
+    }
+
     public function testSuggestionRules(): void {
         $this->seedTargets();
         $content = implode(

@@ -103,6 +103,23 @@ export function opcacheNotice( warning ) {
 }
 
 /**
+ * The wait before the next Grow now step after one that ran: the server's `pace_ms` (1.2.4: on a server with 1 or 2
+ * CPUs a step is followed by a rest as long as the step, so a run does not hold the CPU and a PHP worker almost all
+ * the time), at most 30 s, never shorter than the panel's own delay.
+ *
+ * @param {object|null} res      The /growth/step answer.
+ * @param {number}      fallback The panel's delay in ms.
+ * @return {number}
+ */
+export function paceDelay( res, fallback ) {
+    const ms = isObj( res ) ? Number( res.pace_ms ) : NaN;
+    if ( ! Number.isFinite( ms ) || ms <= 0 ) {
+        return fallback;
+    }
+    return Math.max( fallback, Math.min( 30000, ms ) );
+}
+
+/**
  * How long the Grow now panel waits before it asks again while the run is paused (ms): the server's retry_after
  * (at most 5 minutes), else the normal waiting delay.
  *

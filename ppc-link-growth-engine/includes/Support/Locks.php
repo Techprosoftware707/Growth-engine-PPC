@@ -64,11 +64,35 @@ final class Locks {
         return is_array( $current ) && (int) ( $current['expires'] ?? 0 ) >= time();
     }
 
+    /**
+     * Removes every lock (deactivation). Only the lock rows' own cache entries are dropped: an earlier version
+     * flushed the whole object cache here, which on a Redis-backed store threw away every cached object of
+     * WooCommerce and the other plugins at once.
+     */
     public function releaseAll(): void {
         global $wpdb;
+        $like = $wpdb->esc_like( self::PREFIX ) . '%';
+        try {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $names = (array) $wpdb->get_col( $wpdb->prepare( "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s", $like ) );
+        } catch ( \Throwable $e ) {
+            $names = [];
+        }
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        $wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s", $wpdb->esc_like( self::PREFIX ) . '%' ) );
-        wp_cache_flush();
+        $wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s", $like ) );
+        $alloptions = wp_cache_get( 'alloptions', 'options' );
+        $changed    = false;
+        foreach ( $names as $name ) {
+            $name = (string) $name;
+            $this->forgetCached( $name );
+            if ( is_array( $alloptions ) && array_key_exists( $name, $alloptions ) ) {
+                unset( $alloptions[ $name ] ); // a lock row an older version stored autoloaded
+                $changed = true;
+            }
+        }
+        if ( $changed ) {
+            wp_cache_set( 'alloptions', $alloptions, 'options' );
+        }
         $this->held = [];
     }
 

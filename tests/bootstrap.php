@@ -29,6 +29,7 @@ define( 'YEAR_IN_SECONDS', 31536000 );
 define( 'ARRAY_A', 'ARRAY_A' );
 define( 'ARRAY_N', 'ARRAY_N' );
 define( 'OBJECT', 'OBJECT' );
+define( 'LOGGED_IN_COOKIE', 'wordpress_logged_in_unittest' );
 define( 'AUTH_KEY', 'unit-test-auth-key-0123456789abcdefghijklmnopqrstuvwxyz' );
 define( 'SECURE_AUTH_KEY', 'unit-test-secure-auth-key-0123456789abcdefghijklmnopqrstuvwxyz' );
 define( 'WP_DEBUG', false );
@@ -134,19 +135,21 @@ function remove_filter( string $hook, callable $cb, int $priority = 10 ): bool {
 function has_action( string $hook, mixed $cb = false ): bool { return ! empty( $GLOBALS['ppclg_test_actions'][ $hook ] ); }
 function do_action( string $hook, mixed ...$args ): void { foreach ( $GLOBALS['ppclg_test_actions'][ $hook ] ?? [] as $cb ) { $cb( ...$args ); } }
 function apply_filters( string $hook, mixed $value, mixed ...$args ): mixed { foreach ( $GLOBALS['ppclg_test_filters'][ $hook ] ?? [] as $cb ) { $value = $cb( $value, ...$args ); } return $value; }
-function did_action( string $hook ): int { return 0; }
+function did_action( string $hook ): int { return (int) ( $GLOBALS['ppclg_test_did'][ $hook ] ?? 0 ); } // tests set ppclg_test_did to say a hook has fired
 function register_activation_hook( string $file, callable $cb ): void {}
 function register_deactivation_hook( string $file, callable $cb ): void {}
 
 // ---------------------------------------------------------------- options / transients / cache
 function get_option( string $name, mixed $default = false ): mixed { return array_key_exists( $name, $GLOBALS['ppclg_test_options'] ) ? $GLOBALS['ppclg_test_options'][ $name ] : $default; }
-function update_option( string $name, mixed $value, mixed $autoload = null ): bool { $GLOBALS['ppclg_test_options'][ $name ] = $value; return true; }
+function update_option( string $name, mixed $value, mixed $autoload = null ): bool { $GLOBALS['ppclg_test_option_writes'][ $name ] = (int) ( $GLOBALS['ppclg_test_option_writes'][ $name ] ?? 0 ) + 1; $GLOBALS['ppclg_test_options'][ $name ] = $value; return true; }
 function add_option( string $name, mixed $value = '', string $deprecated = '', mixed $autoload = 'yes' ): bool { if ( array_key_exists( $name, $GLOBALS['ppclg_test_options'] ) ) { return false; } $GLOBALS['ppclg_test_options'][ $name ] = $value; return true; }
 function delete_option( string $name ): bool { unset( $GLOBALS['ppclg_test_options'][ $name ] ); return true; }
 function get_transient( string $key ): mixed { $t = $GLOBALS['ppclg_test_transients'][ $key ] ?? null; if ( ! $t ) { return false; } if ( $t['expires'] && $t['expires'] < time() ) { unset( $GLOBALS['ppclg_test_transients'][ $key ] ); return false; } return $t['value']; }
 function set_transient( string $key, mixed $value, int $ttl = 0 ): bool { $GLOBALS['ppclg_test_transients'][ $key ] = [ 'value' => $value, 'expires' => $ttl ? time() + $ttl : 0 ]; return true; }
 function delete_transient( string $key ): bool { unset( $GLOBALS['ppclg_test_transients'][ $key ] ); return true; }
-function wp_cache_flush(): bool { return true; }
+/** Records which posts were primed in one go (1.2.4 performance: no query per post in the audit and link runs). */
+function _prime_post_caches( array $ids, bool $update_term_cache = true, bool $update_meta_cache = true ): void { $GLOBALS['ppclg_test_primed'][] = array_values( array_map( 'intval', $ids ) ); }
+function wp_cache_flush(): bool { $GLOBALS['ppclg_test_cache_flushes'] = (int) ( $GLOBALS['ppclg_test_cache_flushes'] ?? 0 ) + 1; return true; }
 function wp_cache_get( string $key, string $group = '' ): mixed { return false; }
 function wp_cache_set( string $key, mixed $data, string $group = '', int $expire = 0 ): bool { return true; }
 function wp_cache_delete( string $key, string $group = '' ): bool { return true; }
@@ -270,7 +273,7 @@ function get_site_url( ?int $b = null, string $path = '' ): string { return home
 function wp_upload_dir( mixed $time = null, bool $create = true ): array { $base = sys_get_temp_dir() . '/ppclg-test-uploads'; if ( ! is_dir( $base ) ) { mkdir( $base, 0777, true ); } return [ 'basedir' => $base, 'baseurl' => home_url( 'wp-content/uploads' ), 'path' => $base, 'url' => home_url( 'wp-content/uploads' ), 'error' => false ]; }
 function wp_mkdir_p( string $dir ): bool { return is_dir( $dir ) || mkdir( $dir, 0777, true ); }
 function wp_delete_file( string $file ): void { if ( file_exists( $file ) ) { unlink( $file ); } }
-function is_admin(): bool { return false; }
+function is_admin(): bool { return ! empty( $GLOBALS['ppclg_test_is_admin'] ); } // tests set ppclg_test_is_admin for a wp-admin request
 function is_multisite(): bool { return false; }
 function is_user_logged_in(): bool { return $GLOBALS['ppclg_test_user_id'] > 0; }
 function get_current_user_id(): int { return (int) $GLOBALS['ppclg_test_user_id']; }
@@ -342,7 +345,7 @@ function as_enqueue_async_action( mixed ...$a ): int { $GLOBALS['ppclg_test_as_a
 function as_next_scheduled_action( mixed ...$a ): int|false { return false; }
 function get_admin_url( mixed ...$a ): string { return admin_url(); }
 function wp_doing_cron(): bool { return false; }
-function wp_doing_ajax(): bool { return false; }
+function wp_doing_ajax(): bool { return ! empty( $GLOBALS['ppclg_test_doing_ajax'] ); } // tests set ppclg_test_doing_ajax for an admin-ajax.php request
 function wp_get_environment_type(): string { return 'local'; }
 
 if ( ! is_dir( ABSPATH . 'wp-admin/includes' ) ) {

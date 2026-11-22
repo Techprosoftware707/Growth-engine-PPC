@@ -182,6 +182,13 @@ final class GenericFormAdapter implements AdapterInterface {
 
         // 1. Re-fetch the page (robots-aware, throttled).
         $resp = $this->client->crawl( $pageUrl, [ 'cache' => false, 'timeout' => 20 ] );
+        if ( Client::DEADLINE === $resp->errorCode ) {
+            // The job's time ran out before the form page could be fetched (nothing was posted): the submission waits
+            // for the next run and this does not count as an attempt (SubmissionEngine).
+            $failed             = $this->failed( 'Not attempted: the time budget of this run is used up.', true, [], false );
+            $failed['deferred'] = true;
+            return $failed;
+        }
         if ( $resp->failed() ) {
             if ( 'robots_disallow' === $resp->errorCode ) {
                 return $this->failed( 'robots.txt disallows fetching the form page.', false, [ 'http_status' => $resp->status ] );

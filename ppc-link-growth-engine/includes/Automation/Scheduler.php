@@ -27,6 +27,18 @@ final class Scheduler {
 
     private const MIN_INTERVAL = 60;
 
+    /**
+     * A tick that starts in the same PHP process less than this many seconds after the previous one began does
+     * nothing. Action Scheduler runs the due actions of a batch one after another in the same PHP worker (it checks
+     * its 30 s limit only between them), so a kick (Grow now start, the Automation page) and the recurring tick that
+     * fall due together ran two 20-second ticks back to back in one of the store's 3 workers. Ticks in separate
+     * requests are not affected (the recurring interval is at least 60 s).
+     */
+    public const MIN_TICK_GAP_SECONDS = 60;
+
+    /** microtime() when this process started its last tick, null before the first. */
+    private ?float $tickStartedAt = null;
+
     public function __construct(
         private Pipeline $pipeline,
         private Settings $settings,
@@ -54,6 +66,12 @@ final class Scheduler {
     public function onTick( mixed ...$args ): void {
         unset( $args );
         try {
+            $now = microtime( true );
+            if ( null !== $this->tickStartedAt && $now - $this->tickStartedAt < self::MIN_TICK_GAP_SECONDS ) {
+                $this->logger->debug( 'automation', 'Tick skipped: this worker ran a tick moments ago.', [ 'seconds_ago' => round( $now - $this->tickStartedAt, 1 ) ] );
+                return;
+            }
+            $this->tickStartedAt = $now;
             $this->pipeline->tick();
         } catch ( Throwable $e ) {
             $this->logger->error( 'automation', 'Tick failed: ' . $e->getMessage(), [ 'at' => basename( $e->getFile() ) . ':' . $e->getLine() ] );
@@ -62,7 +80,12 @@ final class Scheduler {
 
     /** Tick interval in seconds (settings automation.tick_interval, minimum 60). */
     public function interval(): int {
-        return max( self::MIN_INTERVAL, (int) $this->settings->get( 'automation.tick_interval', 300 ) );
+        return self::intervalFrom( $this->settings );
+    }
+
+    /** The tick interval from the settings alone (Plugin's cron_schedules filter does not build the scheduler). */
+    public static function intervalFrom( Settings $settings ): int {
+        return max( self::MIN_INTERVAL, (int) $settings->get( 'automation.tick_interval', 300 ) );
     }
 
     /**
@@ -70,8 +93,17 @@ final class Scheduler {
      * @return array<string,array{interval:int,display:string}>
      */
     public function cronSchedules( $schedules ): array {
+        return self::withSchedule( $schedules, $this->interval() );
+    }
+
+    /**
+     * $schedules with the tick's WP-Cron interval added.
+     *
+     * @param mixed $schedules
+     * @return array<string,array{interval:int,display:string}>
+     */
+    public static function withSchedule( mixed $schedules, int $interval ): array {
         $schedules = is_array( $schedules ) ? $schedules : [];
-        $interval  = $this->interval();
         $schedules[ self::INTERVAL_NAME ] = [
             'interval' => $interval,
             'display'  => sprintf(
@@ -83,7 +115,12 @@ final class Scheduler {
         return $schedules;
     }
 
-    /** Self-healing: verifies the schedule at most once per hour. */
+    /** Whether the hourly schedule check ran within the last hour (one transient read; no service built). */
+    public static function checkedRecently(): bool {
+        return (bool) get_transient( self::TRANSIENT_CHECKED );
+    }
+
+    /** Self-healing: verifies the schedule at most once per hour (admin, cron and WP-CLI requests; see Plugin::boot()). */
     public function maybeSchedule(): void {
         if ( get_transient( self::TRANSIENT_CHECKED ) ) {
             return;
@@ -124,9 +161,20 @@ final class Scheduler {
                     $this->logger->info( 'automation', 'Recurring tick scheduled via WP-Cron', [ 'interval' => $interval ] );
                 }
             }
-            update_option( self::OPTION_INTERVAL, $interval, false );
+            $this->rememberInterval( $interval );
         } catch ( Throwable $e ) {
             $this->logger->error( 'automation', 'Scheduling failed: ' . $e->getMessage() );
+        }
+    }
+
+    /**
+     * Stores the interval the schedule was made with, only when it changed: the option comes back from the database
+     * as the string '300' and update_option() does not treat the int 300 as equal, so an unconditional save
+     * rewrote the row on every hourly check (measured: 1 UPDATE per hour on whichever request ran the check).
+     */
+    private function rememberInterval( int $interval ): void {
+        if ( (string) $interval !== (string) get_option( self::OPTION_INTERVAL, '' ) ) {
+            update_option( self::OPTION_INTERVAL, $interval, false );
         }
     }
 

@@ -233,7 +233,14 @@ final class AutomationFixesTest extends TestCase {
     public function testTickWithLowCeilingStillEvaluatesAndSubmits(): void {
         $this->settings()->set( 'automation.max_execution_seconds', 10 );
         $this->settings()->set( 'automation.submissions', true );
-        $this->down = true; // the outcome does not matter, only that the work happens
+        // The outcome does not matter, only that the work happens. The host refuses the connection: an instant fake
+        // "timed out" would be read as this run's own shortened timeout (1.2.4 Client deadline) and defer the prospect.
+        HttpFixtures::$handler = static function ( string $url ) {
+            if ( str_ends_with( $url, '/robots.txt' ) ) {
+                return [ 'response' => [ 'code' => 404, 'message' => 'Not Found' ], 'headers' => [ 'content-type' => 'text/plain' ], 'body' => '', 'cookies' => [] ];
+            }
+            return new WP_Error( 'http_request_failed', 'cURL error 7: Failed to connect to example.test port 443: Connection refused' );
+        };
         [ $id ] = $this->prospects()->upsertDiscovered( 'example.test', [] );
         $jobs = Container::get( Jobs::class );
         $jobs->enqueue( 'submit', [ 'manual' => true ], 3 );
@@ -316,6 +323,8 @@ final class AutomationFixesTest extends TestCase {
         $scheduler = Container::get( Scheduler::class );
         foreach ( [ [], [ time() ], [ 'kick' => (string) time() ] ] as $args ) {
             delete_option( Pipeline::OPTION_LAST_TICK );
+            // Each dispatch as in its own worker (1.2.4: a second tick in the same process within a minute is skipped).
+            ( new \ReflectionProperty( Scheduler::class, 'tickStartedAt' ) )->setValue( $scheduler, null );
             // This is how WP_Hook dispatches a cron event's args (call_user_func_array).
             call_user_func_array( [ $scheduler, 'onTick' ], $args );
             $this->assertNotFalse( get_option( Pipeline::OPTION_LAST_TICK, false ), 'tick ran for args ' . wp_json_encode( $args ) );

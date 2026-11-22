@@ -486,6 +486,7 @@ final class DataSupportCoreFixesTest extends TestCase {
     // ------------------------------------------------------------------
 
     public function testMaybeMigrateRunsNoTableChecksOnFrontEndRequests(): void {
+        add_filter( 'ppclg_maintenance_request', static fn() => false ); // a web request (the suite runs on the CLI)
         update_option( 'ppclg_db_version', PPCLG_DB_VERSION );
         $migrator = Container::get( Migrator::class );
         $migrator->maybeMigrate();
@@ -497,6 +498,48 @@ final class DataSupportCoreFixesTest extends TestCase {
         $this->db->log = [];
         $this->assertFalse( $migrator->needsMigration() );
         $this->assertSame( [], $this->db->showTablesQueries(), 'cached for 12 hours' );
+    }
+
+    /** 1.2.4 performance: a visitor's request never runs the backup dump and dbDelta, even with the schema behind. */
+    public function testAVisitorRequestNeverMigratesEvenWhenTheSchemaIsBehind(): void {
+        $GLOBALS['ppclg_test_maintenance'] = false;
+        add_filter( 'ppclg_maintenance_request', static fn() => $GLOBALS['ppclg_test_maintenance'] );
+        update_option( 'ppclg_db_version', '1.0.0' );
+        $this->db->log = [];
+        Container::get( Migrator::class )->maybeMigrate();
+        $this->assertSame( '1.0.0', get_option( 'ppclg_db_version' ), 'the visitor did not migrate' );
+        $this->assertSame( [], $this->db->showTablesQueries(), 'no table check either' );
+        $this->assertFalse( Migrator::upToDate() );
+
+        // The next admin / cron / WP-CLI request does (Plugin registers maybeMigrate for those only).
+        $GLOBALS['ppclg_test_maintenance'] = true;
+        Container::plugin()->maybeMigrate();
+        $this->assertSame( PPCLG_DB_VERSION, get_option( 'ppclg_db_version' ) );
+        $this->assertTrue( Migrator::upToDate(), 'version current and every table seen' );
+        $this->db->log = [];
+        Container::plugin()->maybeMigrate();
+        $this->assertSame( [], $this->db->showTablesQueries(), 'up to date: the migrator is not even asked' );
+    }
+
+    /** 1.2.4 performance: the plugin's own REST routes use its tables, so they migrate first; other REST calls do not. */
+    public function testThePluginsOwnRestRoutesMigrateFirstWhenTheSchemaIsBehind(): void {
+        add_filter( 'ppclg_maintenance_request', static fn() => false ); // a web request (the suite runs on the CLI)
+        update_option( 'ppclg_db_version', '1.0.0' );
+        $GLOBALS['ppclg_test_routes'] = [];
+        $plugin                       = Container::plugin();
+        try {
+            $GLOBALS['wp'] = (object) [ 'query_vars' => [ 'rest_route' => '/wc/store/v1/checkout' ] ];
+            $plugin->registerRest();
+            $this->assertSame( '1.0.0', get_option( 'ppclg_db_version' ), "another plugin's REST call does not migrate" );
+            $this->assertSame( [], $GLOBALS['ppclg_test_routes'], 'nor registers the plugin routes' );
+
+            $GLOBALS['wp'] = (object) [ 'query_vars' => [ 'rest_route' => '/ppclg/v1/public/unsubscribe' ] ];
+            $plugin->registerRest();
+            $this->assertSame( PPCLG_DB_VERSION, get_option( 'ppclg_db_version' ), 'the plugin route runs on the current schema' );
+            $this->assertNotEmpty( $GLOBALS['ppclg_test_routes'] );
+        } finally {
+            unset( $GLOBALS['wp'] );
+        }
     }
 
     public function testFailedMigrationBacksOff(): void {

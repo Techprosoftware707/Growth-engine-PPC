@@ -348,6 +348,15 @@ final class SubmissionEngine {
             return;
         }
 
+        // Not attempted: the job's time ran out before anything was requested from the destination (the adapter says
+        // "deferred" only when nothing was sent). It stays queued and due, without an attempt, a failure or an audit row.
+        if ( ! empty( $result['deferred'] ) && ! $sent ) {
+            // The claim marker goes too: a row that still carried it would look like an interrupted send next time.
+            $this->submissions->setStatus( $id, Submissions::STATUS_QUEUED, [ 'scheduled_at' => null, 'response' => self::unclaimed( $sub ) ] );
+            $stats['deferred'] = (int) ( $stats['deferred'] ?? 0 ) + 1;
+            return;
+        }
+
         // Failed.
         $retry = ! empty( $result['retryable'] ) && $attempts < self::MAX_ATTEMPTS;
         $delay = self::RETRY_DELAY;
@@ -434,6 +443,14 @@ final class SubmissionEngine {
                     continue;
                 }
                 $result = $this->verifier()->verify( $sub, $prospect );
+                if ( ! empty( $result['deferred'] ) ) {
+                    // Not finished in time: it stays due, behind the others (ListingVerifier keeps its progress). The
+                    // next one is still tried, as a Crawl-delay that did not fit holds back only that host; when the
+                    // time is really up, the budget check above ends the loop.
+                    $stats['checked']--;
+                    $stats['deferred'] = (int) ( $stats['deferred'] ?? 0 ) + 1;
+                    continue;
+                }
                 if ( ! empty( $result['confirmed'] ) ) {
                     $stats['confirmed']++;
                     if ( ! empty( $sub['opportunity_id'] ) ) {

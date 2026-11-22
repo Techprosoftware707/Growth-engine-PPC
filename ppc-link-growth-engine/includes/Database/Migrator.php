@@ -40,13 +40,25 @@ final class Migrator {
     }
 
     /**
-     * Runs on init for every request. Ordinary front-end, REST and AJAX requests only compare the stored
-     * schema version; the table-existence check (one SHOW TABLES per table) runs on admin, cron and WP-CLI
-     * requests, at most every 12 hours once all tables were found. After a failed automatic migration,
-     * retries wait 15 minutes instead of running dbDelta on every page view.
+     * Whether nothing is to do: the stored schema version is the code's and every table was seen for it (the 12-hour
+     * marker). Two option reads, no service built; Plugin::maybeMigrate() asks this before building the migrator.
+     */
+    public static function upToDate(): bool {
+        return PPCLG_DB_VERSION === (string) get_option( 'ppclg_db_version', '' ) && PPCLG_DB_VERSION === get_transient( self::TABLES_OK );
+    }
+
+    /**
+     * Runs on init for admin, cron and WP-CLI requests, and before the plugin's own REST routes (Plugin registers it
+     * for those only). A visitor's page view, a REST call to another plugin (WooCommerce's Store API cart and
+     * checkout) or a storefront AJAX request (wc-ajax, or admin-ajax.php without a login cookie) never migrates,
+     * even right after an update that raised the schema version: the backup dump and dbDelta (measured on a test copy
+     * with live-sized tables: 110 plugin queries, 7 writes and a 735 KB backup inside the first page view) wait for
+     * the next admin page, cron run or plugin REST call. Page views do not touch the plugin's tables, so nothing waits for the new schema in the
+     * meantime. The table-existence check (one SHOW TABLES per table) runs at most every 12 hours once all tables
+     * were found. After a failed automatic migration, retries wait 15 minutes.
      */
     public function maybeMigrate(): void {
-        if ( ! $this->versionBehind() && ! self::isMaintenanceRequest() ) {
+        if ( ! self::isMaintenanceRequest() ) {
             return;
         }
         if ( ! $this->needsMigration() ) {
@@ -75,7 +87,7 @@ final class Migrator {
     }
 
     private static function isMaintenanceRequest(): bool {
-        return is_admin() || wp_doing_cron() || ( defined( 'WP_CLI' ) && WP_CLI );
+        return \PPC\LinkGrowth\Plugin::maintenanceRequest() || \PPC\LinkGrowth\Plugin::pluginRestRoute();
     }
 
     /**

@@ -176,6 +176,9 @@ final class InternalLinker {
 
     private const MAX_TARGETS = 1500;
 
+    /** Posts loaded per query when a list of ids is read one by one (primePosts()). */
+    private const PRIME_BATCH = 100;
+
     private const MAX_ITEMS = 2000;
 
     private const DEFAULT_MAX_SOURCES = 400;
@@ -474,7 +477,12 @@ final class InternalLinker {
         $total   = count( $sources );
         $max     = $this->maxPerSource();
 
+        $primedTo = 0; // sources from the cursor up to here have their posts and meta loaded (primePosts())
         while ( (int) $work['cursor'] < $total && $budget->has( 1.5 ) ) {
+            if ( (int) $work['cursor'] >= $primedTo ) {
+                self::primePosts( array_slice( $sources, (int) $work['cursor'], self::PRIME_BATCH ) );
+                $primedTo = (int) $work['cursor'] + self::PRIME_BATCH;
+            }
             $sourceId = $sources[ (int) $work['cursor'] ];
             $work['cursor'] = (int) $work['cursor'] + 1;
             try {
@@ -752,9 +760,11 @@ final class InternalLinker {
      * @return array<int,array{id:int,anchor:string,url:string,title:string,kind:string,lang:string}>
      */
     private function targets(): array {
-        $out   = [];
-        $brand = $this->brand();
-        foreach ( $this->publishedIds( 'product', self::MAX_TARGETS ) as $id ) {
+        $out      = [];
+        $brand    = $this->brand();
+        $products = $this->publishedIds( 'product', self::MAX_TARGETS );
+        self::primePosts( $products );
+        foreach ( $products as $id ) {
             $post = get_post( $id );
             if ( ! is_object( $post ) || '' !== (string) ( $post->post_password ?? '' ) || SiteAuditor::isNoindex( $id, 'product' ) ) {
                 continue;
@@ -765,7 +775,9 @@ final class InternalLinker {
             }
         }
         foreach ( [ 'page', 'post' ] as $type ) {
-            foreach ( $this->publishedIds( $type, self::MAX_TARGETS ) as $id ) {
+            $ids = $this->publishedIds( $type, self::MAX_TARGETS );
+            self::primePosts( $ids );
+            foreach ( $ids as $id ) {
                 $keyword = self::targetKeyword( SiteAuditor::focusKeywords( $id ), $brand );
                 if ( '' === $keyword ) {
                     continue;
@@ -2408,6 +2420,23 @@ final class InternalLinker {
     // ------------------------------------------------------------------
     // Store
     // ------------------------------------------------------------------
+
+    /**
+     * Loads posts, their meta and terms for $ids in a few queries (batches of PRIME_BATCH) before they are read one by
+     * one: the lists come from fields=ids queries, so every get_post(), meta read and permalink otherwise cost a
+     * query of its own (measured before 1.2.4: 1,164 of a run's 1,183 queries on a live-sized copy without an
+     * object cache). Ids already cached are skipped by WordPress.
+     *
+     * @param array<int,int> $ids
+     */
+    private static function primePosts( array $ids ): void {
+        if ( ! function_exists( '_prime_post_caches' ) || [] === $ids ) {
+            return;
+        }
+        foreach ( array_chunk( array_values( array_map( 'intval', $ids ) ), self::PRIME_BATCH ) as $chunk ) {
+            _prime_post_caches( $chunk, true, true );
+        }
+    }
 
     /** @return array{next_id:int,generated_at:?string,items:array<string,array<string,mixed>>} */
     private function store(): array {

@@ -14,6 +14,7 @@ use PPC\LinkGrowth\Container;
 use PPC\LinkGrowth\Discovery\VerifiedOpportunities;
 use PPC\LinkGrowth\Growth\GrowthRun;
 use PPC\LinkGrowth\Monitoring\Notifier;
+use PPC\LinkGrowth\Outreach\Compliance;
 use PPC\LinkGrowth\Outreach\OutreachEngine;
 use PPC\LinkGrowth\Repositories\Backlinks;
 use PPC\LinkGrowth\Repositories\Jobs;
@@ -382,7 +383,7 @@ final class Pipeline {
             'package'            => [ 'every' => HOUR_IN_SECONDS, 'flag' => 'packaging', 'due' => null, 'cadence' => 'hourly' ],
             'submit'             => [ 'every' => 0, 'flag' => 'submissions', 'due' => 'submitDue', 'cadence' => 'every tick (when approved submissions are queued)' ],
             'verify_listings'    => [ 'every' => 6 * HOUR_IN_SECONDS, 'flag' => '', 'due' => null, 'cadence' => 'every 6 hours' ],
-            'outreach_send'      => [ 'every' => 0, 'flag' => '', 'due' => 'outreachDue', 'cadence' => 'every tick (when approved messages are ready)' ],
+            'outreach_send'      => [ 'every' => 0, 'flag' => '', 'due' => 'outreachDue', 'cadence' => 'every tick inside the send window (when approved messages are ready)' ],
             'auto_outreach'      => [ 'every' => DAY_IN_SECONDS, 'flag' => '', 'due' => null, 'cadence' => 'daily' ],
             'follow_ups'         => [ 'every' => DAY_IN_SECONDS, 'flag' => '', 'due' => null, 'cadence' => 'daily' ],
             'monitor_backlinks'  => [ 'every' => 0, 'flag' => 'monitoring', 'due' => 'monitorDue', 'cadence' => 'every tick (when backlinks are due)' ],
@@ -476,7 +477,17 @@ final class Pipeline {
         // on), so held-back messages do not queue a send job that does nothing on every tick. Rows left "sending"
         // by a run that died also make it due, because the send stage is what marks them failed.
         $engine = $this->container()->get( OutreachEngine::class );
-        return $engine->hasSendable() || $engine->hasStaleClaims();
+        if ( $engine->hasStaleClaims() ) {
+            return true;
+        }
+        // Outside the send window (by default weekdays 9-17, about 24 % of the week) the stage could only skip every
+        // message as "outside_send_window": measured on a test copy on a Sunday, a no-op send job on each of 15 ticks
+        // (an idle tick: 36 queries and 10 write queries; 22 and 3 without it). The stage is due again on the first
+        // tick inside the window; nothing waits longer than before.
+        if ( ! $this->container()->get( Compliance::class )->withinSendWindow() ) {
+            return false;
+        }
+        return $engine->hasSendable();
     }
 
     private function monitorDue(): bool {

@@ -17,6 +17,19 @@ use PPC\LinkGrowth\Support\Url;
 
 final class SiteProfiler {
 
+    /**
+     * Pages a deferred evaluation already fetched (transient per domain, 1 day): the next run reuses them and fetches
+     * only what is still missing, so a slow host or a long Crawl-delay is evaluated over a few runs that each end
+     * within the time budget, with the same pages as before.
+     */
+    public const CARRY_PREFIX = 'ppclg_profile_carry_';
+
+    /** After this many deferred runs the site is judged on what could be fetched. */
+    public const MAX_DEFERRALS = 3;
+
+    /** A page larger than this (JSON) is fetched again instead of being kept between runs (keeps the transient small). */
+    private const CARRY_MAX_BYTES = 65536;
+
     public function __construct(
         private Client $client,
         private PageAnalyzer $analyzer,
@@ -31,11 +44,36 @@ final class SiteProfiler {
         $p         = new SiteProfile();
         $p->domain = Url::registrableDomain( $domain );
         $tryUrls   = array_values( array_unique( array_filter( [ $homepageUrl, 'https://' . $p->domain . '/', 'https://www.' . $p->domain . '/', 'http://' . $p->domain . '/' ] ) ) );
+        $carry     = $this->carried( $p->domain );
+        $p->deferrals = (int) ( $carry['deferrals'] ?? 0 );
+        $p->carried   = [] !== $carry;
+        foreach ( (array) ( $carry['tried'] ?? [] ) as $triedUrl => $triedError ) {
+            $p->tried[ (string) $triedUrl ] = (string) $triedError;
+        }
 
         $home = null;
-        foreach ( $tryUrls as $url ) {
+        if ( isset( $carry['home']['page'] ) && is_array( $carry['home']['page'] ) ) {
+            $home           = self::import( $carry['home']['page'] );
+            $p->homepageUrl = (string) ( $carry['home']['final'] ?? '' );
+            $p->fetches++;
+        }
+        foreach ( null === $home ? $tryUrls : [] as $url ) {
+            if ( isset( $p->tried[ $url ] ) ) {
+                // Failed for real in an earlier run of this deferred evaluation: the next address is tried instead.
+                $p->error = $p->tried[ $url ];
+                $p->fetches++;
+                if ( $p->fetches >= 3 ) {
+                    break;
+                }
+                continue;
+            }
             $resp = $this->client->crawl( $url, [ 'cache' => true ] );
             $p->fetches++;
+            if ( Client::DEADLINE === $resp->errorCode ) {
+                $p->deferred = true; // the run's time is up: EvaluateJob tries the site again later
+                $p->error    = (string) $resp->error;
+                break;
+            }
             if ( 'robots_disallow' === $resp->errorCode ) {
                 $p->error = 'robots_disallow';
                 break;
@@ -43,6 +81,11 @@ final class SiteProfiler {
             if ( $resp->ok() && $resp->isHtml() ) {
                 $home = $this->analyzer->fromResponse( $resp );
                 $p->homepageUrl = $resp->finalUrl ?: $url;
+                if ( empty( $carry['home_seen'] ) ) {
+                    // Runs that stopped before the homepage came in (see waitsForHome()) do not count against the
+                    // pages after it: those get their own MAX_DEFERRALS runs, so the site is judged on them too.
+                    $p->deferrals = 0;
+                }
                 break;
             }
             if ( $resp->error ) {
@@ -50,6 +93,7 @@ final class SiteProfiler {
             } elseif ( $resp->status > 0 ) {
                 $p->error = 'HTTP ' . $resp->status;
             }
+            $p->tried[ $url ] = $p->error;
             if ( $p->fetches >= 3 ) {
                 break;
             }
@@ -69,7 +113,9 @@ final class SiteProfiler {
         }
 
         // Extra pages: contact / about (max N fetches). The contact page is fetched first: it is where
-        // outreach addresses usually live, so about/team links listed before it must not crowd it out.
+        // outreach addresses usually live, so about/team links listed before it must not crowd it out. Under a
+        // job's time budget a page that no longer fits (a slow host, a long Crawl-delay) is skipped: the site is
+        // judged on the pages fetched, as when the submission-page finder is skipped for lack of time.
         $about = [];
         foreach ( $home->links as $l ) {
             if ( $l['external'] ) {
@@ -84,6 +130,11 @@ final class SiteProfiler {
         }
         $extra = array_values( array_unique( array_merge( '' !== $p->contactUrl ? [ $p->contactUrl ] : [], $about ) ) );
         foreach ( array_slice( $extra, 0, max( 0, $maxExtraPages ) ) as $url ) {
+            if ( isset( $carry['pages'][ $url ] ) && is_array( $carry['pages'][ $url ] ) ) {
+                $p->pages[] = self::import( $carry['pages'][ $url ] );
+                $p->fetches++;
+                continue;
+            }
             $resp = $this->client->crawl( $url, [ 'cache' => true ] );
             $p->fetches++;
             if ( $resp->ok() && $resp->isHtml() ) {
@@ -112,6 +163,77 @@ final class SiteProfiler {
             }
         }
         return $p;
+    }
+
+    /**
+     * Keeps the pages $p fetched for the next run of a deferred evaluation (EvaluateJob, when the run's time ran out
+     * before every page, the domain age or the metrics could be read).
+     */
+    public function carry( SiteProfile $p ): void {
+        if ( '' === $p->domain ) {
+            return;
+        }
+        $data = [ 'deferrals' => $p->deferrals + 1, 'pages' => [], 'tried' => null === $p->home ? $p->tried : [], 'home_seen' => null !== $p->home ];
+        if ( null !== $p->home ) {
+            $page = self::export( $p->home );
+            if ( null !== $page ) {
+                $data['home'] = [ 'final' => $p->homepageUrl, 'page' => $page ];
+            }
+        }
+        foreach ( $p->pages as $page ) {
+            $vars = self::export( $page );
+            if ( null !== $vars && '' !== $page->url ) {
+                $data['pages'][ $page->url ] = $vars;
+            }
+        }
+        set_transient( self::CARRY_PREFIX . md5( $p->domain ), $data, DAY_IN_SECONDS );
+    }
+
+    /**
+     * Whether earlier runs of a deferred evaluation of $domain already stopped MAX_DEFERRALS times without its homepage
+     * (none is kept): EvaluateJob then asks the site only in a run with time for the homepage's whole timeout.
+     */
+    public function waitsForHome( string $domain ): bool {
+        $carry = $this->carried( Url::registrableDomain( $domain ) );
+        return (int) ( $carry['deferrals'] ?? 0 ) >= self::MAX_DEFERRALS && empty( $carry['home_seen'] ) && ! isset( $carry['home']['page'] );
+    }
+
+    /** Removes what a deferred run kept for $p's domain, once the evaluation is stored. */
+    public function forget( SiteProfile $p ): void {
+        if ( $p->carried && '' !== $p->domain ) {
+            delete_transient( self::CARRY_PREFIX . md5( $p->domain ) );
+        }
+    }
+
+    /** @return array<string,mixed> */
+    private function carried( string $domain ): array {
+        if ( '' === $domain ) {
+            return [];
+        }
+        $data = get_transient( self::CARRY_PREFIX . md5( $domain ) );
+        return is_array( $data ) ? $data : [];
+    }
+
+    /** @return array<string,mixed>|null the page's fields, null when too large to keep */
+    private static function export( PageAnalysis $page ): ?array {
+        $vars = get_object_vars( $page );
+        return strlen( (string) wp_json_encode( $vars ) ) > self::CARRY_MAX_BYTES ? null : $vars;
+    }
+
+    /** @param array<string,mixed> $vars */
+    private static function import( array $vars ): PageAnalysis {
+        $page = new PageAnalysis();
+        foreach ( $vars as $key => $value ) {
+            if ( ! property_exists( $page, (string) $key ) ) {
+                continue;
+            }
+            try {
+                $page->{$key} = $value;
+            } catch ( \TypeError $e ) {
+                unset( $e ); // a field whose type changed between versions keeps its default
+            }
+        }
+        return $page;
     }
 
     private function siteName( PageAnalysis $home, string $domain ): string {

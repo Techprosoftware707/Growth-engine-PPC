@@ -17,7 +17,7 @@ const SKIP_REASONS = {
     prospect_suppressed: 'the domain is suppressed',
     imports_disabled: 'provider imports are switched off',
     not_due: 'it is not due yet',
-    time_budget: 'there was not enough time left in this run; it was queued again for the next tick',
+    time_budget: 'there was not enough time left in this run; it is tried again on a later run',
 };
 
 const firstText = ( ...values ) => {

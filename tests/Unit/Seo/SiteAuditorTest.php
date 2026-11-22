@@ -225,6 +225,37 @@ final class SiteAuditorTest extends TestCase {
         $this->assertNotContains( 'orphan', array_column( $result['issues'], 'code' ) );
     }
 
+    /**
+     * 1.2.4 performance: an audit that finishes within one run does not rewrite its whole progress record every 50
+     * items (measured before on a 400-page copy: 9 rewrites, 2.47 MB of option writes, in a 553 ms run).
+     */
+    public function testProgressIsNotRewrittenEvery50ItemsWhenTheRunIsQuick(): void {
+        for ( $i = 1; $i <= 160; $i++ ) {
+            StubsSeo::addPost( $i, [ 'post_type' => 'post', 'post_title' => 'Laboratory Notes Number ' . $i . ' With Detail', 'post_content' => $this->words( 320 ) ] );
+        }
+        $GLOBALS['ppclg_test_option_writes'] = [];
+        $res = $this->auditor()->run( TimeBudget::seconds( 30 ) );
+        $this->assertTrue( $res['done'] );
+        $this->assertSame( 160, $res['checked'] );
+        $this->assertSame( 1, $GLOBALS['ppclg_test_option_writes'][ SiteAuditor::OPTION_RUN ] ?? 0, 'only the start of the run (the id list); 4 with the 50-item saves' );
+        $this->assertSame( 1, $GLOBALS['ppclg_test_option_writes'][ SiteAuditor::OPTION_RESULT ] ?? 0 );
+        $this->assertFalse( (bool) get_option( SiteAuditor::OPTION_RUN, false ) );
+        // Posts and meta are loaded 100 at a time, not one query each (measured before: 400 + 401 single lookups).
+        $this->assertSame( [ 100, 60 ], array_map( 'count', $GLOBALS['ppclg_test_primed'] ) );
+        $this->assertSame( range( 1, 160 ), array_merge( ...$GLOBALS['ppclg_test_primed'] ) );
+
+        // A run that continues in the middle of a batch (the previous tick stopped at item 37) primes from there.
+        $this->auditor()->run( TimeBudget::seconds( 0 ), [ 'restart' => true ] );
+        $work = get_option( SiteAuditor::OPTION_RUN );
+        $this->assertIsArray( $work );
+        $work['cursor'] = 37;
+        update_option( SiteAuditor::OPTION_RUN, $work );
+        $GLOBALS['ppclg_test_primed'] = [];
+        $this->assertTrue( $this->auditor()->run( TimeBudget::seconds( 30 ) )['done'] );
+        $this->assertSame( [ 100, 23 ], array_map( 'count', $GLOBALS['ppclg_test_primed'] ) );
+        $this->assertSame( range( 38, 160 ), array_merge( ...$GLOBALS['ppclg_test_primed'] ) );
+    }
+
     public function testBusyLockIsReportedNotRun(): void {
         StubsSeo::addPost( 1, [ 'post_type' => 'page', 'post_title' => 'Page' ] );
         $other = new Locks();

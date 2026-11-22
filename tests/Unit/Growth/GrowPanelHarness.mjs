@@ -138,12 +138,14 @@ globalThis.requestAnimationFrame = () => 0;
 
 // ---------------------------------------------------------------- scripted fetch
 const requests = [];
+const requestTimes = []; // [key, ms] for every request, in order
 let routes = {};
 globalThis.fetch = async ( url, init ) => {
     const u = new URL( String( url ) );
     const route = u.pathname.replace( /^.*\/ppclg\/v1/, '' );
     const key = `${ init.method } ${ route }`;
     requests.push( key );
+    requestTimes.push( [ key, Date.now() ] );
     const queue = routes[ key ] || [];
     const reply = queue.length > 1 ? queue.shift() : ( queue[ 0 ] || { status: 404, body: { code: 'rest_no_route', message: '' } } );
     if ( reply.networkError ) {
@@ -545,6 +547,27 @@ const fast = { pollDelay: 1, waitDelay: 1, retryDelay: 1 };
     };
 }
 
+// 10a. 1.2.4 performance: after a step that ran, the panel rests for the server's pace_ms before the next one.
+{
+    requests.length = 0;
+    requestTimes.length = 0;
+    routes = {
+        'GET /growth/status': [ { status: 200, body: running( [ 'pending' ] ) } ],
+        'POST /growth/step': [
+            { status: 200, body: { ...running( [ 'done', 'pending' ] ), ok: true, pace_ms: 250 } },
+            { status: 200, body: completed },
+        ],
+    };
+    let finished = null;
+    const panel = mod.createGrowPanel( ctx, { ...fast, onFinished: ( run ) => {
+        finished = run;
+    } } );
+    await panel.ready;
+    await until( () => finished !== null, 5000 );
+    const stepAt = requestTimes.filter( ( r ) => r[ 0 ] === 'POST /growth/step' ).map( ( r ) => r[ 1 ] );
+    out.paced = { stepCalls: stepAt.length, gapMs: stepAt.length >= 2 ? stepAt[ 1 ] - stepAt[ 0 ] : null, finishedStatus: finished ? finished.status : null };
+}
+
 // 10b. 1.2.4: Stop during the pause (the page's real delays: a minute until the next step) frees the panel at once
 //      and "Grow now" starts a new run.
 {
@@ -628,6 +651,10 @@ const fast = { pollDelay: 1, waitDelay: 1, retryDelay: 1 };
         delayCapped: sp.pausedDelay( { paused: { code: 'backup' }, retry_after: 9999 }, 3000 ),
         delayNotPaused: sp.pausedDelay( { waiting: true, retry_after: 60 }, 3000 ),
         delayNoRetry: sp.pausedDelay( { paused: { code: 'backup' } }, 3000 ),
+        paceFromServer: sp.paceDelay( { status: 'running', pace_ms: 9000 }, 400 ),
+        paceCapped: sp.paceDelay( { status: 'running', pace_ms: 999999 }, 400 ),
+        paceNone: sp.paceDelay( { status: 'running' }, 400 ),
+        paceShort: sp.paceDelay( { status: 'running', pace_ms: 100 }, 400 ),
     };
     // 1.2.4: the load and memory pauses carry their numbers (`measured`); a server with less than 2 GB gets the RAM line.
     const busy = { code: 'server_busy', text: 'Paused: the server is busy (load 6.53 on 1 CPU) — resumes when it calms down.', measured: { load: 6.53, cpus: 1, cpus_known: true, load_per_cpu: 6.53, max_load_per_cpu: 2 } };

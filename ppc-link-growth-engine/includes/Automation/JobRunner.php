@@ -34,6 +34,7 @@ use PPC\LinkGrowth\Container;
 use PPC\LinkGrowth\Repositories\AuditLog;
 use PPC\LinkGrowth\Repositories\Jobs;
 use PPC\LinkGrowth\Support\Crypto;
+use PPC\LinkGrowth\Support\Http\Client;
 use PPC\LinkGrowth\Support\Locks;
 use PPC\LinkGrowth\Support\Logger;
 use PPC\LinkGrowth\Support\Settings;
@@ -131,9 +132,12 @@ final class JobRunner {
     }
 
     /**
-     * Runs queued jobs until the budget is spent or the queue is empty.
+     * Runs queued jobs until the budget is spent or the queue is empty. Before each job after the first, the server
+     * pressure is asked again (LoadGuard, about 25 µs measured): a backup, an OPcache restart, a load or memory spike,
+     * or a full PHP-FPM pool that starts during the tick stops it after the job that is running, instead of claiming
+     * job after job for the rest of the budget. The next tick decides (and records) the pause as usual.
      *
-     * @return array{ran:int,completed:int,failed:int,skipped:bool}
+     * @return array{ran:int,completed:int,failed:int,skipped:bool,paused?:string}
      */
     public function run( TimeBudget $budget ): array {
         $out = [ 'ran' => 0, 'completed' => 0, 'failed' => 0, 'skipped' => false ];
@@ -146,6 +150,14 @@ final class JobRunner {
         $token = Crypto::randomToken( 8 );
         try {
             while ( $budget->has( self::MIN_CLAIM_SECONDS ) ) {
+                if ( $out['ran'] > 0 ) {
+                    $paused = $this->pausedNow();
+                    if ( null !== $paused ) {
+                        $out['paused'] = $paused;
+                        $this->logger->debug( 'jobs', 'Stopped claiming jobs: background work is paused.', [ 'code' => $paused ] );
+                        break;
+                    }
+                }
                 $job = $this->jobs->claimNext( $token );
                 if ( null === $job ) {
                     break;
@@ -223,7 +235,7 @@ final class JobRunner {
         }
         $started = microtime( true );
         try {
-            $result            = ( new $class() )->handle( $payload, $budget, $this->c );
+            $result            = $this->bounded( $budget, fn(): array => ( new $class() )->handle( $payload, $budget, $this->c ) );
             $result['ok']      = array_key_exists( 'ok', $result ) ? (bool) $result['ok'] : true;
             $result['elapsed'] = round( microtime( true ) - $started, 2 );
             $this->rememberResult( $type, 'completed', $result, null );
@@ -270,7 +282,7 @@ final class JobRunner {
         $child   = TimeBudget::seconds( $this->childSeconds( $budget ) );
         $started = microtime( true );
         try {
-            $result            = ( new $class() )->handle( $payload, $child, $this->c );
+            $result            = $this->bounded( $child, fn(): array => ( new $class() )->handle( $payload, $child, $this->c ) );
             $result['elapsed'] = round( microtime( true ) - $started, 2 );
             $this->jobs->complete( $id, $result );
             $this->rememberResult( $type, 'completed', $result, $id );
@@ -288,6 +300,41 @@ final class JobRunner {
             $this->rememberResult( $type, $retry ? 'retrying' : 'failed', [ 'ok' => false, 'error' => $e->getMessage(), 'attempt' => $attempts ], $id );
             return false;
         }
+    }
+
+    /** The pause code when background work should pause right now (asked afresh), else null. Never throws. */
+    private function pausedNow(): ?string {
+        try {
+            if ( ! $this->c->has( LoadGuard::class ) ) {
+                return null;
+            }
+            $guard  = $this->c->get( LoadGuard::class );
+            $reason = $guard instanceof LoadGuard ? $guard->pauseReason( true ) : null;
+            return null === $reason ? null : (string) ( $reason['code'] ?? 'paused' );
+        } catch ( Throwable $e ) {
+            return null; // a guard that cannot answer never stops the run
+        }
+    }
+
+    /**
+     * Runs a job's handle() with the HTTP client bounded by the job's budget (Client::within()): its crawls, probes
+     * and API reads end before the budget does, so a slow host or a long Crawl-delay cannot hold the PHP worker
+     * past it (measured before on a test copy: 21.06 to 60.06 s for a 20 s budget). Without a client in the container it just runs.
+     *
+     * @param callable():array<string,mixed> $fn
+     * @return array<string,mixed>
+     */
+    private function bounded( TimeBudget $budget, callable $fn ): array {
+        $client = null;
+        try {
+            $client = $this->c->has( Client::class ) ? $this->c->get( Client::class ) : null;
+        } catch ( Throwable $e ) {
+            $client = null;
+        }
+        if ( ! $client instanceof Client ) {
+            return $fn();
+        }
+        return $client->within( $budget, $fn );
     }
 
     /**

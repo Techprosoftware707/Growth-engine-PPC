@@ -217,6 +217,8 @@ namespace PPC\LinkGrowth\Tests\Unit\CrossSlice {
             // array_values()), a WP-Cron kick (positional) and a legacy associative kick via call_user_func_array().
             foreach ( [ [], [ $now ], [ (string) $now ], [ 'kick' => (string) $now ] ] as $args ) {
                 delete_option( Pipeline::OPTION_LAST_TICK );
+                // Each dispatch as in its own worker (1.2.4: a second tick in the same process within a minute is skipped).
+                ( new \ReflectionProperty( Scheduler::class, 'tickStartedAt' ) )->setValue( $scheduler, null );
                 call_user_func_array( [ $scheduler, 'onTick' ], $args );
                 $this->assertNotFalse( get_option( Pipeline::OPTION_LAST_TICK, false ), 'tick ran for args ' . wp_json_encode( $args ) );
             }

@@ -122,6 +122,34 @@ final class GrowthControllerTest extends TestCase {
         $this->assertIsArray( $state['summary'] );
     }
 
+    /** 1.2.4 performance: on a 1-2 CPU server every step that ran asks the panel to rest as long as the step took. */
+    public function testASmallServerGetsARestAfterEveryStep(): void {
+        $pace = new \ReflectionMethod( GrowthController::class, 'pace' );
+        $seen = [];
+        $GLOBALS['ppclg_test_filters']['ppclg_growth_pace'] = [ static function ( $share, $cpus, $elapsed ) use ( &$seen ) {
+            $seen[] = [ $share, $cpus ];
+            return $share;
+        } ];
+        // The test server's CPU count is unknown: counted as 1, like the live store.
+        $this->assertSame( 12500, $pace->invoke( $this->controller(), 12.5 ), 'a 12.5 s step: 12.5 s of rest' );
+        $this->assertSame( GrowthController::MAX_PACE_MS, $pace->invoke( $this->controller(), 41.0 ), 'at most 30 s' );
+        $this->assertSame( [ 1.0, 1 ], $seen[0] );
+
+        // Four CPUs: no rest by default.
+        $four = new \PPC\LinkGrowth\Support\ServerResources( static fn( string $path ) => str_contains( $path, 'cpu/online' ) ? '0-3' : null, static fn() => [ 0.1, 0.1, 0.1 ], 'Linux' );
+        Container::plugin()->container()->set( \PPC\LinkGrowth\Support\ServerResources::class, $four );
+        delete_option( \PPC\LinkGrowth\Support\ServerResources::OPTION_CPUS ); // the stored count from the first server
+        $this->assertSame( 0, $pace->invoke( $this->controller(), 12.5 ) );
+        $this->assertSame( [ 0.0, 4 ], $seen[2] );
+
+        // A finished run asks for no rest; the step answer carries pace_ms only while the run goes on.
+        $GLOBALS['ppclg_test_filters']['ppclg_growth_pace'] = [ static fn() => 1.0 ];
+        $this->controller()->register( 'ppclg/v1' );
+        $this->dispatch( 'POST', '/growth/start' );
+        $state = $this->dispatch( 'POST', '/growth/step' );
+        $this->assertSame( 'running' === $state['status'], isset( $state['pace_ms'] ) );
+    }
+
     public function testStepSecondsAreClamped(): void {
         $this->controller()->register( 'ppclg/v1' );
         $settings = Container::get( Settings::class );

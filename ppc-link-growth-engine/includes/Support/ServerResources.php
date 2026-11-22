@@ -51,6 +51,9 @@ final class ServerResources {
     /** @var Closure():mixed|null */
     private ?Closure $loadReader;
 
+    /** @var Closure():mixed|null */
+    private ?Closure $fpmReader;
+
     private string $os;
 
     /** @var array<string,mixed> what this instance has read: load, cpus, memory */
@@ -60,10 +63,12 @@ final class ServerResources {
      * @param callable|null $reader     fn( string $path, int $maxBytes ): ?string, the file contents or null (tests inject one); null = the real files.
      * @param callable|null $loadReader fn(): mixed, what sys_getloadavg() returns (tests inject one); null = sys_getloadavg().
      * @param string|null   $os         PHP_OS_FAMILY (tests inject one).
+     * @param callable|null $fpmReader  fn(): mixed, what fpm_get_status() returns (tests inject one); null = fpm_get_status().
      */
-    public function __construct( ?callable $reader = null, ?callable $loadReader = null, ?string $os = null ) {
+    public function __construct( ?callable $reader = null, ?callable $loadReader = null, ?string $os = null, ?callable $fpmReader = null ) {
         $this->reader     = null === $reader ? null : Closure::fromCallable( $reader );
         $this->loadReader = null === $loadReader ? null : Closure::fromCallable( $loadReader );
+        $this->fpmReader  = null === $fpmReader ? null : Closure::fromCallable( $fpmReader );
         $this->os         = $os ?? PHP_OS_FAMILY;
     }
 
@@ -152,6 +157,41 @@ final class ServerResources {
         }
         $this->read['memory'] = $memory;
         return $memory;
+    }
+
+    /**
+     * This request's PHP-FPM pool right now: idle and active workers, the worker count and the requests waiting for
+     * a worker (listen queue), or null outside PHP-FPM (CLI, the built-in server, mod_php) or when it cannot be read.
+     * fpm_get_status() reads FPM's shared scoreboard; nothing is fetched over the network.
+     *
+     * `manager` is the pool's process manager (static, dynamic or ondemand; '' when not reported).
+     *
+     * @return array{idle:int,active:int,total:int,queue:int,manager:string}|null
+     */
+    public function fpm(): ?array {
+        if ( array_key_exists( 'fpm', $this->read ) ) {
+            return $this->read['fpm'];
+        }
+        $raw = $this->quietly(
+            function () {
+                if ( null !== $this->fpmReader ) {
+                    return ( $this->fpmReader )();
+                }
+                return function_exists( 'fpm_get_status' ) ? @fpm_get_status() : false; // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+            }
+        );
+        $fpm = null;
+        if ( is_array( $raw ) && isset( $raw['idle-processes'], $raw['active-processes'], $raw['total-processes'] ) && is_numeric( $raw['idle-processes'] ) && is_numeric( $raw['active-processes'] ) && is_numeric( $raw['total-processes'] ) ) {
+            $fpm = [
+                'idle'   => max( 0, (int) $raw['idle-processes'] ),
+                'active' => max( 0, (int) $raw['active-processes'] ),
+                'total'  => max( 0, (int) $raw['total-processes'] ),
+                'queue'  => max( 0, (int) ( is_numeric( $raw['listen-queue'] ?? null ) ? $raw['listen-queue'] : 0 ) ),
+                'manager' => is_string( $raw['process-manager'] ?? null ) ? strtolower( $raw['process-manager'] ) : '',
+            ];
+        }
+        $this->read['fpm'] = $fpm;
+        return $fpm;
     }
 
     /** MemTotal in bytes, or null when it is not known. */

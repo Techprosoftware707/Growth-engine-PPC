@@ -65,6 +65,16 @@ final class SiteAuditor {
     /** Spot-check deferrals less than this many seconds apart (one tick) count as one. */
     private const SAMPLE_DEFERRAL_GAP = 30;
 
+    /**
+     * Progress (the cursor plus every record and issue so far, about 400 KB for 400 pages) is saved during a run at
+     * most this often, so a request that dies loses at most a few seconds of work. Before 1.2.4 it was saved every 50
+     * items: 9 rewrites of the whole record (2.47 MB) for a 400-page audit that finished in about half a second.
+     */
+    private const SAVE_EVERY_SECONDS = 5.0;
+
+    /** Items whose posts and meta are loaded together before they are audited one by one. */
+    private const PRIME_BATCH = 100;
+
     private const THIN_WORDS = 300;
 
     private const TITLE_MIN = 30;
@@ -495,8 +505,16 @@ final class SiteAuditor {
         $phase = (string) ( $work['phase'] ?? 'pages' );
 
         if ( 'pages' === $phase ) {
-            $since = 0;
+            $since    = 0;
+            $savedAt  = microtime( true );
+            $primedTo = 0;
             while ( (int) $work['cursor'] < $total && $budget->has( 1.5 ) ) {
+                if ( (int) $work['cursor'] >= $primedTo && function_exists( '_prime_post_caches' ) ) {
+                    // Posts, meta and terms for the next batch in a few queries instead of about 2 per item, also
+                    // when a run continues in the middle of a batch.
+                    _prime_post_caches( array_slice( $ids, (int) $work['cursor'], self::PRIME_BATCH ), true, true );
+                    $primedTo = (int) $work['cursor'] + self::PRIME_BATCH;
+                }
                 $id = $ids[ (int) $work['cursor'] ];
                 $work['cursor'] = (int) $work['cursor'] + 1;
                 try {
@@ -504,9 +522,10 @@ final class SiteAuditor {
                 } catch ( Throwable $e ) {
                     $this->logger->warning( 'seo', 'Site audit could not analyse an item: ' . $e->getMessage(), [ 'post_id' => $id ] );
                 }
-                if ( ++$since >= 50 ) {
+                if ( ++$since >= 50 && microtime( true ) - $savedAt >= self::SAVE_EVERY_SECONDS ) {
                     $this->saveWork( $work ); // keep progress if the request dies
-                    $since = 0;
+                    $since   = 0;
+                    $savedAt = microtime( true );
                 }
             }
             if ( (int) $work['cursor'] >= $total ) {

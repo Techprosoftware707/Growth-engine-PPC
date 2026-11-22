@@ -504,13 +504,16 @@ final class ServerLoadTest extends TestCase {
         $this->assertSame( 1, count( array_keys( $this->readPaths(), ServerResources::CPU_ONLINE, true ) ), 'the CPU count is read once, then stored' );
 
         $pipeline = Container::get( Pipeline::class );
-        $pipeline->tick();
-        $pipeline->tick();
-        $this->assertSame( 4, $this->loadReads, 'every tick asks again' );
+        $ran      = [ (int) $pipeline->tick()['run']['ran'], (int) $pipeline->tick()['run']['ran'] ];
+        // Every tick asks again when it starts and, since 1.2.4's performance pass, before each further claim (after
+        // each job it ran, including the last claim that finds the queue empty).
+        $this->assertGreaterThan( 1, $ran[0], 'the first tick ran several jobs' );
+        $this->assertSame( 2 + 2 + $ran[0] + $ran[1], $this->loadReads, 'every tick asks again, and between jobs' );
         $this->assertSame( 1, count( array_keys( $this->readPaths(), ServerResources::CPU_ONLINE, true ) ) );
+        $reads = $this->loadReads;
         $guard->forget();
         $guard->pauseReason();
-        $this->assertSame( 5, $this->loadReads );
+        $this->assertSame( $reads + 1, $this->loadReads );
     }
 
     // ------------------------------------------------------------------

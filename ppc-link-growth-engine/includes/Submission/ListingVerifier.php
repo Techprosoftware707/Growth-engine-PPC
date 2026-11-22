@@ -36,6 +36,16 @@ final class ListingVerifier {
     private const MAX_SEARCH_PAGES = 3;
     private const GIVE_UP_MESSAGE  = 'Could not verify listing after 30 days';
 
+    /**
+     * A check the run had no time to finish (Client::DEADLINE) keeps its progress in the submission's response
+     * (this key): the pages already checked without a link and the search result pages, so the next run continues
+     * with the pages still missing instead of fetching (and searching) the same ones again.
+     */
+    public const CARRY_KEY = 'verification_carry';
+
+    /** After this many runs in a row that ran out of time, the listing is judged on the pages that were checked. */
+    public const MAX_DEFERRALS = 3;
+
     public function __construct(
         private Client $client,
         private PageAnalyzer $analyzer,
@@ -52,7 +62,7 @@ final class ListingVerifier {
     /**
      * @param array<string,mixed> $submission
      * @param array<string,mixed> $prospect
-     * @return array{confirmed:bool,listing_url:string,note:string}
+     * @return array{confirmed:bool,listing_url:string,note:string,deferred?:bool}
      */
     public function verify( array $submission, array $prospect ): array {
         $id = (int) ( $submission['id'] ?? 0 );
@@ -67,7 +77,7 @@ final class ListingVerifier {
     /**
      * @param array<string,mixed> $submission
      * @param array<string,mixed> $prospect
-     * @return array{confirmed:bool,listing_url:string,note:string}
+     * @return array{confirmed:bool,listing_url:string,note:string,deferred?:bool}
      */
     private function check( array $submission, array $prospect ): array {
         $site    = $this->settings->siteDomain();
@@ -76,6 +86,10 @@ final class ListingVerifier {
         $payload = is_array( $submission['payload'] ?? null ) ? $submission['payload'] : [];
         $oppType = (string) ( $payload['destination']['opportunity_type'] ?? '' );
         $checked = [];
+        $misses  = $this->client->deadlineMisses();
+        $carry   = is_array( $submission['response'][ self::CARRY_KEY ] ?? null ) ? $submission['response'][ self::CARRY_KEY ] : [];
+        // Pages an earlier run that ran out of time already checked (no link there): counted, not fetched again.
+        $done    = array_fill_keys( array_map( 'strval', (array) ( $carry['checked'] ?? [] ) ), true );
 
         // 1. Known listing URL and, for page-level opportunities, the page where the link should appear.
         $candidates = [];
@@ -94,7 +108,7 @@ final class ListingVerifier {
         $candidates = array_values( array_filter( $candidates, static fn( string $u ): bool => '' === $own || Url::registrableDomain( $u ) !== $own ) );
         foreach ( array_unique( $candidates ) as $url ) {
             $checked[ $url ] = true;
-            $hit             = $this->checkPage( $url, $site );
+            $hit             = $this->checkOnce( $url, $site, $done );
             if ( null !== $hit ) {
                 return $this->confirm( $submission, $prospect, $hit['page'], $hit['link'], $oppType );
             }
@@ -103,7 +117,14 @@ final class ListingVerifier {
         // 2. Search the prospect site for the brand and check up to three result pages.
         // Like DiscoveryEngine: when a provider fails (revoked key, 429, outage) the next one runs the query.
         $searched = false;
-        if ( '' !== $domain && '' !== $brand ) {
+        $found    = null; // the result URLs of a search that answered (kept for the next run when this one runs out of time)
+        if ( '' !== $domain && '' !== $brand && is_array( $carry['results'] ?? null ) ) {
+            // An earlier run that ran out of time already ran this search: its result pages are checked without
+            // asking (and paying for) the query again.
+            $searched = true;
+            $found    = array_values( array_map( 'strval', $carry['results'] ) );
+            $results  = array_map( static fn( string $u ): array => [ 'url' => $u ], $found );
+        } elseif ( '' !== $domain && '' !== $brand ) {
             $results = [];
             foreach ( $this->providers->searchProviders() as $provider ) {
                 if ( $provider->remainingToday() <= 0 ) {
@@ -118,10 +139,13 @@ final class ListingVerifier {
                     continue;
                 }
                 if ( ! empty( $results ) || '' === $provider->lastError() ) {
+                    $found = array_slice( array_values( array_filter( array_map( static fn( $r ): string => Url::normalize( (string) ( is_array( $r ) ? ( $r['url'] ?? '' ) : '' ) ), (array) $results ) ) ), 0, 10 );
                     break;
                 }
                 $this->logger->warning( 'submission', 'Listing search failed', [ 'provider' => $provider->id(), 'error' => $provider->lastError() ] );
             }
+        }
+        if ( '' !== $domain && '' !== $brand ) {
             $n = 0;
             foreach ( $results as $r ) {
                 if ( $n >= self::MAX_SEARCH_PAGES ) {
@@ -133,7 +157,7 @@ final class ListingVerifier {
                 }
                 $checked[ $url ] = true;
                 $n++;
-                $hit = $this->checkPage( $url, $site );
+                $hit = $this->checkOnce( $url, $site, $done );
                 if ( null !== $hit ) {
                     return $this->confirm( $submission, $prospect, $hit['page'], $hit['link'], $oppType );
                 }
@@ -145,14 +169,73 @@ final class ListingVerifier {
             $target = Url::normalize( (string) ( $submission['target_url'] ?? '' ) );
             if ( '' !== $target && ! isset( $checked[ $target ] ) ) {
                 $checked[ $target ] = true;
-                $hit                = $this->checkPage( $target, $site );
+                $hit                = $this->checkOnce( $target, $site, $done );
                 if ( null !== $hit ) {
                     return $this->confirm( $submission, $prospect, $hit['page'], $hit['link'], $oppType );
                 }
             }
         }
 
-        return $this->reschedule( $submission, count( $checked ), $searched );
+        $pages = count( array_intersect_key( $checked, $done ) );
+        if ( $this->client->deadlineMisses() > $misses ) {
+            // A page or the search was not asked because the job's time ran out (Client::DEADLINE): no verdict (never
+            // "not visible yet" or, near the 30-day mark, "could not verify" for pages that were not even fetched).
+            $deferrals = (int) ( $carry['deferrals'] ?? 0 ) + 1;
+            if ( $deferrals <= self::MAX_DEFERRALS ) {
+                return $this->defer( $submission, $deferrals, array_keys( $done ), $found );
+            }
+            // A host that never fits (a long Crawl-delay, pages slower than the budget) is judged on what was checked,
+            // so the submission is rescheduled as usual and still reaches its 30-day limit.
+            return $this->reschedule( $submission, $pages, $searched, sprintf( 'Listing not visible yet (%d page%s checked; the others did not fit in the time of %d runs in a row).', $pages, 1 === $pages ? '' : 's', $deferrals ) );
+        }
+        return $this->reschedule( $submission, $pages, $searched );
+    }
+
+    /**
+     * checkPage() unless an earlier, deferred run already checked $url; a page that was fetched (or failed for real)
+     * joins $done, one the run had no time for does not.
+     *
+     * @param array<string,true> $done
+     * @return array{page:PageAnalysis,link:array<string,mixed>}|null
+     */
+    private function checkOnce( string $url, string $site, array &$done ): ?array {
+        if ( isset( $done[ $url ] ) ) {
+            return null;
+        }
+        $misses = $this->client->deadlineMisses();
+        $hit    = $this->checkPage( $url, $site );
+        if ( null === $hit && $this->client->deadlineMisses() === $misses ) {
+            $done[ $url ] = true;
+        }
+        return $hit;
+    }
+
+    /**
+     * The run's time ran out before the check was complete: the progress is kept and the submission stays due, at the
+     * back of the due queue, so the next run verifies the other due submissions first instead of starting with the
+     * same slow host again.
+     *
+     * @param array<string,mixed> $submission
+     * @param string[]            $done  pages checked without a link
+     * @param string[]|null       $found result URLs of a search that answered, null when none did
+     * @return array{confirmed:bool,listing_url:string,note:string,deferred:bool}
+     */
+    private function defer( array $submission, int $deferrals, array $done, ?array $found ): array {
+        $response = is_array( $submission['response'] ?? null ) ? $submission['response'] : [];
+        $carry    = [ 'deferrals' => $deferrals, 'checked' => array_values( $done ) ];
+        if ( null !== $found ) {
+            $carry['results'] = $found;
+        }
+        $response[ self::CARRY_KEY ] = $carry;
+        $this->submissions->update(
+            (int) ( $submission['id'] ?? 0 ),
+            [
+                'next_verify_at' => Repository::now(),
+                'response'       => $response,
+                'updated_at'     => Repository::now(),
+            ]
+        );
+        return [ 'confirmed' => false, 'listing_url' => '', 'note' => 'Not checked: the time budget of this run is used up.', 'deferred' => true ];
     }
 
     /**
@@ -196,16 +279,18 @@ final class ListingVerifier {
         $region  = (string) ( $link['region'] ?? 'content' );
         $place   = in_array( $oppType, self::PAGE_TYPES, true ) && in_array( $region, [ 'content', 'nav', 'footer', 'sidebar', 'header', 'comments' ], true ) ? $region : 'directory';
 
-        $this->submissions->setStatus(
-            $id,
-            Submissions::STATUS_CONFIRMED,
-            [
-                'confirmed_at'   => $now,
-                'listing_url'    => mb_substr( $pageUrl, 0, 700 ),
-                'next_verify_at' => null,
-                'last_error'     => '',
-            ]
-        );
+        $fields = [
+            'confirmed_at'   => $now,
+            'listing_url'    => mb_substr( $pageUrl, 0, 700 ),
+            'next_verify_at' => null,
+            'last_error'     => '',
+        ];
+        if ( isset( $submission['response'][ self::CARRY_KEY ] ) && is_array( $submission['response'] ) ) {
+            $response = $submission['response'];
+            unset( $response[ self::CARRY_KEY ] ); // the progress of earlier runs that ran out of time is done with
+            $fields['response'] = $response;
+        }
+        $this->submissions->setStatus( $id, Submissions::STATUS_CONFIRMED, $fields );
 
         $interval = max( 1, (int) $this->settings->get( 'monitoring.check_interval_days_new', 1 ) );
         [ $backlinkId, $created ] = $this->backlinks->upsert(
@@ -268,6 +353,7 @@ final class ListingVerifier {
         }
         $deadline = $submittedAt + self::GIVE_UP_DAYS * DAY_IN_SECONDS;
         $response = is_array( $submission['response'] ?? null ) ? $submission['response'] : [];
+        unset( $response[ self::CARRY_KEY ] ); // a finished check starts over next time
 
         if ( '' !== $noteOverride ) {
             $note = $noteOverride;

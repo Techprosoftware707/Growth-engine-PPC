@@ -163,8 +163,15 @@ final class RobotsTxt {
         return $data;
     }
 
-    /** "scheme://host" of $url: the key robots.txt data is cached under. */
+    /**
+     * "scheme://host[:port]" of $url: the key robots.txt data is cached under and where it is fetched from. A
+     * non-default port is kept (before 1.2.4 http://localhost:8791/page asked http://localhost/robots.txt).
+     */
     private static function originKey( string $url ): string {
+        $origin = Url::origin( $url );
+        if ( '' !== $origin ) {
+            return $origin;
+        }
         $scheme = (string) ( wp_parse_url( $url, PHP_URL_SCHEME ) ?: 'https' );
         return $scheme . '://' . Url::host( $url );
     }
