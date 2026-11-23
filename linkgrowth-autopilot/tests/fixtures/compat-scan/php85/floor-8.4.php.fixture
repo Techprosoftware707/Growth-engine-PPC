@@ -1,0 +1,18 @@
+<?php
+// Seeded PHP 8.4 features for `bin/php85-scan.sh --min=8.1`. Not valid before PHP 8.4.
+namespace Fixture\Floor84;
+
+class User
+{
+    public string $name { // expect: property-hooks
+        set => trim($value);
+    }
+    public private(set) int $id = 0; // expect: asymmetric-visibility
+
+    #[\Deprecated] // expect: deprecated-attribute
+    public function old(): void {}
+}
+$len = new \ArrayObject([1])->count(); // expect: new-without-parens
+$first = array_find([1, 2], static fn(int $v): bool => $v > 1); // expect: new-function
+$trimmed = mb_trim(' a '); // expect: new-function
+$doc = \Dom\HTMLDocument::createEmpty(); // expect: new-class

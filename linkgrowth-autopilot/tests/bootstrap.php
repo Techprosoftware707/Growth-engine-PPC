@@ -10,6 +10,22 @@ error_reporting( E_ALL );
 ini_set( 'display_errors', '1' );
 date_default_timezone_set( 'UTC' );
 
+// DESIGN.md §12.6: a deprecation raised from a plugin file (the main file, uninstall.php, includes/) fails the run.
+// While a test runs, PHPUnit's error handler records it and failOnDeprecation (phpunit.xml.dist) fails the run. This
+// handler covers the plugin code this bootstrap loads; it is removed at the end of the file, because PHPUnit does not
+// install its own handler while another one is registered (that would also switch off failOnWarning).
+set_error_handler(
+    static function ( int $errno, string $message, string $file, int $line ): bool {
+        $root = dirname( __DIR__ ) . '/';
+        $rel  = str_starts_with( $file, $root ) ? substr( $file, strlen( $root ) ) : '';
+        if ( str_starts_with( $rel, 'includes/' ) || in_array( $rel, [ 'linkgrowth-autopilot.php', 'uninstall.php' ], true ) ) {
+            throw new \ErrorException( $message, 0, $errno, $file, $line );
+        }
+        return false; // not a plugin file: PHP's own handling (display_errors) applies
+    },
+    E_DEPRECATED | E_USER_DEPRECATED
+);
+
 define( 'ABSPATH', __DIR__ . '/stubs-abspath/' );
 define( 'WPINC', 'wp-includes' );
 define( 'LGA_VERSION', '1.0.0' );
@@ -37,6 +53,9 @@ define( 'WP_DEBUG', false );
 require_once LGA_DIR . 'includes/Autoloader.php';
 \LinkGrowth\Autopilot\Autoloader::register( LGA_DIR . 'includes', 'LinkGrowth\\Autopilot\\' );
 \LinkGrowth\Autopilot\Autoloader::register( __DIR__, 'LinkGrowth\\Autopilot\\Tests\\' );
+// Frozen clock (tests/Support/FrozenClock.php): time(), gmdate(), date() and strtotime() in every plugin namespace read
+// $GLOBALS['lga_test_time'] when a test sets it, the real time otherwise. Declared before any plugin code runs.
+\LinkGrowth\Autopilot\Tests\Support\FrozenClock::install( LGA_DIR . 'includes' );
 
 $GLOBALS['lga_test_options']    = [];
 $GLOBALS['lga_test_transients'] = [];
@@ -144,8 +163,8 @@ function get_option( string $name, mixed $default = false ): mixed { return arra
 function update_option( string $name, mixed $value, mixed $autoload = null ): bool { $GLOBALS['lga_test_option_writes'][ $name ] = (int) ( $GLOBALS['lga_test_option_writes'][ $name ] ?? 0 ) + 1; $GLOBALS['lga_test_options'][ $name ] = $value; return true; }
 function add_option( string $name, mixed $value = '', string $deprecated = '', mixed $autoload = 'yes' ): bool { if ( array_key_exists( $name, $GLOBALS['lga_test_options'] ) ) { return false; } $GLOBALS['lga_test_options'][ $name ] = $value; return true; }
 function delete_option( string $name ): bool { unset( $GLOBALS['lga_test_options'][ $name ] ); return true; }
-function get_transient( string $key ): mixed { $t = $GLOBALS['lga_test_transients'][ $key ] ?? null; if ( ! $t ) { return false; } if ( $t['expires'] && $t['expires'] < time() ) { unset( $GLOBALS['lga_test_transients'][ $key ] ); return false; } return $t['value']; }
-function set_transient( string $key, mixed $value, int $ttl = 0 ): bool { $GLOBALS['lga_test_transients'][ $key ] = [ 'value' => $value, 'expires' => $ttl ? time() + $ttl : 0 ]; return true; }
+function get_transient( string $key ): mixed { $t = $GLOBALS['lga_test_transients'][ $key ] ?? null; if ( ! $t ) { return false; } if ( $t['expires'] && $t['expires'] < lga_test_now() ) { unset( $GLOBALS['lga_test_transients'][ $key ] ); return false; } return $t['value']; }
+function set_transient( string $key, mixed $value, int $ttl = 0 ): bool { $GLOBALS['lga_test_transients'][ $key ] = [ 'value' => $value, 'expires' => $ttl ? lga_test_now() + $ttl : 0 ]; return true; }
 function delete_transient( string $key ): bool { unset( $GLOBALS['lga_test_transients'][ $key ] ); return true; }
 /** Records which posts were primed in one go (1.2.4 performance: no query per post in the audit and link runs). */
 function _prime_post_caches( array $ids, bool $update_term_cache = true, bool $update_meta_cache = true ): void { $GLOBALS['lga_test_primed'][] = array_values( array_map( 'intval', $ids ) ); }
@@ -248,15 +267,17 @@ function wp_html_excerpt( string $s, int $n, string $more = '' ): string { retur
 function shortcode_atts( array $pairs, array $atts ): array { return array_merge( $pairs, array_intersect_key( $atts, $pairs ) ); }
 
 // ---------------------------------------------------------------- time
+/** The frozen test time ($GLOBALS['lga_test_time'], see tests/Support/FrozenClock.php) or the real time. */
+function lga_test_now(): int { return \LinkGrowth\Autopilot\Tests\Support\FrozenClock::now(); }
 function current_time( string $type, int|bool $gmt = 0 ): mixed { $ts = $GLOBALS['lga_test_time'] ?? time(); return 'timestamp' === $type ? $ts : ( 'mysql' === $type ? gmdate( 'Y-m-d H:i:s', $ts ) : gmdate( $type, $ts ) ); }
 // $GLOBALS['lga_test_timezone'] overrides the WordPress timezone (e.g. 'UTC' or '+00:00'); default America/Los_Angeles (the Northwind demo business, Portland OR).
 function wp_timezone_string(): string { return (string) ( $GLOBALS['lga_test_timezone'] ?? 'America/Los_Angeles' ); }
 function wp_timezone(): DateTimeZone { $tz = wp_timezone_string(); return new DateTimeZone( preg_match( '/^[+-]\d{2}:\d{2}$/', $tz ) ? $tz : ( '' !== $tz ? $tz : 'UTC' ) ); }
-function wp_date( string $format, ?int $ts = null, ?DateTimeZone $tz = null ): string { $d = new DateTime( '@' . ( $ts ?? time() ) ); $d->setTimezone( $tz ?? wp_timezone() ); return $d->format( $format ); }
-function date_i18n( string $format, ?int $ts = null ): string { return gmdate( $format, $ts ?? time() ); }
+function wp_date( string $format, ?int $ts = null, ?DateTimeZone $tz = null ): string { $d = new DateTime( '@' . ( $ts ?? lga_test_now() ) ); $d->setTimezone( $tz ?? wp_timezone() ); return $d->format( $format ); }
+function date_i18n( string $format, ?int $ts = null ): string { return gmdate( $format, $ts ?? lga_test_now() ); }
 function get_date_from_gmt( string $s, string $format = 'Y-m-d H:i:s' ): string { return gmdate( $format, strtotime( $s ) ?: 0 ); }
 function get_gmt_from_date( string $s, string $format = 'Y-m-d H:i:s' ): string { return gmdate( $format, strtotime( $s ) ?: 0 ); }
-function human_time_diff( int $from, int $to = 0 ): string { return abs( ( $to ?: time() ) - $from ) . ' seconds'; }
+function human_time_diff( int $from, int $to = 0 ): string { return abs( ( $to ?: lga_test_now() ) - $from ) . ' seconds'; }
 
 // ---------------------------------------------------------------- urls / site
 function home_url( string $path = '', ?string $scheme = null ): string { return rtrim( $GLOBALS['lga_test_home'], '/' ) . ( '' !== $path ? '/' . ltrim( $path, '/' ) : '' ); }
@@ -356,3 +377,6 @@ if ( ! is_dir( ABSPATH . 'wp-admin/includes' ) ) {
 if ( ! file_exists( ABSPATH . 'wp-admin/includes/upgrade.php' ) ) {
     file_put_contents( ABSPATH . 'wp-admin/includes/upgrade.php', "<?php\n// stub for tests\n" );
 }
+
+// End of the bootstrap: hand error handling to PHPUnit (see the handler at the top of this file).
+restore_error_handler();

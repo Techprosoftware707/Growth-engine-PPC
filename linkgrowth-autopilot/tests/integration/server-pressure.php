@@ -289,7 +289,7 @@ IT::step( '1.2.4: background work pauses while the server is busy or low on free
         'interned_strings_usage' => [ 'buffer_size' => 8388608, 'used_memory' => 8388608, 'free_memory' => 0 ],
         'opcache_statistics'     => [ 'num_cached_scripts' => 9100, 'max_cached_keys' => 16229 ],
     ];
-    $health = new \LinkGrowth\Autopilot\Admin\SiteHealth(
+    $health = new \LinkGrowth\Autopilot\Health\SiteHealthTests(
         new \LinkGrowth\Autopilot\Support\Opcache( static fn(): array => $full, [ 'opcache.memory_consumption' => '128', 'opcache.interned_strings_buffer' => '8', 'opcache.max_accelerated_files' => '10000' ] ),
         lga()->get( \LinkGrowth\Autopilot\Support\ServerResources::class )
     );

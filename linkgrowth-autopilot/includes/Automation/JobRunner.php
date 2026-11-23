@@ -9,28 +9,9 @@ declare(strict_types=1);
 
 namespace LinkGrowth\Autopilot\Automation;
 
-use LinkGrowth\Autopilot\Automation\Jobs\AutoOutreachJob;
-use LinkGrowth\Autopilot\Automation\Jobs\BrokenLinkScanJob;
-use LinkGrowth\Autopilot\Automation\Jobs\CleanupJob;
-use LinkGrowth\Autopilot\Automation\Jobs\DiscoverJob;
-use LinkGrowth\Autopilot\Automation\Jobs\EvaluateJob;
-use LinkGrowth\Autopilot\Automation\Jobs\FindOpportunitiesJob;
-use LinkGrowth\Autopilot\Automation\Jobs\FollowUpJob;
-use LinkGrowth\Autopilot\Automation\Jobs\ImportBacklinksJob;
-use LinkGrowth\Autopilot\Automation\Jobs\CatalogImportJob;
-use LinkGrowth\Autopilot\Automation\Jobs\IndexNowJob;
-use LinkGrowth\Autopilot\Automation\Jobs\InternalLinksJob;
 use LinkGrowth\Autopilot\Automation\Jobs\JobInterface;
-use LinkGrowth\Autopilot\Automation\Jobs\MentionScanJob;
-use LinkGrowth\Autopilot\Automation\Jobs\MetricsRefreshJob;
-use LinkGrowth\Autopilot\Automation\Jobs\MonitorBacklinksJob;
-use LinkGrowth\Autopilot\Automation\Jobs\OutreachSendJob;
-use LinkGrowth\Autopilot\Automation\Jobs\PackageJob;
-use LinkGrowth\Autopilot\Automation\Jobs\SiteAuditJob;
-use LinkGrowth\Autopilot\Automation\Jobs\PositioningAuditJob;
-use LinkGrowth\Autopilot\Automation\Jobs\SubmitJob;
-use LinkGrowth\Autopilot\Automation\Jobs\VerifyListingsJob;
 use LinkGrowth\Autopilot\Container;
+use LinkGrowth\Autopilot\Plugin;
 use LinkGrowth\Autopilot\Repositories\AuditLog;
 use LinkGrowth\Autopilot\Repositories\Jobs;
 use LinkGrowth\Autopilot\Support\Crypto;
@@ -64,30 +45,6 @@ final class JobRunner {
      */
     public const MIN_TICK_SECONDS = 15.0;
 
-    /** Built-in job classes. @var array<int,class-string<JobInterface>> */
-    private const BUILTIN = [
-        DiscoverJob::class,
-        EvaluateJob::class,
-        FindOpportunitiesJob::class,
-        PackageJob::class,
-        SubmitJob::class,
-        VerifyListingsJob::class,
-        OutreachSendJob::class,
-        AutoOutreachJob::class,
-        FollowUpJob::class,
-        MonitorBacklinksJob::class,
-        ImportBacklinksJob::class,
-        MentionScanJob::class,
-        BrokenLinkScanJob::class,
-        CleanupJob::class,
-        MetricsRefreshJob::class,
-        PositioningAuditJob::class,
-        CatalogImportJob::class,
-        SiteAuditJob::class,
-        IndexNowJob::class,
-        InternalLinksJob::class,
-    ];
-
     public function __construct(
         private Container $c,
         private Jobs $jobs,
@@ -103,14 +60,21 @@ final class JobRunner {
     }
 
     /**
-     * Registered job types (filterable via `lga_job_types`: type => class-string).
+     * Registered job types: the jobs every module declares (Module::jobs(), in Core\Modules order; an entry whose class
+     * does not report that type, or a type an earlier module took, is left out), then the `lga_job_types` filter.
      *
      * @return array<string,class-string<JobInterface>>
      */
     public function types(): array {
         $types = [];
-        foreach ( self::BUILTIN as $class ) {
-            $types[ $class::type() ] = $class;
+        foreach ( Plugin::instance()->modules() as $module ) {
+            foreach ( (array) $module->jobs() as $type => $class ) {
+                $type = (string) $type;
+                if ( isset( $types[ $type ] ) || ! is_string( $class ) || ! class_exists( $class ) || ! is_subclass_of( $class, JobInterface::class ) || $class::type() !== $type ) {
+                    continue;
+                }
+                $types[ $type ] = $class;
+            }
         }
 
         /**

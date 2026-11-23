@@ -27,6 +27,7 @@ C 4 includes/Content/ClaimsFilter.php WP7
 C 21 includes/Content/ContentGenerator.php WP7
 C 12 includes/Discovery/CatalogImporter.php WP9
 C 3 includes/Discovery/CompetitorBacklinkSource.php WP6
+C 1 includes/Discovery/DiscoveryModule.php WP4a
 C 1 includes/Discovery/ProspectIntake.php WP6
 C 1 includes/Discovery/QueryGenerator.php WP6
 C 1 includes/Growth/GrowthRun.php WP4b
@@ -38,7 +39,6 @@ C 7 includes/Outreach/Personalizer.php WP8
 C 6 includes/Outreach/Templates.php WP8
 C 1 includes/Submission/PackageBuilder.php WP8
 C 1 includes/Submission/Policy.php WP8
-C 1 includes/Support/Settings.php WP4a
 C 1 includes/Support/Url.php WP6
 C 1 tests/Support/StubsSeo.php WP6
 C 1 tests/Unit/Admin/AdminRest2FixesTest.php WP4a
@@ -73,3 +73,4 @@ C 1 tests/Unit/Verified/CatalogImporterTest.php WP9
 C 2 tests/Unit/Verified/OwnerTaskBrowserHarness.mjs WP9
 C 2 tests/Unit/Verified/OwnerTaskUiHarness.mjs WP9
 C 1 tests/Unit/Verified/OwnerTaskUiTest.php WP9
+C 3 tests/fixtures/golden/wiring.json WP4a

@@ -40,6 +40,7 @@ use LinkGrowth\Autopilot\Support\Settings;
 use LinkGrowth\Autopilot\Support\TimeBudget;
 use LinkGrowth\Autopilot\Tests\Support\Container;
 use LinkGrowth\Autopilot\Tests\Support\TestCase;
+use LinkGrowth\Autopilot\Tests\Support\Wp2Modules;
 use WP_Error;
 use WP_REST_Request;
 
@@ -97,9 +98,11 @@ final class ReleaseWiringTest extends TestCase {
             $this->assertContains( $class, $controllers );
         }
 
-        $this->assertContains( 'seo', Menu::PAGE_KEYS );
+        // WP2: the pages come from the modules (Menu::PAGE_KEYS is gone); the navigation order is unchanged.
+        $this->assertArrayHasKey( 'seo', Menu::pages() );
         $this->assertSame( 'On-site SEO', Menu::pages()['seo'] );
-        $this->assertSame( Menu::PAGE_KEYS, array_keys( Menu::pages() ), 'menu labels follow the navigation order' );
+        // The pages of the WP2 modules (Menu::PAGE_KEYS before WP2), among those later packages' modules add.
+        $this->assertSame( Wp2Modules::PAGES, Wp2Modules::only( array_keys( Menu::pages() ), Wp2Modules::PAGES ), 'menu labels follow the navigation order' );
         $app = (string) file_get_contents( self::ROOT . 'assets/js/app.js' );
         $this->assertStringContainsString( "seo: () => import( './pages/seo.js' ),", $app );
         $this->assertStringContainsString( "seo: 'search',", $app );
@@ -179,7 +182,7 @@ final class ReleaseWiringTest extends TestCase {
 
     public function testServerPressureServicesHooksAndDocsAreWired(): void {
         $c = Container::plugin()->container();
-        foreach ( [ \LinkGrowth\Autopilot\Automation\LoadGuard::class, \LinkGrowth\Autopilot\Support\Opcache::class, \LinkGrowth\Autopilot\Admin\SiteHealth::class ] as $class ) {
+        foreach ( [ \LinkGrowth\Autopilot\Automation\LoadGuard::class, \LinkGrowth\Autopilot\Support\Opcache::class, \LinkGrowth\Autopilot\Health\SiteHealthTests::class ] as $class ) {
             $this->assertTrue( $c->has( $class ), $class . ' has a factory' );
             $this->assertInstanceOf( $class, $c->get( $class ) );
         }
@@ -210,9 +213,11 @@ final class ReleaseWiringTest extends TestCase {
 
         $this->assertSame( 'lga_cpu_count', \LinkGrowth\Autopilot\Support\ServerResources::OPTION_CPUS, 'lga_ prefix: removed on uninstall' );
         $this->assertSame( [ 'opcache.memory_consumption' => '160', 'opcache.interned_strings_buffer' => '16', 'opcache.max_accelerated_files' => '20000' ], \LinkGrowth\Autopilot\Support\Opcache::SMALL_SERVER_SETTINGS );
-        $plugin = (string) file_get_contents( self::ROOT . 'includes/Plugin.php' );
-        $this->assertStringContainsString( 'new LoadGuard( $c->get( Opcache::class ), $c->get( ServerResources::class ) )', $plugin, 'the guard reads the server through the container' );
-        $this->assertStringContainsString( 'new SiteHealth( $c->get( Opcache::class ), $c->get( ServerResources::class ) )', $plugin, 'Site Health reads the memory through the container' );
+        // WP2: the factories moved from Plugin.php into the module that owns each service (Core\Module::services()).
+        $automation = (string) file_get_contents( self::ROOT . 'includes/Automation/AutomationModule.php' );
+        $core       = (string) file_get_contents( self::ROOT . 'includes/Core/CoreModule.php' );
+        $this->assertStringContainsString( 'new LoadGuard( $c->get( Opcache::class ), $c->get( ServerResources::class ) )', $automation, 'the guard reads the server through the container' );
+        $this->assertStringContainsString( 'new SiteHealthTests( $c->get( Opcache::class ), $c->get( ServerResources::class ) )', $core, 'Site Health reads the memory through the container' );
         $run = (string) file_get_contents( self::ROOT . 'tests/integration/run.php' );
         $this->assertStringContainsString( "require __DIR__ . '/server-pressure.php';", $run );
     }

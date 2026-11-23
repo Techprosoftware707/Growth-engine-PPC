@@ -1,6 +1,6 @@
 <?php
 /**
- * Registers every REST controller under the lga/v1 namespace.
+ * Registers every REST controller the modules declare under the lga/v1 namespace.
  *
  * @package LinkGrowth\Autopilot
  */
@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace LinkGrowth\Autopilot\Admin\Rest;
 
 use LinkGrowth\Autopilot\Container;
+use LinkGrowth\Autopilot\Plugin;
 use LinkGrowth\Autopilot\Support\Logger;
 
 final class RestApi {
@@ -21,25 +22,20 @@ final class RestApi {
     public function __construct( private Container $c ) {}
 
     /**
-     * Controller classes (filterable via `lga_rest_controllers`).
+     * Controller classes: the REST controllers every module declares (Module::restControllers(), in Core\Modules
+     * order, each once), then the `lga_rest_controllers` filter.
      *
      * @return array<int,class-string<Controller>>
      */
     public function controllers(): array {
-        $list = [
-            OverviewController::class,
-            ProspectsController::class,
-            SubmissionsController::class,
-            OutreachController::class,
-            BacklinksController::class,
-            AutomationController::class,
-            SettingsController::class,
-            LogsController::class,
-            PublicController::class,
-            ComplianceController::class,
-            SeoController::class,
-            GrowthController::class,
-        ];
+        $list = [];
+        foreach ( Plugin::instance()->modules() as $module ) {
+            foreach ( (array) $module->restControllers() as $class ) {
+                if ( is_string( $class ) && ! in_array( $class, $list, true ) ) {
+                    $list[] = $class;
+                }
+            }
+        }
         /**
          * Filters the REST controllers registered by the plugin.
          *

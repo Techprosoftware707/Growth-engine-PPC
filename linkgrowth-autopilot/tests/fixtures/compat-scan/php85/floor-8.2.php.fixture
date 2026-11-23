@@ -1,0 +1,30 @@
+<?php
+// Seeded PHP 8.2 features for `bin/php85-scan.sh --min=8.1` (the acceptance fixture "a readonly class").
+namespace Fixture\Floor82;
+
+readonly class Money // expect: readonly-class
+{
+    public function __construct(public int $amount) {}
+}
+final readonly class Rate {} // expect: readonly-class
+interface A {}
+interface B {}
+function dnf((A&B)|null $x): void {} // expect: dnf-type
+function alwaysTrue(): true { return true; } // expect: true-type
+function nothing(): null { return null; } // expect: standalone-type
+function nope(): false { return false; } // expect: standalone-type
+trait HasLimit
+{
+    public const LIMIT = 10; // expect: trait-constant
+}
+$bytes = ini_parse_quantity('1M'); // expect: new-function
+$rand = new \Random\Randomizer(); // expect: new-class
+class Holder
+{
+    public (A&B)|int $p = 0; // expect: dnf-type
+    private (A&B)|false $q = false; // expect: dnf-type
+    public static int|(A&B) $s = 0; // expect: dnf-type
+    public readonly (A&B)|null $r; // expect: dnf-type
+    public int $plain = 0, $second = 1;
+    public function __construct(public (A&B)|string $c = '') {} // expect: dnf-type
+}

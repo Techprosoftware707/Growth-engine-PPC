@@ -1,6 +1,6 @@
 <?php
 /**
- * Plugin settings (non-secret) with defaults and dot-path access.
+ * Plugin settings (non-secret) with dot-path access; the defaults come from the modules (DESIGN.md §3.1).
  *
  * @package LinkGrowth\Autopilot
  */
@@ -9,6 +9,8 @@ declare(strict_types=1);
 
 namespace LinkGrowth\Autopilot\Support;
 
+use LinkGrowth\Autopilot\Plugin;
+
 final class Settings {
 
     public const OPTION = 'lga_settings';
@@ -16,151 +18,36 @@ final class Settings {
     /** @var array<string,mixed>|null */
     private ?array $cache = null;
 
-    /** @return array<string,mixed> */
+    /**
+     * The defaults of every settings section, from the modules (Module::settingsDefaults(), in Core\Modules order).
+     * A section two modules declare is merged; on a key both declare, the earlier module's default stays.
+     *
+     * @return array<string,mixed>
+     */
     public static function defaults(): array {
-        $home   = function_exists( 'home_url' ) ? home_url( '/' ) : '';
-        $host   = (string) wp_parse_url( $home, PHP_URL_HOST );
-        $domain = (string) preg_replace( '/^www\./i', '', $host );
+        $out = [];
+        foreach ( Plugin::instance()->modules() as $module ) {
+            foreach ( (array) $module->settingsDefaults() as $section => $defaults ) {
+                if ( ! is_string( $section ) || '' === $section ) {
+                    continue;
+                }
+                $out[ $section ] = isset( $out[ $section ] ) && is_array( $out[ $section ] ) && is_array( $defaults )
+                    ? self::mergeDeep( $defaults, $out[ $section ] )
+                    : ( $out[ $section ] ?? $defaults );
+            }
+        }
+        return $out;
+    }
 
-        return [
-            // The business profile ships empty: every site enters its own (no brand, address or market is assumed).
-            'site'       => [
-                'brand_name'   => '',
-                'legal_name'   => '',
-                'domain'       => $domain,
-                'home_url'     => untrailingslashit( $home ),
-                'tagline'      => '',
-                'email'        => '',
-                'phone'        => '',
-                'address'      => '',
-                'city'         => '',
-                'region'       => '',
-                'postal_code'  => '',
-                'country'      => '',
-                'founded_year' => '',
-                'logo_url'     => '',
-                'social'       => [],
-                'categories'   => [],
-            ],
-            'automation' => [
-                'enabled'               => true,
-                // One switch for hands-off growth (Automation\Autopilot): written only through
-                // POST /automation/autopilot or POST /settings with confirm=true, which records the owner's consent.
-                'autopilot'             => false,
-                'discovery'             => true,
-                'evaluation'            => true,
-                'opportunities'         => true,
-                'packaging'             => true,
-                'submissions'           => true,
-                'submission_mode'       => 'auto',
-                'auto_outreach_drafts'  => true,
-                'outreach_autosend'     => false,
-                'monitoring'            => true,
-                'imports'               => true,
-                'daily_limits'          => [
-                    'discovery_queries' => 15,
-                    'evaluations'       => 40,
-                    'submissions'       => 5,
-                    'outreach_emails'   => 10,
-                    'backlink_checks'   => 150,
-                    'provider_lookups'  => 60,
-                ],
-                'weekly_limits'         => [
-                    'discovery_queries' => 80,
-                    'submissions'       => 20,
-                    'outreach_emails'   => 40,
-                ],
-                'min_score_auto_queue'  => 70,
-                'min_score_keep'        => 50,
-                'max_execution_seconds' => 20,
-                'tick_interval'         => 300,
-                'international'         => true,
-            ],
-            'discovery'  => [
-                'geo_modifiers'       => [ 'Canada', 'Canadian', 'Ontario', 'Toronto', 'British Columbia', 'Alberta', 'Quebec', 'Vancouver', 'Montreal', 'Ottawa' ],
-                'competitor_domains'  => [],
-                // Competitors Autopilot found through SE Ranking while competitor_domains was empty (kept apart from
-                // the owner's list; removable in Settings → Discovery; see Discovery\CompetitorBacklinkSource).
-                'competitor_domains_auto' => [],
-                'brand_terms'         => [], // the brand name, legal name, site title and domain are always brand terms (Seo\BrandTerms)
-                'query_cooldown_days' => 30,
-                'results_per_query'   => 10,
-                'seed_catalog'        => true,
-                'custom_queries'      => [],
-                'excluded_domains'    => [],
-            ],
-            'providers'  => [
-                'seranking' => [ 'enabled' => true, 'region' => 'ca', 'cache_days' => 30 ],
-                'ahrefs'    => [ 'enabled' => false, 'cache_days' => 30 ],
-                'semrush'   => [ 'enabled' => false, 'database' => 'ca', 'cache_days' => 30 ],
-                'moz'       => [ 'enabled' => false, 'cache_days' => 30 ],
-                'google'    => [ 'enabled' => true, 'gsc_property' => 'sc-domain:' . $domain, 'ga4_property_id' => '', 'use_sitekit' => true ],
-                'search'    => [ 'primary' => 'auto', 'google_cse_daily_limit' => 90, 'brave_daily_limit' => 60 ],
-                'ai'        => [ 'enabled' => false, 'model' => '', 'max_tokens' => 1200 ],
-                'rdap'      => [ 'enabled' => true ],
-            ],
-            'outreach'   => [
-                'sender_name'               => '',
-                'sender_email'              => '',
-                'reply_to'                  => '',
-                'postal_address'            => '',
-                'signature'                 => '',
-                'require_approval'          => true,
-                'follow_up_days'            => 7,
-                'max_follow_ups'            => 1,
-                'min_days_between_contacts' => 90,
-                'send_window_start'         => 9,
-                'send_window_end'           => 17,
-                'send_days'                 => [ 1, 2, 3, 4, 5 ],
-                // IANA zone the send window is evaluated in; '' = the WordPress timezone, or the business region's
-                // zone when WordPress is left on UTC (see Outreach\Compliance::sendTimezone()).
-                'timezone'                  => '',
-            ],
-            'monitoring' => [
-                'check_interval_days_new'     => 1,
-                'check_interval_days_stable'  => 7,
-                'lost_after_failures'         => 2,
-                'digest_email'                => true,
-                'notify_email'                => '',
-                'notify_critical_immediately' => true,
-                'import_interval_days'        => 7,
-                'import_limit'                => 500,
-            ],
-            'seo'        => [
-                'indexnow'           => true,
-                'indexnow_key'       => '', // generated once by Seo\IndexNow::key(); never edited through the settings form
-                'audit_max_pages'    => 400,
-                'audit_http_sample'  => true, // optional HTTP spot check of at most 10 URLs at the end of each audit
-                'internal_links'     => true,
-                'max_links_per_post' => 3,
-                // Apply the best pending internal-link suggestions without a click (always on under Autopilot).
-                'auto_apply_links'   => false,
-                'auto_apply_per_day' => 20,
-                // Post meta key (holding the id of the source-language item) that marks translated items; '' = none.
-                'language_counterpart_meta_key' => '',
-            ],
-            'compliance' => [
-                'storefront_gate'   => true,
-                // Written only by Compliance\PositioningGate::acknowledge() (POST /compliance/storefront/acknowledge).
-                'acknowledged_hash' => '',
-                'acknowledged_by'   => 0,
-                'acknowledged_at'   => '',
-            ],
-            'growth'     => [
-                'evaluate_rounds' => 6,  // most evaluate job runs per growth step (1–20)
-                'step_seconds'    => 20, // seconds per POST /growth/step (8–25)
-            ],
-            'advanced'   => [
-                'delete_on_uninstall'  => false,
-                'log_level'            => 'info',
-                'log_retention_days'   => 30,
-                'audit_retention_days' => 365,
-                'user_agent'           => 'LinkGrowthAutopilotBot/1.0 (+' . untrailingslashit( $home ) . '/; link research)',
-                'request_timeout'      => 15,
-                'crawl_delay_seconds'  => 2,
-                'max_response_kb'      => 1536,
-            ],
-        ];
+    /** The site's home URL with a trailing slash ('' outside WordPress), from which several defaults derive. */
+    public static function defaultHome(): string {
+        return function_exists( 'home_url' ) ? (string) home_url( '/' ) : '';
+    }
+
+    /** The host of $url without a leading "www.". */
+    public static function domainOf( string $url ): string {
+        $host = (string) wp_parse_url( $url, PHP_URL_HOST );
+        return (string) preg_replace( '/^www\./i', '', $host );
     }
 
     /** @return array<string,mixed> */

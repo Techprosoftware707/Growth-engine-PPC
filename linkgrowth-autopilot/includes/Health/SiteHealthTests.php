@@ -14,18 +14,21 @@
  * Support\ServerResources) the advice stays within what that memory can spare and says that more RAM is the
  * lasting fix; when the memory is not known the advice is the same as on a large server.
  *
+ * Moved from Admin\SiteHealth in WP2 (DESIGN.md §3.2, Health row): the Site Health tests of the Health area. The
+ * same result in the health monitor's shape is Health\Checks\OpcacheCheck.
+ *
  * @package LinkGrowth\Autopilot
  */
 
 declare(strict_types=1);
 
-namespace LinkGrowth\Autopilot\Admin;
+namespace LinkGrowth\Autopilot\Health;
 
 use LinkGrowth\Autopilot\Support\Opcache;
 use LinkGrowth\Autopilot\Support\ServerResources;
 use Throwable;
 
-final class SiteHealth {
+final class SiteHealthTests {
 
     /** Key of the test in site_status_tests['direct']. */
     public const TEST = 'lga_opcache';

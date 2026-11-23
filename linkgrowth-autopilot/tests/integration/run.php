@@ -82,6 +82,11 @@ require_once dirname( __DIR__ ) . '/Support/NeutralCatalog.php';
 // The run stays offline: fixture hosts (*.test) go to the fixture server, everything else is refused.
 lga_it_offline_guard();
 
+// The site's PHP error log (WP_DEBUG_LOG, DESIGN.md §12.1) as it was before the run: the last step checks the lines
+// the run adds (DESIGN.md §12.6, a deprecation from a plugin file is a failure on every PHP version).
+$itDebugLog       = is_string( WP_DEBUG_LOG ) ? WP_DEBUG_LOG : ( true === WP_DEBUG_LOG ? WP_CONTENT_DIR . '/debug.log' : '' );
+$itDebugLogOffset = '' !== $itDebugLog && is_file( $itDebugLog ) ? (int) filesize( $itDebugLog ) : 0;
+
 $fixtureLog = getenv( 'LGA_FIXTURE_LOG' ) ?: sys_get_temp_dir() . '/lga-fixture-submissions.log';
 @unlink( $fixtureLog );
 $GLOBALS['itMail'] = [];
@@ -105,7 +110,7 @@ IT::step( 'Activation and schema', static function (): void {
             require_once WP_PLUGIN_DIR . '/linkgrowth-autopilot/includes/Autoloader.php';
             \LinkGrowth\Autopilot\Autoloader::register( WP_PLUGIN_DIR . '/linkgrowth-autopilot/includes', 'LinkGrowth\\Autopilot\\' );
         }
-        foreach ( \LinkGrowth\Autopilot\Database\Schema::TABLES as $t ) {
+        foreach ( \LinkGrowth\Autopilot\Database\Schema::names() as $t ) {
             $wpdb->query( 'DROP TABLE IF EXISTS `' . $wpdb->prefix . 'lga_' . $t . '`' ); // phpcs:ignore
         }
         $wpdb->query( "DELETE FROM {$wpdb->options} WHERE option_name LIKE 'lga\_%' OR option_name LIKE '\_transient\_lga\_%' OR option_name LIKE '\_transient\_timeout\_lga\_%'" ); // phpcs:ignore
@@ -122,7 +127,7 @@ IT::step( 'Activation and schema', static function (): void {
     IT::check( is_plugin_active( $plugin ), 'plugin active' );
     IT::check( function_exists( 'lga' ), 'lga() helper defined' );
     $schema = lga()->get( \LinkGrowth\Autopilot\Database\Schema::class );
-    IT::check( count( $schema->existingTables() ) === count( \LinkGrowth\Autopilot\Database\Schema::TABLES ), 'all plugin tables exist', implode( ',', $schema->existingTables() ) );
+    IT::check( count( $schema->existingTables() ) === count( \LinkGrowth\Autopilot\Database\Schema::names() ), 'all plugin tables exist', implode( ',', $schema->existingTables() ) );
     IT::check( get_option( 'lga_db_version' ) === LGA_DB_VERSION, 'db version stored' );
     IT::check( get_role( 'administrator' )->has_cap( 'lga_manage' ), 'administrator has lga_manage' );
     IT::check( ! lga()->get( \LinkGrowth\Autopilot\Database\Migrator::class )->needsMigration(), 'no pending migration' );
@@ -189,6 +194,13 @@ IT::step( 'Configure for the fixture environment', static function (): void {
     } );
     $registry = lga()->get( \LinkGrowth\Autopilot\Integrations\ProviderRegistry::class );
     IT::check( null !== $registry->primarySearch() && 'fixture_search' === $registry->primarySearch()->id(), 'fixture search provider active' );
+} );
+
+// WP2 part 0: the plugin's hooks per request type, its REST routes, cron schedules, tables and roles, read right
+// after the setup steps and compared with tests/fixtures/golden/wiring-wordpress.json (tests/integration/wiring-snapshot.php).
+require_once __DIR__ . '/wiring-snapshot.php';
+IT::step( 'Wiring snapshot: hooks, REST routes, cron, tables and roles', static function (): void {
+    lga_it_wiring_step( [ IT::class, 'check' ] );
 } );
 
 IT::step( 'Discovery via search', static function (): void {
@@ -502,6 +514,34 @@ require __DIR__ . '/link-rules.php';
 // 1.2.4: no background work while a backup runs, OPcache restarts or the plugin was just updated; the OPcache warning.
 require __DIR__ . '/server-pressure.php';
 
+// WP12: on this WordPress the dashboard page loads the app as a script module, with the import map that versions its
+// relative imports. WordPress 6.5 prints no script module in wp-admin; there Admin\Assets falls back to a classic
+// script tag of type module (tests/integration/compat-min.php checks that branch on WordPress 6.5).
+IT::step( 'Admin dashboard page loads the app', static function (): void {
+    $stopServer = lga_it_self_server();
+    try {
+        $expires = time() + HOUR_IN_SECONDS;
+        $args    = [ 'timeout' => 30, 'redirection' => 0, 'cookies' => [ AUTH_COOKIE => wp_generate_auth_cookie( 1, $expires, 'auth' ), LOGGED_IN_COOKIE => wp_generate_auth_cookie( 1, $expires, 'logged_in' ) ] ];
+        $url     = admin_url( 'admin.php?page=' . \LinkGrowth\Autopilot\Admin\Menu::SLUG );
+        $res     = wp_remote_get( $url, $args );
+        if ( 302 === (int) wp_remote_retrieve_response_code( $res ) && str_contains( (string) wp_remote_retrieve_header( $res, 'location' ), 'page=' . \LinkGrowth\Autopilot\Admin\Menu::SLUG ) ) {
+            $res = wp_remote_get( $url, $args ); // the one-time redirect after an activation
+        }
+        $code = (int) wp_remote_retrieve_response_code( $res );
+        $body = (string) wp_remote_retrieve_body( $res );
+        IT::check( 200 === $code && str_contains( $body, '<div id="lga-app" data-page="overview">' ), 'the dashboard page renders for the owner (200, SPA root)', is_wp_error( $res ) ? $res->get_error_message() : (string) $code );
+        IT::check( \LinkGrowth\Autopilot\Admin\Assets::adminPrintsScriptModules(), 'WordPress ' . get_bloginfo( 'version' ) . ' prints script modules in wp-admin' );
+        $tag = preg_match( '#<script\b[^>]*linkgrowth-autopilot/assets/js/app\.js[^>]*>#', $body, $m ) ? $m[0] : '';
+        IT::check(
+            (bool) preg_match( '#<script\b[^>]*type="importmap"#', $body ) && str_contains( $tag, 'type="module"' ) && str_contains( $tag, 'id="lga-admin-js-module"' ),
+            'the app is loaded as a script module with the import map',
+            '' !== $tag ? $tag : 'no app.js tag'
+        );
+    } finally {
+        $stopServer();
+    }
+} );
+
 // The test mu-plugin (tests/integration/lga-test-env.php): the outbound host logger that WP4b's activation-silence
 // section counts with, and the frozen clock.
 IT::step( 'Test environment: outbound host logger and frozen clock', static function (): void {
@@ -557,6 +597,27 @@ if ( is_file( $coexistence ) && '0' !== (string) getenv( 'LGA_COEXISTENCE' ) && 
         IT::check( false, 'coexistence section finished', 'exit ' . $code );
     }
 }
+
+// Always runs, also with LGA_IT_ONLY: it checks what the steps that did run (and the coexistence processes) logged.
+echo "\n== PHP errors, warnings and deprecations from the plugin\n";
+( static function () use ( $itDebugLog, $itDebugLogOffset ): void {
+    if ( '' === $itDebugLog ) {
+        IT::check( false, 'the site logs PHP errors (WP_DEBUG_LOG)', 'WP_DEBUG_LOG is off, so this run cannot see them' );
+        return;
+    }
+    clearstatcache( true, $itDebugLog );
+    $size  = is_file( $itDebugLog ) ? (int) filesize( $itDebugLog ) : 0;
+    $added = $size > 0 ? (string) file_get_contents( $itDebugLog, false, null, $size >= $itDebugLogOffset ? $itDebugLogOffset : 0 ) : '';
+    // The plugin folder as WordPress loads it (the symlink) and as PHP reports it (the real path).
+    $dirs = [ WP_PLUGIN_DIR . '/linkgrowth-autopilot', (string) realpath( WP_PLUGIN_DIR . '/linkgrowth-autopilot' ) ];
+    if ( defined( 'LGA_DIR' ) ) {
+        $dirs[] = rtrim( (string) LGA_DIR, '/' );
+    }
+    $dirs = implode( '|', array_map( static fn( string $d ): string => preg_quote( $d, '#' ), array_unique( array_filter( $dirs ) ) ) );
+    preg_match_all( '#^.*PHP (?:Deprecated|Warning|Notice|Fatal error|Parse error|Recoverable fatal error):.* in (?:' . $dirs . ')/(?:includes/|linkgrowth-autopilot\.php|uninstall\.php).*$#m', $added, $m );
+    $lines = array_values( array_unique( array_map( static fn( string $l ): string => (string) preg_replace( '/^\[[^\]]+\]\s*/', '', $l ), $m[0] ) ) );
+    IT::check( [] === $lines, 'the run added no PHP error, warning or deprecation from a plugin file to ' . basename( $itDebugLog ) . ' (PHP ' . PHP_VERSION . ')', implode( ' | ', array_slice( $lines, 0, 5 ) ) );
+} )();
 
 echo "\n==============================\n";
 printf( "Passed: %d  Failed: %d\n", IT::$pass, IT::$fail );

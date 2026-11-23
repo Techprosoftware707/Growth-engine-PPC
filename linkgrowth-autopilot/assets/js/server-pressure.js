@@ -1,6 +1,6 @@
 /**
  * Server pressure (1.2.4): plain wording for the dashboard when background work is paused (Automation\LoadGuard)
- * and when PHP's code cache (OPcache) is critically full (Admin\SiteHealth::warning()). Pure functions without DOM
+ * and when PHP's code cache (OPcache) is critically full (Health\SiteHealthTests::warning()). Pure functions without DOM
  * access, so they can be tested under node; the pages render the result with ui.js helpers.
  */
 

@@ -9,7 +9,7 @@ declare(strict_types=1);
 
 namespace LinkGrowth\Autopilot\Admin\Rest;
 
-use LinkGrowth\Autopilot\Admin\SiteHealth;
+use LinkGrowth\Autopilot\Health\SiteHealthTests;
 use LinkGrowth\Autopilot\Automation\Pipeline;
 use LinkGrowth\Autopilot\Automation\Scheduler;
 use LinkGrowth\Autopilot\Integrations\Google\Analytics4;
@@ -79,7 +79,7 @@ final class OverviewController extends Controller {
             'limits'               => $this->safe( fn(): array => $this->c->get( Limits::class )->snapshot(), [], 'overview limits' ),
             'missing_integrations' => $this->missingIntegrations(),
             // PHP's code cache is critically full (the same warning as Tools → Site Health), else null.
-            'opcache'              => $this->safe( fn(): ?array => $this->c->get( SiteHealth::class )->warning(), null, 'overview opcache' ),
+            'opcache'              => $this->safe( fn(): ?array => $this->c->get( SiteHealthTests::class )->warning(), null, 'overview opcache' ),
             'generated_at'         => gmdate( 'c' ),
         ];
     }

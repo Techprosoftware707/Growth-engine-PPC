@@ -126,14 +126,17 @@ final class Backlinks extends Repository {
             $wk         = gmdate( 'o-W', time() - $i * WEEK_IN_SECONDS );
             $map[ $wk ] = [ 'week' => $wk, 'new' => 0, 'lost' => 0 ];
         }
+        // wk is NULL when no week can be computed for a row; such rows are left out (and PHP 8.5 deprecates a null key).
         foreach ( $new as $r ) {
-            if ( isset( $map[ $r['wk'] ] ) ) {
-                $map[ $r['wk'] ]['new'] = (int) $r['c'];
+            $wk = (string) ( $r['wk'] ?? '' );
+            if ( isset( $map[ $wk ] ) ) {
+                $map[ $wk ]['new'] = (int) $r['c'];
             }
         }
         foreach ( $lost as $r ) {
-            if ( isset( $map[ $r['wk'] ] ) ) {
-                $map[ $r['wk'] ]['lost'] = (int) $r['c'];
+            $wk = (string) ( $r['wk'] ?? '' );
+            if ( isset( $map[ $wk ] ) ) {
+                $map[ $wk ]['lost'] = (int) $r['c'];
             }
         }
         return array_values( $map );

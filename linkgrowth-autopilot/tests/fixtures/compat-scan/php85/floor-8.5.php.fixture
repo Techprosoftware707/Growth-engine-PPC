@@ -1,0 +1,15 @@
+<?php
+// Seeded PHP 8.5 features for `bin/php85-scan.sh --min=8.1`. Not valid before PHP 8.5.
+namespace Fixture\Floor85;
+
+final class Point
+{
+    public function __construct(public int $x = 0) {}
+}
+$slug = ' A b ' |> trim(...) |> strtolower(...); // expect: pipe-operator
+$p = clone(new Point(), ['x' => 1]); // expect: clone-with
+#[\NoDiscard] // expect: nodiscard-attribute
+function compute(): int { return 1; }
+(void) compute(); // expect: void-cast
+$first = array_first([1, 2]); // expect: new-function
+$url = new \Uri\WhatWg\Url('https://example.com/'); // expect: new-class

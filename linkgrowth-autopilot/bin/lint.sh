@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Syntax-check every PHP file in the plugin and the test suite, every JS module and every JSON data file,
-# then run the neutrality scan (bin/neutrality.sh, DESIGN.md §1.7).
+# then run the neutrality scan (bin/neutrality.sh, DESIGN.md §1.7) and the static compatibility scans of
+# DESIGN.md §11.8: bin/php85-scan.sh (PHP 8.1-8.5 rules and the PHP 8.1 floor) and bin/compat-api.php
+# (WordPress 6.5 / WooCommerce 8.0 API floors). Both scans need only the php on PATH (8.3 here); they do not need
+# the PHP 8.5 toolchain of §12.6.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 status=0
@@ -24,5 +27,19 @@ done < <(find data -name '*.json' -print0)
 if ! bash bin/neutrality.sh; then
   status=1
 fi
+# PHP 8.1-8.5 deprecation rules on the plugin, its tests and bin/, the PHP 8.1 floor on the shipped files, then
+# php -l with the oldest PHP available. The seeded violations in tests/fixtures/compat-scan are not a default target.
+if ! bash bin/php85-scan.sh --min=8.1; then
+  status=1
+fi
+# WordPress 6.5 / WooCommerce 8.0 API floors, looked up in the source of the LGA test site (LGA_WP_PATH,
+# DESIGN.md §12.1). Exit 3 means the source is missing: reported as not run, never as passed.
+compat_status=0
+php bin/compat-api.php || compat_status=$?
+case "$compat_status" in
+  0) ;;
+  3) echo "compat-api: not run (set LGA_WP_PATH to the LGA test site to check the WordPress/WooCommerce floors)" ;;
+  *) status=1 ;;
+esac
 [ "$status" -eq 0 ] && echo "Lint OK" || echo "Lint FAILED"
 exit $status

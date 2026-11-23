@@ -13,8 +13,10 @@ namespace LinkGrowth\Autopilot\Tests\Unit\CrossSlice;
 
 use LinkGrowth\Autopilot\Admin\Rest\OutreachController;
 use LinkGrowth\Autopilot\Admin\Rest\PublicController;
+use LinkGrowth\Autopilot\Automation\Context;
 use LinkGrowth\Autopilot\Automation\JobRunner;
 use LinkGrowth\Autopilot\Automation\Pipeline;
+use LinkGrowth\Autopilot\Automation\TaskRegistry;
 use LinkGrowth\Autopilot\Database\Schema;
 use LinkGrowth\Autopilot\Integrations\AiWriter;
 use LinkGrowth\Autopilot\Outreach\OutreachEngine;
@@ -333,9 +335,18 @@ final class OutreachFollowupsTest extends TestCase {
 
     // ------------------------------------------------------------------ [31] outreach send stage due-check
 
+    /**
+     * Whether the scheduler would queue the send stage now: TaskRegistry::gate() for the outreach_send task (before
+     * WP2 part 2 the private Pipeline::outreachDue(), whose limit check is the task's outreach_emails pool now and
+     * whose rule is Outreach\DueChecks::outreachDue()). Only the due-check may decide here: every other gate is open.
+     */
     private function outreachDue(): bool {
-        $m = new \ReflectionMethod( Pipeline::class, 'outreachDue' );
-        return (bool) $m->invoke( Container::get( Pipeline::class ) );
+        $registry = Container::get( TaskRegistry::class );
+        $task     = $registry->task( 'outreach_send' );
+        $this->assertNotNull( $task );
+        $reason = $registry->gate( $task, Context::scheduler() );
+        $this->assertContains( $reason, [ '', TaskRegistry::NO_WORK ], 'only the due-check decides' );
+        return '' === $reason;
     }
 
     public function testSendStageIsNotDueForMessagesHeldBackByTheirCampaign(): void {

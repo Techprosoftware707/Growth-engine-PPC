@@ -495,7 +495,7 @@ final class DataSupportCoreFixesTest extends TestCase {
 
         // Maintenance checks are cached once every table was seen.
         $this->assertFalse( $migrator->needsMigration() );
-        $this->assertCount( count( Schema::TABLES ), $this->db->showTablesQueries() );
+        $this->assertCount( count( Schema::names() ), $this->db->showTablesQueries() );
         $this->db->log = [];
         $this->assertFalse( $migrator->needsMigration() );
         $this->assertSame( [], $this->db->showTablesQueries(), 'cached for 12 hours' );

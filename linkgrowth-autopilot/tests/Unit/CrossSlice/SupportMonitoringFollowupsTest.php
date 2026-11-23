@@ -383,7 +383,7 @@ final class SupportMonitoringFollowupsTest extends TestCase {
         $this->assertSame( [ $lostDue, $activeDue, $robotsDue ], $ids( $repo->dueForCheck( 10 ) ), 'oldest first, any status, stopped and future rows left out' );
         $this->assertSame( [ $lostDue ], $ids( $repo->dueForCheck( 1 ) ) );
 
-        // The dashboard counter (and MonitorBacklinksJob::moreDue / Pipeline::monitorDue, which ask dueForCheck( 1 )) agree.
+        // The dashboard counter (and MonitorBacklinksJob::moreDue / Monitoring\DueChecks::monitorDue, which ask dueForCheck( 1 )) agree.
         $GLOBALS['lga_test_caps'] = [ 'manage_options' => true ];
         $summary = ( new BacklinksController( Container::plugin()->container() ) )->summary( new WP_REST_Request( 'GET', '/lga/v1/backlinks/summary' ) );
         $this->assertSame( 3, $summary['due_for_check'] );

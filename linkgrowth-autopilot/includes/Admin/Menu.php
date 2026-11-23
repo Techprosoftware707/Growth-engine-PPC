@@ -1,6 +1,7 @@
 <?php
 /**
- * Admin menu, page container and front-end configuration injection.
+ * Admin menu, page container and front-end configuration injection; the pages and Settings tabs come from the modules
+ * (DESIGN.md §3.1, §10.1).
  *
  * @package LinkGrowth\Autopilot
  */
@@ -21,8 +22,8 @@ final class Menu {
     /** Transient set on activation; triggers a one-time redirect to the overview. */
     public const REDIRECT_TRANSIENT = 'lga_activation_redirect';
 
-    /** Page keys in navigation order. */
-    public const PAGE_KEYS = [ 'overview', 'prospects', 'submissions', 'outreach', 'backlinks', 'seo', 'automation', 'settings', 'logs' ];
+    /** Filter: the admin page definitions (page key => {label, icon, module, cap, order}) after the modules'. */
+    public const FILTER_PAGES = 'lga_admin_pages';
 
     public function __construct( private Settings $settings, private Notifications $notifications ) {}
 
@@ -34,23 +35,79 @@ final class Menu {
         add_filter( 'woocommerce_prevent_admin_access', [ $this, 'allowSubmitterAdmin' ] );
     }
 
-    /** @return array<string,string> page key => label */
+    /** @return array<string,string> page key => label, in navigation order (pageDefinitions()) */
     public static function pages(): array {
-        return [
-            'overview'    => __( 'Overview', 'linkgrowth-autopilot' ),
-            'prospects'   => __( 'Prospects', 'linkgrowth-autopilot' ),
-            'submissions' => __( 'Submissions', 'linkgrowth-autopilot' ),
-            'outreach'    => __( 'Outreach', 'linkgrowth-autopilot' ),
-            'backlinks'   => __( 'Backlinks', 'linkgrowth-autopilot' ),
-            'seo'         => __( 'On-site SEO', 'linkgrowth-autopilot' ),
-            'automation'  => __( 'Automation', 'linkgrowth-autopilot' ),
-            'settings'    => __( 'Settings', 'linkgrowth-autopilot' ),
-            'logs'        => __( 'Logs', 'linkgrowth-autopilot' ),
-        ];
+        return array_map( static fn( array $def ): string => $def['label'], self::pageDefinitions() );
     }
 
     /**
-     * Pages a user sees: all of them with full access; only the owner-task queue for the submitter role.
+     * The SPA pages every module declares (Module::adminPages()), then the `lga_admin_pages` filter, in navigation
+     * order (`order`, then declaration order). A page key taken by an earlier module and a definition without a label
+     * are left out.
+     *
+     * @return array<string,array{label:string,icon:string,module:string,cap:string,order:int}>
+     */
+    public static function pageDefinitions(): array {
+        $pages = [];
+        foreach ( Plugin::instance()->modules() as $module ) {
+            foreach ( (array) $module->adminPages() as $key => $def ) {
+                if ( ! isset( $pages[ $key ] ) ) {
+                    $pages[ $key ] = $def;
+                }
+            }
+        }
+        /**
+         * Filters the SPA pages (DESIGN.md §3.1, §10.1).
+         *
+         * @param array<string,array{label:string,icon:string,module:string,cap:string,order:int}> $pages
+         */
+        $pages = apply_filters( self::FILTER_PAGES, $pages );
+        $out   = [];
+        foreach ( is_array( $pages ) ? $pages : [] as $key => $def ) {
+            $key = (string) $key;
+            if ( 1 !== preg_match( '/^[a-z0-9_-]+$/', $key ) || ! is_array( $def ) || '' === trim( (string) ( $def['label'] ?? '' ) ) ) {
+                continue;
+            }
+            $out[ $key ] = [
+                'label'  => (string) $def['label'],
+                'icon'   => (string) ( $def['icon'] ?? '' ),
+                'module' => (string) ( $def['module'] ?? '' ),
+                'cap'    => '' !== (string) ( $def['cap'] ?? '' ) ? (string) $def['cap'] : Capabilities::CAP,
+                'order'  => (int) ( $def['order'] ?? 100 ),
+            ];
+        }
+        uasort( $out, static fn( array $a, array $b ): int => $a['order'] <=> $b['order'] ); // stable since PHP 8.0
+        return $out;
+    }
+
+    /**
+     * The Settings tabs every module declares (Module::settingsTabs()), in tab order (`order`, then declaration
+     * order); a tab key taken by an earlier module is left out.
+     *
+     * @return array<string,array{label:string,module:string,order:int}>
+     */
+    public static function settingsTabs(): array {
+        $out = [];
+        foreach ( Plugin::instance()->modules() as $module ) {
+            foreach ( (array) $module->settingsTabs() as $key => $def ) {
+                $key = (string) $key;
+                if ( isset( $out[ $key ] ) || '' === $key || ! is_array( $def ) || '' === trim( (string) ( $def['label'] ?? '' ) ) ) {
+                    continue;
+                }
+                $out[ $key ] = [
+                    'label'  => (string) $def['label'],
+                    'module' => (string) ( $def['module'] ?? '' ),
+                    'order'  => (int) ( $def['order'] ?? 100 ),
+                ];
+            }
+        }
+        uasort( $out, static fn( array $a, array $b ): int => $a['order'] <=> $b['order'] );
+        return $out;
+    }
+
+    /**
+     * Pages a user sees: with full access, every page whose capability they have (a page of the plugin's own
+     * capability needs full access, Capabilities::userCan()); only the owner-task queue for the submitter role.
      *
      * @return array<string,string> page key => label
      */
@@ -58,7 +115,13 @@ final class Menu {
         if ( $submitOnly ) {
             return [ 'submissions' => __( 'Owner tasks', 'linkgrowth-autopilot' ) ];
         }
-        return self::pages();
+        $out = [];
+        foreach ( self::pageDefinitions() as $key => $def ) {
+            if ( Capabilities::CAP === $def['cap'] ? Capabilities::userCan() : current_user_can( $def['cap'] ) ) {
+                $out[ $key ] = $def['label'];
+            }
+        }
+        return $out;
     }
 
     /** Admin menu slug for a page key: "lga" for the overview, "lga-{page}" otherwise. */
@@ -73,7 +136,7 @@ final class Menu {
         }
         if ( str_starts_with( $slug, self::SLUG . '-' ) ) {
             $page = substr( $slug, strlen( self::SLUG ) + 1 );
-            if ( in_array( $page, self::PAGE_KEYS, true ) ) {
+            if ( array_key_exists( $page, self::pageDefinitions() ) ) {
                 return $page;
             }
         }
@@ -123,12 +186,13 @@ final class Menu {
 
         add_menu_page( $label, $title, Capabilities::CAP, self::SLUG, [ $this, 'render' ], 'dashicons-admin-links', 58 );
 
-        foreach ( self::pages() as $page => $pageLabel ) {
+        foreach ( self::pageDefinitions() as $page => $def ) {
+            $pageLabel = $def['label'];
             add_submenu_page(
                 self::SLUG,
                 sprintf( '%1$s – %2$s', $pageLabel, $label ),
                 $pageLabel,
-                Capabilities::CAP,
+                $def['cap'],
                 self::slugFor( $page ),
                 [ $this, 'render' ]
             );
@@ -248,6 +312,9 @@ final class Menu {
             'brand'               => $this->settings->brandName(),
                 'productName'         => __( Plugin::NAME, 'linkgrowth-autopilot' ), // phpcs:ignore WordPress.WP.I18n.NonSingularStringLiteralText
             'pages'               => $pages,
+            // Settings tabs from the modules (DESIGN.md §10.1); the Settings page still renders its own tabs until the
+            // SPA builds them from this list.
+            'settingsTabs'        => self::settingsTabs(),
             'version'             => defined( 'LGA_VERSION' ) ? LGA_VERSION : '',
             'user'                => [
                 'name' => (string) $user->display_name,

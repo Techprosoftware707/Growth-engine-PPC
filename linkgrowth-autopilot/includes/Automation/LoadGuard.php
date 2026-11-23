@@ -33,7 +33,7 @@
  * them.
  *
  * A full OPcache on its own never pauses anything (that state can last for months and would stop Autopilot for
- * good); Admin\SiteHealth tells the owner about it instead.
+ * good); Health\SiteHealthTests tells the owner about it instead.
  *
  * Cheap by design: no HTTP request; the cron array and the version marker are autoloaded options (already in
  * memory), opcache_get_status(false) skips the script list, the only database reads are one UpdraftPlus job record

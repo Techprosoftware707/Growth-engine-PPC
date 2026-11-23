@@ -20,17 +20,27 @@ final class FakeWpdb extends \wpdb {
     private \PDO $pdo;
 
     public function __construct() {
-        $this->pdo = new \PDO( 'sqlite::memory:' );
+        // PHP 8.4 added the SQLite driver subclass; PDO::sqliteCreateFunction() is deprecated as of PHP 8.5.
+        $this->pdo = PHP_VERSION_ID >= 80400 ? new \Pdo\Sqlite( 'sqlite::memory:' ) : new \PDO( 'sqlite::memory:' );
         $this->pdo->setAttribute( \PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION );
-        $this->pdo->sqliteCreateFunction( 'CONCAT', static fn( ...$a ) => implode( '', array_map( 'strval', $a ) ) );
-        $this->pdo->sqliteCreateFunction( 'FLOOR', static fn( $v ) => floor( (float) $v ) );
-        $this->pdo->sqliteCreateFunction( 'DATE_FORMAT', static function ( $value, $format ) {
+        $this->sqlFunction( 'CONCAT', static fn( ...$a ) => implode( '', array_map( 'strval', $a ) ) );
+        $this->sqlFunction( 'FLOOR', static fn( $v ) => floor( (float) $v ) );
+        $this->sqlFunction( 'DATE_FORMAT', static function ( $value, $format ) {
             $ts = strtotime( (string) $value );
             if ( ! $ts ) {
                 return null;
             }
             return gmdate( str_replace( [ '%x', '%v', '%Y', '%m', '%d' ], [ 'o', 'W', 'Y', 'm', 'd' ], (string) $format ), $ts );
         } );
+    }
+
+    /** Registers a user-defined SQL function on the in-memory database. */
+    private function sqlFunction( string $name, callable $callback ): void {
+        if ( PHP_VERSION_ID >= 80400 ) {
+            $this->pdo->createFunction( $name, $callback ); // Pdo\Sqlite (constructed above on PHP 8.4+)
+        } else {
+            $this->pdo->sqliteCreateFunction( $name, $callback );
+        }
     }
 
     public function get_charset_collate(): string {

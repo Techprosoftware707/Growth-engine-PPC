@@ -1,0 +1,936 @@
+{
+  "_about": "Wiring snapshot on the LGA test site (tests/integration/wiring-snapshot.php), recorded on the WP1 fork state (e160656) right after the suite's setup steps. WP2 keeps it identical apart from documented, deliberate differences; rewrite only on purpose with LGA_GOLDEN_UPDATE=1.",
+  "hooks": {
+    "frontend": {
+      "activate_linkgrowth-autopilot/linkgrowth-autopilot.php": [[10,"Activator::activate",1]],
+      "created_product_cat": [[20,"lazy:PositioningGate::markStale",0]],
+      "created_product_tag": [[20,"lazy:PositioningGate::markStale",0]],
+      "cron_schedules": [[10,"Plugin::cronSchedules",1]],
+      "deactivate_linkgrowth-autopilot/linkgrowth-autopilot.php": [[10,"Deactivator::deactivate",1]],
+      "delete_product_cat": [[20,"lazy:PositioningGate::markStale",0]],
+      "delete_product_tag": [[20,"lazy:PositioningGate::markStale",0]],
+      "deleted_post": [[20,"lazy:PositioningGate::markStaleForPost",1]],
+      "edited_product_cat": [[20,"lazy:PositioningGate::markStale",0]],
+      "edited_product_tag": [[20,"lazy:PositioningGate::markStale",0]],
+      "lga_tick": [[10,"lazy:Scheduler::onTick",1]],
+      "parse_request": [[0,"Plugin::maybeServeIndexNowKey",1]],
+      "plugins_loaded": [[5,"linkgrowth-autopilot.php::{closure}",1]],
+      "rest_api_init": [[10,"Plugin::registerRest",1]],
+      "save_post": [[20,"Plugin::onSavePost",3]],
+      "save_post_page": [[20,"lazy:PositioningGate::markStaleForPost",1]],
+      "save_post_post": [[20,"lazy:PositioningGate::markStaleForPost",1]],
+      "save_post_product": [[20,"lazy:PositioningGate::markStaleForPost",1]],
+      "site_status_tests": [[10,"Plugin::siteStatusTests",1]],
+      "transition_post_status": [[10,"Plugin::onPostTransition",3]],
+      "trashed_post": [[20,"lazy:PositioningGate::markStaleForPost",1]],
+      "untrashed_post": [[20,"lazy:PositioningGate::markStaleForPost",1]],
+      "wp_delete_nav_menu": [[20,"lazy:PositioningGate::markStale",0]],
+      "wp_update_nav_menu": [[20,"lazy:PositioningGate::markStale",0]],
+      "wp_update_nav_menu_item": [[20,"lazy:PositioningGate::markStale",0]]
+    },
+    "admin": {
+      "activate_linkgrowth-autopilot/linkgrowth-autopilot.php": [[10,"Activator::activate",1]],
+      "admin_body_class": [[10,"lazy:Menu::bodyClass",1]],
+      "admin_enqueue_scripts": [[10,"lazy:Assets::enqueue",1]],
+      "admin_init": [[10,"Plugin::maybeRedirect",1]],
+      "admin_menu": [[10,"lazy:Menu::addMenu",1]],
+      "admin_notices": [[10,"lazy:Notices::render",1]],
+      "created_product_cat": [[20,"lazy:PositioningGate::markStale",0]],
+      "created_product_tag": [[20,"lazy:PositioningGate::markStale",0]],
+      "cron_schedules": [[10,"Plugin::cronSchedules",1]],
+      "deactivate_linkgrowth-autopilot/linkgrowth-autopilot.php": [[10,"Deactivator::deactivate",1]],
+      "delete_product_cat": [[20,"lazy:PositioningGate::markStale",0]],
+      "delete_product_tag": [[20,"lazy:PositioningGate::markStale",0]],
+      "deleted_post": [[20,"lazy:PositioningGate::markStaleForPost",1]],
+      "edited_product_cat": [[20,"lazy:PositioningGate::markStale",0]],
+      "edited_product_tag": [[20,"lazy:PositioningGate::markStale",0]],
+      "init": [[1,"Plugin::maybeMigrate",1],[2,"Plugin::ensureCapabilities",1],[20,"Plugin::maybeSchedule",1]],
+      "lga_tick": [[10,"lazy:Scheduler::onTick",1]],
+      "parse_request": [[0,"Plugin::maybeServeIndexNowKey",1]],
+      "plugins_loaded": [[5,"linkgrowth-autopilot.php::{closure}",1]],
+      "rest_api_init": [[10,"Plugin::registerRest",1]],
+      "save_post": [[20,"Plugin::onSavePost",3]],
+      "save_post_page": [[20,"lazy:PositioningGate::markStaleForPost",1]],
+      "save_post_post": [[20,"lazy:PositioningGate::markStaleForPost",1]],
+      "save_post_product": [[20,"lazy:PositioningGate::markStaleForPost",1]],
+      "site_status_tests": [[10,"Plugin::siteStatusTests",1]],
+      "transition_post_status": [[10,"Plugin::onPostTransition",3]],
+      "trashed_post": [[20,"lazy:PositioningGate::markStaleForPost",1]],
+      "untrashed_post": [[20,"lazy:PositioningGate::markStaleForPost",1]],
+      "woocommerce_prevent_admin_access": [[10,"lazy:Menu::allowSubmitterAdmin",1]],
+      "wp_ajax_lga_dismiss_notice": [[10,"lazy:Notices::dismiss",1]],
+      "wp_delete_nav_menu": [[20,"lazy:PositioningGate::markStale",0]],
+      "wp_update_nav_menu": [[20,"lazy:PositioningGate::markStale",0]],
+      "wp_update_nav_menu_item": [[20,"lazy:PositioningGate::markStale",0]]
+    },
+    "rest": {
+      "activate_linkgrowth-autopilot/linkgrowth-autopilot.php": [[10,"Activator::activate",1]],
+      "application_password_is_api_request": [[10,"PublicController::{closure}",1]],
+      "created_product_cat": [[20,"lazy:PositioningGate::markStale",0]],
+      "created_product_tag": [[20,"lazy:PositioningGate::markStale",0]],
+      "cron_schedules": [[10,"Plugin::cronSchedules",1]],
+      "deactivate_linkgrowth-autopilot/linkgrowth-autopilot.php": [[10,"Deactivator::deactivate",1]],
+      "delete_product_cat": [[20,"lazy:PositioningGate::markStale",0]],
+      "delete_product_tag": [[20,"lazy:PositioningGate::markStale",0]],
+      "deleted_post": [[20,"lazy:PositioningGate::markStaleForPost",1]],
+      "edited_product_cat": [[20,"lazy:PositioningGate::markStale",0]],
+      "edited_product_tag": [[20,"lazy:PositioningGate::markStale",0]],
+      "lga_tick": [[10,"lazy:Scheduler::onTick",1]],
+      "parse_request": [[0,"Plugin::maybeServeIndexNowKey",1]],
+      "plugins_loaded": [[5,"linkgrowth-autopilot.php::{closure}",1]],
+      "rest_api_init": [[10,"Plugin::registerRest",1]],
+      "save_post": [[20,"Plugin::onSavePost",3]],
+      "save_post_page": [[20,"lazy:PositioningGate::markStaleForPost",1]],
+      "save_post_post": [[20,"lazy:PositioningGate::markStaleForPost",1]],
+      "save_post_product": [[20,"lazy:PositioningGate::markStaleForPost",1]],
+      "site_status_tests": [[10,"Plugin::siteStatusTests",1]],
+      "transition_post_status": [[10,"Plugin::onPostTransition",3]],
+      "trashed_post": [[20,"lazy:PositioningGate::markStaleForPost",1]],
+      "untrashed_post": [[20,"lazy:PositioningGate::markStaleForPost",1]],
+      "wp_delete_nav_menu": [[20,"lazy:PositioningGate::markStale",0]],
+      "wp_update_nav_menu": [[20,"lazy:PositioningGate::markStale",0]],
+      "wp_update_nav_menu_item": [[20,"lazy:PositioningGate::markStale",0]]
+    },
+    "cron": {
+      "activate_linkgrowth-autopilot/linkgrowth-autopilot.php": [[10,"Activator::activate",1]],
+      "created_product_cat": [[20,"lazy:PositioningGate::markStale",0]],
+      "created_product_tag": [[20,"lazy:PositioningGate::markStale",0]],
+      "cron_schedules": [[10,"Plugin::cronSchedules",1]],
+      "deactivate_linkgrowth-autopilot/linkgrowth-autopilot.php": [[10,"Deactivator::deactivate",1]],
+      "delete_product_cat": [[20,"lazy:PositioningGate::markStale",0]],
+      "delete_product_tag": [[20,"lazy:PositioningGate::markStale",0]],
+      "deleted_post": [[20,"lazy:PositioningGate::markStaleForPost",1]],
+      "edited_product_cat": [[20,"lazy:PositioningGate::markStale",0]],
+      "edited_product_tag": [[20,"lazy:PositioningGate::markStale",0]],
+      "init": [[1,"Plugin::maybeMigrate",1],[2,"Plugin::ensureCapabilities",1],[20,"Plugin::maybeSchedule",1]],
+      "lga_tick": [[10,"lazy:Scheduler::onTick",1]],
+      "parse_request": [[0,"Plugin::maybeServeIndexNowKey",1]],
+      "plugins_loaded": [[5,"linkgrowth-autopilot.php::{closure}",1]],
+      "rest_api_init": [[10,"Plugin::registerRest",1]],
+      "save_post": [[20,"Plugin::onSavePost",3]],
+      "save_post_page": [[20,"lazy:PositioningGate::markStaleForPost",1]],
+      "save_post_post": [[20,"lazy:PositioningGate::markStaleForPost",1]],
+      "save_post_product": [[20,"lazy:PositioningGate::markStaleForPost",1]],
+      "site_status_tests": [[10,"Plugin::siteStatusTests",1]],
+      "transition_post_status": [[10,"Plugin::onPostTransition",3]],
+      "trashed_post": [[20,"lazy:PositioningGate::markStaleForPost",1]],
+      "untrashed_post": [[20,"lazy:PositioningGate::markStaleForPost",1]],
+      "wp_delete_nav_menu": [[20,"lazy:PositioningGate::markStale",0]],
+      "wp_update_nav_menu": [[20,"lazy:PositioningGate::markStale",0]],
+      "wp_update_nav_menu_item": [[20,"lazy:PositioningGate::markStale",0]]
+    }
+  },
+  "frontend_plugin_files": [
+    "includes/Admin/AdminModule.php",
+    "includes/Analysis/AnalysisModule.php",
+    "includes/Autoloader.php",
+    "includes/Automation/AutomationModule.php",
+    "includes/Compliance/ComplianceModule.php",
+    "includes/Container.php",
+    "includes/Content/ContentModule.php",
+    "includes/Core/AbstractModule.php",
+    "includes/Core/CoreModule.php",
+    "includes/Core/Module.php",
+    "includes/Core/Modules.php",
+    "includes/Discovery/DiscoveryModule.php",
+    "includes/Integrations/IntegrationsModule.php",
+    "includes/Monitoring/MonitoringModule.php",
+    "includes/Outreach/OutreachModule.php",
+    "includes/Plugin.php",
+    "includes/Scoring/ScoringModule.php",
+    "includes/Seo/SeoModule.php",
+    "includes/Submission/SubmissionModule.php",
+    "linkgrowth-autopilot.php"
+  ],
+  "frontend_plugin_queries": 0,
+  "rest_routes": [
+    {
+      "route": "GET /lga/v1",
+      "callback": "WP_REST_Server::get_namespace_index",
+      "permission": "null",
+      "args": {"context":{"default":"view"},"namespace":{"default":"lga/v1"}}
+    },
+    {
+      "route": "GET /lga/v1/prospects",
+      "callback": "ProspectsController::index",
+      "permission": "ProspectsController::permission",
+      "rate_limited": false,
+      "args": {
+        "automation_allowed": {"type":"string","sanitize":"sanitize_text_field"},
+        "class": {"type":"string","sanitize":"sanitize_text_field"},
+        "country": {"type":"string","sanitize":"sanitize_text_field"},
+        "min_score": {"type":"string","sanitize":"sanitize_text_field"},
+        "order": {"type":"string","sanitize":"sanitize_key"},
+        "orderby": {"type":"string","sanitize":"sanitize_key"},
+        "page": {"type":"integer","default":1,"sanitize":"absint"},
+        "per_page": {"type":"integer","default":25,"sanitize":"absint"},
+        "q": {"type":"string","sanitize":"sanitize_text_field"},
+        "site_type": {"type":"string","sanitize":"sanitize_text_field"},
+        "status": {"type":"string","sanitize":"sanitize_text_field"},
+        "type": {"type":"string","sanitize":"sanitize_text_field"},
+        "via": {"type":"string","sanitize":"sanitize_text_field"}
+      }
+    },
+    {"route":"POST /lga/v1/prospects","callback":"ProspectsController::create","permission":"ProspectsController::permissionWrite","rate_limited":true},
+    {
+      "route": "GET /lga/v1/prospects/(?P<id>\\d+)",
+      "callback": "ProspectsController::show",
+      "permission": "ProspectsController::permission",
+      "rate_limited": false,
+      "args": {"id":{"type":"integer","required":true,"sanitize":"absint","validate":"closure"}}
+    },
+    {
+      "route": "DELETE /lga/v1/prospects/(?P<id>\\d+)",
+      "callback": "ProspectsController::destroy",
+      "permission": "ProspectsController::permissionWrite",
+      "rate_limited": true,
+      "args": {"id":{"type":"integer","required":true,"sanitize":"absint","validate":"closure"}}
+    },
+    {
+      "route": "POST /lga/v1/prospects/(?P<id>\\d+)/status",
+      "callback": "ProspectsController::setStatus",
+      "permission": "ProspectsController::permissionWrite",
+      "rate_limited": true,
+      "args": {"id":{"type":"integer","required":true,"sanitize":"absint","validate":"closure"}}
+    },
+    {
+      "route": "POST /lga/v1/prospects/(?P<id>\\d+)/evaluate",
+      "callback": "ProspectsController::evaluate",
+      "permission": "ProspectsController::permissionWrite",
+      "rate_limited": true,
+      "args": {"id":{"type":"integer","required":true,"sanitize":"absint","validate":"closure"}}
+    },
+    {
+      "route": "POST /lga/v1/prospects/(?P<id>\\d+)/automation",
+      "callback": "ProspectsController::automation",
+      "permission": "ProspectsController::permissionWrite",
+      "rate_limited": true,
+      "args": {"id":{"type":"integer","required":true,"sanitize":"absint","validate":"closure"}}
+    },
+    {
+      "route": "POST /lga/v1/prospects/(?P<id>\\d+)/notes",
+      "callback": "ProspectsController::notes",
+      "permission": "ProspectsController::permissionWrite",
+      "rate_limited": true,
+      "args": {"id":{"type":"integer","required":true,"sanitize":"absint","validate":"closure"}}
+    },
+    {
+      "route": "POST /lga/v1/prospects/(?P<id>\\d+)/suppress",
+      "callback": "ProspectsController::suppress",
+      "permission": "ProspectsController::permissionWrite",
+      "rate_limited": true,
+      "args": {"id":{"type":"integer","required":true,"sanitize":"absint","validate":"closure"}}
+    },
+    {
+      "route": "POST /lga/v1/prospects/(?P<id>\\d+)/package",
+      "callback": "ProspectsController::package",
+      "permission": "ProspectsController::permissionWrite",
+      "rate_limited": true,
+      "args": {"id":{"type":"integer","required":true,"sanitize":"absint","validate":"closure"}}
+    },
+    {
+      "route": "POST /lga/v1/prospects/(?P<id>\\d+)/contacts",
+      "callback": "ProspectsController::addContact",
+      "permission": "ProspectsController::permissionWrite",
+      "rate_limited": true,
+      "args": {"id":{"type":"integer","required":true,"sanitize":"absint","validate":"closure"}}
+    },
+    {
+      "route": "POST /lga/v1/prospects/(?P<id>\\d+)/find-opportunities",
+      "callback": "ProspectsController::findOpportunities",
+      "permission": "ProspectsController::permissionWrite",
+      "rate_limited": true,
+      "args": {"id":{"type":"integer","required":true,"sanitize":"absint","validate":"closure"}}
+    },
+    {
+      "route": "GET /lga/v1/submissions",
+      "callback": "SubmissionsController::index",
+      "permission": "SubmissionsController::permissionSubmit",
+      "rate_limited": false,
+      "args": {
+        "adapter": {"type":"string","sanitize":"sanitize_text_field"},
+        "conditional": {"type":"string","sanitize":"sanitize_text_field"},
+        "kind": {"type":"string","sanitize":"sanitize_text_field"},
+        "method": {"type":"string","sanitize":"sanitize_text_field"},
+        "order": {"type":"string","sanitize":"sanitize_key"},
+        "orderby": {"type":"string","sanitize":"sanitize_key"},
+        "page": {"type":"integer","default":1,"sanitize":"absint"},
+        "per_page": {"type":"integer","default":25,"sanitize":"absint"},
+        "prospect_id": {"type":"string","sanitize":"sanitize_text_field"},
+        "q": {"type":"string","sanitize":"sanitize_text_field"},
+        "source": {"type":"string","sanitize":"sanitize_text_field"},
+        "status": {"type":"string","sanitize":"sanitize_text_field"},
+        "tier": {"type":"string","sanitize":"sanitize_text_field"}
+      }
+    },
+    {
+      "route": "GET /lga/v1/submissions/verified",
+      "callback": "SubmissionsController::verifiedStatus",
+      "permission": "SubmissionsController::permission",
+      "rate_limited": false
+    },
+    {
+      "route": "POST /lga/v1/submissions/verified/import",
+      "callback": "SubmissionsController::verifiedImport",
+      "permission": "SubmissionsController::permissionWrite",
+      "rate_limited": true
+    },
+    {
+      "route": "GET /lga/v1/submissions/(?P<id>\\d+)",
+      "callback": "SubmissionsController::show",
+      "permission": "SubmissionsController::permissionSubmit",
+      "rate_limited": false,
+      "args": {"id":{"type":"integer","required":true,"sanitize":"absint","validate":"closure"}}
+    },
+    {
+      "route": "POST /lga/v1/submissions/(?P<id>\\d+)/payload",
+      "callback": "SubmissionsController::payload",
+      "permission": "SubmissionsController::permissionWrite",
+      "rate_limited": true,
+      "args": {"id":{"type":"integer","required":true,"sanitize":"absint","validate":"closure"}}
+    },
+    {
+      "route": "POST /lga/v1/submissions/(?P<id>\\d+)/mark-submitted",
+      "callback": "SubmissionsController::markSubmitted",
+      "permission": "SubmissionsController::permissionSubmit",
+      "rate_limited": true,
+      "args": {"id":{"type":"integer","required":true,"sanitize":"absint","validate":"closure"}}
+    },
+    {
+      "route": "POST /lga/v1/submissions/(?P<id>\\d+)/(?P<action>approve|reject|retry|rebuild)",
+      "callback": "SubmissionsController::action",
+      "permission": "SubmissionsController::permissionWrite",
+      "rate_limited": true,
+      "args": {
+        "action": {"type":"string","required":true,"enum":["approve","reject","retry","rebuild"]},
+        "id": {"type":"integer","required":true,"sanitize":"absint","validate":"closure"}
+      }
+    },
+    {
+      "route": "GET /lga/v1/outreach/campaigns",
+      "callback": "OutreachController::campaigns",
+      "permission": "OutreachController::permission",
+      "rate_limited": false,
+      "args": {
+        "approach": {"type":"string","sanitize":"sanitize_text_field"},
+        "order": {"type":"string","sanitize":"sanitize_key"},
+        "orderby": {"type":"string","sanitize":"sanitize_key"},
+        "page": {"type":"integer","default":1,"sanitize":"absint"},
+        "per_page": {"type":"integer","default":25,"sanitize":"absint"},
+        "q": {"type":"string","sanitize":"sanitize_text_field"},
+        "status": {"type":"string","sanitize":"sanitize_text_field"}
+      }
+    },
+    {
+      "route": "POST /lga/v1/outreach/campaigns",
+      "callback": "OutreachController::createCampaign",
+      "permission": "OutreachController::permissionWrite",
+      "rate_limited": true
+    },
+    {
+      "route": "GET /lga/v1/outreach/campaigns/(?P<id>\\d+)",
+      "callback": "OutreachController::campaign",
+      "permission": "OutreachController::permission",
+      "rate_limited": false,
+      "args": {"id":{"type":"integer","required":true,"sanitize":"absint","validate":"closure"}}
+    },
+    {
+      "route": "POST /lga/v1/outreach/campaigns/(?P<id>\\d+)/(?P<action>submit|approve|pause|resume|archive)",
+      "callback": "OutreachController::campaignAction",
+      "permission": "OutreachController::permissionWrite",
+      "rate_limited": true,
+      "args": {
+        "action": {"type":"string","required":true,"enum":["submit","approve","pause","resume","archive"]},
+        "id": {"type":"integer","required":true,"sanitize":"absint","validate":"closure"}
+      }
+    },
+    {
+      "route": "POST /lga/v1/outreach/campaigns/(?P<id>\\d+)/drafts",
+      "callback": "OutreachController::drafts",
+      "permission": "OutreachController::permissionWrite",
+      "rate_limited": true,
+      "args": {"id":{"type":"integer","required":true,"sanitize":"absint","validate":"closure"}}
+    },
+    {
+      "route": "POST /lga/v1/outreach/campaigns/(?P<id>\\d+)/approve-drafts",
+      "callback": "OutreachController::approveDrafts",
+      "permission": "OutreachController::permissionWrite",
+      "rate_limited": true,
+      "args": {"id":{"type":"integer","required":true,"sanitize":"absint","validate":"closure"}}
+    },
+    {
+      "route": "GET /lga/v1/outreach/campaigns/(?P<id>\\d+)/candidates",
+      "callback": "OutreachController::candidates",
+      "permission": "OutreachController::permission",
+      "rate_limited": false,
+      "args": {"id":{"type":"integer","required":true,"sanitize":"absint","validate":"closure"}}
+    },
+    {
+      "route": "GET /lga/v1/outreach/messages",
+      "callback": "OutreachController::messages",
+      "permission": "OutreachController::permission",
+      "rate_limited": false,
+      "args": {
+        "approach": {"type":"string","sanitize":"sanitize_text_field"},
+        "campaign_id": {"type":"string","sanitize":"sanitize_text_field"},
+        "order": {"type":"string","sanitize":"sanitize_key"},
+        "orderby": {"type":"string","sanitize":"sanitize_key"},
+        "page": {"type":"integer","default":1,"sanitize":"absint"},
+        "per_page": {"type":"integer","default":25,"sanitize":"absint"},
+        "prospect_id": {"type":"string","sanitize":"sanitize_text_field"},
+        "q": {"type":"string","sanitize":"sanitize_text_field"},
+        "sequence": {"type":"string","sanitize":"sanitize_text_field"},
+        "status": {"type":"string","sanitize":"sanitize_text_field"}
+      }
+    },
+    {
+      "route": "GET /lga/v1/outreach/messages/(?P<id>\\d+)",
+      "callback": "OutreachController::message",
+      "permission": "OutreachController::permission",
+      "rate_limited": false,
+      "args": {"id":{"type":"integer","required":true,"sanitize":"absint","validate":"closure"}}
+    },
+    {
+      "route": "POST /lga/v1/outreach/messages/(?P<id>\\d+)",
+      "callback": "OutreachController::updateMessage",
+      "permission": "OutreachController::permissionWrite",
+      "rate_limited": true,
+      "args": {"id":{"type":"integer","required":true,"sanitize":"absint","validate":"closure"}}
+    },
+    {
+      "route": "POST /lga/v1/outreach/messages/(?P<id>\\d+)/(?P<action>approve|reject|send|log-reply|close)",
+      "callback": "OutreachController::messageAction",
+      "permission": "OutreachController::permissionWrite",
+      "rate_limited": true,
+      "args": {
+        "action": {"type":"string","required":true,"enum":["approve","reject","send","log-reply","close"]},
+        "id": {"type":"integer","required":true,"sanitize":"absint","validate":"closure"}
+      }
+    },
+    {
+      "route": "GET /lga/v1/outreach/contacts",
+      "callback": "OutreachController::contacts",
+      "permission": "OutreachController::permission",
+      "rate_limited": false,
+      "args": {
+        "order": {"type":"string","sanitize":"sanitize_key"},
+        "orderby": {"type":"string","sanitize":"sanitize_key"},
+        "page": {"type":"integer","default":1,"sanitize":"absint"},
+        "per_page": {"type":"integer","default":25,"sanitize":"absint"},
+        "prospect_id": {"type":"string","sanitize":"sanitize_text_field"},
+        "q": {"type":"string","sanitize":"sanitize_text_field"},
+        "status": {"type":"string","sanitize":"sanitize_text_field"}
+      }
+    },
+    {
+      "route": "POST /lga/v1/outreach/contacts/(?P<id>\\d+)/status",
+      "callback": "OutreachController::contactStatus",
+      "permission": "OutreachController::permissionWrite",
+      "rate_limited": true,
+      "args": {"id":{"type":"integer","required":true,"sanitize":"absint","validate":"closure"}}
+    },
+    {
+      "route": "GET /lga/v1/outreach/approaches",
+      "callback": "OutreachController::approaches",
+      "permission": "OutreachController::permission",
+      "rate_limited": false
+    },
+    {"route":"GET /lga/v1/outreach/sender","callback":"OutreachController::sender","permission":"OutreachController::permission","rate_limited":false},
+    {
+      "route": "GET /lga/v1/unsubscribe",
+      "callback": "PublicController::unsubscribePage",
+      "permission": "__return_true",
+      "rate_limited": false,
+      "args": {"t":{"type":"string","required":false,"sanitize":"closure"}}
+    },
+    {
+      "route": "POST /lga/v1/unsubscribe",
+      "callback": "PublicController::unsubscribePost",
+      "permission": "__return_true",
+      "rate_limited": false,
+      "args": {"t":{"type":"string","required":false,"sanitize":"closure"}}
+    },
+    {"route":"POST /lga/v1/inbound","callback":"PublicController::inbound","permission":"__return_true","rate_limited":false},
+    {
+      "route": "GET /lga/v1/backlinks",
+      "callback": "BacklinksController::index",
+      "permission": "BacklinksController::permission",
+      "rate_limited": false,
+      "args": {
+        "order": {"type":"string","sanitize":"sanitize_key"},
+        "orderby": {"type":"string","sanitize":"sanitize_key"},
+        "origin": {"type":"string","sanitize":"sanitize_text_field"},
+        "page": {"type":"integer","default":1,"sanitize":"absint"},
+        "per_page": {"type":"integer","default":25,"sanitize":"absint"},
+        "placement": {"type":"string","sanitize":"sanitize_text_field"},
+        "prospect_id": {"type":"string","sanitize":"sanitize_text_field"},
+        "q": {"type":"string","sanitize":"sanitize_text_field"},
+        "rel": {"type":"string","sanitize":"sanitize_text_field"},
+        "status": {"type":"string","sanitize":"sanitize_text_field"}
+      }
+    },
+    {"route":"POST /lga/v1/backlinks","callback":"BacklinksController::create","permission":"BacklinksController::permissionWrite","rate_limited":true},
+    {
+      "route": "GET /lga/v1/backlinks/summary",
+      "callback": "BacklinksController::summary",
+      "permission": "BacklinksController::permission",
+      "rate_limited": false
+    },
+    {
+      "route": "POST /lga/v1/backlinks/import",
+      "callback": "BacklinksController::import",
+      "permission": "BacklinksController::permissionWrite",
+      "rate_limited": true
+    },
+    {
+      "route": "GET /lga/v1/backlinks/(?P<id>\\d+)",
+      "callback": "BacklinksController::show",
+      "permission": "BacklinksController::permission",
+      "rate_limited": false,
+      "args": {"id":{"type":"integer","required":true,"sanitize":"absint","validate":"closure"}}
+    },
+    {
+      "route": "DELETE /lga/v1/backlinks/(?P<id>\\d+)",
+      "callback": "BacklinksController::destroy",
+      "permission": "BacklinksController::permissionWrite",
+      "rate_limited": true,
+      "args": {"id":{"type":"integer","required":true,"sanitize":"absint","validate":"closure"}}
+    },
+    {
+      "route": "POST /lga/v1/backlinks/(?P<id>\\d+)/check",
+      "callback": "BacklinksController::check",
+      "permission": "BacklinksController::permissionWrite",
+      "rate_limited": true,
+      "args": {"id":{"type":"integer","required":true,"sanitize":"absint","validate":"closure"}}
+    },
+    {"route":"GET /lga/v1/seo/audit","callback":"SeoController::auditStatus","permission":"SeoController::permission","rate_limited":false},
+    {"route":"POST /lga/v1/seo/audit/run","callback":"SeoController::auditRun","permission":"SeoController::permissionWrite","rate_limited":true},
+    {"route":"GET /lga/v1/seo/indexnow","callback":"SeoController::indexnow","permission":"SeoController::permission","rate_limited":false},
+    {"route":"POST /lga/v1/seo/indexnow/run","callback":"SeoController::indexnowRun","permission":"SeoController::permissionWrite","rate_limited":true},
+    {"route":"GET /lga/v1/seo/links","callback":"SeoController::links","permission":"SeoController::permission","rate_limited":false},
+    {"route":"POST /lga/v1/seo/links/run","callback":"SeoController::linksRun","permission":"SeoController::permissionWrite","rate_limited":true},
+    {"route":"POST /lga/v1/seo/links/apply","callback":"SeoController::linksApply","permission":"SeoController::permissionWrite","rate_limited":true},
+    {"route":"POST /lga/v1/seo/links/dismiss","callback":"SeoController::linksDismiss","permission":"SeoController::permissionWrite","rate_limited":true},
+    {
+      "route": "POST /lga/v1/seo/links/undo-auto",
+      "callback": "SeoController::linksUndoAuto",
+      "permission": "SeoController::permissionWrite",
+      "rate_limited": true
+    },
+    {
+      "route": "GET /lga/v1/automation/status",
+      "callback": "AutomationController::status",
+      "permission": "AutomationController::permission",
+      "rate_limited": false
+    },
+    {
+      "route": "POST /lga/v1/automation/run",
+      "callback": "AutomationController::run",
+      "permission": "AutomationController::permissionWrite",
+      "rate_limited": true
+    },
+    {
+      "route": "POST /lga/v1/automation/toggle",
+      "callback": "AutomationController::toggle",
+      "permission": "AutomationController::permissionWrite",
+      "rate_limited": true
+    },
+    {
+      "route": "POST /lga/v1/automation/tick",
+      "callback": "AutomationController::tick",
+      "permission": "AutomationController::permissionWrite",
+      "rate_limited": true
+    },
+    {
+      "route": "POST /lga/v1/automation/kick",
+      "callback": "AutomationController::kick",
+      "permission": "AutomationController::permissionWrite",
+      "rate_limited": true
+    },
+    {
+      "route": "POST /lga/v1/automation/cancel",
+      "callback": "AutomationController::cancel",
+      "permission": "AutomationController::permissionWrite",
+      "rate_limited": true
+    },
+    {
+      "route": "GET /lga/v1/automation/jobs",
+      "callback": "AutomationController::jobs",
+      "permission": "AutomationController::permission",
+      "rate_limited": false,
+      "args": {
+        "order": {"type":"string","sanitize":"sanitize_key"},
+        "orderby": {"type":"string","sanitize":"sanitize_key"},
+        "page": {"type":"integer","default":1,"sanitize":"absint"},
+        "per_page": {"type":"integer","default":25,"sanitize":"absint"},
+        "q": {"type":"string","sanitize":"sanitize_text_field"},
+        "status": {"type":"string","sanitize":"sanitize_text_field"},
+        "type": {"type":"string","sanitize":"sanitize_text_field"}
+      }
+    },
+    {
+      "route": "GET /lga/v1/automation/autopilot",
+      "callback": "AutomationController::autopilot",
+      "permission": "AutomationController::permission",
+      "rate_limited": false
+    },
+    {
+      "route": "POST /lga/v1/automation/autopilot",
+      "callback": "AutomationController::setAutopilot",
+      "permission": "AutomationController::permissionWrite",
+      "rate_limited": true
+    },
+    {"route":"POST /lga/v1/growth/start","callback":"GrowthController::start","permission":"GrowthController::permissionWrite","rate_limited":true},
+    {"route":"POST /lga/v1/growth/step","callback":"GrowthController::step","permission":"GrowthController::permissionWrite","rate_limited":true},
+    {"route":"GET /lga/v1/growth/status","callback":"GrowthController::status","permission":"GrowthController::permission","rate_limited":false},
+    {"route":"POST /lga/v1/growth/cancel","callback":"GrowthController::cancel","permission":"GrowthController::permissionWrite","rate_limited":true},
+    {
+      "route": "GET /lga/v1/overview",
+      "callback": "OverviewController::overview",
+      "permission": "OverviewController::permission",
+      "rate_limited": false,
+      "args": {"refresh":{"type":"boolean","default":false}}
+    },
+    {"route":"GET /lga/v1/ping","callback":"OverviewController::ping","permission":"OverviewController::permission","rate_limited":false},
+    {"route":"GET /lga/v1/settings","callback":"SettingsController::show","permission":"SettingsController::permission","rate_limited":false},
+    {"route":"POST /lga/v1/settings","callback":"SettingsController::update","permission":"SettingsController::permissionWrite","rate_limited":true},
+    {
+      "route": "POST /lga/v1/settings/test",
+      "callback": "SettingsController::test",
+      "permission": "SettingsController::permissionWrite",
+      "rate_limited": true,
+      "args": {"provider":{"type":"string","required":true,"sanitize":"sanitize_key"}}
+    },
+    {
+      "route": "POST /lga/v1/settings/facts/reset",
+      "callback": "SettingsController::resetFacts",
+      "permission": "SettingsController::permissionWrite",
+      "rate_limited": true
+    },
+    {
+      "route": "GET /lga/v1/settings/backups/(?P<file>[\\w\\-]+\\.sql\\.gz)",
+      "callback": "SettingsController::downloadBackup",
+      "permission": "SettingsController::permission",
+      "rate_limited": false,
+      "args": {"file":{"type":"string","required":true,"sanitize":"closure","validate":"closure"}}
+    },
+    {
+      "route": "POST /lga/v1/settings/competitors/suggest",
+      "callback": "SettingsController::suggestCompetitors",
+      "permission": "SettingsController::permissionWrite",
+      "rate_limited": true
+    },
+    {
+      "route": "GET /lga/v1/logs",
+      "callback": "LogsController::logs",
+      "permission": "LogsController::permission",
+      "rate_limited": false,
+      "args": {
+        "channel": {"type":"string","sanitize":"sanitize_text_field"},
+        "level": {"type":"string","sanitize":"sanitize_text_field"},
+        "order": {"type":"string","sanitize":"sanitize_key"},
+        "orderby": {"type":"string","sanitize":"sanitize_key"},
+        "page": {"type":"integer","default":1,"sanitize":"absint"},
+        "per_page": {"type":"integer","default":25,"sanitize":"absint"},
+        "q": {"type":"string","sanitize":"sanitize_text_field"},
+        "since": {"type":"string","sanitize":"sanitize_text_field"}
+      }
+    },
+    {
+      "route": "GET /lga/v1/audit",
+      "callback": "LogsController::auditLog",
+      "permission": "LogsController::permission",
+      "rate_limited": false,
+      "args": {
+        "action": {"type":"string","sanitize":"sanitize_text_field"},
+        "actor": {"type":"string","sanitize":"sanitize_text_field"},
+        "object_id": {"type":"string","sanitize":"sanitize_text_field"},
+        "object_type": {"type":"string","sanitize":"sanitize_text_field"},
+        "order": {"type":"string","sanitize":"sanitize_key"},
+        "orderby": {"type":"string","sanitize":"sanitize_key"},
+        "page": {"type":"integer","default":1,"sanitize":"absint"},
+        "per_page": {"type":"integer","default":25,"sanitize":"absint"},
+        "q": {"type":"string","sanitize":"sanitize_text_field"}
+      }
+    },
+    {
+      "route": "GET /lga/v1/notifications",
+      "callback": "LogsController::notifications",
+      "permission": "LogsController::permission",
+      "rate_limited": false,
+      "args": {
+        "order": {"type":"string","sanitize":"sanitize_key"},
+        "orderby": {"type":"string","sanitize":"sanitize_key"},
+        "page": {"type":"integer","default":1,"sanitize":"absint"},
+        "per_page": {"type":"integer","default":25,"sanitize":"absint"},
+        "q": {"type":"string","sanitize":"sanitize_text_field"},
+        "severity": {"type":"string","sanitize":"sanitize_text_field"},
+        "unread": {"type":"string","sanitize":"sanitize_text_field"}
+      }
+    },
+    {"route":"POST /lga/v1/notifications/read","callback":"LogsController::markRead","permission":"LogsController::permissionWrite","rate_limited":true},
+    {
+      "route": "GET /lga/v1/suppression",
+      "callback": "LogsController::suppression",
+      "permission": "LogsController::permission",
+      "rate_limited": false,
+      "args": {
+        "order": {"type":"string","sanitize":"sanitize_key"},
+        "orderby": {"type":"string","sanitize":"sanitize_key"},
+        "page": {"type":"integer","default":1,"sanitize":"absint"},
+        "per_page": {"type":"integer","default":25,"sanitize":"absint"},
+        "q": {"type":"string","sanitize":"sanitize_text_field"},
+        "type": {"type":"string","sanitize":"sanitize_text_field"}
+      }
+    },
+    {"route":"POST /lga/v1/suppression","callback":"LogsController::addSuppression","permission":"LogsController::permissionWrite","rate_limited":true},
+    {
+      "route": "DELETE /lga/v1/suppression/(?P<id>\\d+)",
+      "callback": "LogsController::deleteSuppression",
+      "permission": "LogsController::permissionWrite",
+      "rate_limited": true,
+      "args": {"id":{"type":"integer","required":true,"sanitize":"absint","validate":"closure"}}
+    },
+    {
+      "route": "GET /lga/v1/compliance/storefront",
+      "callback": "ComplianceController::status",
+      "permission": "ComplianceController::permission",
+      "rate_limited": false
+    },
+    {
+      "route": "POST /lga/v1/compliance/storefront/recheck",
+      "callback": "ComplianceController::recheck",
+      "permission": "ComplianceController::permissionWrite",
+      "rate_limited": true
+    },
+    {
+      "route": "POST /lga/v1/compliance/storefront/acknowledge",
+      "callback": "ComplianceController::acknowledge",
+      "permission": "ComplianceController::permissionWrite",
+      "rate_limited": true,
+      "args": {"confirm":{"type":"boolean"},"hash":{"type":"string"}}
+    }
+  ],
+  "cron": {
+    "wp_cron": [],
+    "action_scheduler": [{"hook":"lga_tick","group":"lga","interval":300,"args":[]}],
+    "schedules": {"lga_tick_interval":{"interval":300,"display":"Every 5 minutes (LinkGrowth Autopilot)"}}
+  },
+  "tables": {
+    "{prefix}lga_audit_log": [
+      "id bigint(20) unsigned NOT NULL PRI auto_increment",
+      "actor varchar(60) NOT NULL DEFAULT 'system'",
+      "action varchar(60) NOT NULL MUL",
+      "object_type varchar(40) NOT NULL DEFAULT '' MUL",
+      "object_id bigint(20) unsigned NOT NULL DEFAULT '0'",
+      "details longtext NULL",
+      "created_at datetime NOT NULL MUL"
+    ],
+    "{prefix}lga_backlinks": [
+      "id bigint(20) unsigned NOT NULL PRI auto_increment",
+      "prospect_id bigint(20) unsigned NULL",
+      "source_domain varchar(190) NOT NULL MUL",
+      "source_url varchar(700) NOT NULL DEFAULT ''",
+      "source_hash char(40) NOT NULL DEFAULT '' UNI",
+      "target_url varchar(700) NOT NULL DEFAULT ''",
+      "target_hash char(40) NOT NULL DEFAULT ''",
+      "anchor_text varchar(500) NOT NULL DEFAULT ''",
+      "rel varchar(60) NOT NULL DEFAULT 'dofollow'",
+      "placement varchar(30) NOT NULL DEFAULT 'unknown'",
+      "status varchar(20) NOT NULL DEFAULT 'pending' MUL",
+      "http_status smallint(5) unsigned NULL",
+      "is_indexable tinyint(1) NULL",
+      "origin varchar(40) NOT NULL DEFAULT 'manual'",
+      "quality_score tinyint(3) unsigned NULL",
+      "first_seen datetime NOT NULL",
+      "last_checked datetime NULL",
+      "last_seen_live datetime NULL",
+      "next_check_at datetime NULL MUL",
+      "lost_at datetime NULL",
+      "consecutive_failures tinyint(3) unsigned NOT NULL DEFAULT '0'",
+      "changes longtext NULL",
+      "created_at datetime NOT NULL",
+      "updated_at datetime NOT NULL"
+    ],
+    "{prefix}lga_campaigns": [
+      "id bigint(20) unsigned NOT NULL PRI auto_increment",
+      "name varchar(190) NOT NULL",
+      "approach varchar(40) NOT NULL DEFAULT 'resource_page'",
+      "status varchar(30) NOT NULL DEFAULT 'draft' MUL",
+      "daily_limit int(11) unsigned NOT NULL DEFAULT '10'",
+      "settings longtext NULL",
+      "stats longtext NULL",
+      "created_by bigint(20) unsigned NULL",
+      "approved_by bigint(20) unsigned NULL",
+      "approved_at datetime NULL",
+      "created_at datetime NOT NULL",
+      "updated_at datetime NOT NULL"
+    ],
+    "{prefix}lga_contacts": [
+      "id bigint(20) unsigned NOT NULL PRI auto_increment",
+      "prospect_id bigint(20) unsigned NOT NULL UNI",
+      "name varchar(190) NOT NULL DEFAULT ''",
+      "email varchar(190) NOT NULL MUL",
+      "role varchar(100) NOT NULL DEFAULT ''",
+      "source_url varchar(700) NOT NULL DEFAULT ''",
+      "confidence tinyint(3) unsigned NOT NULL DEFAULT '50'",
+      "consent_basis varchar(60) NOT NULL DEFAULT 'conspicuous_publication'",
+      "status varchar(20) NOT NULL DEFAULT 'active' MUL",
+      "created_at datetime NOT NULL",
+      "updated_at datetime NOT NULL"
+    ],
+    "{prefix}lga_domain_metrics": [
+      "id bigint(20) unsigned NOT NULL PRI auto_increment",
+      "domain varchar(190) NOT NULL UNI",
+      "provider varchar(30) NOT NULL",
+      "metrics longtext NULL",
+      "fetched_at datetime NOT NULL",
+      "expires_at datetime NOT NULL MUL"
+    ],
+    "{prefix}lga_jobs": [
+      "id bigint(20) unsigned NOT NULL PRI auto_increment",
+      "type varchar(40) NOT NULL MUL",
+      "status varchar(20) NOT NULL DEFAULT 'queued' MUL",
+      "priority tinyint(3) unsigned NOT NULL DEFAULT '5'",
+      "payload longtext NULL",
+      "attempts tinyint(3) unsigned NOT NULL DEFAULT '0'",
+      "max_attempts tinyint(3) unsigned NOT NULL DEFAULT '3'",
+      "scheduled_at datetime NOT NULL",
+      "started_at datetime NULL",
+      "finished_at datetime NULL",
+      "result longtext NULL",
+      "error text NULL",
+      "lock_token varchar(40) NOT NULL DEFAULT ''",
+      "created_at datetime NOT NULL"
+    ],
+    "{prefix}lga_logs": [
+      "id bigint(20) unsigned NOT NULL PRI auto_increment",
+      "level varchar(10) NOT NULL DEFAULT 'info' MUL",
+      "channel varchar(40) NOT NULL DEFAULT 'general' MUL",
+      "message text NULL",
+      "context longtext NULL",
+      "created_at datetime NOT NULL MUL"
+    ],
+    "{prefix}lga_notifications": [
+      "id bigint(20) unsigned NOT NULL PRI auto_increment",
+      "type varchar(40) NOT NULL DEFAULT 'info'",
+      "severity varchar(10) NOT NULL DEFAULT 'info'",
+      "title varchar(255) NOT NULL DEFAULT ''",
+      "message text NULL",
+      "data longtext NULL",
+      "is_read tinyint(1) NOT NULL DEFAULT '0' MUL",
+      "created_at datetime NOT NULL MUL"
+    ],
+    "{prefix}lga_opportunities": [
+      "id bigint(20) unsigned NOT NULL PRI auto_increment",
+      "prospect_id bigint(20) unsigned NOT NULL UNI",
+      "type varchar(40) NOT NULL DEFAULT 'unknown' MUL",
+      "url varchar(700) NOT NULL DEFAULT ''",
+      "url_hash char(40) NOT NULL DEFAULT ''",
+      "title varchar(255) NOT NULL DEFAULT ''",
+      "details longtext NULL",
+      "status varchar(30) NOT NULL DEFAULT 'open' MUL",
+      "score tinyint(3) unsigned NULL",
+      "created_at datetime NOT NULL",
+      "updated_at datetime NOT NULL"
+    ],
+    "{prefix}lga_outreach_messages": [
+      "id bigint(20) unsigned NOT NULL PRI auto_increment",
+      "campaign_id bigint(20) unsigned NOT NULL DEFAULT '0' MUL",
+      "prospect_id bigint(20) unsigned NOT NULL MUL",
+      "contact_id bigint(20) unsigned NOT NULL UNI",
+      "opportunity_id bigint(20) unsigned NULL",
+      "approach varchar(40) NOT NULL DEFAULT ''",
+      "sequence tinyint(3) unsigned NOT NULL DEFAULT '1'",
+      "subject varchar(255) NOT NULL DEFAULT ''",
+      "body longtext NULL",
+      "status varchar(30) NOT NULL DEFAULT 'draft' MUL",
+      "variant varchar(20) NOT NULL DEFAULT ''",
+      "scheduled_at datetime NULL",
+      "sent_at datetime NULL",
+      "replied_at datetime NULL",
+      "reply_summary text NULL",
+      "message_id varchar(190) NOT NULL DEFAULT '' MUL",
+      "unsubscribe_token char(32) NOT NULL DEFAULT '' MUL",
+      "last_error text NULL",
+      "created_at datetime NOT NULL",
+      "updated_at datetime NOT NULL"
+    ],
+    "{prefix}lga_prospects": [
+      "id bigint(20) unsigned NOT NULL PRI auto_increment",
+      "domain varchar(190) NOT NULL UNI",
+      "name varchar(255) NOT NULL DEFAULT ''",
+      "homepage_url varchar(500) NOT NULL DEFAULT ''",
+      "country varchar(2) NOT NULL DEFAULT '' MUL",
+      "language varchar(10) NOT NULL DEFAULT ''",
+      "site_type varchar(40) NOT NULL DEFAULT 'unknown' MUL",
+      "opportunity_type varchar(40) NOT NULL DEFAULT 'unknown' MUL",
+      "status varchar(30) NOT NULL DEFAULT 'discovered' MUL",
+      "score tinyint(3) unsigned NULL MUL",
+      "score_class varchar(20) NOT NULL DEFAULT ''",
+      "score_confidence tinyint(3) unsigned NOT NULL DEFAULT '0'",
+      "score_breakdown longtext NULL",
+      "relevance tinyint(3) unsigned NULL",
+      "metrics longtext NULL",
+      "profile longtext NULL",
+      "risk_flags longtext NULL",
+      "submission_url varchar(700) NOT NULL DEFAULT ''",
+      "contact_url varchar(700) NOT NULL DEFAULT ''",
+      "recommended_action varchar(60) NOT NULL DEFAULT ''",
+      "discovered_via varchar(60) NOT NULL DEFAULT ''",
+      "discovery_query varchar(255) NOT NULL DEFAULT ''",
+      "automation_allowed tinyint(1) NOT NULL DEFAULT '0'",
+      "submission_config longtext NULL",
+      "notes text NULL",
+      "rejection_reason varchar(255) NOT NULL DEFAULT ''",
+      "first_seen datetime NOT NULL",
+      "last_evaluated datetime NULL",
+      "next_review datetime NULL MUL",
+      "updated_at datetime NOT NULL"
+    ],
+    "{prefix}lga_search_log": [
+      "id bigint(20) unsigned NOT NULL PRI auto_increment",
+      "provider varchar(30) NOT NULL DEFAULT ''",
+      "query varchar(500) NOT NULL DEFAULT ''",
+      "query_hash char(40) NOT NULL DEFAULT '' MUL",
+      "results int(11) unsigned NOT NULL DEFAULT '0'",
+      "new_prospects int(11) unsigned NOT NULL DEFAULT '0'",
+      "run_at datetime NOT NULL MUL"
+    ],
+    "{prefix}lga_submissions": [
+      "id bigint(20) unsigned NOT NULL PRI auto_increment",
+      "prospect_id bigint(20) unsigned NOT NULL UNI",
+      "opportunity_id bigint(20) unsigned NULL",
+      "method varchar(20) NOT NULL DEFAULT 'manual'",
+      "adapter varchar(60) NOT NULL DEFAULT 'manual_package'",
+      "status varchar(30) NOT NULL DEFAULT 'pending_review' MUL",
+      "target_url varchar(700) NOT NULL DEFAULT ''",
+      "target_hash char(40) NOT NULL DEFAULT ''",
+      "category varchar(190) NOT NULL DEFAULT ''",
+      "payload longtext NULL",
+      "response longtext NULL",
+      "confirmation_ref varchar(190) NOT NULL DEFAULT ''",
+      "listing_url varchar(700) NOT NULL DEFAULT ''",
+      "attempts tinyint(3) unsigned NOT NULL DEFAULT '0'",
+      "last_error text NULL",
+      "scheduled_at datetime NULL",
+      "submitted_at datetime NULL",
+      "confirmed_at datetime NULL",
+      "next_verify_at datetime NULL MUL",
+      "reviewed_by bigint(20) unsigned NULL",
+      "created_at datetime NOT NULL",
+      "updated_at datetime NOT NULL"
+    ],
+    "{prefix}lga_suppression": [
+      "id bigint(20) unsigned NOT NULL PRI auto_increment",
+      "type varchar(20) NOT NULL DEFAULT 'domain' UNI",
+      "value varchar(190) NOT NULL",
+      "reason varchar(190) NOT NULL DEFAULT ''",
+      "created_at datetime NOT NULL"
+    ]
+  },
+  "roles": {
+    "administrator": {"name":"Administrator","capabilities":["lga_manage"]},
+    "lga_link_submitter": {"name":"LinkGrowth Submitter","capabilities":["lga_submit_listings","read"]}
+  }
+}

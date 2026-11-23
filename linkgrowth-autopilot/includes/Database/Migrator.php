@@ -79,7 +79,7 @@ final class Migrator {
         if ( LGA_DB_VERSION === get_transient( self::TABLES_OK ) ) {
             return false;
         }
-        if ( count( $this->schema->existingTables() ) < count( Schema::TABLES ) ) {
+        if ( count( $this->schema->existingTables() ) < count( Schema::names() ) ) {
             return true;
         }
         set_transient( self::TABLES_OK, LGA_DB_VERSION, self::TABLES_CHECK_TTL );
@@ -115,7 +115,7 @@ final class Migrator {
             }
             $messages = $this->schema->install();
             update_option( 'lga_db_version', LGA_DB_VERSION, false );
-            $missing = count( Schema::TABLES ) - count( $this->schema->existingTables() );
+            $missing = count( Schema::names() ) - count( $this->schema->existingTables() );
             if ( $missing > 0 ) {
                 delete_transient( self::TABLES_OK );
                 set_transient( self::BACKOFF, time(), self::BACKOFF_SECONDS );

@@ -1,6 +1,6 @@
 <?php
 /**
- * 1.2.4 Automation\LoadGuard's server reasons and Admin\SiteHealth's RAM-aware advice, over Support\ServerResources
+ * 1.2.4 Automation\LoadGuard's server reasons and Health\SiteHealthTests's RAM-aware advice, over Support\ServerResources
  * with injected readers (no real /proc): the load per CPU above or at 2.0, the CPU count from
  * /sys/devices/system/cpu/online, /proc/cpuinfo or neither (counted as 1, kept for a day), the two threshold filters,
  * unreadable or unsupported systems, MemAvailable below or at 10 %, the order after the existing reasons, the owner
@@ -15,7 +15,7 @@ declare(strict_types=1);
 namespace LinkGrowth\Autopilot\Tests\Unit\Automation;
 
 use LinkGrowth\Autopilot\Admin\Rest\OverviewController;
-use LinkGrowth\Autopilot\Admin\SiteHealth;
+use LinkGrowth\Autopilot\Health\SiteHealthTests;
 use LinkGrowth\Autopilot\Automation\LoadGuard;
 use LinkGrowth\Autopilot\Automation\Pipeline;
 use LinkGrowth\Autopilot\Automation\Scheduler;
@@ -593,13 +593,13 @@ final class ServerLoadTest extends TestCase {
     }
 
     /** The Site Health test on a server with $totalKb of memory (null: not known). */
-    private function health( array $status, array $ini, ?int $totalKb ): SiteHealth {
+    private function health( array $status, array $ini, ?int $totalKb ): SiteHealthTests {
         if ( null === $totalKb ) {
             unset( $this->files[ ServerResources::MEMINFO ] );
         } else {
             $this->files[ ServerResources::MEMINFO ] = self::meminfo( $totalKb, (int) ( $totalKb / 2 ) );
         }
-        return new SiteHealth( new Opcache( static fn() => $status, $ini ), $this->server() );
+        return new SiteHealthTests( new Opcache( static fn() => $status, $ini ), $this->server() );
     }
 
     private const INTRO = 'Raise these settings in the php.ini (or a file in the conf.d folder) that PHP-FPM uses, then restart PHP-FPM:';
@@ -630,7 +630,7 @@ final class ServerLoadTest extends TestCase {
 
         // The Overview carries the line.
         $c = Container::plugin()->container();
-        $c->set( SiteHealth::class, $this->health( self::sizedStatus( 128, 99.99, 8, 100, 9100, 16229, true ), self::ini( '128', '8', '10000' ), self::LIVE_TOTAL_KB ) );
+        $c->set( SiteHealthTests::class, $this->health( self::sizedStatus( 128, 99.99, 8, 100, 9100, 16229, true ), self::ini( '128', '8', '10000' ), self::LIVE_TOTAL_KB ) );
         $GLOBALS['lga_test_caps'] = [ 'manage_options' => true ];
         $data                       = ( new OverviewController( $c ) )->overview( new WP_REST_Request( 'GET', '/lga/v1/overview' ) );
         unset( $GLOBALS['lga_test_caps'] );

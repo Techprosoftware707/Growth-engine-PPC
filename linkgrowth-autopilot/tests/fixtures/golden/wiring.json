@@ -1,0 +1,2706 @@
+{
+  "_about": "Wiring snapshot without WordPress (tests/Unit/Wiring/WiringSnapshotTest.php), recorded on the WP1 fork state (e160656). WP2 keeps it identical apart from documented, deliberate differences; rewrite only on purpose with LGA_GOLDEN_UPDATE=1.",
+  "rest_routes": [
+    {
+      "route": "GET /lga/v1/prospects",
+      "callback": "ProspectsController::index",
+      "permission": "ProspectsController::permission",
+      "rate_limited": false,
+      "args": {
+        "automation_allowed": {"type":"string","sanitize":"sanitize_text_field"},
+        "class": {"type":"string","sanitize":"sanitize_text_field"},
+        "country": {"type":"string","sanitize":"sanitize_text_field"},
+        "min_score": {"type":"string","sanitize":"sanitize_text_field"},
+        "order": {"type":"string","sanitize":"sanitize_key"},
+        "orderby": {"type":"string","sanitize":"sanitize_key"},
+        "page": {"type":"integer","default":1,"sanitize":"absint"},
+        "per_page": {"type":"integer","default":25,"sanitize":"absint"},
+        "q": {"type":"string","sanitize":"sanitize_text_field"},
+        "site_type": {"type":"string","sanitize":"sanitize_text_field"},
+        "status": {"type":"string","sanitize":"sanitize_text_field"},
+        "type": {"type":"string","sanitize":"sanitize_text_field"},
+        "via": {"type":"string","sanitize":"sanitize_text_field"}
+      }
+    },
+    {"route":"POST /lga/v1/prospects","callback":"ProspectsController::create","permission":"ProspectsController::permissionWrite","rate_limited":true},
+    {
+      "route": "GET /lga/v1/prospects/(?P<id>\\d+)",
+      "callback": "ProspectsController::show",
+      "permission": "ProspectsController::permission",
+      "rate_limited": false,
+      "args": {"id":{"type":"integer","required":true,"sanitize":"absint","validate":"closure"}}
+    },
+    {
+      "route": "DELETE /lga/v1/prospects/(?P<id>\\d+)",
+      "callback": "ProspectsController::destroy",
+      "permission": "ProspectsController::permissionWrite",
+      "rate_limited": true,
+      "args": {"id":{"type":"integer","required":true,"sanitize":"absint","validate":"closure"}}
+    },
+    {
+      "route": "POST /lga/v1/prospects/(?P<id>\\d+)/status",
+      "callback": "ProspectsController::setStatus",
+      "permission": "ProspectsController::permissionWrite",
+      "rate_limited": true,
+      "args": {"id":{"type":"integer","required":true,"sanitize":"absint","validate":"closure"}}
+    },
+    {
+      "route": "POST /lga/v1/prospects/(?P<id>\\d+)/evaluate",
+      "callback": "ProspectsController::evaluate",
+      "permission": "ProspectsController::permissionWrite",
+      "rate_limited": true,
+      "args": {"id":{"type":"integer","required":true,"sanitize":"absint","validate":"closure"}}
+    },
+    {
+      "route": "POST /lga/v1/prospects/(?P<id>\\d+)/automation",
+      "callback": "ProspectsController::automation",
+      "permission": "ProspectsController::permissionWrite",
+      "rate_limited": true,
+      "args": {"id":{"type":"integer","required":true,"sanitize":"absint","validate":"closure"}}
+    },
+    {
+      "route": "POST /lga/v1/prospects/(?P<id>\\d+)/notes",
+      "callback": "ProspectsController::notes",
+      "permission": "ProspectsController::permissionWrite",
+      "rate_limited": true,
+      "args": {"id":{"type":"integer","required":true,"sanitize":"absint","validate":"closure"}}
+    },
+    {
+      "route": "POST /lga/v1/prospects/(?P<id>\\d+)/suppress",
+      "callback": "ProspectsController::suppress",
+      "permission": "ProspectsController::permissionWrite",
+      "rate_limited": true,
+      "args": {"id":{"type":"integer","required":true,"sanitize":"absint","validate":"closure"}}
+    },
+    {
+      "route": "POST /lga/v1/prospects/(?P<id>\\d+)/package",
+      "callback": "ProspectsController::package",
+      "permission": "ProspectsController::permissionWrite",
+      "rate_limited": true,
+      "args": {"id":{"type":"integer","required":true,"sanitize":"absint","validate":"closure"}}
+    },
+    {
+      "route": "POST /lga/v1/prospects/(?P<id>\\d+)/contacts",
+      "callback": "ProspectsController::addContact",
+      "permission": "ProspectsController::permissionWrite",
+      "rate_limited": true,
+      "args": {"id":{"type":"integer","required":true,"sanitize":"absint","validate":"closure"}}
+    },
+    {
+      "route": "POST /lga/v1/prospects/(?P<id>\\d+)/find-opportunities",
+      "callback": "ProspectsController::findOpportunities",
+      "permission": "ProspectsController::permissionWrite",
+      "rate_limited": true,
+      "args": {"id":{"type":"integer","required":true,"sanitize":"absint","validate":"closure"}}
+    },
+    {
+      "route": "GET /lga/v1/submissions",
+      "callback": "SubmissionsController::index",
+      "permission": "SubmissionsController::permissionSubmit",
+      "rate_limited": false,
+      "args": {
+        "adapter": {"type":"string","sanitize":"sanitize_text_field"},
+        "conditional": {"type":"string","sanitize":"sanitize_text_field"},
+        "kind": {"type":"string","sanitize":"sanitize_text_field"},
+        "method": {"type":"string","sanitize":"sanitize_text_field"},
+        "order": {"type":"string","sanitize":"sanitize_key"},
+        "orderby": {"type":"string","sanitize":"sanitize_key"},
+        "page": {"type":"integer","default":1,"sanitize":"absint"},
+        "per_page": {"type":"integer","default":25,"sanitize":"absint"},
+        "prospect_id": {"type":"string","sanitize":"sanitize_text_field"},
+        "q": {"type":"string","sanitize":"sanitize_text_field"},
+        "source": {"type":"string","sanitize":"sanitize_text_field"},
+        "status": {"type":"string","sanitize":"sanitize_text_field"},
+        "tier": {"type":"string","sanitize":"sanitize_text_field"}
+      }
+    },
+    {
+      "route": "GET /lga/v1/submissions/verified",
+      "callback": "SubmissionsController::verifiedStatus",
+      "permission": "SubmissionsController::permission",
+      "rate_limited": false
+    },
+    {
+      "route": "POST /lga/v1/submissions/verified/import",
+      "callback": "SubmissionsController::verifiedImport",
+      "permission": "SubmissionsController::permissionWrite",
+      "rate_limited": true
+    },
+    {
+      "route": "GET /lga/v1/submissions/(?P<id>\\d+)",
+      "callback": "SubmissionsController::show",
+      "permission": "SubmissionsController::permissionSubmit",
+      "rate_limited": false,
+      "args": {"id":{"type":"integer","required":true,"sanitize":"absint","validate":"closure"}}
+    },
+    {
+      "route": "POST /lga/v1/submissions/(?P<id>\\d+)/payload",
+      "callback": "SubmissionsController::payload",
+      "permission": "SubmissionsController::permissionWrite",
+      "rate_limited": true,
+      "args": {"id":{"type":"integer","required":true,"sanitize":"absint","validate":"closure"}}
+    },
+    {
+      "route": "POST /lga/v1/submissions/(?P<id>\\d+)/mark-submitted",
+      "callback": "SubmissionsController::markSubmitted",
+      "permission": "SubmissionsController::permissionSubmit",
+      "rate_limited": true,
+      "args": {"id":{"type":"integer","required":true,"sanitize":"absint","validate":"closure"}}
+    },
+    {
+      "route": "POST /lga/v1/submissions/(?P<id>\\d+)/(?P<action>approve|reject|retry|rebuild)",
+      "callback": "SubmissionsController::action",
+      "permission": "SubmissionsController::permissionWrite",
+      "rate_limited": true,
+      "args": {
+        "action": {"type":"string","required":true,"enum":["approve","reject","retry","rebuild"]},
+        "id": {"type":"integer","required":true,"sanitize":"absint","validate":"closure"}
+      }
+    },
+    {
+      "route": "GET /lga/v1/outreach/campaigns",
+      "callback": "OutreachController::campaigns",
+      "permission": "OutreachController::permission",
+      "rate_limited": false,
+      "args": {
+        "approach": {"type":"string","sanitize":"sanitize_text_field"},
+        "order": {"type":"string","sanitize":"sanitize_key"},
+        "orderby": {"type":"string","sanitize":"sanitize_key"},
+        "page": {"type":"integer","default":1,"sanitize":"absint"},
+        "per_page": {"type":"integer","default":25,"sanitize":"absint"},
+        "q": {"type":"string","sanitize":"sanitize_text_field"},
+        "status": {"type":"string","sanitize":"sanitize_text_field"}
+      }
+    },
+    {
+      "route": "POST /lga/v1/outreach/campaigns",
+      "callback": "OutreachController::createCampaign",
+      "permission": "OutreachController::permissionWrite",
+      "rate_limited": true
+    },
+    {
+      "route": "GET /lga/v1/outreach/campaigns/(?P<id>\\d+)",
+      "callback": "OutreachController::campaign",
+      "permission": "OutreachController::permission",
+      "rate_limited": false,
+      "args": {"id":{"type":"integer","required":true,"sanitize":"absint","validate":"closure"}}
+    },
+    {
+      "route": "POST /lga/v1/outreach/campaigns/(?P<id>\\d+)/(?P<action>submit|approve|pause|resume|archive)",
+      "callback": "OutreachController::campaignAction",
+      "permission": "OutreachController::permissionWrite",
+      "rate_limited": true,
+      "args": {
+        "action": {"type":"string","required":true,"enum":["submit","approve","pause","resume","archive"]},
+        "id": {"type":"integer","required":true,"sanitize":"absint","validate":"closure"}
+      }
+    },
+    {
+      "route": "POST /lga/v1/outreach/campaigns/(?P<id>\\d+)/drafts",
+      "callback": "OutreachController::drafts",
+      "permission": "OutreachController::permissionWrite",
+      "rate_limited": true,
+      "args": {"id":{"type":"integer","required":true,"sanitize":"absint","validate":"closure"}}
+    },
+    {
+      "route": "POST /lga/v1/outreach/campaigns/(?P<id>\\d+)/approve-drafts",
+      "callback": "OutreachController::approveDrafts",
+      "permission": "OutreachController::permissionWrite",
+      "rate_limited": true,
+      "args": {"id":{"type":"integer","required":true,"sanitize":"absint","validate":"closure"}}
+    },
+    {
+      "route": "GET /lga/v1/outreach/campaigns/(?P<id>\\d+)/candidates",
+      "callback": "OutreachController::candidates",
+      "permission": "OutreachController::permission",
+      "rate_limited": false,
+      "args": {"id":{"type":"integer","required":true,"sanitize":"absint","validate":"closure"}}
+    },
+    {
+      "route": "GET /lga/v1/outreach/messages",
+      "callback": "OutreachController::messages",
+      "permission": "OutreachController::permission",
+      "rate_limited": false,
+      "args": {
+        "approach": {"type":"string","sanitize":"sanitize_text_field"},
+        "campaign_id": {"type":"string","sanitize":"sanitize_text_field"},
+        "order": {"type":"string","sanitize":"sanitize_key"},
+        "orderby": {"type":"string","sanitize":"sanitize_key"},
+        "page": {"type":"integer","default":1,"sanitize":"absint"},
+        "per_page": {"type":"integer","default":25,"sanitize":"absint"},
+        "prospect_id": {"type":"string","sanitize":"sanitize_text_field"},
+        "q": {"type":"string","sanitize":"sanitize_text_field"},
+        "sequence": {"type":"string","sanitize":"sanitize_text_field"},
+        "status": {"type":"string","sanitize":"sanitize_text_field"}
+      }
+    },
+    {
+      "route": "GET /lga/v1/outreach/messages/(?P<id>\\d+)",
+      "callback": "OutreachController::message",
+      "permission": "OutreachController::permission",
+      "rate_limited": false,
+      "args": {"id":{"type":"integer","required":true,"sanitize":"absint","validate":"closure"}}
+    },
+    {
+      "route": "POST /lga/v1/outreach/messages/(?P<id>\\d+)",
+      "callback": "OutreachController::updateMessage",
+      "permission": "OutreachController::permissionWrite",
+      "rate_limited": true,
+      "args": {"id":{"type":"integer","required":true,"sanitize":"absint","validate":"closure"}}
+    },
+    {
+      "route": "POST /lga/v1/outreach/messages/(?P<id>\\d+)/(?P<action>approve|reject|send|log-reply|close)",
+      "callback": "OutreachController::messageAction",
+      "permission": "OutreachController::permissionWrite",
+      "rate_limited": true,
+      "args": {
+        "action": {"type":"string","required":true,"enum":["approve","reject","send","log-reply","close"]},
+        "id": {"type":"integer","required":true,"sanitize":"absint","validate":"closure"}
+      }
+    },
+    {
+      "route": "GET /lga/v1/outreach/contacts",
+      "callback": "OutreachController::contacts",
+      "permission": "OutreachController::permission",
+      "rate_limited": false,
+      "args": {
+        "order": {"type":"string","sanitize":"sanitize_key"},
+        "orderby": {"type":"string","sanitize":"sanitize_key"},
+        "page": {"type":"integer","default":1,"sanitize":"absint"},
+        "per_page": {"type":"integer","default":25,"sanitize":"absint"},
+        "prospect_id": {"type":"string","sanitize":"sanitize_text_field"},
+        "q": {"type":"string","sanitize":"sanitize_text_field"},
+        "status": {"type":"string","sanitize":"sanitize_text_field"}
+      }
+    },
+    {
+      "route": "POST /lga/v1/outreach/contacts/(?P<id>\\d+)/status",
+      "callback": "OutreachController::contactStatus",
+      "permission": "OutreachController::permissionWrite",
+      "rate_limited": true,
+      "args": {"id":{"type":"integer","required":true,"sanitize":"absint","validate":"closure"}}
+    },
+    {
+      "route": "GET /lga/v1/outreach/approaches",
+      "callback": "OutreachController::approaches",
+      "permission": "OutreachController::permission",
+      "rate_limited": false
+    },
+    {"route":"GET /lga/v1/outreach/sender","callback":"OutreachController::sender","permission":"OutreachController::permission","rate_limited":false},
+    {
+      "route": "GET /lga/v1/unsubscribe",
+      "callback": "PublicController::unsubscribePage",
+      "permission": "__return_true",
+      "rate_limited": false,
+      "args": {"t":{"type":"string","required":false,"sanitize":"closure"}}
+    },
+    {
+      "route": "POST /lga/v1/unsubscribe",
+      "callback": "PublicController::unsubscribePost",
+      "permission": "__return_true",
+      "rate_limited": false,
+      "args": {"t":{"type":"string","required":false,"sanitize":"closure"}}
+    },
+    {"route":"POST /lga/v1/inbound","callback":"PublicController::inbound","permission":"__return_true","rate_limited":false},
+    {
+      "route": "GET /lga/v1/backlinks",
+      "callback": "BacklinksController::index",
+      "permission": "BacklinksController::permission",
+      "rate_limited": false,
+      "args": {
+        "order": {"type":"string","sanitize":"sanitize_key"},
+        "orderby": {"type":"string","sanitize":"sanitize_key"},
+        "origin": {"type":"string","sanitize":"sanitize_text_field"},
+        "page": {"type":"integer","default":1,"sanitize":"absint"},
+        "per_page": {"type":"integer","default":25,"sanitize":"absint"},
+        "placement": {"type":"string","sanitize":"sanitize_text_field"},
+        "prospect_id": {"type":"string","sanitize":"sanitize_text_field"},
+        "q": {"type":"string","sanitize":"sanitize_text_field"},
+        "rel": {"type":"string","sanitize":"sanitize_text_field"},
+        "status": {"type":"string","sanitize":"sanitize_text_field"}
+      }
+    },
+    {"route":"POST /lga/v1/backlinks","callback":"BacklinksController::create","permission":"BacklinksController::permissionWrite","rate_limited":true},
+    {
+      "route": "GET /lga/v1/backlinks/summary",
+      "callback": "BacklinksController::summary",
+      "permission": "BacklinksController::permission",
+      "rate_limited": false
+    },
+    {
+      "route": "POST /lga/v1/backlinks/import",
+      "callback": "BacklinksController::import",
+      "permission": "BacklinksController::permissionWrite",
+      "rate_limited": true
+    },
+    {
+      "route": "GET /lga/v1/backlinks/(?P<id>\\d+)",
+      "callback": "BacklinksController::show",
+      "permission": "BacklinksController::permission",
+      "rate_limited": false,
+      "args": {"id":{"type":"integer","required":true,"sanitize":"absint","validate":"closure"}}
+    },
+    {
+      "route": "DELETE /lga/v1/backlinks/(?P<id>\\d+)",
+      "callback": "BacklinksController::destroy",
+      "permission": "BacklinksController::permissionWrite",
+      "rate_limited": true,
+      "args": {"id":{"type":"integer","required":true,"sanitize":"absint","validate":"closure"}}
+    },
+    {
+      "route": "POST /lga/v1/backlinks/(?P<id>\\d+)/check",
+      "callback": "BacklinksController::check",
+      "permission": "BacklinksController::permissionWrite",
+      "rate_limited": true,
+      "args": {"id":{"type":"integer","required":true,"sanitize":"absint","validate":"closure"}}
+    },
+    {"route":"GET /lga/v1/seo/audit","callback":"SeoController::auditStatus","permission":"SeoController::permission","rate_limited":false},
+    {"route":"POST /lga/v1/seo/audit/run","callback":"SeoController::auditRun","permission":"SeoController::permissionWrite","rate_limited":true},
+    {"route":"GET /lga/v1/seo/indexnow","callback":"SeoController::indexnow","permission":"SeoController::permission","rate_limited":false},
+    {"route":"POST /lga/v1/seo/indexnow/run","callback":"SeoController::indexnowRun","permission":"SeoController::permissionWrite","rate_limited":true},
+    {"route":"GET /lga/v1/seo/links","callback":"SeoController::links","permission":"SeoController::permission","rate_limited":false},
+    {"route":"POST /lga/v1/seo/links/run","callback":"SeoController::linksRun","permission":"SeoController::permissionWrite","rate_limited":true},
+    {"route":"POST /lga/v1/seo/links/apply","callback":"SeoController::linksApply","permission":"SeoController::permissionWrite","rate_limited":true},
+    {"route":"POST /lga/v1/seo/links/dismiss","callback":"SeoController::linksDismiss","permission":"SeoController::permissionWrite","rate_limited":true},
+    {
+      "route": "POST /lga/v1/seo/links/undo-auto",
+      "callback": "SeoController::linksUndoAuto",
+      "permission": "SeoController::permissionWrite",
+      "rate_limited": true
+    },
+    {
+      "route": "GET /lga/v1/automation/status",
+      "callback": "AutomationController::status",
+      "permission": "AutomationController::permission",
+      "rate_limited": false
+    },
+    {
+      "route": "POST /lga/v1/automation/run",
+      "callback": "AutomationController::run",
+      "permission": "AutomationController::permissionWrite",
+      "rate_limited": true
+    },
+    {
+      "route": "POST /lga/v1/automation/toggle",
+      "callback": "AutomationController::toggle",
+      "permission": "AutomationController::permissionWrite",
+      "rate_limited": true
+    },
+    {
+      "route": "POST /lga/v1/automation/tick",
+      "callback": "AutomationController::tick",
+      "permission": "AutomationController::permissionWrite",
+      "rate_limited": true
+    },
+    {
+      "route": "POST /lga/v1/automation/kick",
+      "callback": "AutomationController::kick",
+      "permission": "AutomationController::permissionWrite",
+      "rate_limited": true
+    },
+    {
+      "route": "POST /lga/v1/automation/cancel",
+      "callback": "AutomationController::cancel",
+      "permission": "AutomationController::permissionWrite",
+      "rate_limited": true
+    },
+    {
+      "route": "GET /lga/v1/automation/jobs",
+      "callback": "AutomationController::jobs",
+      "permission": "AutomationController::permission",
+      "rate_limited": false,
+      "args": {
+        "order": {"type":"string","sanitize":"sanitize_key"},
+        "orderby": {"type":"string","sanitize":"sanitize_key"},
+        "page": {"type":"integer","default":1,"sanitize":"absint"},
+        "per_page": {"type":"integer","default":25,"sanitize":"absint"},
+        "q": {"type":"string","sanitize":"sanitize_text_field"},
+        "status": {"type":"string","sanitize":"sanitize_text_field"},
+        "type": {"type":"string","sanitize":"sanitize_text_field"}
+      }
+    },
+    {
+      "route": "GET /lga/v1/automation/autopilot",
+      "callback": "AutomationController::autopilot",
+      "permission": "AutomationController::permission",
+      "rate_limited": false
+    },
+    {
+      "route": "POST /lga/v1/automation/autopilot",
+      "callback": "AutomationController::setAutopilot",
+      "permission": "AutomationController::permissionWrite",
+      "rate_limited": true
+    },
+    {"route":"POST /lga/v1/growth/start","callback":"GrowthController::start","permission":"GrowthController::permissionWrite","rate_limited":true},
+    {"route":"POST /lga/v1/growth/step","callback":"GrowthController::step","permission":"GrowthController::permissionWrite","rate_limited":true},
+    {"route":"GET /lga/v1/growth/status","callback":"GrowthController::status","permission":"GrowthController::permission","rate_limited":false},
+    {"route":"POST /lga/v1/growth/cancel","callback":"GrowthController::cancel","permission":"GrowthController::permissionWrite","rate_limited":true},
+    {
+      "route": "GET /lga/v1/overview",
+      "callback": "OverviewController::overview",
+      "permission": "OverviewController::permission",
+      "rate_limited": false,
+      "args": {"refresh":{"type":"boolean","default":false}}
+    },
+    {"route":"GET /lga/v1/ping","callback":"OverviewController::ping","permission":"OverviewController::permission","rate_limited":false},
+    {"route":"GET /lga/v1/settings","callback":"SettingsController::show","permission":"SettingsController::permission","rate_limited":false},
+    {"route":"POST /lga/v1/settings","callback":"SettingsController::update","permission":"SettingsController::permissionWrite","rate_limited":true},
+    {
+      "route": "POST /lga/v1/settings/test",
+      "callback": "SettingsController::test",
+      "permission": "SettingsController::permissionWrite",
+      "rate_limited": true,
+      "args": {"provider":{"type":"string","required":true,"sanitize":"sanitize_key"}}
+    },
+    {
+      "route": "POST /lga/v1/settings/facts/reset",
+      "callback": "SettingsController::resetFacts",
+      "permission": "SettingsController::permissionWrite",
+      "rate_limited": true
+    },
+    {
+      "route": "GET /lga/v1/settings/backups/(?P<file>[\\w\\-]+\\.sql\\.gz)",
+      "callback": "SettingsController::downloadBackup",
+      "permission": "SettingsController::permission",
+      "rate_limited": false,
+      "args": {"file":{"type":"string","required":true,"sanitize":"closure","validate":"closure"}}
+    },
+    {
+      "route": "POST /lga/v1/settings/competitors/suggest",
+      "callback": "SettingsController::suggestCompetitors",
+      "permission": "SettingsController::permissionWrite",
+      "rate_limited": true
+    },
+    {
+      "route": "GET /lga/v1/logs",
+      "callback": "LogsController::logs",
+      "permission": "LogsController::permission",
+      "rate_limited": false,
+      "args": {
+        "channel": {"type":"string","sanitize":"sanitize_text_field"},
+        "level": {"type":"string","sanitize":"sanitize_text_field"},
+        "order": {"type":"string","sanitize":"sanitize_key"},
+        "orderby": {"type":"string","sanitize":"sanitize_key"},
+        "page": {"type":"integer","default":1,"sanitize":"absint"},
+        "per_page": {"type":"integer","default":25,"sanitize":"absint"},
+        "q": {"type":"string","sanitize":"sanitize_text_field"},
+        "since": {"type":"string","sanitize":"sanitize_text_field"}
+      }
+    },
+    {
+      "route": "GET /lga/v1/audit",
+      "callback": "LogsController::auditLog",
+      "permission": "LogsController::permission",
+      "rate_limited": false,
+      "args": {
+        "action": {"type":"string","sanitize":"sanitize_text_field"},
+        "actor": {"type":"string","sanitize":"sanitize_text_field"},
+        "object_id": {"type":"string","sanitize":"sanitize_text_field"},
+        "object_type": {"type":"string","sanitize":"sanitize_text_field"},
+        "order": {"type":"string","sanitize":"sanitize_key"},
+        "orderby": {"type":"string","sanitize":"sanitize_key"},
+        "page": {"type":"integer","default":1,"sanitize":"absint"},
+        "per_page": {"type":"integer","default":25,"sanitize":"absint"},
+        "q": {"type":"string","sanitize":"sanitize_text_field"}
+      }
+    },
+    {
+      "route": "GET /lga/v1/notifications",
+      "callback": "LogsController::notifications",
+      "permission": "LogsController::permission",
+      "rate_limited": false,
+      "args": {
+        "order": {"type":"string","sanitize":"sanitize_key"},
+        "orderby": {"type":"string","sanitize":"sanitize_key"},
+        "page": {"type":"integer","default":1,"sanitize":"absint"},
+        "per_page": {"type":"integer","default":25,"sanitize":"absint"},
+        "q": {"type":"string","sanitize":"sanitize_text_field"},
+        "severity": {"type":"string","sanitize":"sanitize_text_field"},
+        "unread": {"type":"string","sanitize":"sanitize_text_field"}
+      }
+    },
+    {"route":"POST /lga/v1/notifications/read","callback":"LogsController::markRead","permission":"LogsController::permissionWrite","rate_limited":true},
+    {
+      "route": "GET /lga/v1/suppression",
+      "callback": "LogsController::suppression",
+      "permission": "LogsController::permission",
+      "rate_limited": false,
+      "args": {
+        "order": {"type":"string","sanitize":"sanitize_key"},
+        "orderby": {"type":"string","sanitize":"sanitize_key"},
+        "page": {"type":"integer","default":1,"sanitize":"absint"},
+        "per_page": {"type":"integer","default":25,"sanitize":"absint"},
+        "q": {"type":"string","sanitize":"sanitize_text_field"},
+        "type": {"type":"string","sanitize":"sanitize_text_field"}
+      }
+    },
+    {"route":"POST /lga/v1/suppression","callback":"LogsController::addSuppression","permission":"LogsController::permissionWrite","rate_limited":true},
+    {
+      "route": "DELETE /lga/v1/suppression/(?P<id>\\d+)",
+      "callback": "LogsController::deleteSuppression",
+      "permission": "LogsController::permissionWrite",
+      "rate_limited": true,
+      "args": {"id":{"type":"integer","required":true,"sanitize":"absint","validate":"closure"}}
+    },
+    {
+      "route": "GET /lga/v1/compliance/storefront",
+      "callback": "ComplianceController::status",
+      "permission": "ComplianceController::permission",
+      "rate_limited": false
+    },
+    {
+      "route": "POST /lga/v1/compliance/storefront/recheck",
+      "callback": "ComplianceController::recheck",
+      "permission": "ComplianceController::permissionWrite",
+      "rate_limited": true
+    },
+    {
+      "route": "POST /lga/v1/compliance/storefront/acknowledge",
+      "callback": "ComplianceController::acknowledge",
+      "permission": "ComplianceController::permissionWrite",
+      "rate_limited": true,
+      "args": {"confirm":{"type":"boolean"},"hash":{"type":"string"}}
+    }
+  ],
+  "job_types": {
+    "auto_outreach": {"class":"AutoOutreachJob","priority":6},
+    "broken_link_scan": {"class":"BrokenLinkScanJob","priority":7},
+    "cleanup": {"class":"CleanupJob","priority":8},
+    "discover": {"class":"DiscoverJob","priority":6},
+    "evaluate": {"class":"EvaluateJob","priority":4},
+    "find_opportunities": {"class":"FindOpportunitiesJob","priority":5},
+    "follow_ups": {"class":"FollowUpJob","priority":6},
+    "import_backlinks": {"class":"ImportBacklinksJob","priority":6},
+    "import_verified": {"class":"CatalogImportJob","priority":4},
+    "indexnow": {"class":"IndexNowJob","priority":6},
+    "internal_links": {"class":"InternalLinksJob","priority":7},
+    "mention_scan": {"class":"MentionScanJob","priority":6},
+    "metrics_refresh": {"class":"MetricsRefreshJob","priority":7},
+    "monitor_backlinks": {"class":"MonitorBacklinksJob","priority":4},
+    "outreach_send": {"class":"OutreachSendJob","priority":3},
+    "package": {"class":"PackageJob","priority":5},
+    "site_audit": {"class":"SiteAuditJob","priority":6},
+    "storefront_audit": {"class":"PositioningAuditJob","priority":2},
+    "submit": {"class":"SubmitJob","priority":3},
+    "verify_listings": {"class":"VerifyListingsJob","priority":6}
+  },
+  "tables": {
+    "{prefix}lga_audit_log": {
+      "columns": [
+        "id bigint(20) unsigned NOT NULL AUTO_INCREMENT",
+        "actor varchar(60) NOT NULL DEFAULT 'system'",
+        "action varchar(60) NOT NULL",
+        "object_type varchar(40) NOT NULL DEFAULT ''",
+        "object_id bigint(20) unsigned NOT NULL DEFAULT 0",
+        "details longtext",
+        "created_at datetime NOT NULL"
+      ],
+      "keys": ["PRIMARY KEY (id)","KEY action (action)","KEY object (object_type,object_id)","KEY created_at (created_at)"]
+    },
+    "{prefix}lga_backlinks": {
+      "columns": [
+        "id bigint(20) unsigned NOT NULL AUTO_INCREMENT",
+        "prospect_id bigint(20) unsigned DEFAULT NULL",
+        "source_domain varchar(190) NOT NULL",
+        "source_url varchar(700) NOT NULL DEFAULT ''",
+        "source_hash char(40) NOT NULL DEFAULT ''",
+        "target_url varchar(700) NOT NULL DEFAULT ''",
+        "target_hash char(40) NOT NULL DEFAULT ''",
+        "anchor_text varchar(500) NOT NULL DEFAULT ''",
+        "rel varchar(60) NOT NULL DEFAULT 'dofollow'",
+        "placement varchar(30) NOT NULL DEFAULT 'unknown'",
+        "status varchar(20) NOT NULL DEFAULT 'pending'",
+        "http_status smallint(5) unsigned DEFAULT NULL",
+        "is_indexable tinyint(1) DEFAULT NULL",
+        "origin varchar(40) NOT NULL DEFAULT 'manual'",
+        "quality_score tinyint(3) unsigned DEFAULT NULL",
+        "first_seen datetime NOT NULL",
+        "last_checked datetime DEFAULT NULL",
+        "last_seen_live datetime DEFAULT NULL",
+        "next_check_at datetime DEFAULT NULL",
+        "lost_at datetime DEFAULT NULL",
+        "consecutive_failures tinyint(3) unsigned NOT NULL DEFAULT 0",
+        "changes longtext",
+        "created_at datetime NOT NULL",
+        "updated_at datetime NOT NULL"
+      ],
+      "keys": [
+        "PRIMARY KEY (id)",
+        "UNIQUE KEY source_target (source_hash,target_hash)",
+        "KEY source_domain (source_domain)",
+        "KEY status (status)",
+        "KEY next_check_at (next_check_at)"
+      ]
+    },
+    "{prefix}lga_campaigns": {
+      "columns": [
+        "id bigint(20) unsigned NOT NULL AUTO_INCREMENT",
+        "name varchar(190) NOT NULL",
+        "approach varchar(40) NOT NULL DEFAULT 'resource_page'",
+        "status varchar(30) NOT NULL DEFAULT 'draft'",
+        "daily_limit int(11) unsigned NOT NULL DEFAULT 10",
+        "settings longtext",
+        "stats longtext",
+        "created_by bigint(20) unsigned DEFAULT NULL",
+        "approved_by bigint(20) unsigned DEFAULT NULL",
+        "approved_at datetime DEFAULT NULL",
+        "created_at datetime NOT NULL",
+        "updated_at datetime NOT NULL"
+      ],
+      "keys": ["PRIMARY KEY (id)","KEY status (status)"]
+    },
+    "{prefix}lga_contacts": {
+      "columns": [
+        "id bigint(20) unsigned NOT NULL AUTO_INCREMENT",
+        "prospect_id bigint(20) unsigned NOT NULL",
+        "name varchar(190) NOT NULL DEFAULT ''",
+        "email varchar(190) NOT NULL",
+        "role varchar(100) NOT NULL DEFAULT ''",
+        "source_url varchar(700) NOT NULL DEFAULT ''",
+        "confidence tinyint(3) unsigned NOT NULL DEFAULT 50",
+        "consent_basis varchar(60) NOT NULL DEFAULT 'conspicuous_publication'",
+        "status varchar(20) NOT NULL DEFAULT 'active'",
+        "created_at datetime NOT NULL",
+        "updated_at datetime NOT NULL"
+      ],
+      "keys": ["PRIMARY KEY (id)","UNIQUE KEY prospect_email (prospect_id,email)","KEY email (email)","KEY status (status)"]
+    },
+    "{prefix}lga_domain_metrics": {
+      "columns": [
+        "id bigint(20) unsigned NOT NULL AUTO_INCREMENT",
+        "domain varchar(190) NOT NULL",
+        "provider varchar(30) NOT NULL",
+        "metrics longtext",
+        "fetched_at datetime NOT NULL",
+        "expires_at datetime NOT NULL"
+      ],
+      "keys": ["PRIMARY KEY (id)","UNIQUE KEY domain_provider (domain,provider)","KEY expires_at (expires_at)"]
+    },
+    "{prefix}lga_jobs": {
+      "columns": [
+        "id bigint(20) unsigned NOT NULL AUTO_INCREMENT",
+        "type varchar(40) NOT NULL",
+        "status varchar(20) NOT NULL DEFAULT 'queued'",
+        "priority tinyint(3) unsigned NOT NULL DEFAULT 5",
+        "payload longtext",
+        "attempts tinyint(3) unsigned NOT NULL DEFAULT 0",
+        "max_attempts tinyint(3) unsigned NOT NULL DEFAULT 3",
+        "scheduled_at datetime NOT NULL",
+        "started_at datetime DEFAULT NULL",
+        "finished_at datetime DEFAULT NULL",
+        "result longtext",
+        "error text",
+        "lock_token varchar(40) NOT NULL DEFAULT ''",
+        "created_at datetime NOT NULL"
+      ],
+      "keys": ["PRIMARY KEY (id)","KEY status_sched (status,scheduled_at)","KEY type (type)"]
+    },
+    "{prefix}lga_logs": {
+      "columns": [
+        "id bigint(20) unsigned NOT NULL AUTO_INCREMENT",
+        "level varchar(10) NOT NULL DEFAULT 'info'",
+        "channel varchar(40) NOT NULL DEFAULT 'general'",
+        "message text",
+        "context longtext",
+        "created_at datetime NOT NULL"
+      ],
+      "keys": ["PRIMARY KEY (id)","KEY level (level)","KEY channel (channel)","KEY created_at (created_at)"]
+    },
+    "{prefix}lga_notifications": {
+      "columns": [
+        "id bigint(20) unsigned NOT NULL AUTO_INCREMENT",
+        "type varchar(40) NOT NULL DEFAULT 'info'",
+        "severity varchar(10) NOT NULL DEFAULT 'info'",
+        "title varchar(255) NOT NULL DEFAULT ''",
+        "message text",
+        "data longtext",
+        "is_read tinyint(1) NOT NULL DEFAULT 0",
+        "created_at datetime NOT NULL"
+      ],
+      "keys": ["PRIMARY KEY (id)","KEY is_read (is_read)","KEY created_at (created_at)"]
+    },
+    "{prefix}lga_opportunities": {
+      "columns": [
+        "id bigint(20) unsigned NOT NULL AUTO_INCREMENT",
+        "prospect_id bigint(20) unsigned NOT NULL",
+        "type varchar(40) NOT NULL DEFAULT 'unknown'",
+        "url varchar(700) NOT NULL DEFAULT ''",
+        "url_hash char(40) NOT NULL DEFAULT ''",
+        "title varchar(255) NOT NULL DEFAULT ''",
+        "details longtext",
+        "status varchar(30) NOT NULL DEFAULT 'open'",
+        "score tinyint(3) unsigned DEFAULT NULL",
+        "created_at datetime NOT NULL",
+        "updated_at datetime NOT NULL"
+      ],
+      "keys": ["PRIMARY KEY (id)","UNIQUE KEY prospect_type_url (prospect_id,type,url_hash)","KEY status (status)","KEY type (type)"]
+    },
+    "{prefix}lga_outreach_messages": {
+      "columns": [
+        "id bigint(20) unsigned NOT NULL AUTO_INCREMENT",
+        "campaign_id bigint(20) unsigned NOT NULL DEFAULT 0",
+        "prospect_id bigint(20) unsigned NOT NULL",
+        "contact_id bigint(20) unsigned NOT NULL",
+        "opportunity_id bigint(20) unsigned DEFAULT NULL",
+        "approach varchar(40) NOT NULL DEFAULT ''",
+        "sequence tinyint(3) unsigned NOT NULL DEFAULT 1",
+        "subject varchar(255) NOT NULL DEFAULT ''",
+        "body longtext",
+        "status varchar(30) NOT NULL DEFAULT 'draft'",
+        "variant varchar(20) NOT NULL DEFAULT ''",
+        "scheduled_at datetime DEFAULT NULL",
+        "sent_at datetime DEFAULT NULL",
+        "replied_at datetime DEFAULT NULL",
+        "reply_summary text",
+        "message_id varchar(190) NOT NULL DEFAULT ''",
+        "unsubscribe_token char(32) NOT NULL DEFAULT ''",
+        "last_error text",
+        "created_at datetime NOT NULL",
+        "updated_at datetime NOT NULL"
+      ],
+      "keys": [
+        "PRIMARY KEY (id)",
+        "UNIQUE KEY contact_approach_seq (contact_id,approach,sequence)",
+        "KEY campaign_id (campaign_id)",
+        "KEY prospect_id (prospect_id)",
+        "KEY status (status)",
+        "KEY unsubscribe_token (unsubscribe_token)",
+        "KEY message_id (message_id)"
+      ]
+    },
+    "{prefix}lga_prospects": {
+      "columns": [
+        "id bigint(20) unsigned NOT NULL AUTO_INCREMENT",
+        "domain varchar(190) NOT NULL",
+        "name varchar(255) NOT NULL DEFAULT ''",
+        "homepage_url varchar(500) NOT NULL DEFAULT ''",
+        "country varchar(2) NOT NULL DEFAULT ''",
+        "language varchar(10) NOT NULL DEFAULT ''",
+        "site_type varchar(40) NOT NULL DEFAULT 'unknown'",
+        "opportunity_type varchar(40) NOT NULL DEFAULT 'unknown'",
+        "status varchar(30) NOT NULL DEFAULT 'discovered'",
+        "score tinyint(3) unsigned DEFAULT NULL",
+        "score_class varchar(20) NOT NULL DEFAULT ''",
+        "score_confidence tinyint(3) unsigned NOT NULL DEFAULT 0",
+        "score_breakdown longtext",
+        "relevance tinyint(3) unsigned DEFAULT NULL",
+        "metrics longtext",
+        "profile longtext",
+        "risk_flags longtext",
+        "submission_url varchar(700) NOT NULL DEFAULT ''",
+        "contact_url varchar(700) NOT NULL DEFAULT ''",
+        "recommended_action varchar(60) NOT NULL DEFAULT ''",
+        "discovered_via varchar(60) NOT NULL DEFAULT ''",
+        "discovery_query varchar(255) NOT NULL DEFAULT ''",
+        "automation_allowed tinyint(1) NOT NULL DEFAULT 0",
+        "submission_config longtext",
+        "notes text",
+        "rejection_reason varchar(255) NOT NULL DEFAULT ''",
+        "first_seen datetime NOT NULL",
+        "last_evaluated datetime DEFAULT NULL",
+        "next_review datetime DEFAULT NULL",
+        "updated_at datetime NOT NULL"
+      ],
+      "keys": [
+        "PRIMARY KEY (id)",
+        "UNIQUE KEY domain (domain)",
+        "KEY status (status)",
+        "KEY score (score)",
+        "KEY opportunity_type (opportunity_type)",
+        "KEY site_type (site_type)",
+        "KEY country (country)",
+        "KEY next_review (next_review)"
+      ]
+    },
+    "{prefix}lga_search_log": {
+      "columns": [
+        "id bigint(20) unsigned NOT NULL AUTO_INCREMENT",
+        "provider varchar(30) NOT NULL DEFAULT ''",
+        "query varchar(500) NOT NULL DEFAULT ''",
+        "query_hash char(40) NOT NULL DEFAULT ''",
+        "results int(11) unsigned NOT NULL DEFAULT 0",
+        "new_prospects int(11) unsigned NOT NULL DEFAULT 0",
+        "run_at datetime NOT NULL"
+      ],
+      "keys": ["PRIMARY KEY (id)","KEY query_hash (query_hash)","KEY run_at (run_at)"]
+    },
+    "{prefix}lga_submissions": {
+      "columns": [
+        "id bigint(20) unsigned NOT NULL AUTO_INCREMENT",
+        "prospect_id bigint(20) unsigned NOT NULL",
+        "opportunity_id bigint(20) unsigned DEFAULT NULL",
+        "method varchar(20) NOT NULL DEFAULT 'manual'",
+        "adapter varchar(60) NOT NULL DEFAULT 'manual_package'",
+        "status varchar(30) NOT NULL DEFAULT 'pending_review'",
+        "target_url varchar(700) NOT NULL DEFAULT ''",
+        "target_hash char(40) NOT NULL DEFAULT ''",
+        "category varchar(190) NOT NULL DEFAULT ''",
+        "payload longtext",
+        "response longtext",
+        "confirmation_ref varchar(190) NOT NULL DEFAULT ''",
+        "listing_url varchar(700) NOT NULL DEFAULT ''",
+        "attempts tinyint(3) unsigned NOT NULL DEFAULT 0",
+        "last_error text",
+        "scheduled_at datetime DEFAULT NULL",
+        "submitted_at datetime DEFAULT NULL",
+        "confirmed_at datetime DEFAULT NULL",
+        "next_verify_at datetime DEFAULT NULL",
+        "reviewed_by bigint(20) unsigned DEFAULT NULL",
+        "created_at datetime NOT NULL",
+        "updated_at datetime NOT NULL"
+      ],
+      "keys": ["PRIMARY KEY (id)","UNIQUE KEY prospect_target (prospect_id,target_hash)","KEY status (status)","KEY next_verify_at (next_verify_at)"]
+    },
+    "{prefix}lga_suppression": {
+      "columns": [
+        "id bigint(20) unsigned NOT NULL AUTO_INCREMENT",
+        "type varchar(20) NOT NULL DEFAULT 'domain'",
+        "value varchar(190) NOT NULL",
+        "reason varchar(190) NOT NULL DEFAULT ''",
+        "created_at datetime NOT NULL"
+      ],
+      "keys": ["PRIMARY KEY (id)","UNIQUE KEY type_value (type,value)"]
+    }
+  },
+  "settings_defaults": {
+    "advanced.audit_retention_days": 365,
+    "advanced.crawl_delay_seconds": 2,
+    "advanced.delete_on_uninstall": false,
+    "advanced.log_level": "info",
+    "advanced.log_retention_days": 30,
+    "advanced.max_response_kb": 1536,
+    "advanced.request_timeout": 15,
+    "advanced.user_agent": "LinkGrowthAutopilotBot/1.0 (+https://northwind.test/; link research)",
+    "automation.auto_outreach_drafts": true,
+    "automation.autopilot": false,
+    "automation.daily_limits.backlink_checks": 150,
+    "automation.daily_limits.discovery_queries": 15,
+    "automation.daily_limits.evaluations": 40,
+    "automation.daily_limits.outreach_emails": 10,
+    "automation.daily_limits.provider_lookups": 60,
+    "automation.daily_limits.submissions": 5,
+    "automation.discovery": true,
+    "automation.enabled": true,
+    "automation.evaluation": true,
+    "automation.imports": true,
+    "automation.international": true,
+    "automation.max_execution_seconds": 20,
+    "automation.min_score_auto_queue": 70,
+    "automation.min_score_keep": 50,
+    "automation.monitoring": true,
+    "automation.opportunities": true,
+    "automation.outreach_autosend": false,
+    "automation.packaging": true,
+    "automation.submission_mode": "auto",
+    "automation.submissions": true,
+    "automation.tick_interval": 300,
+    "automation.weekly_limits.discovery_queries": 80,
+    "automation.weekly_limits.outreach_emails": 40,
+    "automation.weekly_limits.submissions": 20,
+    "compliance.acknowledged_at": "",
+    "compliance.acknowledged_by": 0,
+    "compliance.acknowledged_hash": "",
+    "compliance.storefront_gate": true,
+    "discovery.brand_terms": [],
+    "discovery.competitor_domains": [],
+    "discovery.competitor_domains_auto": [],
+    "discovery.custom_queries": [],
+    "discovery.excluded_domains": [],
+    "discovery.geo_modifiers": ["Canada","Canadian","Ontario","Toronto","British Columbia","Alberta","Quebec","Vancouver","Montreal","Ottawa"],
+    "discovery.query_cooldown_days": 30,
+    "discovery.results_per_query": 10,
+    "discovery.seed_catalog": true,
+    "growth.evaluate_rounds": 6,
+    "growth.step_seconds": 20,
+    "monitoring.check_interval_days_new": 1,
+    "monitoring.check_interval_days_stable": 7,
+    "monitoring.digest_email": true,
+    "monitoring.import_interval_days": 7,
+    "monitoring.import_limit": 500,
+    "monitoring.lost_after_failures": 2,
+    "monitoring.notify_critical_immediately": true,
+    "monitoring.notify_email": "",
+    "outreach.follow_up_days": 7,
+    "outreach.max_follow_ups": 1,
+    "outreach.min_days_between_contacts": 90,
+    "outreach.postal_address": "",
+    "outreach.reply_to": "",
+    "outreach.require_approval": true,
+    "outreach.send_days": [1,2,3,4,5],
+    "outreach.send_window_end": 17,
+    "outreach.send_window_start": 9,
+    "outreach.sender_email": "",
+    "outreach.sender_name": "",
+    "outreach.signature": "",
+    "outreach.timezone": "",
+    "providers.ahrefs.cache_days": 30,
+    "providers.ahrefs.enabled": false,
+    "providers.ai.enabled": false,
+    "providers.ai.max_tokens": 1200,
+    "providers.ai.model": "",
+    "providers.google.enabled": true,
+    "providers.google.ga4_property_id": "",
+    "providers.google.gsc_property": "sc-domain:northwind.test",
+    "providers.google.use_sitekit": true,
+    "providers.moz.cache_days": 30,
+    "providers.moz.enabled": false,
+    "providers.rdap.enabled": true,
+    "providers.search.brave_daily_limit": 60,
+    "providers.search.google_cse_daily_limit": 90,
+    "providers.search.primary": "auto",
+    "providers.semrush.cache_days": 30,
+    "providers.semrush.database": "ca",
+    "providers.semrush.enabled": false,
+    "providers.seranking.cache_days": 30,
+    "providers.seranking.enabled": true,
+    "providers.seranking.region": "ca",
+    "seo.audit_http_sample": true,
+    "seo.audit_max_pages": 400,
+    "seo.auto_apply_links": false,
+    "seo.auto_apply_per_day": 20,
+    "seo.indexnow": true,
+    "seo.indexnow_key": "",
+    "seo.internal_links": true,
+    "seo.language_counterpart_meta_key": "",
+    "seo.max_links_per_post": 3,
+    "site.address": "",
+    "site.brand_name": "",
+    "site.categories": [],
+    "site.city": "",
+    "site.country": "",
+    "site.domain": "northwind.test",
+    "site.email": "",
+    "site.founded_year": "",
+    "site.home_url": "https://northwind.test",
+    "site.legal_name": "",
+    "site.logo_url": "",
+    "site.phone": "",
+    "site.postal_code": "",
+    "site.region": "",
+    "site.social": [],
+    "site.tagline": ""
+  },
+  "settings_validation": {
+    "advanced.audit_retention_days": {
+      "default": 365,
+      "probes": [
+        [7,{"status":200,"value":7}],
+        ["12",{"status":200,"value":12}],
+        [-5,{"status":200,"value":7}],
+        [1000000,{"status":200,"value":3650}],
+        ["abc",{"status":200,"value":365}],
+        [2.7,{"status":200,"value":7}],
+        [["x"],{"status":200,"value":365}]
+      ]
+    },
+    "advanced.crawl_delay_seconds": {
+      "default": 2,
+      "probes": [
+        [7,{"status":200,"value":7}],
+        ["12",{"status":200,"value":12}],
+        [-5,{"status":200,"value":0}],
+        [1000000,{"status":200,"value":60}],
+        ["abc",{"status":200,"value":2}],
+        [2.7,{"status":200,"value":2}],
+        [["x"],{"status":200,"value":2}]
+      ]
+    },
+    "advanced.delete_on_uninstall": {
+      "default": false,
+      "probes": [
+        [true,{"status":200,"value":true}],
+        [false,{"status":200,"value":false}],
+        ["1",{"status":200,"value":true}],
+        ["off",{"status":200,"value":false}],
+        ["maybe",{"status":200,"value":false}],
+        [["x"],{"status":200,"value":false}]
+      ]
+    },
+    "advanced.log_level": {
+      "default": "info",
+      "probes": [
+        ["Example text",{"status":200,"value":"info"}],
+        ["  <b>Spaced</b>   text  ",{"status":200,"value":"info"}],
+        ["",{"status":200,"value":"info"}],
+        ["owner@example.test",{"status":200,"value":"info"}],
+        ["https://www.example.test/page?x=1",{"status":200,"value":"info"}],
+        ["us",{"status":200,"value":"info"}],
+        ["Europe/Berlin",{"status":200,"value":"info"}],
+        ["manual",{"status":200,"value":"info"}],
+        ["debug",{"status":200,"value":"debug"}],
+        ["lang_meta",{"status":200,"value":"info"}],
+        [42,{"status":200,"value":"info"}],
+        [["not","a","string"],{"status":200,"value":"info"}]
+      ]
+    },
+    "advanced.log_retention_days": {
+      "default": 30,
+      "probes": [
+        [7,{"status":200,"value":7}],
+        ["12",{"status":200,"value":12}],
+        [-5,{"status":200,"value":1}],
+        [1000000,{"status":200,"value":365}],
+        ["abc",{"status":200,"value":30}],
+        [2.7,{"status":200,"value":2}],
+        [["x"],{"status":200,"value":30}]
+      ]
+    },
+    "advanced.max_response_kb": {
+      "default": 1536,
+      "probes": [
+        [7,{"status":200,"value":64}],
+        ["12",{"status":200,"value":64}],
+        [-5,{"status":200,"value":64}],
+        [1000000,{"status":200,"value":8192}],
+        ["abc",{"status":200,"value":1536}],
+        [2.7,{"status":200,"value":64}],
+        [["x"],{"status":200,"value":1536}]
+      ]
+    },
+    "advanced.request_timeout": {
+      "default": 15,
+      "probes": [
+        [7,{"status":200,"value":7}],
+        ["12",{"status":200,"value":12}],
+        [-5,{"status":200,"value":3}],
+        [1000000,{"status":200,"value":60}],
+        ["abc",{"status":200,"value":15}],
+        [2.7,{"status":200,"value":3}],
+        [["x"],{"status":200,"value":15}]
+      ]
+    },
+    "advanced.user_agent": {
+      "default": "LinkGrowthAutopilotBot/1.0 (+https://northwind.test/; link research)",
+      "probes": [
+        ["Example text",{"status":200,"value":"Example text"}],
+        ["  <b>Spaced</b>   text  ",{"status":200,"value":"Spaced text"}],
+        ["",{"status":200,"value":"LinkGrowthAutopilotBot/1.0 (+https://northwind.test/; link research)"}],
+        ["owner@example.test",{"status":200,"value":"owner@example.test"}],
+        ["https://www.example.test/page?x=1",{"status":200,"value":"https://www.example.test/page?x=1"}],
+        ["us",{"status":200,"value":"us"}],
+        ["Europe/Berlin",{"status":200,"value":"Europe/Berlin"}],
+        ["manual",{"status":200,"value":"manual"}],
+        ["debug",{"status":200,"value":"debug"}],
+        ["lang_meta",{"status":200,"value":"lang_meta"}],
+        [42,{"status":200,"value":"42"}],
+        [["not","a","string"],{"status":200,"value":"LinkGrowthAutopilotBot/1.0 (+https://northwind.test/; link research)"}]
+      ]
+    },
+    "automation.auto_outreach_drafts": {
+      "default": true,
+      "probes": [
+        [true,{"status":200,"value":true}],
+        [false,{"status":200,"value":false}],
+        ["1",{"status":200,"value":true}],
+        ["off",{"status":200,"value":false}],
+        ["maybe",{"status":200,"value":true}],
+        [["x"],{"status":200,"value":true}]
+      ]
+    },
+    "automation.autopilot": {
+      "default": false,
+      "probes": [
+        [true,{"status":400,"error":"lga_confirmation_required","confirmed":{"status":200,"value":true}}],
+        [false,{"status":200,"value":false}],
+        ["1",{"status":400,"error":"lga_confirmation_required","confirmed":{"status":200,"value":true}}],
+        ["off",{"status":200,"value":false}],
+        ["maybe",{"status":200,"value":false}],
+        [["x"],{"status":200,"value":false}]
+      ]
+    },
+    "automation.daily_limits.backlink_checks": {
+      "default": 150,
+      "probes": [
+        [7,{"status":200,"value":7}],
+        ["12",{"status":200,"value":12}],
+        [-5,{"status":200,"value":0}],
+        [1000000,{"status":200,"value":1000000}],
+        ["abc",{"status":200,"value":150}],
+        [2.7,{"status":200,"value":2}],
+        [["x"],{"status":200,"value":150}]
+      ]
+    },
+    "automation.daily_limits.discovery_queries": {
+      "default": 15,
+      "probes": [
+        [7,{"status":200,"value":7}],
+        ["12",{"status":200,"value":12}],
+        [-5,{"status":200,"value":0}],
+        [1000000,{"status":200,"value":1000000}],
+        ["abc",{"status":200,"value":15}],
+        [2.7,{"status":200,"value":2}],
+        [["x"],{"status":200,"value":15}]
+      ]
+    },
+    "automation.daily_limits.evaluations": {
+      "default": 40,
+      "probes": [
+        [7,{"status":200,"value":7}],
+        ["12",{"status":200,"value":12}],
+        [-5,{"status":200,"value":0}],
+        [1000000,{"status":200,"value":1000000}],
+        ["abc",{"status":200,"value":40}],
+        [2.7,{"status":200,"value":2}],
+        [["x"],{"status":200,"value":40}]
+      ]
+    },
+    "automation.daily_limits.outreach_emails": {
+      "default": 10,
+      "probes": [
+        [7,{"status":200,"value":7}],
+        ["12",{"status":200,"value":12}],
+        [-5,{"status":200,"value":0}],
+        [1000000,{"status":200,"value":1000000}],
+        ["abc",{"status":200,"value":10}],
+        [2.7,{"status":200,"value":2}],
+        [["x"],{"status":200,"value":10}]
+      ]
+    },
+    "automation.daily_limits.provider_lookups": {
+      "default": 60,
+      "probes": [
+        [7,{"status":200,"value":7}],
+        ["12",{"status":200,"value":12}],
+        [-5,{"status":200,"value":0}],
+        [1000000,{"status":200,"value":1000000}],
+        ["abc",{"status":200,"value":60}],
+        [2.7,{"status":200,"value":2}],
+        [["x"],{"status":200,"value":60}]
+      ]
+    },
+    "automation.daily_limits.submissions": {
+      "default": 5,
+      "probes": [
+        [7,{"status":200,"value":7}],
+        ["12",{"status":200,"value":12}],
+        [-5,{"status":200,"value":0}],
+        [1000000,{"status":200,"value":1000000}],
+        ["abc",{"status":200,"value":5}],
+        [2.7,{"status":200,"value":2}],
+        [["x"],{"status":200,"value":5}]
+      ]
+    },
+    "automation.discovery": {
+      "default": true,
+      "probes": [
+        [true,{"status":200,"value":true}],
+        [false,{"status":200,"value":false}],
+        ["1",{"status":200,"value":true}],
+        ["off",{"status":200,"value":false}],
+        ["maybe",{"status":200,"value":true}],
+        [["x"],{"status":200,"value":true}]
+      ]
+    },
+    "automation.enabled": {
+      "default": true,
+      "probes": [
+        [true,{"status":200,"value":true}],
+        [false,{"status":200,"value":false}],
+        ["1",{"status":200,"value":true}],
+        ["off",{"status":200,"value":false}],
+        ["maybe",{"status":200,"value":true}],
+        [["x"],{"status":200,"value":true}]
+      ]
+    },
+    "automation.evaluation": {
+      "default": true,
+      "probes": [
+        [true,{"status":200,"value":true}],
+        [false,{"status":200,"value":false}],
+        ["1",{"status":200,"value":true}],
+        ["off",{"status":200,"value":false}],
+        ["maybe",{"status":200,"value":true}],
+        [["x"],{"status":200,"value":true}]
+      ]
+    },
+    "automation.imports": {
+      "default": true,
+      "probes": [
+        [true,{"status":200,"value":true}],
+        [false,{"status":200,"value":false}],
+        ["1",{"status":200,"value":true}],
+        ["off",{"status":200,"value":false}],
+        ["maybe",{"status":200,"value":true}],
+        [["x"],{"status":200,"value":true}]
+      ]
+    },
+    "automation.international": {
+      "default": true,
+      "probes": [
+        [true,{"status":200,"value":true}],
+        [false,{"status":200,"value":false}],
+        ["1",{"status":200,"value":true}],
+        ["off",{"status":200,"value":false}],
+        ["maybe",{"status":200,"value":true}],
+        [["x"],{"status":200,"value":true}]
+      ]
+    },
+    "automation.max_execution_seconds": {
+      "default": 20,
+      "probes": [
+        [7,{"status":200,"value":15}],
+        ["12",{"status":200,"value":15}],
+        [-5,{"status":200,"value":15}],
+        [1000000,{"status":200,"value":120}],
+        ["abc",{"status":200,"value":20}],
+        [2.7,{"status":200,"value":15}],
+        [["x"],{"status":200,"value":20}]
+      ]
+    },
+    "automation.min_score_auto_queue": {
+      "default": 70,
+      "probes": [
+        [7,{"status":200,"value":7}],
+        ["12",{"status":200,"value":12}],
+        [-5,{"status":200,"value":0}],
+        [1000000,{"status":200,"value":100}],
+        ["abc",{"status":200,"value":70}],
+        [2.7,{"status":200,"value":2}],
+        [["x"],{"status":200,"value":70}]
+      ]
+    },
+    "automation.min_score_keep": {
+      "default": 50,
+      "probes": [
+        [7,{"status":200,"value":7}],
+        ["12",{"status":200,"value":12}],
+        [-5,{"status":200,"value":0}],
+        [1000000,{"status":200,"value":100}],
+        ["abc",{"status":200,"value":50}],
+        [2.7,{"status":200,"value":2}],
+        [["x"],{"status":200,"value":50}]
+      ]
+    },
+    "automation.monitoring": {
+      "default": true,
+      "probes": [
+        [true,{"status":200,"value":true}],
+        [false,{"status":200,"value":false}],
+        ["1",{"status":200,"value":true}],
+        ["off",{"status":200,"value":false}],
+        ["maybe",{"status":200,"value":true}],
+        [["x"],{"status":200,"value":true}]
+      ]
+    },
+    "automation.opportunities": {
+      "default": true,
+      "probes": [
+        [true,{"status":200,"value":true}],
+        [false,{"status":200,"value":false}],
+        ["1",{"status":200,"value":true}],
+        ["off",{"status":200,"value":false}],
+        ["maybe",{"status":200,"value":true}],
+        [["x"],{"status":200,"value":true}]
+      ]
+    },
+    "automation.outreach_autosend": {
+      "default": false,
+      "probes": [
+        [true,{"status":400,"error":"lga_confirmation_required","confirmed":{"status":200,"value":true}}],
+        [false,{"status":200,"value":false}],
+        ["1",{"status":400,"error":"lga_confirmation_required","confirmed":{"status":200,"value":true}}],
+        ["off",{"status":200,"value":false}],
+        ["maybe",{"status":200,"value":false}],
+        [["x"],{"status":200,"value":false}]
+      ]
+    },
+    "automation.packaging": {
+      "default": true,
+      "probes": [
+        [true,{"status":200,"value":true}],
+        [false,{"status":200,"value":false}],
+        ["1",{"status":200,"value":true}],
+        ["off",{"status":200,"value":false}],
+        ["maybe",{"status":200,"value":true}],
+        [["x"],{"status":200,"value":true}]
+      ]
+    },
+    "automation.submission_mode": {
+      "default": "auto",
+      "probes": [
+        ["Example text",{"status":200,"value":"auto"}],
+        ["  <b>Spaced</b>   text  ",{"status":200,"value":"auto"}],
+        ["",{"status":200,"value":"auto"}],
+        ["owner@example.test",{"status":200,"value":"auto"}],
+        ["https://www.example.test/page?x=1",{"status":200,"value":"auto"}],
+        ["us",{"status":200,"value":"auto"}],
+        ["Europe/Berlin",{"status":200,"value":"auto"}],
+        ["manual",{"status":200,"value":"manual"}],
+        ["debug",{"status":200,"value":"auto"}],
+        ["lang_meta",{"status":200,"value":"auto"}],
+        [42,{"status":200,"value":"auto"}],
+        [["not","a","string"],{"status":200,"value":"auto"}]
+      ]
+    },
+    "automation.submissions": {
+      "default": true,
+      "probes": [
+        [true,{"status":200,"value":true}],
+        [false,{"status":200,"value":false}],
+        ["1",{"status":200,"value":true}],
+        ["off",{"status":200,"value":false}],
+        ["maybe",{"status":200,"value":true}],
+        [["x"],{"status":200,"value":true}]
+      ]
+    },
+    "automation.tick_interval": {
+      "default": 300,
+      "probes": [
+        [7,{"status":200,"value":60}],
+        ["12",{"status":200,"value":60}],
+        [-5,{"status":200,"value":60}],
+        [1000000,{"status":200,"value":86400}],
+        ["abc",{"status":200,"value":300}],
+        [2.7,{"status":200,"value":60}],
+        [["x"],{"status":200,"value":300}]
+      ]
+    },
+    "automation.weekly_limits.discovery_queries": {
+      "default": 80,
+      "probes": [
+        [7,{"status":200,"value":7}],
+        ["12",{"status":200,"value":12}],
+        [-5,{"status":200,"value":0}],
+        [1000000,{"status":200,"value":1000000}],
+        ["abc",{"status":200,"value":80}],
+        [2.7,{"status":200,"value":2}],
+        [["x"],{"status":200,"value":80}]
+      ]
+    },
+    "automation.weekly_limits.outreach_emails": {
+      "default": 40,
+      "probes": [
+        [7,{"status":200,"value":7}],
+        ["12",{"status":200,"value":12}],
+        [-5,{"status":200,"value":0}],
+        [1000000,{"status":200,"value":1000000}],
+        ["abc",{"status":200,"value":40}],
+        [2.7,{"status":200,"value":2}],
+        [["x"],{"status":200,"value":40}]
+      ]
+    },
+    "automation.weekly_limits.submissions": {
+      "default": 20,
+      "probes": [
+        [7,{"status":200,"value":7}],
+        ["12",{"status":200,"value":12}],
+        [-5,{"status":200,"value":0}],
+        [1000000,{"status":200,"value":1000000}],
+        ["abc",{"status":200,"value":20}],
+        [2.7,{"status":200,"value":2}],
+        [["x"],{"status":200,"value":20}]
+      ]
+    },
+    "compliance.acknowledged_at": {
+      "default": "",
+      "probes": [
+        ["Example text",{"status":200,"value":""}],
+        ["  <b>Spaced</b>   text  ",{"status":200,"value":""}],
+        ["",{"status":200,"value":""}],
+        ["owner@example.test",{"status":200,"value":""}],
+        ["https://www.example.test/page?x=1",{"status":200,"value":""}],
+        ["us",{"status":200,"value":""}],
+        ["Europe/Berlin",{"status":200,"value":""}],
+        ["manual",{"status":200,"value":""}],
+        ["debug",{"status":200,"value":""}],
+        ["lang_meta",{"status":200,"value":""}],
+        [42,{"status":200,"value":""}],
+        [["not","a","string"],{"status":200,"value":""}]
+      ]
+    },
+    "compliance.acknowledged_by": {
+      "default": 0,
+      "probes": [
+        [7,{"status":200,"value":0}],
+        ["12",{"status":200,"value":0}],
+        [-5,{"status":200,"value":0}],
+        [1000000,{"status":200,"value":0}],
+        ["abc",{"status":200,"value":0}],
+        [2.7,{"status":200,"value":0}],
+        [["x"],{"status":200,"value":0}]
+      ]
+    },
+    "compliance.acknowledged_hash": {
+      "default": "",
+      "probes": [
+        ["Example text",{"status":200,"value":""}],
+        ["  <b>Spaced</b>   text  ",{"status":200,"value":""}],
+        ["",{"status":200,"value":""}],
+        ["owner@example.test",{"status":200,"value":""}],
+        ["https://www.example.test/page?x=1",{"status":200,"value":""}],
+        ["us",{"status":200,"value":""}],
+        ["Europe/Berlin",{"status":200,"value":""}],
+        ["manual",{"status":200,"value":""}],
+        ["debug",{"status":200,"value":""}],
+        ["lang_meta",{"status":200,"value":""}],
+        [42,{"status":200,"value":""}],
+        [["not","a","string"],{"status":200,"value":""}]
+      ]
+    },
+    "compliance.storefront_gate": {
+      "default": true,
+      "probes": [
+        [true,{"status":200,"value":true}],
+        [false,{"status":400,"error":"lga_confirmation_required","confirmed":{"status":200,"value":false}}],
+        ["1",{"status":200,"value":true}],
+        ["off",{"status":400,"error":"lga_confirmation_required","confirmed":{"status":200,"value":false}}],
+        ["maybe",{"status":200,"value":true}],
+        [["x"],{"status":200,"value":true}]
+      ]
+    },
+    "content.linkable_assets": {
+      "default": [],
+      "probes": [
+        [
+          [{"url":"https://www.example.test/guide/","title":"Buying guide","summary":"How to choose a supplier.","topics":"Guides, Buying","kind":"Guide"}],
+          {
+            "status": 200,
+            "value": [{"url":"https://www.example.test/guide/","title":"Buying guide","summary":"How to choose a supplier.","topics":["guides","buying"],"kind":"guide"}]
+          }
+        ],
+        [[{"url":"https://www.example.test/guide/","title":""},{"url":"not a url","title":"No URL"},"not an object"],{"status":200,"value":[]}],
+        [[{"url":"https://www.example.test/best/","title":"World-class guide","summary":"Guaranteed results."}],{"status":422,"error":"lga_asset_claims"}],
+        [[],{"status":200,"value":[]}],
+        ["text",{"status":200,"value":[]}]
+      ]
+    },
+    "discovery.brand_terms": {
+      "default": [],
+      "probes": [
+        [["Alpha","beta","Alpha"],{"status":200,"value":["Alpha","beta"]}],
+        ["one, two\nthree",{"status":200,"value":["one","two","three"]}],
+        [
+          ["https://www.Example.test/path","not a domain","sub.example.test"],
+          {"status":200,"value":["https://www.Example.test/path","not a domain","sub.example.test"]}
+        ],
+        [[3,"4",9,"x"],{"status":200,"value":["3","4","9","x"]}],
+        [[],{"status":200,"value":[]}],
+        [5,{"status":200,"value":[]}],
+        [[["nested"]],{"status":200,"value":[]}]
+      ]
+    },
+    "discovery.competitor_domains": {
+      "default": [],
+      "probes": [
+        [["Alpha","beta","Alpha"],{"status":200,"value":[]}],
+        ["one, two\nthree",{"status":200,"value":[]}],
+        [["https://www.Example.test/path","not a domain","sub.example.test"],{"status":200,"value":["example.test","sub.example.test"]}],
+        [[3,"4",9,"x"],{"status":200,"value":[]}],
+        [[],{"status":200,"value":[]}],
+        [5,{"status":200,"value":[]}],
+        [[["nested"]],{"status":200,"value":[]}]
+      ]
+    },
+    "discovery.competitor_domains_auto": {
+      "default": [],
+      "probes": [
+        [["Alpha","beta","Alpha"],{"status":200,"value":[]}],
+        ["one, two\nthree",{"status":200,"value":[]}],
+        [["https://www.Example.test/path","not a domain","sub.example.test"],{"status":200,"value":["example.test","sub.example.test"]}],
+        [[3,"4",9,"x"],{"status":200,"value":[]}],
+        [[],{"status":200,"value":[]}],
+        [5,{"status":200,"value":[]}],
+        [[["nested"]],{"status":200,"value":[]}]
+      ]
+    },
+    "discovery.custom_queries": {
+      "default": [],
+      "probes": [
+        [["Alpha","beta","Alpha"],{"status":200,"value":["Alpha","beta"]}],
+        ["one, two\nthree",{"status":200,"value":["one","two","three"]}],
+        [
+          ["https://www.Example.test/path","not a domain","sub.example.test"],
+          {"status":200,"value":["https://www.Example.test/path","not a domain","sub.example.test"]}
+        ],
+        [[3,"4",9,"x"],{"status":200,"value":["3","4","9","x"]}],
+        [[],{"status":200,"value":[]}],
+        [5,{"status":200,"value":[]}],
+        [[["nested"]],{"status":200,"value":[]}]
+      ]
+    },
+    "discovery.excluded_domains": {
+      "default": [],
+      "probes": [
+        [["Alpha","beta","Alpha"],{"status":200,"value":[]}],
+        ["one, two\nthree",{"status":200,"value":[]}],
+        [["https://www.Example.test/path","not a domain","sub.example.test"],{"status":200,"value":["example.test","sub.example.test"]}],
+        [[3,"4",9,"x"],{"status":200,"value":[]}],
+        [[],{"status":200,"value":[]}],
+        [5,{"status":200,"value":[]}],
+        [[["nested"]],{"status":200,"value":[]}]
+      ]
+    },
+    "discovery.geo_modifiers": {
+      "default": ["Canada","Canadian","Ontario","Toronto","British Columbia","Alberta","Quebec","Vancouver","Montreal","Ottawa"],
+      "probes": [
+        [["Alpha","beta","Alpha"],{"status":200,"value":["Alpha","beta"]}],
+        ["one, two\nthree",{"status":200,"value":["one","two","three"]}],
+        [
+          ["https://www.Example.test/path","not a domain","sub.example.test"],
+          {"status":200,"value":["https://www.Example.test/path","not a domain","sub.example.test"]}
+        ],
+        [[3,"4",9,"x"],{"status":200,"value":["3","4","9","x"]}],
+        [[],{"status":200,"value":[]}],
+        [5,{"status":200,"value":["Canada","Canadian","Ontario","Toronto","British Columbia","Alberta","Quebec","Vancouver","Montreal","Ottawa"]}],
+        [[["nested"]],{"status":200,"value":[]}]
+      ]
+    },
+    "discovery.query_cooldown_days": {
+      "default": 30,
+      "probes": [
+        [7,{"status":200,"value":7}],
+        ["12",{"status":200,"value":12}],
+        [-5,{"status":200,"value":0}],
+        [1000000,{"status":200,"value":365}],
+        ["abc",{"status":200,"value":30}],
+        [2.7,{"status":200,"value":2}],
+        [["x"],{"status":200,"value":30}]
+      ]
+    },
+    "discovery.results_per_query": {
+      "default": 10,
+      "probes": [
+        [7,{"status":200,"value":7}],
+        ["12",{"status":200,"value":12}],
+        [-5,{"status":200,"value":1}],
+        [1000000,{"status":200,"value":50}],
+        ["abc",{"status":200,"value":10}],
+        [2.7,{"status":200,"value":2}],
+        [["x"],{"status":200,"value":10}]
+      ]
+    },
+    "discovery.seed_catalog": {
+      "default": true,
+      "probes": [
+        [true,{"status":200,"value":true}],
+        [false,{"status":200,"value":false}],
+        ["1",{"status":200,"value":true}],
+        ["off",{"status":200,"value":false}],
+        ["maybe",{"status":200,"value":true}],
+        [["x"],{"status":200,"value":true}]
+      ]
+    },
+    "growth.evaluate_rounds": {
+      "default": 6,
+      "probes": [
+        [7,{"status":200,"value":7}],
+        ["12",{"status":200,"value":12}],
+        [-5,{"status":200,"value":1}],
+        [1000000,{"status":200,"value":20}],
+        ["abc",{"status":200,"value":6}],
+        [2.7,{"status":200,"value":2}],
+        [["x"],{"status":200,"value":6}]
+      ]
+    },
+    "growth.step_seconds": {
+      "default": 20,
+      "probes": [
+        [7,{"status":200,"value":8}],
+        ["12",{"status":200,"value":12}],
+        [-5,{"status":200,"value":8}],
+        [1000000,{"status":200,"value":25}],
+        ["abc",{"status":200,"value":20}],
+        [2.7,{"status":200,"value":8}],
+        [["x"],{"status":200,"value":20}]
+      ]
+    },
+    "monitoring.check_interval_days_new": {
+      "default": 1,
+      "probes": [
+        [7,{"status":200,"value":7}],
+        ["12",{"status":200,"value":12}],
+        [-5,{"status":200,"value":1}],
+        [1000000,{"status":200,"value":30}],
+        ["abc",{"status":200,"value":1}],
+        [2.7,{"status":200,"value":2}],
+        [["x"],{"status":200,"value":1}]
+      ]
+    },
+    "monitoring.check_interval_days_stable": {
+      "default": 7,
+      "probes": [
+        [7,{"status":200,"value":7}],
+        ["12",{"status":200,"value":12}],
+        [-5,{"status":200,"value":1}],
+        [1000000,{"status":200,"value":90}],
+        ["abc",{"status":200,"value":7}],
+        [2.7,{"status":200,"value":2}],
+        [["x"],{"status":200,"value":7}]
+      ]
+    },
+    "monitoring.digest_email": {
+      "default": true,
+      "probes": [
+        [true,{"status":200,"value":true}],
+        [false,{"status":200,"value":false}],
+        ["1",{"status":200,"value":true}],
+        ["off",{"status":200,"value":false}],
+        ["maybe",{"status":200,"value":true}],
+        [["x"],{"status":200,"value":true}]
+      ]
+    },
+    "monitoring.import_interval_days": {
+      "default": 7,
+      "probes": [
+        [7,{"status":200,"value":7}],
+        ["12",{"status":200,"value":12}],
+        [-5,{"status":200,"value":1}],
+        [1000000,{"status":200,"value":90}],
+        ["abc",{"status":200,"value":7}],
+        [2.7,{"status":200,"value":2}],
+        [["x"],{"status":200,"value":7}]
+      ]
+    },
+    "monitoring.import_limit": {
+      "default": 500,
+      "probes": [
+        [7,{"status":200,"value":10}],
+        ["12",{"status":200,"value":12}],
+        [-5,{"status":200,"value":10}],
+        [1000000,{"status":200,"value":5000}],
+        ["abc",{"status":200,"value":500}],
+        [2.7,{"status":200,"value":10}],
+        [["x"],{"status":200,"value":500}]
+      ]
+    },
+    "monitoring.lost_after_failures": {
+      "default": 2,
+      "probes": [
+        [7,{"status":200,"value":7}],
+        ["12",{"status":200,"value":10}],
+        [-5,{"status":200,"value":1}],
+        [1000000,{"status":200,"value":10}],
+        ["abc",{"status":200,"value":2}],
+        [2.7,{"status":200,"value":2}],
+        [["x"],{"status":200,"value":2}]
+      ]
+    },
+    "monitoring.notify_critical_immediately": {
+      "default": true,
+      "probes": [
+        [true,{"status":200,"value":true}],
+        [false,{"status":200,"value":false}],
+        ["1",{"status":200,"value":true}],
+        ["off",{"status":200,"value":false}],
+        ["maybe",{"status":200,"value":true}],
+        [["x"],{"status":200,"value":true}]
+      ]
+    },
+    "monitoring.notify_email": {
+      "default": "",
+      "probes": [
+        ["Example text",{"status":200,"value":""}],
+        ["  <b>Spaced</b>   text  ",{"status":200,"value":""}],
+        ["",{"status":200,"value":""}],
+        ["owner@example.test",{"status":200,"value":"owner@example.test"}],
+        ["https://www.example.test/page?x=1",{"status":200,"value":""}],
+        ["us",{"status":200,"value":""}],
+        ["Europe/Berlin",{"status":200,"value":""}],
+        ["manual",{"status":200,"value":""}],
+        ["debug",{"status":200,"value":""}],
+        ["lang_meta",{"status":200,"value":""}],
+        [42,{"status":200,"value":""}],
+        [["not","a","string"],{"status":200,"value":""}]
+      ]
+    },
+    "outreach.follow_up_days": {
+      "default": 7,
+      "probes": [
+        [7,{"status":200,"value":7}],
+        ["12",{"status":200,"value":12}],
+        [-5,{"status":200,"value":1}],
+        [1000000,{"status":200,"value":60}],
+        ["abc",{"status":200,"value":7}],
+        [2.7,{"status":200,"value":2}],
+        [["x"],{"status":200,"value":7}]
+      ]
+    },
+    "outreach.max_follow_ups": {
+      "default": 1,
+      "probes": [
+        [7,{"status":200,"value":3}],
+        ["12",{"status":200,"value":3}],
+        [-5,{"status":200,"value":0}],
+        [1000000,{"status":200,"value":3}],
+        ["abc",{"status":200,"value":1}],
+        [2.7,{"status":200,"value":2}],
+        [["x"],{"status":200,"value":1}]
+      ]
+    },
+    "outreach.min_days_between_contacts": {
+      "default": 90,
+      "probes": [
+        [7,{"status":200,"value":7}],
+        ["12",{"status":200,"value":12}],
+        [-5,{"status":200,"value":0}],
+        [1000000,{"status":200,"value":365}],
+        ["abc",{"status":200,"value":90}],
+        [2.7,{"status":200,"value":2}],
+        [["x"],{"status":200,"value":90}]
+      ]
+    },
+    "outreach.postal_address": {
+      "default": "",
+      "probes": [
+        ["Example text",{"status":200,"value":"Example text"}],
+        ["  <b>Spaced</b>   text  ",{"status":200,"value":"Spaced   text"}],
+        ["",{"status":200,"value":""}],
+        ["owner@example.test",{"status":200,"value":"owner@example.test"}],
+        ["https://www.example.test/page?x=1",{"status":200,"value":"https://www.example.test/page?x=1"}],
+        ["us",{"status":200,"value":"us"}],
+        ["Europe/Berlin",{"status":200,"value":"Europe/Berlin"}],
+        ["manual",{"status":200,"value":"manual"}],
+        ["debug",{"status":200,"value":"debug"}],
+        ["lang_meta",{"status":200,"value":"lang_meta"}],
+        [42,{"status":200,"value":"42"}],
+        [["not","a","string"],{"status":200,"value":""}]
+      ]
+    },
+    "outreach.reply_to": {
+      "default": "",
+      "probes": [
+        ["Example text",{"status":200,"value":""}],
+        ["  <b>Spaced</b>   text  ",{"status":200,"value":""}],
+        ["",{"status":200,"value":""}],
+        ["owner@example.test",{"status":200,"value":"owner@example.test"}],
+        ["https://www.example.test/page?x=1",{"status":200,"value":""}],
+        ["us",{"status":200,"value":""}],
+        ["Europe/Berlin",{"status":200,"value":""}],
+        ["manual",{"status":200,"value":""}],
+        ["debug",{"status":200,"value":""}],
+        ["lang_meta",{"status":200,"value":""}],
+        [42,{"status":200,"value":""}],
+        [["not","a","string"],{"status":200,"value":""}]
+      ]
+    },
+    "outreach.require_approval": {
+      "default": true,
+      "probes": [
+        [true,{"status":200,"value":true}],
+        [false,{"status":200,"value":false}],
+        ["1",{"status":200,"value":true}],
+        ["off",{"status":200,"value":false}],
+        ["maybe",{"status":200,"value":true}],
+        [["x"],{"status":200,"value":true}]
+      ]
+    },
+    "outreach.send_days": {
+      "default": [1,2,3,4,5],
+      "probes": [
+        [["Alpha","beta","Alpha"],{"status":200,"value":[]}],
+        ["one, two\nthree",{"status":200,"value":[]}],
+        [["https://www.Example.test/path","not a domain","sub.example.test"],{"status":200,"value":[]}],
+        [[3,"4",9,"x"],{"status":200,"value":[3,4]}],
+        [[],{"status":200,"value":[]}],
+        [5,{"status":200,"value":[1,2,3,4,5]}],
+        [[["nested"]],{"status":200,"value":[]}]
+      ]
+    },
+    "outreach.send_window_end": {
+      "default": 17,
+      "probes": [
+        [7,{"status":200,"value":7}],
+        ["12",{"status":200,"value":12}],
+        [-5,{"status":200,"value":1}],
+        [1000000,{"status":200,"value":24}],
+        ["abc",{"status":200,"value":17}],
+        [2.7,{"status":200,"value":2}],
+        [["x"],{"status":200,"value":17}]
+      ]
+    },
+    "outreach.send_window_start": {
+      "default": 9,
+      "probes": [
+        [7,{"status":200,"value":7}],
+        ["12",{"status":200,"value":12}],
+        [-5,{"status":200,"value":0}],
+        [1000000,{"status":200,"value":23}],
+        ["abc",{"status":200,"value":9}],
+        [2.7,{"status":200,"value":2}],
+        [["x"],{"status":200,"value":9}]
+      ]
+    },
+    "outreach.sender_email": {
+      "default": "",
+      "probes": [
+        ["Example text",{"status":200,"value":""}],
+        ["  <b>Spaced</b>   text  ",{"status":200,"value":""}],
+        ["",{"status":200,"value":""}],
+        ["owner@example.test",{"status":200,"value":"owner@example.test"}],
+        ["https://www.example.test/page?x=1",{"status":200,"value":""}],
+        ["us",{"status":200,"value":""}],
+        ["Europe/Berlin",{"status":200,"value":""}],
+        ["manual",{"status":200,"value":""}],
+        ["debug",{"status":200,"value":""}],
+        ["lang_meta",{"status":200,"value":""}],
+        [42,{"status":200,"value":""}],
+        [["not","a","string"],{"status":200,"value":""}]
+      ]
+    },
+    "outreach.sender_name": {
+      "default": "",
+      "probes": [
+        ["Example text",{"status":200,"value":"Example text"}],
+        ["  <b>Spaced</b>   text  ",{"status":200,"value":"Spaced text"}],
+        ["",{"status":200,"value":""}],
+        ["owner@example.test",{"status":200,"value":"owner@example.test"}],
+        ["https://www.example.test/page?x=1",{"status":200,"value":"https://www.example.test/page?x=1"}],
+        ["us",{"status":200,"value":"us"}],
+        ["Europe/Berlin",{"status":200,"value":"Europe/Berlin"}],
+        ["manual",{"status":200,"value":"manual"}],
+        ["debug",{"status":200,"value":"debug"}],
+        ["lang_meta",{"status":200,"value":"lang_meta"}],
+        [42,{"status":200,"value":"42"}],
+        [["not","a","string"],{"status":200,"value":""}]
+      ]
+    },
+    "outreach.signature": {
+      "default": "",
+      "probes": [
+        ["Example text",{"status":200,"value":"Example text"}],
+        ["  <b>Spaced</b>   text  ",{"status":200,"value":"Spaced   text"}],
+        ["",{"status":200,"value":""}],
+        ["owner@example.test",{"status":200,"value":"owner@example.test"}],
+        ["https://www.example.test/page?x=1",{"status":200,"value":"https://www.example.test/page?x=1"}],
+        ["us",{"status":200,"value":"us"}],
+        ["Europe/Berlin",{"status":200,"value":"Europe/Berlin"}],
+        ["manual",{"status":200,"value":"manual"}],
+        ["debug",{"status":200,"value":"debug"}],
+        ["lang_meta",{"status":200,"value":"lang_meta"}],
+        [42,{"status":200,"value":"42"}],
+        [["not","a","string"],{"status":200,"value":""}]
+      ]
+    },
+    "outreach.timezone": {
+      "default": "",
+      "probes": [
+        ["Example text",{"status":200,"value":""}],
+        ["  <b>Spaced</b>   text  ",{"status":200,"value":""}],
+        ["",{"status":200,"value":""}],
+        ["owner@example.test",{"status":200,"value":""}],
+        ["https://www.example.test/page?x=1",{"status":200,"value":""}],
+        ["us",{"status":200,"value":""}],
+        ["Europe/Berlin",{"status":200,"value":"Europe/Berlin"}],
+        ["manual",{"status":200,"value":""}],
+        ["debug",{"status":200,"value":""}],
+        ["lang_meta",{"status":200,"value":""}],
+        [42,{"status":200,"value":""}],
+        [["not","a","string"],{"status":200,"value":""}]
+      ]
+    },
+    "providers.ahrefs.cache_days": {
+      "default": 30,
+      "probes": [
+        [7,{"status":200,"value":7}],
+        ["12",{"status":200,"value":12}],
+        [-5,{"status":200,"value":1}],
+        [1000000,{"status":200,"value":365}],
+        ["abc",{"status":200,"value":30}],
+        [2.7,{"status":200,"value":2}],
+        [["x"],{"status":200,"value":30}]
+      ]
+    },
+    "providers.ahrefs.enabled": {
+      "default": false,
+      "probes": [
+        [true,{"status":200,"value":true}],
+        [false,{"status":200,"value":false}],
+        ["1",{"status":200,"value":true}],
+        ["off",{"status":200,"value":false}],
+        ["maybe",{"status":200,"value":false}],
+        [["x"],{"status":200,"value":false}]
+      ]
+    },
+    "providers.ahrefs.fetch_metrics": {
+      "default": true,
+      "probes": [
+        [true,{"status":200,"value":true}],
+        [false,{"status":200,"value":false}],
+        ["1",{"status":200,"value":true}],
+        ["off",{"status":200,"value":false}],
+        ["maybe",{"status":200,"value":null}],
+        [["x"],{"status":200,"value":null}]
+      ]
+    },
+    "providers.ai.enabled": {
+      "default": false,
+      "probes": [
+        [true,{"status":200,"value":true}],
+        [false,{"status":200,"value":false}],
+        ["1",{"status":200,"value":true}],
+        ["off",{"status":200,"value":false}],
+        ["maybe",{"status":200,"value":false}],
+        [["x"],{"status":200,"value":false}]
+      ]
+    },
+    "providers.ai.max_tokens": {
+      "default": 1200,
+      "probes": [
+        [7,{"status":200,"value":200}],
+        ["12",{"status":200,"value":200}],
+        [-5,{"status":200,"value":200}],
+        [1000000,{"status":200,"value":8000}],
+        ["abc",{"status":200,"value":1200}],
+        [2.7,{"status":200,"value":200}],
+        [["x"],{"status":200,"value":1200}]
+      ]
+    },
+    "providers.ai.model": {
+      "default": "",
+      "probes": [
+        ["Example text",{"status":200,"value":""}],
+        ["  <b>Spaced</b>   text  ",{"status":200,"value":""}],
+        ["",{"status":200,"value":""}],
+        ["owner@example.test",{"status":200,"value":""}],
+        ["https://www.example.test/page?x=1",{"status":200,"value":""}],
+        ["us",{"status":200,"value":""}],
+        ["Europe/Berlin",{"status":200,"value":""}],
+        ["manual",{"status":200,"value":"manual"}],
+        ["debug",{"status":200,"value":"debug"}],
+        ["lang_meta",{"status":200,"value":""}],
+        [42,{"status":200,"value":""}],
+        [["not","a","string"],{"status":200,"value":""}]
+      ]
+    },
+    "providers.google.enabled": {
+      "default": true,
+      "probes": [
+        [true,{"status":200,"value":true}],
+        [false,{"status":200,"value":false}],
+        ["1",{"status":200,"value":true}],
+        ["off",{"status":200,"value":false}],
+        ["maybe",{"status":200,"value":true}],
+        [["x"],{"status":200,"value":true}]
+      ]
+    },
+    "providers.google.ga4_property_id": {
+      "default": "",
+      "probes": [
+        ["Example text",{"status":200,"value":""}],
+        ["  <b>Spaced</b>   text  ",{"status":200,"value":""}],
+        ["",{"status":200,"value":""}],
+        ["owner@example.test",{"status":200,"value":""}],
+        ["https://www.example.test/page?x=1",{"status":200,"value":"1"}],
+        ["us",{"status":200,"value":""}],
+        ["Europe/Berlin",{"status":200,"value":""}],
+        ["manual",{"status":200,"value":""}],
+        ["debug",{"status":200,"value":""}],
+        ["lang_meta",{"status":200,"value":""}],
+        [42,{"status":200,"value":"42"}],
+        [["not","a","string"],{"status":200,"value":""}]
+      ]
+    },
+    "providers.google.gsc_property": {
+      "default": "sc-domain:northwind.test",
+      "probes": [
+        ["Example text",{"status":200,"value":"Example text"}],
+        ["  <b>Spaced</b>   text  ",{"status":200,"value":"Spaced text"}],
+        ["",{"status":200,"value":""}],
+        ["owner@example.test",{"status":200,"value":"owner@example.test"}],
+        ["https://www.example.test/page?x=1",{"status":200,"value":"https://www.example.test/page?x=1"}],
+        ["us",{"status":200,"value":"us"}],
+        ["Europe/Berlin",{"status":200,"value":"Europe/Berlin"}],
+        ["manual",{"status":200,"value":"manual"}],
+        ["debug",{"status":200,"value":"debug"}],
+        ["lang_meta",{"status":200,"value":"lang_meta"}],
+        [42,{"status":200,"value":"42"}],
+        [["not","a","string"],{"status":200,"value":"sc-domain:northwind.test"}]
+      ]
+    },
+    "providers.google.use_sitekit": {
+      "default": true,
+      "probes": [
+        [true,{"status":200,"value":true}],
+        [false,{"status":200,"value":false}],
+        ["1",{"status":200,"value":true}],
+        ["off",{"status":200,"value":false}],
+        ["maybe",{"status":200,"value":true}],
+        [["x"],{"status":200,"value":true}]
+      ]
+    },
+    "providers.moz.cache_days": {
+      "default": 30,
+      "probes": [
+        [7,{"status":200,"value":7}],
+        ["12",{"status":200,"value":12}],
+        [-5,{"status":200,"value":1}],
+        [1000000,{"status":200,"value":365}],
+        ["abc",{"status":200,"value":30}],
+        [2.7,{"status":200,"value":2}],
+        [["x"],{"status":200,"value":30}]
+      ]
+    },
+    "providers.moz.enabled": {
+      "default": false,
+      "probes": [
+        [true,{"status":200,"value":true}],
+        [false,{"status":200,"value":false}],
+        ["1",{"status":200,"value":true}],
+        ["off",{"status":200,"value":false}],
+        ["maybe",{"status":200,"value":false}],
+        [["x"],{"status":200,"value":false}]
+      ]
+    },
+    "providers.rdap.enabled": {
+      "default": true,
+      "probes": [
+        [true,{"status":200,"value":true}],
+        [false,{"status":200,"value":false}],
+        ["1",{"status":200,"value":true}],
+        ["off",{"status":200,"value":false}],
+        ["maybe",{"status":200,"value":true}],
+        [["x"],{"status":200,"value":true}]
+      ]
+    },
+    "providers.search.brave_daily_limit": {
+      "default": 60,
+      "probes": [
+        [7,{"status":200,"value":7}],
+        ["12",{"status":200,"value":12}],
+        [-5,{"status":200,"value":0}],
+        [1000000,{"status":200,"value":100000}],
+        ["abc",{"status":200,"value":60}],
+        [2.7,{"status":200,"value":2}],
+        [["x"],{"status":200,"value":60}]
+      ]
+    },
+    "providers.search.google_cse_daily_limit": {
+      "default": 90,
+      "probes": [
+        [7,{"status":200,"value":7}],
+        ["12",{"status":200,"value":12}],
+        [-5,{"status":200,"value":0}],
+        [1000000,{"status":200,"value":10000}],
+        ["abc",{"status":200,"value":90}],
+        [2.7,{"status":200,"value":2}],
+        [["x"],{"status":200,"value":90}]
+      ]
+    },
+    "providers.search.primary": {
+      "default": "auto",
+      "probes": [
+        ["Example text",{"status":200,"value":"auto"}],
+        ["  <b>Spaced</b>   text  ",{"status":200,"value":"auto"}],
+        ["",{"status":200,"value":"auto"}],
+        ["owner@example.test",{"status":200,"value":"auto"}],
+        ["https://www.example.test/page?x=1",{"status":200,"value":"auto"}],
+        ["us",{"status":200,"value":"auto"}],
+        ["Europe/Berlin",{"status":200,"value":"auto"}],
+        ["manual",{"status":200,"value":"auto"}],
+        ["debug",{"status":200,"value":"auto"}],
+        ["lang_meta",{"status":200,"value":"auto"}],
+        [42,{"status":200,"value":"auto"}],
+        [["not","a","string"],{"status":200,"value":"auto"}]
+      ]
+    },
+    "providers.semrush.cache_days": {
+      "default": 30,
+      "probes": [
+        [7,{"status":200,"value":7}],
+        ["12",{"status":200,"value":12}],
+        [-5,{"status":200,"value":1}],
+        [1000000,{"status":200,"value":365}],
+        ["abc",{"status":200,"value":30}],
+        [2.7,{"status":200,"value":2}],
+        [["x"],{"status":200,"value":30}]
+      ]
+    },
+    "providers.semrush.database": {
+      "default": "ca",
+      "probes": [
+        ["Example text",{"status":200,"value":"exampletex"}],
+        ["  <b>Spaced</b>   text  ",{"status":200,"value":"bspacedbte"}],
+        ["",{"status":200,"value":"ca"}],
+        ["owner@example.test",{"status":200,"value":"ownerexamp"}],
+        ["https://www.example.test/page?x=1",{"status":200,"value":"httpswwwex"}],
+        ["us",{"status":200,"value":"us"}],
+        ["Europe/Berlin",{"status":200,"value":"europeberl"}],
+        ["manual",{"status":200,"value":"manual"}],
+        ["debug",{"status":200,"value":"debug"}],
+        ["lang_meta",{"status":200,"value":"langmeta"}],
+        [42,{"status":200,"value":"42"}],
+        [["not","a","string"],{"status":200,"value":"ca"}]
+      ]
+    },
+    "providers.semrush.enabled": {
+      "default": false,
+      "probes": [
+        [true,{"status":200,"value":true}],
+        [false,{"status":200,"value":false}],
+        ["1",{"status":200,"value":true}],
+        ["off",{"status":200,"value":false}],
+        ["maybe",{"status":200,"value":false}],
+        [["x"],{"status":200,"value":false}]
+      ]
+    },
+    "providers.seranking.cache_days": {
+      "default": 30,
+      "probes": [
+        [7,{"status":200,"value":7}],
+        ["12",{"status":200,"value":12}],
+        [-5,{"status":200,"value":1}],
+        [1000000,{"status":200,"value":365}],
+        ["abc",{"status":200,"value":30}],
+        [2.7,{"status":200,"value":2}],
+        [["x"],{"status":200,"value":30}]
+      ]
+    },
+    "providers.seranking.enabled": {
+      "default": true,
+      "probes": [
+        [true,{"status":200,"value":true}],
+        [false,{"status":200,"value":false}],
+        ["1",{"status":200,"value":true}],
+        ["off",{"status":200,"value":false}],
+        ["maybe",{"status":200,"value":true}],
+        [["x"],{"status":200,"value":true}]
+      ]
+    },
+    "providers.seranking.fetch_overview": {
+      "default": true,
+      "probes": [
+        [true,{"status":200,"value":true}],
+        [false,{"status":200,"value":false}],
+        ["1",{"status":200,"value":true}],
+        ["off",{"status":200,"value":false}],
+        ["maybe",{"status":200,"value":null}],
+        [["x"],{"status":200,"value":null}]
+      ]
+    },
+    "providers.seranking.fetch_summary": {
+      "default": false,
+      "probes": [
+        [true,{"status":200,"value":true}],
+        [false,{"status":200,"value":false}],
+        ["1",{"status":200,"value":true}],
+        ["off",{"status":200,"value":false}],
+        ["maybe",{"status":200,"value":null}],
+        [["x"],{"status":200,"value":null}]
+      ]
+    },
+    "providers.seranking.region": {
+      "default": "ca",
+      "probes": [
+        ["Example text",{"status":200,"value":"exampletex"}],
+        ["  <b>Spaced</b>   text  ",{"status":200,"value":"bspacedbte"}],
+        ["",{"status":200,"value":"ca"}],
+        ["owner@example.test",{"status":200,"value":"ownerexamp"}],
+        ["https://www.example.test/page?x=1",{"status":200,"value":"httpswwwex"}],
+        ["us",{"status":200,"value":"us"}],
+        ["Europe/Berlin",{"status":200,"value":"europeberl"}],
+        ["manual",{"status":200,"value":"manual"}],
+        ["debug",{"status":200,"value":"debug"}],
+        ["lang_meta",{"status":200,"value":"langmeta"}],
+        [42,{"status":200,"value":"42"}],
+        [["not","a","string"],{"status":200,"value":"ca"}]
+      ]
+    },
+    "seo.audit_http_sample": {
+      "default": true,
+      "probes": [
+        [true,{"status":200,"value":true}],
+        [false,{"status":200,"value":false}],
+        ["1",{"status":200,"value":true}],
+        ["off",{"status":200,"value":false}],
+        ["maybe",{"status":200,"value":true}],
+        [["x"],{"status":200,"value":true}]
+      ]
+    },
+    "seo.audit_max_pages": {
+      "default": 400,
+      "probes": [
+        [7,{"status":200,"value":20}],
+        ["12",{"status":200,"value":20}],
+        [-5,{"status":200,"value":20}],
+        [1000000,{"status":200,"value":5000}],
+        ["abc",{"status":200,"value":400}],
+        [2.7,{"status":200,"value":20}],
+        [["x"],{"status":200,"value":400}]
+      ]
+    },
+    "seo.auto_apply_links": {
+      "default": false,
+      "probes": [
+        [true,{"status":400,"error":"lga_confirmation_required","confirmed":{"status":200,"value":true}}],
+        [false,{"status":200,"value":false}],
+        ["1",{"status":400,"error":"lga_confirmation_required","confirmed":{"status":200,"value":true}}],
+        ["off",{"status":200,"value":false}],
+        ["maybe",{"status":200,"value":false}],
+        [["x"],{"status":200,"value":false}]
+      ]
+    },
+    "seo.auto_apply_per_day": {
+      "default": 20,
+      "probes": [
+        [7,{"status":200,"value":7}],
+        ["12",{"status":200,"value":12}],
+        [-5,{"status":200,"value":1}],
+        [1000000,{"status":200,"value":100}],
+        ["abc",{"status":200,"value":20}],
+        [2.7,{"status":200,"value":2}],
+        [["x"],{"status":200,"value":20}]
+      ]
+    },
+    "seo.indexnow": {
+      "default": true,
+      "probes": [
+        [true,{"status":200,"value":true}],
+        [false,{"status":200,"value":false}],
+        ["1",{"status":200,"value":true}],
+        ["off",{"status":200,"value":false}],
+        ["maybe",{"status":200,"value":true}],
+        [["x"],{"status":200,"value":true}]
+      ]
+    },
+    "seo.indexnow_key": {
+      "default": "",
+      "probes": [
+        ["Example text",{"status":200,"value":""}],
+        ["  <b>Spaced</b>   text  ",{"status":200,"value":""}],
+        ["",{"status":200,"value":""}],
+        ["owner@example.test",{"status":200,"value":""}],
+        ["https://www.example.test/page?x=1",{"status":200,"value":""}],
+        ["us",{"status":200,"value":""}],
+        ["Europe/Berlin",{"status":200,"value":""}],
+        ["manual",{"status":200,"value":""}],
+        ["debug",{"status":200,"value":""}],
+        ["lang_meta",{"status":200,"value":""}],
+        [42,{"status":200,"value":""}],
+        [["not","a","string"],{"status":200,"value":""}]
+      ]
+    },
+    "seo.internal_links": {
+      "default": true,
+      "probes": [
+        [true,{"status":200,"value":true}],
+        [false,{"status":200,"value":false}],
+        ["1",{"status":200,"value":true}],
+        ["off",{"status":200,"value":false}],
+        ["maybe",{"status":200,"value":true}],
+        [["x"],{"status":200,"value":true}]
+      ]
+    },
+    "seo.language_counterpart_meta_key": {
+      "default": "",
+      "probes": [
+        ["Example text",{"status":200,"value":""}],
+        ["  <b>Spaced</b>   text  ",{"status":200,"value":""}],
+        ["",{"status":200,"value":""}],
+        ["owner@example.test",{"status":200,"value":""}],
+        ["https://www.example.test/page?x=1",{"status":200,"value":""}],
+        ["us",{"status":200,"value":"us"}],
+        ["Europe/Berlin",{"status":200,"value":""}],
+        ["manual",{"status":200,"value":"manual"}],
+        ["debug",{"status":200,"value":"debug"}],
+        ["lang_meta",{"status":200,"value":"lang_meta"}],
+        [42,{"status":200,"value":"42"}],
+        [["not","a","string"],{"status":200,"value":""}]
+      ]
+    },
+    "seo.max_links_per_post": {
+      "default": 3,
+      "probes": [
+        [7,{"status":200,"value":7}],
+        ["12",{"status":200,"value":10}],
+        [-5,{"status":200,"value":1}],
+        [1000000,{"status":200,"value":10}],
+        ["abc",{"status":200,"value":3}],
+        [2.7,{"status":200,"value":2}],
+        [["x"],{"status":200,"value":3}]
+      ]
+    },
+    "site.address": {
+      "default": "",
+      "probes": [
+        ["Example text",{"status":200,"value":"Example text"}],
+        ["  <b>Spaced</b>   text  ",{"status":200,"value":"Spaced   text"}],
+        ["",{"status":200,"value":""}],
+        ["owner@example.test",{"status":200,"value":"owner@example.test"}],
+        ["https://www.example.test/page?x=1",{"status":200,"value":"https://www.example.test/page?x=1"}],
+        ["us",{"status":200,"value":"us"}],
+        ["Europe/Berlin",{"status":200,"value":"Europe/Berlin"}],
+        ["manual",{"status":200,"value":"manual"}],
+        ["debug",{"status":200,"value":"debug"}],
+        ["lang_meta",{"status":200,"value":"lang_meta"}],
+        [42,{"status":200,"value":"42"}],
+        [["not","a","string"],{"status":200,"value":""}]
+      ]
+    },
+    "site.brand_name": {
+      "default": "",
+      "probes": [
+        ["Example text",{"status":200,"value":"Example text"}],
+        ["  <b>Spaced</b>   text  ",{"status":200,"value":"Spaced text"}],
+        ["",{"status":200,"value":""}],
+        ["owner@example.test",{"status":200,"value":"owner@example.test"}],
+        ["https://www.example.test/page?x=1",{"status":200,"value":"https://www.example.test/page?x=1"}],
+        ["us",{"status":200,"value":"us"}],
+        ["Europe/Berlin",{"status":200,"value":"Europe/Berlin"}],
+        ["manual",{"status":200,"value":"manual"}],
+        ["debug",{"status":200,"value":"debug"}],
+        ["lang_meta",{"status":200,"value":"lang_meta"}],
+        [42,{"status":200,"value":"42"}],
+        [["not","a","string"],{"status":200,"value":""}]
+      ]
+    },
+    "site.categories": {
+      "default": [],
+      "probes": [
+        [["Alpha","beta","Alpha"],{"status":200,"value":["Alpha","beta"]}],
+        ["one, two\nthree",{"status":200,"value":["one","two","three"]}],
+        [
+          ["https://www.Example.test/path","not a domain","sub.example.test"],
+          {"status":200,"value":["https://www.Example.test/path","not a domain","sub.example.test"]}
+        ],
+        [[3,"4",9,"x"],{"status":200,"value":["3","4","9","x"]}],
+        [[],{"status":200,"value":[]}],
+        [5,{"status":200,"value":[]}],
+        [[["nested"]],{"status":200,"value":[]}]
+      ]
+    },
+    "site.city": {
+      "default": "",
+      "probes": [
+        ["Example text",{"status":200,"value":"Example text"}],
+        ["  <b>Spaced</b>   text  ",{"status":200,"value":"Spaced text"}],
+        ["",{"status":200,"value":""}],
+        ["owner@example.test",{"status":200,"value":"owner@example.test"}],
+        ["https://www.example.test/page?x=1",{"status":200,"value":"https://www.example.test/page?x=1"}],
+        ["us",{"status":200,"value":"us"}],
+        ["Europe/Berlin",{"status":200,"value":"Europe/Berlin"}],
+        ["manual",{"status":200,"value":"manual"}],
+        ["debug",{"status":200,"value":"debug"}],
+        ["lang_meta",{"status":200,"value":"lang_meta"}],
+        [42,{"status":200,"value":"42"}],
+        [["not","a","string"],{"status":200,"value":""}]
+      ]
+    },
+    "site.country": {
+      "default": "",
+      "probes": [
+        ["Example text",{"status":200,"value":""}],
+        ["  <b>Spaced</b>   text  ",{"status":200,"value":""}],
+        ["",{"status":200,"value":""}],
+        ["owner@example.test",{"status":200,"value":""}],
+        ["https://www.example.test/page?x=1",{"status":200,"value":""}],
+        ["us",{"status":200,"value":"US"}],
+        ["Europe/Berlin",{"status":200,"value":""}],
+        ["manual",{"status":200,"value":""}],
+        ["debug",{"status":200,"value":""}],
+        ["lang_meta",{"status":200,"value":""}],
+        [42,{"status":200,"value":""}],
+        [["not","a","string"],{"status":200,"value":""}]
+      ]
+    },
+    "site.domain": {
+      "default": "northwind.test",
+      "probes": [
+        ["Example text",{"status":200,"value":"northwind.test"}],
+        ["  <b>Spaced</b>   text  ",{"status":200,"value":"northwind.test"}],
+        ["",{"status":200,"value":"northwind.test"}],
+        ["owner@example.test",{"status":200,"value":"northwind.test"}],
+        ["https://www.example.test/page?x=1",{"status":200,"value":"example.test"}],
+        ["us",{"status":200,"value":"northwind.test"}],
+        ["Europe/Berlin",{"status":200,"value":"northwind.test"}],
+        ["manual",{"status":200,"value":"northwind.test"}],
+        ["debug",{"status":200,"value":"northwind.test"}],
+        ["lang_meta",{"status":200,"value":"northwind.test"}],
+        [42,{"status":200,"value":"northwind.test"}],
+        [["not","a","string"],{"status":200,"value":"northwind.test"}]
+      ]
+    },
+    "site.email": {
+      "default": "",
+      "probes": [
+        ["Example text",{"status":200,"value":""}],
+        ["  <b>Spaced</b>   text  ",{"status":200,"value":""}],
+        ["",{"status":200,"value":""}],
+        ["owner@example.test",{"status":200,"value":"owner@example.test"}],
+        ["https://www.example.test/page?x=1",{"status":200,"value":""}],
+        ["us",{"status":200,"value":""}],
+        ["Europe/Berlin",{"status":200,"value":""}],
+        ["manual",{"status":200,"value":""}],
+        ["debug",{"status":200,"value":""}],
+        ["lang_meta",{"status":200,"value":""}],
+        [42,{"status":200,"value":""}],
+        [["not","a","string"],{"status":200,"value":""}]
+      ]
+    },
+    "site.founded_year": {
+      "default": "",
+      "probes": [
+        ["Example text",{"status":200,"value":""}],
+        ["  <b>Spaced</b>   text  ",{"status":200,"value":""}],
+        ["",{"status":200,"value":""}],
+        ["owner@example.test",{"status":200,"value":""}],
+        ["https://www.example.test/page?x=1",{"status":200,"value":"1"}],
+        ["us",{"status":200,"value":""}],
+        ["Europe/Berlin",{"status":200,"value":""}],
+        ["manual",{"status":200,"value":""}],
+        ["debug",{"status":200,"value":""}],
+        ["lang_meta",{"status":200,"value":""}],
+        [42,{"status":200,"value":"42"}],
+        [["not","a","string"],{"status":200,"value":""}]
+      ]
+    },
+    "site.home_url": {
+      "default": "https://northwind.test",
+      "probes": [
+        ["Example text",{"status":200,"value":"https://northwind.test"}],
+        ["  <b>Spaced</b>   text  ",{"status":200,"value":"https://northwind.test"}],
+        ["",{"status":200,"value":""}],
+        ["owner@example.test",{"status":200,"value":"http://owner@example.test"}],
+        ["https://www.example.test/page?x=1",{"status":200,"value":"https://www.example.test/page?x=1"}],
+        ["us",{"status":200,"value":"https://northwind.test"}],
+        ["Europe/Berlin",{"status":200,"value":"https://northwind.test"}],
+        ["manual",{"status":200,"value":"https://northwind.test"}],
+        ["debug",{"status":200,"value":"https://northwind.test"}],
+        ["lang_meta",{"status":200,"value":"https://northwind.test"}],
+        [42,{"status":200,"value":"https://northwind.test"}],
+        [["not","a","string"],{"status":200,"value":"https://northwind.test"}]
+      ]
+    },
+    "site.legal_name": {
+      "default": "",
+      "probes": [
+        ["Example text",{"status":200,"value":"Example text"}],
+        ["  <b>Spaced</b>   text  ",{"status":200,"value":"Spaced text"}],
+        ["",{"status":200,"value":""}],
+        ["owner@example.test",{"status":200,"value":"owner@example.test"}],
+        ["https://www.example.test/page?x=1",{"status":200,"value":"https://www.example.test/page?x=1"}],
+        ["us",{"status":200,"value":"us"}],
+        ["Europe/Berlin",{"status":200,"value":"Europe/Berlin"}],
+        ["manual",{"status":200,"value":"manual"}],
+        ["debug",{"status":200,"value":"debug"}],
+        ["lang_meta",{"status":200,"value":"lang_meta"}],
+        [42,{"status":200,"value":"42"}],
+        [["not","a","string"],{"status":200,"value":""}]
+      ]
+    },
+    "site.logo_url": {
+      "default": "",
+      "probes": [
+        ["Example text",{"status":200,"value":""}],
+        ["  <b>Spaced</b>   text  ",{"status":200,"value":""}],
+        ["",{"status":200,"value":""}],
+        ["owner@example.test",{"status":200,"value":"http://owner@example.test"}],
+        ["https://www.example.test/page?x=1",{"status":200,"value":"https://www.example.test/page?x=1"}],
+        ["us",{"status":200,"value":""}],
+        ["Europe/Berlin",{"status":200,"value":""}],
+        ["manual",{"status":200,"value":""}],
+        ["debug",{"status":200,"value":""}],
+        ["lang_meta",{"status":200,"value":""}],
+        [42,{"status":200,"value":""}],
+        [["not","a","string"],{"status":200,"value":""}]
+      ]
+    },
+    "site.phone": {
+      "default": "",
+      "probes": [
+        ["Example text",{"status":200,"value":"Example text"}],
+        ["  <b>Spaced</b>   text  ",{"status":200,"value":"Spaced text"}],
+        ["",{"status":200,"value":""}],
+        ["owner@example.test",{"status":200,"value":"owner@example.test"}],
+        ["https://www.example.test/page?x=1",{"status":200,"value":"https://www.example.test/page?x=1"}],
+        ["us",{"status":200,"value":"us"}],
+        ["Europe/Berlin",{"status":200,"value":"Europe/Berlin"}],
+        ["manual",{"status":200,"value":"manual"}],
+        ["debug",{"status":200,"value":"debug"}],
+        ["lang_meta",{"status":200,"value":"lang_meta"}],
+        [42,{"status":200,"value":"42"}],
+        [["not","a","string"],{"status":200,"value":""}]
+      ]
+    },
+    "site.postal_code": {
+      "default": "",
+      "probes": [
+        ["Example text",{"status":200,"value":"Example text"}],
+        ["  <b>Spaced</b>   text  ",{"status":200,"value":"Spaced text"}],
+        ["",{"status":200,"value":""}],
+        ["owner@example.test",{"status":200,"value":"owner@example.test"}],
+        ["https://www.example.test/page?x=1",{"status":200,"value":"https://www.example.test/page?x=1"}],
+        ["us",{"status":200,"value":"us"}],
+        ["Europe/Berlin",{"status":200,"value":"Europe/Berlin"}],
+        ["manual",{"status":200,"value":"manual"}],
+        ["debug",{"status":200,"value":"debug"}],
+        ["lang_meta",{"status":200,"value":"lang_meta"}],
+        [42,{"status":200,"value":"42"}],
+        [["not","a","string"],{"status":200,"value":""}]
+      ]
+    },
+    "site.region": {
+      "default": "",
+      "probes": [
+        ["Example text",{"status":200,"value":"Example text"}],
+        ["  <b>Spaced</b>   text  ",{"status":200,"value":"Spaced text"}],
+        ["",{"status":200,"value":""}],
+        ["owner@example.test",{"status":200,"value":"owner@example.test"}],
+        ["https://www.example.test/page?x=1",{"status":200,"value":"https://www.example.test/page?x=1"}],
+        ["us",{"status":200,"value":"us"}],
+        ["Europe/Berlin",{"status":200,"value":"Europe/Berlin"}],
+        ["manual",{"status":200,"value":"manual"}],
+        ["debug",{"status":200,"value":"debug"}],
+        ["lang_meta",{"status":200,"value":"lang_meta"}],
+        [42,{"status":200,"value":"42"}],
+        [["not","a","string"],{"status":200,"value":""}]
+      ]
+    },
+    "site.social": {
+      "default": [],
+      "probes": [
+        [["Alpha","beta","Alpha"],{"status":200,"value":[]}],
+        ["one, two\nthree",{"status":200,"value":[]}],
+        [
+          ["https://www.Example.test/path","not a domain","sub.example.test"],
+          {"status":200,"value":["https://www.Example.test/path","http://sub.example.test"]}
+        ],
+        [[3,"4",9,"x"],{"status":200,"value":[]}],
+        [[],{"status":200,"value":[]}],
+        [5,{"status":200,"value":[]}],
+        [[["nested"]],{"status":200,"value":[]}]
+      ]
+    },
+    "site.tagline": {
+      "default": "",
+      "probes": [
+        ["Example text",{"status":200,"value":"Example text"}],
+        ["  <b>Spaced</b>   text  ",{"status":200,"value":"Spaced text"}],
+        ["",{"status":200,"value":""}],
+        ["owner@example.test",{"status":200,"value":"owner@example.test"}],
+        ["https://www.example.test/page?x=1",{"status":200,"value":"https://www.example.test/page?x=1"}],
+        ["us",{"status":200,"value":"us"}],
+        ["Europe/Berlin",{"status":200,"value":"Europe/Berlin"}],
+        ["manual",{"status":200,"value":"manual"}],
+        ["debug",{"status":200,"value":"debug"}],
+        ["lang_meta",{"status":200,"value":"lang_meta"}],
+        [42,{"status":200,"value":"42"}],
+        [["not","a","string"],{"status":200,"value":""}]
+      ]
+    }
+  },
+  "settings_requests": {
+    "unknown section": {"status":200,"changed":[]},
+    "unknown key in a section": {"status":200,"changed":[]},
+    "section that is not an object": {"status":200,"changed":[]},
+    "settings that are not an object": {"status":200,"changed":[]},
+    "nested object for a scalar key": {"status":200,"changed":[]},
+    "a refused change with a valid one": {"status":400,"error":"lga_confirmation_required"},
+    "the same with confirm": {"status":200,"changed":{"automation.outreach_autosend":true,"automation.tick_interval":120}},
+    "read-only keys only": {"status":200,"changed":[]},
+    "autopilot off while it is off": {"status":200,"changed":[]},
+    "secrets": {
+      "status": 200,
+      "changed": [],
+      "secrets": {
+        "updated": ["seranking_api_key"],
+        "cleared": ["brave_api_key"],
+        "rejected": ["not_a_secret","google_service_account_json","semrush_api_key"],
+        "locked": [],
+        "reasons": {"not_a_secret":"invalid_key","google_service_account_json":"invalid_service_account_json","semrush_api_key":"too_long"}
+      }
+    },
+    "custom seeds": {
+      "status": 200,
+      "changed": [],
+      "seeds_updated": true,
+      "custom_seeds": [
+        {
+          "url": "https://dir.example.test/add",
+          "name": "Example Directory",
+          "type": "directory",
+          "opportunity": "directory_listing",
+          "category": "General",
+          "country": "US"
+        }
+      ]
+    }
+  },
+  "admin_menu": {
+    "owner": [
+      {
+        "menu": "lga",
+        "page_title": "LinkGrowth",
+        "menu_title": "LinkGrowth",
+        "capability": "lga_manage",
+        "callback": "Menu::render",
+        "icon": "dashicons-admin-links",
+        "position": 58
+      },
+      {"submenu":"lga","parent":"lga","page_title":"Overview – LinkGrowth","menu_title":"Overview","capability":"lga_manage","callback":"Menu::render"},
+      {
+        "submenu": "lga-prospects",
+        "parent": "lga",
+        "page_title": "Prospects – LinkGrowth",
+        "menu_title": "Prospects",
+        "capability": "lga_manage",
+        "callback": "Menu::render"
+      },
+      {
+        "submenu": "lga-submissions",
+        "parent": "lga",
+        "page_title": "Submissions – LinkGrowth",
+        "menu_title": "Submissions",
+        "capability": "lga_manage",
+        "callback": "Menu::render"
+      },
+      {
+        "submenu": "lga-outreach",
+        "parent": "lga",
+        "page_title": "Outreach – LinkGrowth",
+        "menu_title": "Outreach",
+        "capability": "lga_manage",
+        "callback": "Menu::render"
+      },
+      {
+        "submenu": "lga-backlinks",
+        "parent": "lga",
+        "page_title": "Backlinks – LinkGrowth",
+        "menu_title": "Backlinks",
+        "capability": "lga_manage",
+        "callback": "Menu::render"
+      },
+      {
+        "submenu": "lga-seo",
+        "parent": "lga",
+        "page_title": "On-site SEO – LinkGrowth",
+        "menu_title": "On-site SEO",
+        "capability": "lga_manage",
+        "callback": "Menu::render"
+      },
+      {
+        "submenu": "lga-automation",
+        "parent": "lga",
+        "page_title": "Automation – LinkGrowth",
+        "menu_title": "Automation",
+        "capability": "lga_manage",
+        "callback": "Menu::render"
+      },
+      {
+        "submenu": "lga-settings",
+        "parent": "lga",
+        "page_title": "Settings – LinkGrowth",
+        "menu_title": "Settings",
+        "capability": "lga_manage",
+        "callback": "Menu::render"
+      },
+      {"submenu":"lga-logs","parent":"lga","page_title":"Logs – LinkGrowth","menu_title":"Logs","capability":"lga_manage","callback":"Menu::render"}
+    ],
+    "submitter": [
+      {
+        "menu": "lga-submissions",
+        "page_title": "Link Submissions",
+        "menu_title": "Link Submissions",
+        "capability": "lga_submit_listings",
+        "callback": "Menu::render",
+        "icon": "dashicons-admin-links",
+        "position": 58
+      }
+    ]
+  },
+  "capabilities": {
+    "roles_after_activation": {
+      "administrator": {"name":null,"capabilities":["lga_manage"]},
+      "lga_link_submitter": {"name":"LinkGrowth Submitter","capabilities":["lga_submit_listings","read"]}
+    }
+  }
+}

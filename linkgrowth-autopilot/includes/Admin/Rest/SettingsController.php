@@ -31,72 +31,11 @@ use LinkGrowth\Autopilot\Support\Crypto;
 use LinkGrowth\Autopilot\Support\Redactor;
 use LinkGrowth\Autopilot\Support\Secrets;
 use LinkGrowth\Autopilot\Support\Settings;
+use LinkGrowth\Autopilot\Support\SettingsSchema;
 use LinkGrowth\Autopilot\Support\Url;
 use WP_REST_Request;
 
 final class SettingsController extends Controller {
-
-    /**
-     * Keys that services read but Settings::defaults() does not list; merged into the sanitising schema.
-     * `content.linkable_assets` is the optional asset list documented for LinkableAssets.
-     */
-    private const EXTRA_SCHEMA = [
-        'providers' => [
-            'seranking' => [ 'fetch_overview' => true, 'fetch_summary' => false ],
-            'ahrefs'    => [ 'fetch_metrics' => true ],
-        ],
-        'content'   => [ 'linkable_assets' => [] ],
-    ];
-
-    /** Clamp ranges for integer settings (by leaf key). */
-    private const INT_RANGES = [
-        'tick_interval'               => [ 60, 86400 ],
-        'max_execution_seconds'       => [ 15, 120 ], // the runner raises lower values to JobRunner::MIN_TICK_SECONDS
-        'send_window_start'           => [ 0, 23 ],
-        'send_window_end'             => [ 1, 24 ],
-        'request_timeout'             => [ 3, 60 ],
-        'crawl_delay_seconds'         => [ 0, 60 ],
-        'max_response_kb'             => [ 64, 8192 ],
-        'log_retention_days'          => [ 1, 365 ],
-        'audit_retention_days'        => [ 7, 3650 ],
-        'min_score_auto_queue'        => [ 0, 100 ],
-        'min_score_keep'              => [ 0, 100 ],
-        'results_per_query'           => [ 1, 50 ],
-        'query_cooldown_days'         => [ 0, 365 ],
-        'cache_days'                  => [ 1, 365 ],
-        'follow_up_days'              => [ 1, 60 ],
-        'max_follow_ups'              => [ 0, 3 ],
-        'min_days_between_contacts'   => [ 0, 365 ],
-        'lost_after_failures'         => [ 1, 10 ],
-        'check_interval_days_new'     => [ 1, 30 ],
-        'check_interval_days_stable'  => [ 1, 90 ],
-        'import_interval_days'        => [ 1, 90 ],
-        'import_limit'                => [ 10, 5000 ],
-        'max_tokens'                  => [ 200, 8000 ],
-        'google_cse_daily_limit'      => [ 0, 10000 ],
-        'brave_daily_limit'           => [ 0, 100000 ],
-        'audit_max_pages'             => [ 20, 5000 ],
-        'max_links_per_post'          => [ 1, 10 ],
-        'auto_apply_per_day'          => [ 1, 100 ],
-        'evaluate_rounds'             => [ 1, 20 ],
-        'step_seconds'                => [ 8, 25 ],
-    ];
-
-    /**
-     * Settings that POST /settings never writes (dot paths). The storefront acknowledgement is recorded only through
-     * POST /compliance/storefront/acknowledge (audited, hash-checked); the IndexNow key is generated once by
-     * Seo\IndexNow and must not be replaced from a form (search engines would have to verify a new key).
-     */
-    private const READ_ONLY = [
-        [ 'compliance', 'acknowledged_hash' ],
-        [ 'compliance', 'acknowledged_by' ],
-        [ 'compliance', 'acknowledged_at' ],
-        [ 'seo', 'indexnow_key' ],
-    ];
-
-    private const EMAIL_KEYS    = [ 'email', 'sender_email', 'reply_to', 'notify_email' ];
-    private const TEXTAREA_KEYS = [ 'signature', 'postal_address', 'address' ];
-    private const DOMAIN_LISTS  = [ 'competitor_domains', 'competitor_domains_auto', 'excluded_domains' ];
 
     private const TEST_PROVIDERS = [ 'seranking', 'ahrefs', 'semrush', 'moz', 'google_search_console', 'google_analytics_4', 'google_cse', 'brave', 'anthropic', 'sitekit', 'email' ];
 
@@ -192,9 +131,10 @@ final class SettingsController extends Controller {
         $before   = $settings->all();
         $changed  = [];
 
+        // Every value goes through the rule its module declares (Support\SettingsSchema): unknown keys, refused
+        // values and read-only keys (the storefront acknowledgement, the IndexNow key) are left out.
         $incoming = $request->get_param( 'settings' );
-        $clean    = is_array( $incoming ) && [] !== $incoming ? $this->sanitizeSettings( $incoming ) : [];
-        $clean    = self::dropReadOnly( $clean );
+        $clean    = is_array( $incoming ) && [] !== $incoming ? $this->c->get( SettingsSchema::class )->sanitize( $incoming ) : [];
 
         // Autopilot is switched only through Automation\Autopilot (consent record, revert on off), never stored as-is.
         $autopilot       = $this->c->get( Autopilot::class );
@@ -377,24 +317,6 @@ final class SettingsController extends Controller {
         return __( 'Turn on automatic internal links? Every day the engine will edit your published pages and posts without asking you first, adding the best internal-link suggestions (highest relevance first, up to the daily number under Settings → Automation → On-site SEO). WordPress keeps a revision of every page it changes, and “Undo automatic links” on the On-site SEO page removes them. To add a link to a page holding markup only an administrator may save (such as inline SVG diagrams or structured data), it saves that one change as your account, and it takes its own automatic links back out of pages whose template doesn’t display them. Confirm to proceed.', 'linkgrowth-autopilot' );
     }
 
-    /**
-     * Removes the READ_ONLY keys (and sections left empty by that) from a sanitised settings tree.
-     *
-     * @param array<string,mixed> $clean
-     * @return array<string,mixed>
-     */
-    private static function dropReadOnly( array $clean ): array {
-        foreach ( self::READ_ONLY as [ $section, $key ] ) {
-            if ( isset( $clean[ $section ] ) && is_array( $clean[ $section ] ) ) {
-                unset( $clean[ $section ][ $key ] );
-                if ( [] === $clean[ $section ] ) {
-                    unset( $clean[ $section ] );
-                }
-            }
-        }
-        return $clean;
-    }
-
     /** POST /settings/test {provider} @return array<string,mixed>|\WP_Error */
     public function test( WP_REST_Request $request ) {
         $provider = sanitize_key( $this->str( $request, 'provider', '', 40 ) );
@@ -472,244 +394,14 @@ final class SettingsController extends Controller {
     }
 
     // ------------------------------------------------------------------
-    // Settings sanitisation
+    // Settings sanitisation (the rules: Support\SettingsSchema, from the modules' settingsRules())
     // ------------------------------------------------------------------
-
-    /**
-     * Recursively sanitises a partial settings tree against the defaults schema; unknown keys are dropped.
-     *
-     * @param array<mixed> $input
-     * @return array<string,mixed>
-     */
-    private function sanitizeSettings( array $input ): array {
-        $schema = Settings::mergeDeep( Settings::defaults(), self::EXTRA_SCHEMA );
-        $out    = [];
-        foreach ( $input as $key => $value ) {
-            if ( ! is_string( $key ) || ! isset( $schema[ $key ] ) || ! is_array( $schema[ $key ] ) || ! is_array( $value ) ) {
-                continue;
-            }
-            $clean = $this->sanitizeNode( $value, $schema[ $key ], $key );
-            if ( [] !== $clean ) {
-                $out[ $key ] = $clean;
-            }
-        }
-        return $out;
-    }
-
-    /** @param array<mixed> $value @param array<mixed> $schema @return array<mixed> */
-    private function sanitizeNode( array $value, array $schema, string $path ): array {
-        if ( Settings::isList( $schema ) ) {
-            return $this->sanitizeList( $value, $schema, $path );
-        }
-        $out = [];
-        foreach ( $value as $key => $v ) {
-            if ( ! is_string( $key ) || ! array_key_exists( $key, $schema ) ) {
-                continue;
-            }
-            $default = $schema[ $key ];
-            if ( is_array( $default ) ) {
-                if ( is_string( $v ) && Settings::isList( $default ) ) {
-                    // Lists may arrive as newline/comma separated text.
-                    $v = preg_split( '/[\r\n,]+/', $v ) ?: [];
-                }
-                if ( ! is_array( $v ) ) {
-                    continue;
-                }
-                $node = $this->sanitizeNode( $v, $default, $path . '.' . $key );
-                // An empty object would replace the whole section through mergeDeep; only lists may be cleared.
-                if ( [] !== $node || Settings::isList( $default ) ) {
-                    $out[ $key ] = $node;
-                }
-                continue;
-            }
-            $clean = $this->sanitizeScalar( $v, $default, $path . '.' . $key );
-            if ( null !== $clean ) {
-                $out[ $key ] = $clean;
-            }
-        }
-        return $out;
-    }
-
-    /** @param array<mixed> $value @param array<mixed> $schema @return array<int,mixed> */
-    private function sanitizeList( array $value, array $schema, string $path ): array {
-        $leaf = (string) substr( strrchr( '.' . $path, '.' ), 1 );
-        if ( 'linkable_assets' === $leaf ) {
-            return $this->sanitizeAssets( $value );
-        }
-        $ints = isset( $schema[0] ) && is_int( $schema[0] );
-        $out  = [];
-        foreach ( array_slice( array_values( $value ), 0, 500 ) as $v ) {
-            if ( $ints ) {
-                if ( is_numeric( $v ) ) {
-                    $i = (int) $v;
-if ( 'send_days' === $leaf && ( $i < 0 || $i > 7 ) ) {
-                        continue;
-                    }
-                    $out[] = $i;
-                }
-                continue;
-            }
-            if ( ! is_scalar( $v ) ) {
-                continue;
-            }
-            $s = trim( sanitize_text_field( (string) $v ) );
-            if ( '' === $s ) {
-                continue;
-            }
-            if ( in_array( $leaf, self::DOMAIN_LISTS, true ) ) {
-                $s = self::domainValue( $s );
-                if ( '' === $s ) {
-                    continue;
-                }
-            } elseif ( 'social' === $leaf ) {
-                $s = self::validUrl( $s );
-                if ( '' === $s ) {
-                    continue;
-                }
-            }
-            $out[] = mb_substr( $s, 0, 500 );
-        }
-        return array_values( array_unique( $out, SORT_REGULAR ) );
-    }
-
-    private function sanitizeScalar( mixed $value, mixed $default, string $path ): mixed {
-        if ( is_array( $value ) || is_object( $value ) ) {
-            return null;
-        }
-        $key      = (string) substr( strrchr( '.' . $path, '.' ), 1 );
-        $provider = str_starts_with( $path, 'providers.' );
-        if ( 'automation.submission_mode' === $path ) {
-            $mode = strtolower( sanitize_key( (string) $value ) );
-            return in_array( $mode, \LinkGrowth\Autopilot\Submission\Policy::SUBMISSION_MODES, true ) ? $mode : 'auto';
-        }
-        if ( is_bool( $default ) ) {
-            if ( is_bool( $value ) ) {
-                return $value;
-            }
-            return filter_var( $value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE );
-        }
-        if ( is_int( $default ) ) {
-            if ( ! is_numeric( $value ) ) {
-                return null;
-            }
-            $i = (int) $value;
-            if ( isset( self::INT_RANGES[ $key ] ) ) {
-                [ $min, $max ] = self::INT_RANGES[ $key ];
-                return max( $min, min( $max, $i ) );
-            }
-            return max( 0, $i );
-        }
-        if ( is_float( $default ) ) {
-            return is_numeric( $value ) ? (float) $value : null;
-        }
-        $s = (string) $value;
-        if ( in_array( $key, self::EMAIL_KEYS, true ) ) {
-            $s = trim( $s );
-            if ( '' === $s ) {
-                return '';
-            }
-            $email = sanitize_email( $s );
-            return is_email( $email ) ? $email : null;
-        }
-        if ( str_ends_with( $key, '_url' ) ) {
-            $s = trim( $s );
-            if ( '' === $s ) {
-                return '';
-            }
-            $url = self::validUrl( $s );
-            return '' === $url ? null : $url;
-        }
-        if ( in_array( $key, self::TEXTAREA_KEYS, true ) ) {
-            return mb_substr( sanitize_textarea_field( $s ), 0, 2000 );
-        }
-        switch ( $key ) {
-            case 'log_level':
-                $s = sanitize_key( $s );
-                return in_array( $s, [ 'debug', 'info', 'warning', 'error' ], true ) ? $s : null;
-            case 'primary':
-                $s = sanitize_key( $s );
-                return in_array( $s, [ 'auto', 'google_cse', 'brave' ], true ) ? $s : null;
-            case 'model':
-                $s = strtolower( trim( $s ) );
-                if ( '' === $s ) {
-                    return ''; // No model: the AI writer stays off (AiWriter::isEnabled()).
-                }
-                return preg_match( '/^[a-z0-9\-\.]{3,80}$/', $s ) ? $s : null;
-            case 'region':
-            case 'database':
-                if ( ! $provider ) {
-                    break;
-                }
-                $s = strtolower( preg_replace( '/[^a-z0-9]/i', '', $s ) ?? '' );
-                return '' === $s ? null : substr( $s, 0, 10 );
-            case 'country':
-                $s = strtoupper( preg_replace( '/[^a-z]/i', '', $s ) ?? '' );
-                return 2 === strlen( $s ) ? $s : null;
-            case 'domain':
-                $d = self::domainValue( $s );
-                return '' === $d ? null : $d;
-            case 'founded_year':
-                $s = preg_replace( '/\D/', '', $s ) ?? '';
-                return substr( $s, 0, 4 );
-            case 'ga4_property_id':
-                return substr( preg_replace( '/\D/', '', $s ) ?? '', 0, 20 );
-            case 'user_agent':
-                $s = trim( sanitize_text_field( $s ) );
-                return '' === $s ? null : mb_substr( $s, 0, 255 );
-            case 'timezone':
-                // '' = derive (WordPress timezone, or the business region's zone when WordPress is on UTC).
-                $s = trim( $s );
-                return '' === $s || Compliance::validTimezone( $s ) ? $s : null;
-            case 'language_counterpart_meta_key':
-                // '' = no counterpart meta is read (Seo\PostLanguage); otherwise letters, digits and underscores only.
-                $s = trim( $s );
-                return '' === $s || '' !== \LinkGrowth\Autopilot\Seo\PostLanguage::validKey( $s ) ? $s : null;
-        }
-        return mb_substr( trim( sanitize_text_field( $s ) ), 0, 1000 );
-    }
-
-    /** @param array<mixed> $value @return array<int,array<string,mixed>> */
-    private function sanitizeAssets( array $value ): array {
-        $out = [];
-        foreach ( array_slice( array_values( $value ), 0, 100 ) as $asset ) {
-            if ( ! is_array( $asset ) ) {
-                continue;
-            }
-            $url   = self::validUrl( (string) ( is_scalar( $asset['url'] ?? null ) ? $asset['url'] : '' ) );
-            $title = trim( sanitize_text_field( (string) ( is_scalar( $asset['title'] ?? null ) ? $asset['title'] : '' ) ) );
-            if ( '' === $url || '' === $title ) {
-                continue;
-            }
-            $rawTopics = $asset['topics'] ?? [];
-            if ( is_string( $rawTopics ) ) {
-                $rawTopics = preg_split( '/[\r\n,]+/', $rawTopics ) ?: [];
-            }
-            $topics = [];
-            foreach ( array_slice( (array) $rawTopics, 0, 30 ) as $t ) {
-                if ( is_scalar( $t ) ) {
-                    $t = strtolower( trim( sanitize_text_field( (string) $t ) ) );
-                    if ( '' !== $t ) {
-                        $topics[] = mb_substr( $t, 0, 60 );
-                    }
-                }
-            }
-            $kind  = sanitize_key( (string) ( is_scalar( $asset['kind'] ?? null ) ? $asset['kind'] : 'guide' ) );
-            $out[] = [
-                'url'     => mb_substr( $url, 0, 700 ),
-                'title'   => mb_substr( $title, 0, 190 ),
-                'summary' => mb_substr( sanitize_textarea_field( (string) ( is_scalar( $asset['summary'] ?? null ) ? $asset['summary'] : '' ) ), 0, 1000 ),
-                'topics'  => array_values( array_unique( $topics ) ),
-                'kind'    => '' === $kind ? 'guide' : $kind,
-            ];
-        }
-        return $out;
-    }
 
     /**
      * Sanitised linkable assets whose title or summary fails the claims filter (LinkableAssets::isClean), with
      * what was found in each; [] when the save carries no assets or all of them are clean.
      *
-     * @param array<string,mixed> $clean Output of sanitizeSettings().
+     * @param array<string,mixed> $clean Output of SettingsSchema::sanitize().
      * @return array<int,array{index:int,title:string,url:string,problems:string[]}>
      */
     private function uncleanAssets( array $clean ): array {
@@ -748,7 +440,7 @@ if ( 'send_days' === $leaf && ( $i < 0 || $i > 7 ) ) {
             if ( ! is_array( $seed ) ) {
                 continue;
             }
-            $url = self::validUrl( (string) ( is_scalar( $seed['url'] ?? null ) ? $seed['url'] : '' ) );
+            $url = SettingsSchema::validUrl( (string) ( is_scalar( $seed['url'] ?? null ) ? $seed['url'] : '' ) );
             if ( '' === $url || isset( $seen[ $url ] ) ) {
                 continue;
             }
@@ -767,34 +459,11 @@ if ( 'send_days' === $leaf && ( $i < 0 || $i > 7 ) ) {
         return $out;
     }
 
-    /** Absolute http(s) URL with a dotted host, or '' when unusable. */
-    private static function validUrl( string $value ): string {
-        $url = esc_url_raw( trim( $value ) );
-        if ( '' === $url || ! preg_match( '#^https?://#i', $url ) ) {
-            return '';
-        }
-        $host = (string) wp_parse_url( $url, PHP_URL_HOST );
-        if ( '' === $host || ( ! str_contains( $host, '.' ) && 'localhost' !== strtolower( $host ) ) ) {
-            return '';
-        }
-        return mb_substr( $url, 0, 700 );
-    }
-
-    /** Host-only, lower-case domain value ('' when unusable). */
-    private static function domainValue( string $value ): string {
-        $value = strtolower( trim( $value ) );
-        if ( '' === $value ) {
-            return '';
-        }
-        $host = ( str_contains( $value, '/' ) || str_contains( $value, ':' ) ) ? Url::host( $value ) : $value;
-        $host = preg_replace( '/^www\./', '', $host ) ?? $host;
-        return preg_match( '/^(?:[a-z0-9](?:[a-z0-9\-]{0,61}[a-z0-9])?\.)+[a-z]{2,24}$/', $host ) ? $host : '';
-    }
-
     /**
-     * Writes secrets (write-only: values are never returned). `reasons` gives the cause for each rejected key:
-     * invalid_key (not a secret the plugin stores), too_long (over 20,000 characters) or
-     * invalid_service_account_json (not a Google service-account JSON key with client_email and private_key).
+     * Writes secrets (write-only: values are never returned). `reasons` gives the cause for each rejected key, from
+     * the secret rules of Support\SettingsSchema: invalid_key (not a secret the plugin stores), too_long (over 20,000
+     * characters) or invalid_service_account_json (not a Google service-account JSON key with client_email and
+     * private_key).
      *
      * @param array<mixed> $input
      * @return array{updated:string[],cleared:string[],rejected:string[],locked:string[],reasons:array<string,string>}
@@ -815,7 +484,7 @@ if ( 'send_days' === $leaf && ( $i < 0 || $i > 7 ) ) {
             if ( '' === $key ) {
                 continue;
             }
-            if ( ! Secrets::isValidKey( $key ) ) {
+            if ( null === SettingsSchema::secretRule( $key ) ) {
                 $reject( $key, 'invalid_key' );
                 continue;
             }
@@ -836,16 +505,10 @@ if ( 'send_days' === $leaf && ( $i < 0 || $i > 7 ) ) {
                 $this->clearProviderError( $key );
                 continue;
             }
-            if ( strlen( $value ) > 20000 ) {
-                $reject( $key, 'too_long' );
+            $problem = SettingsSchema::secretProblem( $key, $value );
+            if ( '' !== $problem ) {
+                $reject( $key, $problem );
                 continue;
-            }
-            if ( 'google_service_account_json' === $key ) {
-                $json = json_decode( $value, true );
-                if ( ! is_array( $json ) || empty( $json['client_email'] ) || empty( $json['private_key'] ) ) {
-                    $reject( $key, 'invalid_service_account_json' );
-                    continue;
-                }
             }
             $secrets->set( $key, $value );
             $result['updated'][] = $key;

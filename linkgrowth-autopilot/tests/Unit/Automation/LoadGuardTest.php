@@ -1,6 +1,6 @@
 <?php
 /**
- * 1.2.4 Automation\LoadGuard, Support\Opcache and Admin\SiteHealth: every pause reason (OPcache restarting with
+ * 1.2.4 Automation\LoadGuard, Support\Opcache and Health\SiteHealthTests: every pause reason (OPcache restarting with
  * opcache_get_status stubbed, absent, refused with a warning or throwing; an UpdraftPlus event present, absent, far
  * ahead or long overdue; the update window; both filters), the answer kept per request, the once-per-pause log, a
  * full OPcache that never pauses anything, and the Site Health / Overview warning levels.
@@ -11,7 +11,7 @@ declare(strict_types=1);
 namespace LinkGrowth\Autopilot\Tests\Unit\Automation;
 
 use LinkGrowth\Autopilot\Admin\Rest\OverviewController;
-use LinkGrowth\Autopilot\Admin\SiteHealth;
+use LinkGrowth\Autopilot\Health\SiteHealthTests;
 use LinkGrowth\Autopilot\Automation\LoadGuard;
 use LinkGrowth\Autopilot\Automation\Pipeline;
 use LinkGrowth\Autopilot\Compliance\PositioningGate;
@@ -106,8 +106,8 @@ final class LoadGuardTest extends TestCase {
     }
 
     /** The Site Health test over $opcache on a server whose memory is not known (the advice for any size). */
-    private static function health( Opcache $opcache ): SiteHealth {
-        return new SiteHealth( $opcache, self::quietServer() );
+    private static function health( Opcache $opcache ): SiteHealthTests {
+        return new SiteHealthTests( $opcache, self::quietServer() );
     }
 
     // ------------------------------------------------------------------
@@ -605,7 +605,7 @@ final class LoadGuardTest extends TestCase {
 
     public function testOverviewCarriesTheWarningOnlyWhenCritical(): void {
         $c = Container::plugin()->container();
-        $c->set( SiteHealth::class, self::health( new Opcache( static fn() => self::liveStatus() ) ) );
+        $c->set( SiteHealthTests::class, self::health( new Opcache( static fn() => self::liveStatus() ) ) );
         $GLOBALS['lga_test_caps'] = [ 'manage_options' => true ];
         $data = ( new OverviewController( $c ) )->overview( new WP_REST_Request( 'GET', '/lga/v1/overview' ) );
         $this->assertIsArray( $data['opcache'] );
@@ -618,7 +618,7 @@ final class LoadGuardTest extends TestCase {
         $this->assertArrayHasKey( 'paused', $data['automation'], 'the automation status says whether work is paused' );
 
         foreach ( [ self::opStatus( 92, 40 ), self::opStatus( 40, 40 ) ] as $status ) {
-            $c->set( SiteHealth::class, self::health( new Opcache( static fn() => $status ) ) );
+            $c->set( SiteHealthTests::class, self::health( new Opcache( static fn() => $status ) ) );
             $data = ( new OverviewController( $c ) )->overview( new WP_REST_Request( 'GET', '/lga/v1/overview' ) );
             $this->assertNull( $data['opcache'], 'recommended or good: Site Health only' );
         }

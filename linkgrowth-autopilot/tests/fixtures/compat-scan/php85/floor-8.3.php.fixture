@@ -1,0 +1,60 @@
+<?php
+// Seeded PHP 8.3 features for `bin/php85-scan.sh --min=8.1` (the acceptance fixture "a json_validate call").
+// The guarded calls below must not be reported.
+namespace Fixture\Floor83;
+
+$s = '{}';
+$valid = json_validate($s); // expect: new-function
+if (function_exists('json_validate')) {
+    $valid = json_validate($s);
+}
+$valid = function_exists('json_validate') ? json_validate($s) : null !== json_decode($s);
+$valid = \function_exists('json_validate') && json_validate($s);
+if (PHP_VERSION_ID >= 80300) {
+    $valid = json_validate($s);
+}
+if (\PHP_VERSION_ID < 80300) {
+    $valid = null !== json_decode($s);
+} else {
+    $valid = json_validate($s);
+}
+if (version_compare(PHP_VERSION, '8.3.0', '>=')) {
+    $valid = json_validate($s);
+}
+function early(string $s): bool
+{
+    if (!function_exists('json_validate')) {
+        return null !== json_decode($s);
+    }
+    return json_validate($s);
+}
+function earlyDeclaresAnother(string $s): bool
+{
+    if (!function_exists('json_validate')) {
+        function unrelatedHelper(): void {}
+    }
+    return json_validate($s); // expect: new-function
+}
+if (PHP_VERSION_ID >= 80200) {
+    $valid = json_validate($s); // expect: new-function
+}
+if (function_exists('json_encode')) {
+    $valid = json_validate($s); // expect: new-function
+}
+$valid = function_exists('json_validate') ? true : json_validate($s); // expect: new-function
+$padded = mb_str_pad('a', 3); // expect: new-function
+$next = str_increment('a'); // expect: new-function
+class Base
+{
+    public const string NAME = 'base'; // expect: typed-constant
+    public function run(): void {}
+}
+class Child extends Base
+{
+    #[\Override] // expect: override-attribute
+    public function run(): void {}
+}
+$which = 'NAME';
+$name = Base::{$which}; // expect: dynamic-const-fetch
+$anon = new readonly class {}; // expect: readonly-class
+$bytes = (new \Random\Randomizer())->getBytesFromString('abc', 4); // expect: new-class, new-method

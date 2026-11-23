@@ -2,7 +2,7 @@
 /**
  * How hard the server is working: the 1-minute load average, the number of CPUs and the memory (MemTotal,
  * MemAvailable), read as cheaply as PHP allows and only when someone asks: Automation\LoadGuard while it decides a
- * pause (scheduler tick, kick, Grow now step, the admin status), Admin\SiteHealth for its OPcache advice. Never on an
+ * pause (scheduler tick, kick, Grow now step, the admin status), Health\SiteHealthTests for its OPcache advice. Never on an
  * ordinary page view.
  *
  * Linux only, through what the kernel provides: sys_getloadavg() for the load, /proc/meminfo for the memory, and

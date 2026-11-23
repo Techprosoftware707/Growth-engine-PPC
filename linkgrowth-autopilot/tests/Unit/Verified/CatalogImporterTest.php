@@ -508,7 +508,7 @@ final class CatalogImporterTest extends TestCase {
         $res = $controller->verifiedImport( new WP_REST_Request( 'POST', '/lga/v1/submissions/verified/import' ) );
         $this->assertTrue( $res['ok'] );
         $this->assertSame( 100, $res['result']['processed'] );
-        // CatalogImportJob is registered (JobRunner::BUILTIN): the rest is queued for the background runner.
+        // CatalogImportJob is registered (Discovery\DiscoveryModule::jobs()): the rest is queued for the background runner.
         $this->assertStringContainsString( 'queued', $res['message'], 'with the job registered the remaining items are queued' );
         $this->assertSame( 1, Container::get( Jobs::class )->count( [ 'type' => 'import_verified', 'status' => Jobs::STATUS_QUEUED ] ) );
         Container::get( Jobs::class )->cancelQueued( 'import_verified' );

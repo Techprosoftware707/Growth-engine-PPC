@@ -1,0 +1,120 @@
+<?php
+// Near misses that bin/php85-scan.sh --min=8.1 must NOT report: valid PHP 8.1 code without deprecations.
+// Comments may say `case X;`, `default;`, (integer), json_validate( $s ) or `ls` without being findings.
+declare(strict_types=1);
+
+namespace Fixture\Clean;
+
+/**
+ * Doc comments too: `readonly class`, array_find(), E_STRICT, $http_response_header, ${name}.
+ */
+enum Suit: string
+{
+    case Hearts = 'H';
+    case Spades = 'S';
+
+    public function label(): string
+    {
+        switch ($this) {
+            case self::Hearts:
+                return 'hearts';
+            default:
+                return 'other';
+        }
+    }
+}
+enum Plain
+{
+    case One;
+    case Two;
+}
+final class Point
+{
+    public const ORIGIN = 0;
+
+    public function __construct(public readonly int $x = 0, public readonly ?int $y = null)
+    {
+    }
+
+    public function withX(int $x): static
+    {
+        return new static($x, $this->y);
+    }
+
+    public function __serialize(): array
+    {
+        return ['x' => $this->x];
+    }
+
+    public function __unserialize(array $data): void
+    {
+    }
+}
+interface Runs
+{
+    public const NAME = 'runs';
+
+    public function run(): void;
+}
+trait Greets
+{
+    public function hi(): string
+    {
+        return 'hi';
+    }
+}
+function nullable(?int $a = null, int|null $b = null, mixed $c = null, $d = null, int ...$rest): ?int
+{
+    return $a ?? $b;
+}
+function ternary(bool $f): ?string
+{
+    return $f ? strtolower('A') : null;
+}
+function falsy(bool $f): string|false
+{
+    return $f ? 'a' : false;
+}
+function bitwise(): int
+{
+    return (E_ALL & ~E_NOTICE) | E_WARNING;
+}
+function secret(#[\SensitiveParameter] string $password): int
+{
+    return strlen($password);
+}
+$table = 'items';
+$sql = "SELECT `id` FROM `{$table}` WHERE `x` = 1";
+$quoted = 'SHOW TABLES LIKE `x`';
+$heredoc = <<<SQL
+    SELECT `a` FROM `{$table}`
+    SQL;
+$number = (int) '1' + (float) '1.5' + (int) (bool) 1;
+$text = (string) 1;
+$list = [null, 1];
+$first = $list[0] ?? null;
+$fn = static fn(int $v): int => $v;
+$count = (new \ArrayObject([]))->count();
+$copy = clone (new \stdClass());
+$rows = str_getcsv('a,b', ',', '"', '\\');
+$x = 1;
+$m = match ($x) {
+    1 => 'one',
+    default => 'other',
+};
+$strict = 'E_STRICT';
+$valid = function_exists('json_validate') ? json_validate('{}') : null !== json_decode('{}');
+$method = new \ReflectionMethod(\Exception::class, 'getMessage');
+$len = strlen(...);
+$obj = new \stdClass();
+$prop = $obj?->name;
+$level = E_ALL;
+$rand = class_exists(\Random\Randomizer::class) ? new \Random\Randomizer() : null;
+$values = ['k' => null, 'j' => [null], 'n' => \null];
+$none = match (null) {
+    null => 'none',
+    default => 'some',
+};
+$all = \E_ALL;
+const E_STRICT = 0;
+$own = \Fixture\Clean\E_STRICT;

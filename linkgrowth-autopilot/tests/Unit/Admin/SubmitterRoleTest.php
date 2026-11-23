@@ -19,6 +19,7 @@ use LinkGrowth\Autopilot\Repositories\Prospects;
 use LinkGrowth\Autopilot\Repositories\Submissions;
 use LinkGrowth\Autopilot\Tests\Support\Container;
 use LinkGrowth\Autopilot\Tests\Support\TestCase;
+use LinkGrowth\Autopilot\Tests\Support\Wp2Modules;
 use WP_Error;
 use WP_REST_Request;
 use WP_REST_Response;
@@ -702,7 +703,10 @@ final class SubmitterRoleTest extends TestCase {
 
         $config = $menu->config( 'settings' );
         $this->assertFalse( $config['capabilities']['submitOnly'] );
-        $this->assertSame( Menu::PAGE_KEYS, array_keys( $config['pages'] ) );
+        // Every page, in navigation order (Menu::PAGE_KEYS before WP2; the modules declare the pages now, and a later
+        // package's module may add its own).
+        $this->assertSame( Wp2Modules::PAGES, Wp2Modules::only( array_keys( $config['pages'] ), Wp2Modules::PAGES ) );
+        $this->assertSame( Wp2Modules::only( array_keys( Menu::pages() ), array_keys( $config['pages'] ) ), array_keys( $config['pages'] ), 'in navigation order' );
         $this->assertSame( 'https://northwind.test/wp-admin/user-new.php', $config['newUserUrl'] );
         $this->assertSame( [ 'slug' => 'lga_link_submitter', 'name' => 'LinkGrowth Submitter' ], $config['submitterRole'] );
         $this->assertTrue( $menu->allowSubmitterAdmin( true ), 'administrators are not affected' );

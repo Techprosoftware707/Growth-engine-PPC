@@ -1,0 +1,95 @@
+<?php
+// Seeded PHP 8.1-8.5 deprecations for bin/php85-scan.sh. Each line that must be reported ends with an
+// "expect:" comment naming the rule; no other line may be reported. Never executed by the test suite.
+namespace Fixture\Deprecations;
+
+function implicit(int $a = null) {} // expect: implicit-nullable
+function implicitUnion(int|string $a = null, ?int $ok = null, int|null $ok2 = null, mixed $ok3 = null, $ok4 = null) {} // expect: implicit-nullable
+$arrow = fn(\DateTime $d = null) => $d; // expect: implicit-nullable
+class Holder
+{
+    public function method(
+        array $list = null, // expect: implicit-nullable
+        ?array $ok = null
+    ) {
+    }
+
+    public function __sleep() { return []; } // expect: sleep-wakeup
+
+    public function __wakeup() {} // expect: sleep-wakeup
+}
+$i = (integer) '1'; // expect: noncanonical-cast
+$b = (boolean) 1; // expect: noncanonical-cast
+$d = (double) '1.5'; // expect: noncanonical-cast
+$s = (binary) 'x'; // expect: noncanonical-cast
+$out = `echo`; // expect: backtick
+switch ($i) {
+    case 1; // expect: case-semicolon
+        break;
+    case \PHP_INT_MAX; // expect: case-semicolon
+        break;
+    case \DateTimeInterface::ATOM; // expect: case-semicolon
+        break;
+    default; // expect: case-semicolon
+}
+$map = ['a' => 1];
+$v = $map[null] ?? 0; // expect: null-offset
+$has = array_key_exists(null, $map); // expect: null-offset
+$ch = curl_init();
+curl_close($ch); // expect: noop-close
+$fi = finfo_open();
+finfo_close($fi); // expect: noop-close
+$xp = xml_parser_create();
+xml_parser_free($xp); // expect: noop-close
+$im = imagecreatetruecolor(1, 1);
+imagedestroy($im); // expect: noop-close
+$sh = curl_share_init();
+curl_share_close($sh); // expect: noop-close
+$rp = new \ReflectionProperty(\Exception::class, 'message');
+$rp->setAccessible(true); // expect: set-accessible
+$rm = new \ReflectionMethod('Exception::getMessage'); // expect: reflection-method-1
+$level = E_ALL & ~E_STRICT; // expect: e-strict
+$r = lcg_value(); // expect: lcg-value
+$f1 = DATE_RFC7231; // expect: date-rfc7231
+$f2 = \DateTimeInterface::RFC7231; // expect: date-rfc7231
+$rows = str_getcsv('a,b'); // expect: csv-escape
+$fh = fopen('php://memory', 'w+');
+fputcsv($fh, ['a'], ',', '"'); // expect: csv-escape
+rewind($fh);
+$row = fgetcsv($fh, 0, ','); // expect: csv-escape
+$file = new \SplFileObject('php://memory', 'w+');
+$file->setCsvControl(',', '"'); // expect: csv-escape
+$file->fputcsv(['a']); // expect: csv-escape
+function headers() { return $http_response_header; } // expect: http-response-header
+$flag = \PDO::SQLITE_DETERMINISTIC; // expect: pdo-driver-constant
+$pdo = new \PDO('sqlite::memory:');
+$pdo->sqliteCreateFunction('twice', static fn(int $v): int => 2 * $v); // expect: pdo-driver-method
+trigger_error('stop', E_USER_ERROR); // expect: user-error
+$name = 'x';
+$msg = "value ${name}"; // expect: dollar-brace
+$enc = utf8_encode('x'); // expect: deprecated-function
+$filter = FILTER_SANITIZE_STRING; // expect: deprecated-constant
+// Fully qualified constants and null offsets, and null keys of array literals (PHP 8.5.13 raises all of these).
+$fqLevel = E_ALL & ~\E_STRICT; // expect: e-strict
+$fqFormat = \DATE_RFC7231; // expect: date-rfc7231
+$fqFilter = \FILTER_SANITIZE_STRING; // expect: deprecated-constant
+$fqMode = \MT_RAND_PHP; // expect: deprecated-constant
+$fqOffset = $map[\null] ?? 0; // expect: null-offset
+$literal = [null => 1]; // expect: null-offset
+$long = array('k' => 1, NULL => 2); // expect: null-offset
+$nested = ['a' => [\null => 3]]; // expect: null-offset
+// Runtime deprecations inside a PHP_VERSION_ID branch that never runs on the deprecating version: not reported.
+if (PHP_VERSION_ID < 80100) {
+    $rp->setAccessible(true);
+}
+if (\PHP_VERSION_ID < 80500) {
+    curl_close($ch);
+} else {
+    $closed = true;
+}
+if (version_compare(PHP_VERSION, '8.4', '<')) {
+    $level = E_ALL & ~E_STRICT;
+}
+if (PHP_VERSION_ID < 80600) {
+    curl_close($ch); // expect: noop-close
+}

@@ -31,7 +31,7 @@ final class Assets {
 
         wp_enqueue_style( self::HANDLE, LGA_URL . 'assets/css/admin.css', [], $this->fileVersion( 'assets/css/admin.css', $version ) );
 
-        if ( function_exists( 'wp_enqueue_script_module' ) ) {
+        if ( self::adminPrintsScriptModules() ) {
             // app.js loads its siblings with relative specifiers ('./api.js', '../ui.js', './pages/x.js'), which
             // the browser resolves without the entry's ?ver= and which caches (Cloudflare, browser) would keep
             // serving stale after an update. Registering each sibling under its unversioned URL puts that URL
@@ -47,9 +47,20 @@ final class Assets {
             return;
         }
 
-        // WordPress < 6.5: classic enqueue with a type="module" tag.
+        // WordPress 6.5 (script modules print on the front end only) and older: classic enqueue with a type="module"
+        // tag. The relative imports then load without the import map's versions.
         wp_enqueue_script( self::HANDLE, LGA_URL . 'assets/js/app.js', [], $version, true );
         add_filter( 'script_loader_tag', [ $this, 'moduleTag' ], 10, 3 );
+    }
+
+    /**
+     * True when WordPress prints enqueued script modules on admin screens. The Script Modules API arrived in 6.5,
+     * but 6.5 prints them only in wp_head/wp_footer, so a module enqueued in wp-admin never reached the page there;
+     * 6.6 added the admin_print_footer_scripts printers (DESIGN.md §11.8, found by the compat-min run, WP12).
+     */
+    public static function adminPrintsScriptModules(): bool {
+        return function_exists( 'wp_enqueue_script_module' ) && function_exists( 'wp_script_modules' )
+            && false !== has_action( 'admin_print_footer_scripts', [ wp_script_modules(), 'print_enqueued_script_modules' ] );
     }
 
     /** Turns the classic script tag for our handle into an ES module tag. */

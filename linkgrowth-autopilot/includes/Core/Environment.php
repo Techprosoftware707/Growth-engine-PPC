@@ -204,7 +204,7 @@ final class Environment {
         } catch ( \Throwable $e ) {
             return []; // a database layer that cannot list tables reports nothing rather than failing the check
         }
-        $own    = array_map( static fn( string $t ): string => $prefix . $t, Schema::TABLES );
+        $own    = array_map( static fn( string $t ): string => $prefix . $t, Schema::names() );
         return array_values( array_diff( array_map( 'strval', $found ), $own ) );
     }
 

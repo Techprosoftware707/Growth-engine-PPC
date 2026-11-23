@@ -1,6 +1,8 @@
 <?php
 /**
- * Orchestrates automation stages: cadence-based enqueueing, direct runs and status.
+ * Orchestrates automation stages: on every tick it enqueues the scheduled tasks Automation\TaskRegistry lets through
+ * (DESIGN.md §5.1, §5.2; the engine's hard-coded stages() list is gone since WP2), runs stages directly and reports
+ * their status.
  *
  * @package LinkGrowth\Autopilot
  */
@@ -9,18 +11,9 @@ declare(strict_types=1);
 
 namespace LinkGrowth\Autopilot\Automation;
 
-use LinkGrowth\Autopilot\Automation\Jobs\EvaluateJob;
 use LinkGrowth\Autopilot\Container;
-use LinkGrowth\Autopilot\Discovery\CatalogImporter;
 use LinkGrowth\Autopilot\Growth\GrowthRun;
-use LinkGrowth\Autopilot\Monitoring\Notifier;
-use LinkGrowth\Autopilot\Outreach\Compliance;
-use LinkGrowth\Autopilot\Outreach\OutreachEngine;
-use LinkGrowth\Autopilot\Repositories\Backlinks;
 use LinkGrowth\Autopilot\Repositories\Jobs;
-use LinkGrowth\Autopilot\Repositories\Prospects;
-use LinkGrowth\Autopilot\Repositories\Submissions;
-use LinkGrowth\Autopilot\Seo\IndexNow;
 use LinkGrowth\Autopilot\Support\Limits;
 use LinkGrowth\Autopilot\Support\Logger;
 use LinkGrowth\Autopilot\Support\Settings;
@@ -47,7 +40,8 @@ final class Pipeline {
         private Settings $settings,
         private Limits $limits,
         private Logger $logger,
-        private ?LoadGuard $guard = null
+        private ?LoadGuard $guard = null,
+        private ?TaskRegistry $tasks = null
     ) {}
 
     /**
@@ -154,6 +148,20 @@ final class Pipeline {
             if ( $pending ) {
                 return null;
             }
+        } catch ( Throwable $e ) {
+            $this->logger->error( 'automation', 'Could not enqueue stage: ' . $e->getMessage(), [ 'type' => $type ] );
+            return null;
+        }
+        return $this->insertStage( $type, $payload, $priority, $manual );
+    }
+
+    /**
+     * Adds the job row (the duplicate check is the caller's: enqueueStage(), or TaskRegistry's lock gate on a tick).
+     *
+     * @param array<string,mixed> $payload
+     */
+    private function insertStage( string $type, array $payload, int $priority, bool $manual ): ?int {
+        try {
             $id = $this->jobs->enqueue( $type, $payload, $priority );
         } catch ( Throwable $e ) {
             $this->logger->error( 'automation', 'Could not enqueue stage: ' . $e->getMessage(), [ 'type' => $type ] );
@@ -218,13 +226,22 @@ final class Pipeline {
         foreach ( self::FLAGS as $flag ) {
             $flags[ $flag ] = (bool) $this->settings->get( 'automation.' . $flag, false );
         }
-        $stages = [];
-        foreach ( $this->stages() as $type => $stage ) {
-            $stages[ $type ] = [
-                'priority' => $stage['priority'],
-                'cadence'  => $stage['cadence'],
-                'flag'     => $stage['flag'],
+        // The scheduled tasks in tick order, then the registered job types no task schedules (custom ones), which are
+        // still listed for the dashboard.
+        $stages   = [];
+        $types    = $this->runner->types();
+        $registry = $this->tasks();
+        foreach ( $registry->tasks( $types ) as $task ) {
+            $stages[ $task->jobType ] = [
+                'priority' => $task->priority,
+                'cadence'  => $registry->schedule( $task )['cadence'],
+                'flag'     => $task->module,
             ];
+        }
+        foreach ( $types as $type => $class ) {
+            if ( ! isset( $stages[ $type ] ) ) {
+                $stages[ $type ] = [ 'priority' => max( 1, min( 9, (int) $class::priority() ) ), 'cadence' => 'manual', 'flag' => '' ];
+            }
         }
         $queue = [];
         $recent = [];
@@ -364,169 +381,35 @@ final class Pipeline {
     }
 
     /**
-     * Stage definitions: cadence in seconds (0 = every tick, subject to the optional due-check),
-     * governing automation flag ('' = none) and priority from the job class.
+     * Enqueues every scheduled task TaskRegistry::gate() lets through, in tick order (DESIGN.md §5.2; the engine's
+     * stage rule: the automation flag, the interval since the stage's last run, the due-check, no duplicate job).
      *
-     * @return array<string,array{every:int,flag:string,due:?string,priority:int,cadence:string}>
+     * @return string[] enqueued job types
      */
-    private function stages(): array {
-        $importDays = max( 1, (int) $this->settings->get( 'monitoring.import_interval_days', 7 ) );
-        // Automatic internal links (seo.auto_apply_links or Autopilot) run daily so the daily cap is used.
-        $autoLinks  = (bool) $this->settings->get( 'seo.internal_links', true ) && $this->autopilot()->autoApplyLinks();
-        $defs       = [
-            'discover'           => [ 'every' => DAY_IN_SECONDS, 'flag' => 'discovery', 'due' => null, 'cadence' => 'daily' ],
-            'mention_scan'       => [ 'every' => WEEK_IN_SECONDS, 'flag' => 'discovery', 'due' => null, 'cadence' => 'weekly' ],
-            'evaluate'           => [ 'every' => 0, 'flag' => 'evaluation', 'due' => 'evaluateDue', 'cadence' => 'every tick (when prospects are due)' ],
-            'find_opportunities' => [ 'every' => 0, 'flag' => 'opportunities', 'due' => 'opportunitiesDue', 'cadence' => 'every tick (when qualified prospects lack opportunities)' ],
-            'storefront_audit'   => [ 'every' => DAY_IN_SECONDS, 'flag' => '', 'due' => null, 'cadence' => 'daily (and when products, product categories/tags or menus change)' ],
-            'import_verified'    => [ 'every' => 0, 'flag' => '', 'due' => 'verifiedImportDue', 'cadence' => 'when the bundled verified opportunity data changes' ],
-            'package'            => [ 'every' => HOUR_IN_SECONDS, 'flag' => 'packaging', 'due' => null, 'cadence' => 'hourly' ],
-            'submit'             => [ 'every' => 0, 'flag' => 'submissions', 'due' => 'submitDue', 'cadence' => 'every tick (when approved submissions are queued)' ],
-            'verify_listings'    => [ 'every' => 6 * HOUR_IN_SECONDS, 'flag' => '', 'due' => null, 'cadence' => 'every 6 hours' ],
-            'outreach_send'      => [ 'every' => 0, 'flag' => '', 'due' => 'outreachDue', 'cadence' => 'every tick inside the send window (when approved messages are ready)' ],
-            'auto_outreach'      => [ 'every' => DAY_IN_SECONDS, 'flag' => '', 'due' => null, 'cadence' => 'daily' ],
-            'follow_ups'         => [ 'every' => DAY_IN_SECONDS, 'flag' => '', 'due' => null, 'cadence' => 'daily' ],
-            'monitor_backlinks'  => [ 'every' => 0, 'flag' => 'monitoring', 'due' => 'monitorDue', 'cadence' => 'every tick (when backlinks are due)' ],
-            'import_backlinks'   => [ 'every' => $importDays * DAY_IN_SECONDS, 'flag' => 'imports', 'due' => null, 'cadence' => sprintf( 'every %d days', $importDays ) ],
-            'cleanup'            => [ 'every' => DAY_IN_SECONDS, 'flag' => '', 'due' => null, 'cadence' => 'daily' ],
-            'metrics_refresh'    => [ 'every' => WEEK_IN_SECONDS, 'flag' => '', 'due' => null, 'cadence' => 'weekly' ],
-            'site_audit'         => [ 'every' => DAY_IN_SECONDS, 'flag' => '', 'due' => null, 'cadence' => 'daily' ],
-            'indexnow'           => [ 'every' => HOUR_IN_SECONDS, 'flag' => '', 'due' => 'indexnowDue', 'cadence' => 'hourly (when URLs are waiting)' ],
-            'internal_links'     => $autoLinks
-                ? [ 'every' => DAY_IN_SECONDS, 'flag' => '', 'due' => null, 'cadence' => sprintf( 'daily (applies up to %d links automatically)', $this->autopilot()->linksPerDay() ) ]
-                : [ 'every' => WEEK_IN_SECONDS, 'flag' => '', 'due' => null, 'cadence' => 'weekly (suggestions only)' ],
-        ];
-        $types = $this->runner->types();
-        $out   = [];
-        foreach ( $defs as $type => $def ) {
-            if ( ! isset( $types[ $type ] ) ) {
-                continue;
-            }
-            $def['priority'] = max( 1, min( 9, (int) $types[ $type ]::priority() ) );
-            $out[ $type ]    = $def;
-        }
-        // Registered-but-unscheduled types (e.g. broken_link_scan, custom ones) are still listed for the dashboard.
-        foreach ( $types as $type => $class ) {
-            if ( ! isset( $out[ $type ] ) ) {
-                $out[ $type ] = [ 'every' => -1, 'flag' => '', 'due' => null, 'cadence' => 'manual', 'priority' => max( 1, min( 9, (int) $class::priority() ) ) ];
-            }
-        }
-        return $out;
-    }
-
-    /** @return string[] enqueued types */
     private function enqueueDueStages(): array {
         $enqueued = [];
         $runs     = $this->stageRuns();
         $now      = time();
-        foreach ( $this->stages() as $type => $stage ) {
-            if ( $stage['every'] < 0 ) {
-                continue; // manual-only
-            }
+        $registry = $this->tasks();
+        $context  = Context::scheduler( $now, $runs );
+        foreach ( $registry->tasks() as $task ) {
             try {
-                if ( '' !== $stage['flag'] && ! $this->autopilot()->flag( $stage['flag'] ) ) {
+                if ( '' !== $registry->gate( $task, $context ) ) {
                     continue;
                 }
-                $last = isset( $runs[ $type ] ) ? (int) strtotime( (string) $runs[ $type ] ) : 0;
-                if ( $stage['every'] > 0 && $last > 0 && ( $now - $last ) < $stage['every'] ) {
-                    continue;
-                }
-                if ( null !== $stage['due'] && ! $this->{$stage['due']}() ) {
-                    continue;
-                }
-                $id = $this->enqueueStage( $type, [], $stage['priority'] );
+                $id = $this->insertStage( $task->jobType, [], $task->priority, false );
                 if ( null !== $id ) {
-                    $enqueued[]     = $type;
-                    $runs[ $type ] = gmdate( 'c', $now );
+                    $enqueued[]              = $task->jobType;
+                    $runs[ $task->jobType ] = gmdate( 'c', $now );
                 }
             } catch ( Throwable $e ) {
-                $this->logger->error( 'automation', 'Stage scheduling failed: ' . $e->getMessage(), [ 'type' => $type ] );
+                $this->logger->error( 'automation', 'Stage scheduling failed: ' . $e->getMessage(), [ 'type' => $task->jobType ] );
             }
         }
         if ( [] !== $enqueued ) {
             update_option( self::OPTION_STAGE_RUNS, $runs, false );
         }
         return $enqueued;
-    }
-
-    private function evaluateDue(): bool {
-        if ( ! $this->limits->allow( 'evaluations' ) ) {
-            return false;
-        }
-        $prospects = $this->container()->get( Prospects::class );
-        // Machine-parked prospects (unreachable / evaluation error) also need the stage once their retry is due.
-        return [] !== $prospects->dueForEvaluation( 1 ) || [] !== EvaluateJob::retryDue( $prospects, 1 );
-    }
-
-    private function opportunitiesDue(): bool {
-        return [] !== $this->container()->get( Prospects::class )->qualifiedWithoutOpportunities( 1 );
-    }
-
-    private function submitDue(): bool {
-        if ( ! $this->limits->allow( 'submissions' ) ) {
-            return false;
-        }
-        return [] !== $this->container()->get( Submissions::class )->readyToProcess( 1 );
-    }
-
-    private function outreachDue(): bool {
-        if ( ! $this->limits->allow( 'outreach_emails' ) ) {
-            return false;
-        }
-        // Only rows the send stage may actually send (active, uncapped campaign; scheduled rows only with autosend
-        // on), so held-back messages do not queue a send job that does nothing on every tick. Rows left "sending"
-        // by a run that died also make it due, because the send stage is what marks them failed.
-        $engine = $this->container()->get( OutreachEngine::class );
-        if ( $engine->hasStaleClaims() ) {
-            return true;
-        }
-        // Outside the send window (by default weekdays 9-17, about 24 % of the week) the stage could only skip every
-        // message as "outside_send_window": measured on a test copy on a Sunday, a no-op send job on each of 15 ticks
-        // (an idle tick: 36 queries and 10 write queries; 22 and 3 without it). The stage is due again on the first
-        // tick inside the window; nothing waits longer than before.
-        if ( ! $this->container()->get( Compliance::class )->withinSendWindow() ) {
-            return false;
-        }
-        return $engine->hasSendable();
-    }
-
-    private function monitorDue(): bool {
-        if ( $this->limits->allow( 'backlink_checks' ) && [] !== $this->container()->get( Backlinks::class )->dueForCheck( 1 ) ) {
-            return true;
-        }
-        return $this->digestDue();
-    }
-
-    /**
-     * IndexNow has URLs waiting (changed posts queued by the save hooks, the first submission, or the daily
-     * comparison) and may submit (production site, search engines not discouraged, no back-off running).
-     */
-    private function indexnowDue(): bool {
-        try {
-            return class_exists( IndexNow::class ) && $this->container()->get( IndexNow::class )->isDue();
-        } catch ( Throwable $e ) {
-            return false;
-        }
-    }
-
-    /** The bundled verified opportunity data has a version that is not fully imported (or a pass is unfinished). */
-    private function verifiedImportDue(): bool {
-        try {
-            return class_exists( CatalogImporter::class ) && $this->container()->get( CatalogImporter::class )->needsImport();
-        } catch ( Throwable $e ) {
-            return false;
-        }
-    }
-
-    private function digestDue(): bool {
-        try {
-            if ( ! class_exists( Notifier::class ) ) {
-                return false;
-            }
-            return (bool) $this->container()->get( Notifier::class )->digestDue();
-        } catch ( Throwable $e ) {
-            return false;
-        }
     }
 
     /**
@@ -599,6 +482,16 @@ final class Pipeline {
 
     private function container(): Container {
         return $this->runner->container();
+    }
+
+    /** The task registry (the container's, so a request collects the modules' tasks with one registry). */
+    private function tasks(): TaskRegistry {
+        if ( null === $this->tasks ) {
+            $c           = $this->container();
+            $svc         = $c->has( TaskRegistry::class ) ? $c->get( TaskRegistry::class ) : null;
+            $this->tasks = $svc instanceof TaskRegistry ? $svc : new TaskRegistry( $c, \LinkGrowth\Autopilot\Plugin::instance()->modules() );
+        }
+        return $this->tasks;
     }
 
     /** The approval policy (Autopilot), built from the same settings when the container has none. */

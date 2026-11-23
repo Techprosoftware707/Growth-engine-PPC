@@ -169,7 +169,7 @@ if ( 'check' === $phase ) {
     $overview = rest_do_request( new WP_REST_Request( 'GET', '/lga/v1/overview' ) );
     CO::check( 200 === $overview->get_status(), 'GET /lga/v1/overview answers 200 with the engine active', (string) $overview->get_status() );
     $lgaTables = lga()->get( \LinkGrowth\Autopilot\Database\Schema::class )->existingTables();
-    CO::check( count( $lgaTables ) === count( \LinkGrowth\Autopilot\Database\Schema::TABLES ), 'all lga_ tables exist', (string) count( $lgaTables ) );
+    CO::check( count( $lgaTables ) === count( \LinkGrowth\Autopilot\Database\Schema::names() ), 'all lga_ tables exist', (string) count( $lgaTables ) );
     $engineTables = (array) $wpdb->get_col( $wpdb->prepare( 'SHOW TABLES LIKE %s', $wpdb->esc_like( $wpdb->prefix . 'ppclg_' ) . '%' ) );
     CO::check( count( $engineTables ) > 0 && [] === array_intersect( $engineTables, $lgaTables ), 'the engine has its own ppclg_ tables, none shared', count( $engineTables ) . ' engine tables' );
     $admin = get_role( 'administrator' );
@@ -239,7 +239,7 @@ if ( 'check' === $phase ) {
     CO::check( ! is_plugin_active( LGA_IT_PLUGIN_BASENAME ), 'LinkGrowth Autopilot deactivated' );
     CO::check( lga_co_schedule( 'ppclg_tick', 'ppclg' ) === $engineAgain, "deactivating LinkGrowth Autopilot leaves the engine's cron event and Action Scheduler action", (string) wp_json_encode( lga_co_schedule( 'ppclg_tick', 'ppclg' ) ) );
     CO::check( ! lga_co_scheduled( lga_co_schedule( 'lga_tick', 'lga' ) ), "LinkGrowth Autopilot's own schedule is gone", (string) wp_json_encode( lga_co_schedule( 'lga_tick', 'lga' ) ) );
-    CO::check( count( lga()->get( \LinkGrowth\Autopilot\Database\Schema::class )->existingTables() ) === count( \LinkGrowth\Autopilot\Database\Schema::TABLES ), 'deactivation kept the lga_ tables (data is kept)' );
+    CO::check( count( lga()->get( \LinkGrowth\Autopilot\Database\Schema::class )->existingTables() ) === count( \LinkGrowth\Autopilot\Database\Schema::names() ), 'deactivation kept the lga_ tables (data is kept)' );
     $r = activate_plugin( LGA_IT_PLUGIN_BASENAME );
     CO::check( null === $r && lga_co_scheduled( lga_co_schedule( 'lga_tick', 'lga' ) ), 'LinkGrowth Autopilot re-activated and scheduled again', is_wp_error( $r ) ? $r->get_error_message() : (string) wp_json_encode( lga_co_schedule( 'lga_tick', 'lga' ) ) );
     CO::check( lga_co_schedule( 'ppclg_tick', 'ppclg' ) === $engineAgain, "re-activating it left the engine's schedule as it was" );
