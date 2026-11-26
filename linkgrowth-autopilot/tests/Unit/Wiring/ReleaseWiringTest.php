@@ -103,10 +103,13 @@ final class ReleaseWiringTest extends TestCase {
         $this->assertSame( 'On-site SEO', Menu::pages()['seo'] );
         // The pages of the WP2 modules (Menu::PAGE_KEYS before WP2), among those later packages' modules add.
         $this->assertSame( Wp2Modules::PAGES, Wp2Modules::only( array_keys( Menu::pages() ), Wp2Modules::PAGES ), 'menu labels follow the navigation order' );
+        // WP3: the SPA's router and navigation come from lga-config.pages (Menu::spaPages()), not from a list in
+        // app.js: the SEO page is routed to its module with its icon and label from the module's adminPages().
+        $this->assertSame( [ 'label' => 'On-site SEO', 'icon' => 'search', 'module' => 'pages/seo.js', 'cap' => 'lga_manage', 'order' => 60 ], Menu::pageDefinitions()['seo'] );
+        $this->assertFileExists( self::ROOT . 'assets/js/pages/seo.js' );
         $app = (string) file_get_contents( self::ROOT . 'assets/js/app.js' );
-        $this->assertStringContainsString( "seo: () => import( './pages/seo.js' ),", $app );
-        $this->assertStringContainsString( "seo: 'search',", $app );
-        $this->assertStringContainsString( "seo: 'On-site SEO',", $app );
+        $this->assertStringContainsString( 'module = await loadModule( def ? def.module : \'\' );', $app );
+        $this->assertStringNotContainsString( "import( './pages/", $app, 'no page list hard-coded in app.js' );
 
         $stages = Container::get( Pipeline::class )->status()['stages'];
         foreach ( [ 'storefront_audit' => 'daily', 'site_audit' => 'daily', 'indexnow' => 'hourly', 'internal_links' => 'weekly', 'import_verified' => 'when the bundled verified opportunity data changes' ] as $type => $cadence ) {

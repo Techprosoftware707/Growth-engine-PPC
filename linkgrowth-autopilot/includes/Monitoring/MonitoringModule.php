@@ -147,7 +147,7 @@ final class MonitoringModule extends AbstractModule {
 
     public function settingsTabs(): array {
         return [
-            'monitoring' => [ 'label' => __( 'Monitoring', 'linkgrowth-autopilot' ), 'module' => 'pages/settings.js', 'order' => 70 ],
+            'monitoring' => [ 'label' => __( 'Monitoring', 'linkgrowth-autopilot' ), 'module' => 'settings/monitoring.js', 'order' => 70 ],
         ];
     }
 }

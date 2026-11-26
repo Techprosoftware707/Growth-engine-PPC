@@ -1,0 +1,3019 @@
+{
+  "page": "settings",
+  "description": "Settings › integrations tab: every field (Save sends its value: the request and its body are checked, the answer is mocked) and the tab's own controls.",
+  "controls": [
+    {
+      "control": "settings.field-providers-ahrefs-cache-days",
+      "action": "fill",
+      "input": "31",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"providers\":{\"ahrefs\":{\"cache_days\":31",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=integrations",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-providers-ahrefs-enabled",
+      "action": "toggle",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"providers\":{\"ahrefs\":{\"enabled\":",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=integrations",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-providers-ai-enabled",
+      "action": "toggle",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"providers\":{\"ai\":{\"enabled\":",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=integrations",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-providers-ai-max-tokens",
+      "action": "fill",
+      "input": "1201",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"providers\":{\"ai\":{\"max_tokens\":1201",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=integrations",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-providers-ai-model",
+      "action": "fill",
+      "input": "e2e",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"providers\":{\"ai\":{\"model\":\"e2e\"",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=integrations",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-providers-google-enabled",
+      "action": "toggle",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"providers\":{\"google\":{\"enabled\":",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=integrations",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-providers-google-ga4-property-id",
+      "action": "fill",
+      "input": "e2e",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"providers\":{\"google\":{\"ga4_property_id\":\"e2e\"",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=integrations",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-providers-google-gsc-property",
+      "action": "fill",
+      "input": "sc-domain:localhost e2e",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"providers\":{\"google\":{\"gsc_property\":\"sc-domain:localhost e2e\"",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=integrations",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-providers-google-use-sitekit",
+      "action": "toggle",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"providers\":{\"google\":{\"use_sitekit\":",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=integrations",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-providers-moz-cache-days",
+      "action": "fill",
+      "input": "31",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"providers\":{\"moz\":{\"cache_days\":31",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=integrations",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-providers-moz-enabled",
+      "action": "toggle",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"providers\":{\"moz\":{\"enabled\":",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=integrations",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-providers-rdap-enabled",
+      "action": "toggle",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"providers\":{\"rdap\":{\"enabled\":",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=integrations",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-providers-search-brave-daily-limit",
+      "action": "fill",
+      "input": "61",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"providers\":{\"search\":{\"brave_daily_limit\":61",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=integrations",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-providers-search-google-cse-daily-limit",
+      "action": "fill",
+      "input": "91",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"providers\":{\"search\":{\"google_cse_daily_limit\":91",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=integrations",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-providers-search-primary",
+      "action": "select",
+      "input": "google_cse",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"providers\":{\"search\":{\"primary\":\"google_cse\"",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=integrations",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-providers-semrush-cache-days",
+      "action": "fill",
+      "input": "31",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"providers\":{\"semrush\":{\"cache_days\":31",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=integrations",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-providers-semrush-database",
+      "action": "fill",
+      "input": "ca e2e",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"providers\":{\"semrush\":{\"database\":\"ca e2e\"",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=integrations",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-providers-semrush-enabled",
+      "action": "toggle",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"providers\":{\"semrush\":{\"enabled\":",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=integrations",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-providers-seranking-cache-days",
+      "action": "fill",
+      "input": "31",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"providers\":{\"seranking\":{\"cache_days\":31",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=integrations",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-providers-seranking-enabled",
+      "action": "toggle",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"providers\":{\"seranking\":{\"enabled\":",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=integrations",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-providers-seranking-region",
+      "action": "fill",
+      "input": "ca e2e",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"providers\":{\"seranking\":{\"region\":\"ca e2e\"",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=integrations",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.secret-ahrefs-api-key-edit",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"settings.secret-ahrefs-api-key-input\"]"
+      },
+      "view": "#tab=integrations"
+    },
+    {
+      "control": "settings.secret-ahrefs-api-key-input",
+      "action": "fill",
+      "input": "e2e-secret-value",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"secrets\":{\"ahrefs_api_key\":\"e2e-secret-value\""
+      },
+      "view": "#tab=integrations",
+      "before": [
+        "settings.secret-ahrefs-api-key-edit"
+      ],
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.secret-ahrefs-api-key-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "![data-lga-control=\"settings.secret-ahrefs-api-key-input\"]"
+      },
+      "view": "#tab=integrations",
+      "before": [
+        "settings.secret-ahrefs-api-key-edit"
+      ]
+    },
+    {
+      "control": "settings.secret-anthropic-api-key-edit",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"settings.secret-anthropic-api-key-input\"]"
+      },
+      "view": "#tab=integrations"
+    },
+    {
+      "control": "settings.secret-anthropic-api-key-input",
+      "action": "fill",
+      "input": "e2e-secret-value",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"secrets\":{\"anthropic_api_key\":\"e2e-secret-value\""
+      },
+      "view": "#tab=integrations",
+      "before": [
+        "settings.secret-anthropic-api-key-edit"
+      ],
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.secret-anthropic-api-key-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "![data-lga-control=\"settings.secret-anthropic-api-key-input\"]"
+      },
+      "view": "#tab=integrations",
+      "before": [
+        "settings.secret-anthropic-api-key-edit"
+      ]
+    },
+    {
+      "control": "settings.secret-brave-api-key-edit",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"settings.secret-brave-api-key-input\"]"
+      },
+      "view": "#tab=integrations"
+    },
+    {
+      "control": "settings.secret-brave-api-key-input",
+      "action": "fill",
+      "input": "e2e-secret-value",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"secrets\":{\"brave_api_key\":\"e2e-secret-value\""
+      },
+      "view": "#tab=integrations",
+      "before": [
+        "settings.secret-brave-api-key-edit"
+      ],
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.secret-brave-api-key-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "![data-lga-control=\"settings.secret-brave-api-key-input\"]"
+      },
+      "view": "#tab=integrations",
+      "before": [
+        "settings.secret-brave-api-key-edit"
+      ]
+    },
+    {
+      "control": "settings.secret-google-cse-api-key-edit",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"settings.secret-google-cse-api-key-input\"]"
+      },
+      "view": "#tab=integrations"
+    },
+    {
+      "control": "settings.secret-google-cse-api-key-input",
+      "action": "fill",
+      "input": "e2e-secret-value",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"secrets\":{\"google_cse_api_key\":\"e2e-secret-value\""
+      },
+      "view": "#tab=integrations",
+      "before": [
+        "settings.secret-google-cse-api-key-edit"
+      ],
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.secret-google-cse-api-key-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "![data-lga-control=\"settings.secret-google-cse-api-key-input\"]"
+      },
+      "view": "#tab=integrations",
+      "before": [
+        "settings.secret-google-cse-api-key-edit"
+      ]
+    },
+    {
+      "control": "settings.secret-google-cse-cx-edit",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"settings.secret-google-cse-cx-input\"]"
+      },
+      "view": "#tab=integrations"
+    },
+    {
+      "control": "settings.secret-google-cse-cx-input",
+      "action": "fill",
+      "input": "e2e-secret-value",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"secrets\":{\"google_cse_cx\":\"e2e-secret-value\""
+      },
+      "view": "#tab=integrations",
+      "before": [
+        "settings.secret-google-cse-cx-edit"
+      ],
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.secret-google-cse-cx-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "![data-lga-control=\"settings.secret-google-cse-cx-input\"]"
+      },
+      "view": "#tab=integrations",
+      "before": [
+        "settings.secret-google-cse-cx-edit"
+      ]
+    },
+    {
+      "control": "settings.secret-google-service-account-json-edit",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"settings.secret-google-service-account-json-input\"]"
+      },
+      "view": "#tab=integrations"
+    },
+    {
+      "control": "settings.secret-google-service-account-json-input",
+      "action": "fill",
+      "input": "{\"client_email\":\"e2e@example.com\"}",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"secrets\":{\"google_service_account_json\":\"{\\\"client_email\\\":\\\"e2e@example.com\\\"}\""
+      },
+      "view": "#tab=integrations",
+      "before": [
+        "settings.secret-google-service-account-json-edit"
+      ],
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.secret-google-service-account-json-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "![data-lga-control=\"settings.secret-google-service-account-json-input\"]"
+      },
+      "view": "#tab=integrations",
+      "before": [
+        "settings.secret-google-service-account-json-edit"
+      ]
+    },
+    {
+      "control": "settings.secret-inbound-webhook-secret-edit",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"settings.secret-inbound-webhook-secret-input\"]"
+      },
+      "view": "#tab=integrations"
+    },
+    {
+      "control": "settings.secret-inbound-webhook-secret-input",
+      "action": "fill",
+      "input": "e2e-secret-value",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"secrets\":{\"inbound_webhook_secret\":\"e2e-secret-value\""
+      },
+      "view": "#tab=integrations",
+      "before": [
+        "settings.secret-inbound-webhook-secret-edit"
+      ],
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.secret-inbound-webhook-secret-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "![data-lga-control=\"settings.secret-inbound-webhook-secret-input\"]"
+      },
+      "view": "#tab=integrations",
+      "before": [
+        "settings.secret-inbound-webhook-secret-edit"
+      ]
+    },
+    {
+      "control": "settings.secret-moz-access-id-edit",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"settings.secret-moz-access-id-input\"]"
+      },
+      "view": "#tab=integrations"
+    },
+    {
+      "control": "settings.secret-moz-access-id-input",
+      "action": "fill",
+      "input": "e2e-secret-value",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"secrets\":{\"moz_access_id\":\"e2e-secret-value\""
+      },
+      "view": "#tab=integrations",
+      "before": [
+        "settings.secret-moz-access-id-edit"
+      ],
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.secret-moz-access-id-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "![data-lga-control=\"settings.secret-moz-access-id-input\"]"
+      },
+      "view": "#tab=integrations",
+      "before": [
+        "settings.secret-moz-access-id-edit"
+      ]
+    },
+    {
+      "control": "settings.secret-moz-secret-key-edit",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"settings.secret-moz-secret-key-input\"]"
+      },
+      "view": "#tab=integrations"
+    },
+    {
+      "control": "settings.secret-moz-secret-key-input",
+      "action": "fill",
+      "input": "e2e-secret-value",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"secrets\":{\"moz_secret_key\":\"e2e-secret-value\""
+      },
+      "view": "#tab=integrations",
+      "before": [
+        "settings.secret-moz-secret-key-edit"
+      ],
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.secret-moz-secret-key-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "![data-lga-control=\"settings.secret-moz-secret-key-input\"]"
+      },
+      "view": "#tab=integrations",
+      "before": [
+        "settings.secret-moz-secret-key-edit"
+      ]
+    },
+    {
+      "control": "settings.secret-semrush-api-key-edit",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"settings.secret-semrush-api-key-input\"]"
+      },
+      "view": "#tab=integrations"
+    },
+    {
+      "control": "settings.secret-semrush-api-key-input",
+      "action": "fill",
+      "input": "e2e-secret-value",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"secrets\":{\"semrush_api_key\":\"e2e-secret-value\""
+      },
+      "view": "#tab=integrations",
+      "before": [
+        "settings.secret-semrush-api-key-edit"
+      ],
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.secret-semrush-api-key-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "![data-lga-control=\"settings.secret-semrush-api-key-input\"]"
+      },
+      "view": "#tab=integrations",
+      "before": [
+        "settings.secret-semrush-api-key-edit"
+      ]
+    },
+    {
+      "control": "settings.secret-seranking-api-key-edit",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"settings.secret-seranking-api-key-input\"]"
+      },
+      "view": "#tab=integrations"
+    },
+    {
+      "control": "settings.secret-seranking-api-key-input",
+      "action": "fill",
+      "input": "e2e-secret-value",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"secrets\":{\"seranking_api_key\":\"e2e-secret-value\""
+      },
+      "view": "#tab=integrations",
+      "before": [
+        "settings.secret-seranking-api-key-edit"
+      ],
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.secret-seranking-api-key-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "![data-lga-control=\"settings.secret-seranking-api-key-input\"]"
+      },
+      "view": "#tab=integrations",
+      "before": [
+        "settings.secret-seranking-api-key-edit"
+      ]
+    },
+    {
+      "control": "settings.secret-brave-api-key-clear",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-modal"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "brave_api_key": "e2e-brave-key-1234"
+            }
+          }
+        }
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "brave_api_key": "__clear__"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.secret-brave-api-key-clear-confirm-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "brave_api_key": "e2e-brave-key-1234"
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.secret-brave-api-key-clear"
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "brave_api_key": "__clear__"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.secret-brave-api-key-clear-confirm-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "brave_api_key": "e2e-brave-key-1234"
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.secret-brave-api-key-clear"
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "brave_api_key": "__clear__"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.secret-brave-api-key-clear-confirm-confirm",
+      "action": "click",
+      "expect": {
+        "dom": "text=Will be removed on save"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "brave_api_key": "e2e-brave-key-1234"
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.secret-brave-api-key-clear"
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "brave_api_key": "__clear__"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.secret-brave-api-key-undo",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"settings.secret-brave-api-key-clear\"]"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "brave_api_key": "e2e-brave-key-1234"
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.secret-brave-api-key-clear",
+        "settings.secret-brave-api-key-clear-confirm-confirm"
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "brave_api_key": "__clear__"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.secret-seranking-api-key-clear",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-modal"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "seranking_api_key": "e2e-seranking-api-key-1234"
+            }
+          }
+        }
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "seranking_api_key": "__clear__"
+            }
+          }
+        }
+      ],
+      "note": "Clear shows only for a stored secret: one is stored first and removed again afterwards (as for every secret)."
+    },
+    {
+      "control": "settings.secret-seranking-api-key-clear-confirm-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "seranking_api_key": "e2e-seranking-api-key-1234"
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.secret-seranking-api-key-clear"
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "seranking_api_key": "__clear__"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.secret-seranking-api-key-clear-confirm-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "seranking_api_key": "e2e-seranking-api-key-1234"
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.secret-seranking-api-key-clear"
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "seranking_api_key": "__clear__"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.secret-seranking-api-key-clear-confirm-confirm",
+      "action": "click",
+      "expect": {
+        "dom": "text=Will be removed on save"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "seranking_api_key": "e2e-seranking-api-key-1234"
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.secret-seranking-api-key-clear"
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "seranking_api_key": "__clear__"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.secret-seranking-api-key-undo",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"settings.secret-seranking-api-key-clear\"]"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "seranking_api_key": "e2e-seranking-api-key-1234"
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.secret-seranking-api-key-clear",
+        "settings.secret-seranking-api-key-clear-confirm-confirm"
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "seranking_api_key": "__clear__"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.secret-ahrefs-api-key-clear",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-modal"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "ahrefs_api_key": "e2e-ahrefs-api-key-1234"
+            }
+          }
+        }
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "ahrefs_api_key": "__clear__"
+            }
+          }
+        }
+      ],
+      "note": "Clear shows only for a stored secret: one is stored first and removed again afterwards (as for every secret)."
+    },
+    {
+      "control": "settings.secret-ahrefs-api-key-clear-confirm-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "ahrefs_api_key": "e2e-ahrefs-api-key-1234"
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.secret-ahrefs-api-key-clear"
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "ahrefs_api_key": "__clear__"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.secret-ahrefs-api-key-clear-confirm-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "ahrefs_api_key": "e2e-ahrefs-api-key-1234"
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.secret-ahrefs-api-key-clear"
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "ahrefs_api_key": "__clear__"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.secret-ahrefs-api-key-clear-confirm-confirm",
+      "action": "click",
+      "expect": {
+        "dom": "text=Will be removed on save"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "ahrefs_api_key": "e2e-ahrefs-api-key-1234"
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.secret-ahrefs-api-key-clear"
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "ahrefs_api_key": "__clear__"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.secret-ahrefs-api-key-undo",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"settings.secret-ahrefs-api-key-clear\"]"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "ahrefs_api_key": "e2e-ahrefs-api-key-1234"
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.secret-ahrefs-api-key-clear",
+        "settings.secret-ahrefs-api-key-clear-confirm-confirm"
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "ahrefs_api_key": "__clear__"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.secret-semrush-api-key-clear",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-modal"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "semrush_api_key": "e2e-semrush-api-key-1234"
+            }
+          }
+        }
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "semrush_api_key": "__clear__"
+            }
+          }
+        }
+      ],
+      "note": "Clear shows only for a stored secret: one is stored first and removed again afterwards (as for every secret)."
+    },
+    {
+      "control": "settings.secret-semrush-api-key-clear-confirm-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "semrush_api_key": "e2e-semrush-api-key-1234"
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.secret-semrush-api-key-clear"
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "semrush_api_key": "__clear__"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.secret-semrush-api-key-clear-confirm-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "semrush_api_key": "e2e-semrush-api-key-1234"
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.secret-semrush-api-key-clear"
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "semrush_api_key": "__clear__"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.secret-semrush-api-key-clear-confirm-confirm",
+      "action": "click",
+      "expect": {
+        "dom": "text=Will be removed on save"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "semrush_api_key": "e2e-semrush-api-key-1234"
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.secret-semrush-api-key-clear"
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "semrush_api_key": "__clear__"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.secret-semrush-api-key-undo",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"settings.secret-semrush-api-key-clear\"]"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "semrush_api_key": "e2e-semrush-api-key-1234"
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.secret-semrush-api-key-clear",
+        "settings.secret-semrush-api-key-clear-confirm-confirm"
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "semrush_api_key": "__clear__"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.secret-moz-access-id-clear",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-modal"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "moz_access_id": "e2e-moz-access-id-1234"
+            }
+          }
+        }
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "moz_access_id": "__clear__"
+            }
+          }
+        }
+      ],
+      "note": "Clear shows only for a stored secret: one is stored first and removed again afterwards (as for every secret)."
+    },
+    {
+      "control": "settings.secret-moz-access-id-clear-confirm-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "moz_access_id": "e2e-moz-access-id-1234"
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.secret-moz-access-id-clear"
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "moz_access_id": "__clear__"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.secret-moz-access-id-clear-confirm-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "moz_access_id": "e2e-moz-access-id-1234"
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.secret-moz-access-id-clear"
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "moz_access_id": "__clear__"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.secret-moz-access-id-clear-confirm-confirm",
+      "action": "click",
+      "expect": {
+        "dom": "text=Will be removed on save"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "moz_access_id": "e2e-moz-access-id-1234"
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.secret-moz-access-id-clear"
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "moz_access_id": "__clear__"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.secret-moz-access-id-undo",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"settings.secret-moz-access-id-clear\"]"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "moz_access_id": "e2e-moz-access-id-1234"
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.secret-moz-access-id-clear",
+        "settings.secret-moz-access-id-clear-confirm-confirm"
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "moz_access_id": "__clear__"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.secret-moz-secret-key-clear",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-modal"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "moz_secret_key": "e2e-moz-secret-key-1234"
+            }
+          }
+        }
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "moz_secret_key": "__clear__"
+            }
+          }
+        }
+      ],
+      "note": "Clear shows only for a stored secret: one is stored first and removed again afterwards (as for every secret)."
+    },
+    {
+      "control": "settings.secret-moz-secret-key-clear-confirm-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "moz_secret_key": "e2e-moz-secret-key-1234"
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.secret-moz-secret-key-clear"
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "moz_secret_key": "__clear__"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.secret-moz-secret-key-clear-confirm-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "moz_secret_key": "e2e-moz-secret-key-1234"
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.secret-moz-secret-key-clear"
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "moz_secret_key": "__clear__"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.secret-moz-secret-key-clear-confirm-confirm",
+      "action": "click",
+      "expect": {
+        "dom": "text=Will be removed on save"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "moz_secret_key": "e2e-moz-secret-key-1234"
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.secret-moz-secret-key-clear"
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "moz_secret_key": "__clear__"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.secret-moz-secret-key-undo",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"settings.secret-moz-secret-key-clear\"]"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "moz_secret_key": "e2e-moz-secret-key-1234"
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.secret-moz-secret-key-clear",
+        "settings.secret-moz-secret-key-clear-confirm-confirm"
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "moz_secret_key": "__clear__"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.secret-google-service-account-json-clear",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-modal"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "google_service_account_json": "{\"type\":\"service_account\",\"client_email\":\"e2e@example.test\",\"private_key\":\"e2e-placeholder-key\"}"
+            }
+          }
+        }
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "google_service_account_json": "__clear__"
+            }
+          }
+        }
+      ],
+      "note": "Clear shows only for a stored secret: one is stored first and removed again afterwards (as for every secret)."
+    },
+    {
+      "control": "settings.secret-google-service-account-json-clear-confirm-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "google_service_account_json": "{\"type\":\"service_account\",\"client_email\":\"e2e@example.test\",\"private_key\":\"e2e-placeholder-key\"}"
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.secret-google-service-account-json-clear"
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "google_service_account_json": "__clear__"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.secret-google-service-account-json-clear-confirm-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "google_service_account_json": "{\"type\":\"service_account\",\"client_email\":\"e2e@example.test\",\"private_key\":\"e2e-placeholder-key\"}"
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.secret-google-service-account-json-clear"
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "google_service_account_json": "__clear__"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.secret-google-service-account-json-clear-confirm-confirm",
+      "action": "click",
+      "expect": {
+        "dom": "text=Will be removed on save"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "google_service_account_json": "{\"type\":\"service_account\",\"client_email\":\"e2e@example.test\",\"private_key\":\"e2e-placeholder-key\"}"
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.secret-google-service-account-json-clear"
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "google_service_account_json": "__clear__"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.secret-google-service-account-json-undo",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"settings.secret-google-service-account-json-clear\"]"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "google_service_account_json": "{\"type\":\"service_account\",\"client_email\":\"e2e@example.test\",\"private_key\":\"e2e-placeholder-key\"}"
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.secret-google-service-account-json-clear",
+        "settings.secret-google-service-account-json-clear-confirm-confirm"
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "google_service_account_json": "__clear__"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.secret-google-cse-api-key-clear",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-modal"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "google_cse_api_key": "e2e-google-cse-api-key-1234"
+            }
+          }
+        }
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "google_cse_api_key": "__clear__"
+            }
+          }
+        }
+      ],
+      "note": "Clear shows only for a stored secret: one is stored first and removed again afterwards (as for every secret)."
+    },
+    {
+      "control": "settings.secret-google-cse-api-key-clear-confirm-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "google_cse_api_key": "e2e-google-cse-api-key-1234"
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.secret-google-cse-api-key-clear"
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "google_cse_api_key": "__clear__"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.secret-google-cse-api-key-clear-confirm-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "google_cse_api_key": "e2e-google-cse-api-key-1234"
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.secret-google-cse-api-key-clear"
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "google_cse_api_key": "__clear__"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.secret-google-cse-api-key-clear-confirm-confirm",
+      "action": "click",
+      "expect": {
+        "dom": "text=Will be removed on save"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "google_cse_api_key": "e2e-google-cse-api-key-1234"
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.secret-google-cse-api-key-clear"
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "google_cse_api_key": "__clear__"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.secret-google-cse-api-key-undo",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"settings.secret-google-cse-api-key-clear\"]"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "google_cse_api_key": "e2e-google-cse-api-key-1234"
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.secret-google-cse-api-key-clear",
+        "settings.secret-google-cse-api-key-clear-confirm-confirm"
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "google_cse_api_key": "__clear__"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.secret-google-cse-cx-clear",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-modal"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "google_cse_cx": "e2e-google-cse-cx-1234"
+            }
+          }
+        }
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "google_cse_cx": "__clear__"
+            }
+          }
+        }
+      ],
+      "note": "Clear shows only for a stored secret: one is stored first and removed again afterwards (as for every secret)."
+    },
+    {
+      "control": "settings.secret-google-cse-cx-clear-confirm-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "google_cse_cx": "e2e-google-cse-cx-1234"
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.secret-google-cse-cx-clear"
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "google_cse_cx": "__clear__"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.secret-google-cse-cx-clear-confirm-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "google_cse_cx": "e2e-google-cse-cx-1234"
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.secret-google-cse-cx-clear"
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "google_cse_cx": "__clear__"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.secret-google-cse-cx-clear-confirm-confirm",
+      "action": "click",
+      "expect": {
+        "dom": "text=Will be removed on save"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "google_cse_cx": "e2e-google-cse-cx-1234"
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.secret-google-cse-cx-clear"
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "google_cse_cx": "__clear__"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.secret-google-cse-cx-undo",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"settings.secret-google-cse-cx-clear\"]"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "google_cse_cx": "e2e-google-cse-cx-1234"
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.secret-google-cse-cx-clear",
+        "settings.secret-google-cse-cx-clear-confirm-confirm"
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "google_cse_cx": "__clear__"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.secret-anthropic-api-key-clear",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-modal"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "anthropic_api_key": "e2e-anthropic-api-key-1234"
+            }
+          }
+        }
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "anthropic_api_key": "__clear__"
+            }
+          }
+        }
+      ],
+      "note": "Clear shows only for a stored secret: one is stored first and removed again afterwards (as for every secret)."
+    },
+    {
+      "control": "settings.secret-anthropic-api-key-clear-confirm-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "anthropic_api_key": "e2e-anthropic-api-key-1234"
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.secret-anthropic-api-key-clear"
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "anthropic_api_key": "__clear__"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.secret-anthropic-api-key-clear-confirm-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "anthropic_api_key": "e2e-anthropic-api-key-1234"
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.secret-anthropic-api-key-clear"
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "anthropic_api_key": "__clear__"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.secret-anthropic-api-key-clear-confirm-confirm",
+      "action": "click",
+      "expect": {
+        "dom": "text=Will be removed on save"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "anthropic_api_key": "e2e-anthropic-api-key-1234"
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.secret-anthropic-api-key-clear"
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "anthropic_api_key": "__clear__"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.secret-anthropic-api-key-undo",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"settings.secret-anthropic-api-key-clear\"]"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "anthropic_api_key": "e2e-anthropic-api-key-1234"
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.secret-anthropic-api-key-clear",
+        "settings.secret-anthropic-api-key-clear-confirm-confirm"
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "anthropic_api_key": "__clear__"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.secret-inbound-webhook-secret-clear",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-modal"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "inbound_webhook_secret": "e2e-inbound-webhook-secret-1234"
+            }
+          }
+        }
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "inbound_webhook_secret": "__clear__"
+            }
+          }
+        }
+      ],
+      "note": "Clear shows only for a stored secret: one is stored first and removed again afterwards (as for every secret)."
+    },
+    {
+      "control": "settings.secret-inbound-webhook-secret-clear-confirm-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "inbound_webhook_secret": "e2e-inbound-webhook-secret-1234"
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.secret-inbound-webhook-secret-clear"
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "inbound_webhook_secret": "__clear__"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.secret-inbound-webhook-secret-clear-confirm-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "inbound_webhook_secret": "e2e-inbound-webhook-secret-1234"
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.secret-inbound-webhook-secret-clear"
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "inbound_webhook_secret": "__clear__"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.secret-inbound-webhook-secret-clear-confirm-confirm",
+      "action": "click",
+      "expect": {
+        "dom": "text=Will be removed on save"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "inbound_webhook_secret": "e2e-inbound-webhook-secret-1234"
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.secret-inbound-webhook-secret-clear"
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "inbound_webhook_secret": "__clear__"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.secret-inbound-webhook-secret-undo",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"settings.secret-inbound-webhook-secret-clear\"]"
+      },
+      "view": "#tab=integrations",
+      "prepare": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "inbound_webhook_secret": "e2e-inbound-webhook-secret-1234"
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.secret-inbound-webhook-secret-clear",
+        "settings.secret-inbound-webhook-secret-clear-confirm-confirm"
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "secrets": {
+              "inbound_webhook_secret": "__clear__"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.test-ahrefs",
+      "action": "click",
+      "expect": {
+        "request": "POST /settings/test",
+        "body": "\"provider\":\""
+      },
+      "view": "#tab=integrations",
+      "timeout": 60000,
+      "note": "Offline run: the provider cannot be reached and the result says so."
+    },
+    {
+      "control": "settings.test-anthropic",
+      "action": "click",
+      "expect": {
+        "request": "POST /settings/test",
+        "body": "\"provider\":\""
+      },
+      "view": "#tab=integrations",
+      "timeout": 60000,
+      "note": "Offline run: the provider cannot be reached and the result says so."
+    },
+    {
+      "control": "settings.test-brave",
+      "action": "click",
+      "expect": {
+        "request": "POST /settings/test",
+        "body": "\"provider\":\""
+      },
+      "view": "#tab=integrations",
+      "timeout": 60000,
+      "note": "Offline run: the provider cannot be reached and the result says so."
+    },
+    {
+      "control": "settings.test-email",
+      "action": "click",
+      "expect": {
+        "request": "POST /settings/test",
+        "body": "\"provider\":\""
+      },
+      "view": "#tab=integrations",
+      "timeout": 60000,
+      "note": "Sends a test message (the run logs mail instead of sending it)."
+    },
+    {
+      "control": "settings.test-google-analytics-4",
+      "action": "click",
+      "expect": {
+        "request": "POST /settings/test",
+        "body": "\"provider\":\""
+      },
+      "view": "#tab=integrations",
+      "timeout": 60000,
+      "note": "Offline run: the provider cannot be reached and the result says so."
+    },
+    {
+      "control": "settings.test-google-cse",
+      "action": "click",
+      "expect": {
+        "request": "POST /settings/test",
+        "body": "\"provider\":\""
+      },
+      "view": "#tab=integrations",
+      "timeout": 60000,
+      "note": "Offline run: the provider cannot be reached and the result says so."
+    },
+    {
+      "control": "settings.test-google-search-console",
+      "action": "click",
+      "expect": {
+        "request": "POST /settings/test",
+        "body": "\"provider\":\""
+      },
+      "view": "#tab=integrations",
+      "timeout": 60000,
+      "note": "Offline run: the provider cannot be reached and the result says so."
+    },
+    {
+      "control": "settings.test-moz",
+      "action": "click",
+      "expect": {
+        "request": "POST /settings/test",
+        "body": "\"provider\":\""
+      },
+      "view": "#tab=integrations",
+      "timeout": 60000,
+      "note": "Offline run: the provider cannot be reached and the result says so."
+    },
+    {
+      "control": "settings.test-semrush",
+      "action": "click",
+      "expect": {
+        "request": "POST /settings/test",
+        "body": "\"provider\":\""
+      },
+      "view": "#tab=integrations",
+      "timeout": 60000,
+      "note": "Offline run: the provider cannot be reached and the result says so."
+    },
+    {
+      "control": "settings.test-seranking",
+      "action": "click",
+      "expect": {
+        "request": "POST /settings/test",
+        "body": "\"provider\":\""
+      },
+      "view": "#tab=integrations",
+      "timeout": 60000,
+      "note": "Offline run: the provider cannot be reached and the result says so."
+    },
+    {
+      "control": "settings.test-sitekit",
+      "action": "click",
+      "expect": {
+        "request": "POST /settings/test",
+        "body": "\"provider\":\""
+      },
+      "view": "#tab=integrations",
+      "timeout": 60000,
+      "note": "Offline run: the provider cannot be reached and the result says so."
+    },
+    {
+      "control": "settings.test-email-details",
+      "action": "click",
+      "expect": {
+        "dom": "details[open] > [data-lga-control=\"settings.test-email-details\"]"
+      },
+      "view": "#tab=integrations",
+      "timeout": 60000,
+      "before": [
+        "settings.test-email"
+      ]
+    },
+    {
+      "control": "settings.test-google-search-console-details",
+      "action": "click",
+      "expect": {
+        "dom": "details[open] > [data-lga-control=\"settings.test-google-search-console-details\"]"
+      },
+      "view": "#tab=integrations",
+      "timeout": 60000,
+      "before": [
+        "settings.test-google-search-console"
+      ]
+    },
+    {
+      "control": "settings.copy-inbound-url",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-toast"
+      },
+      "view": "#tab=integrations"
+    },
+    {
+      "control": "settings.copy-inbound-query-url",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-toast"
+      },
+      "view": "#tab=integrations"
+    },
+    {
+      "control": "settings.copy-inbound-basic-url",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-toast"
+      },
+      "view": "#tab=integrations"
+    }
+  ]
+}

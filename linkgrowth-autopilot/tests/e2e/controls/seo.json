@@ -1,0 +1,377 @@
+{
+  "page": "seo",
+  "description": "On-site SEO: site audit, IndexNow and internal-link suggestions.",
+  "controls": [
+    {
+      "control": "seo.audit-run",
+      "action": "click",
+      "expect": {
+        "request": "POST /seo/audit/run"
+      },
+      "timeout": 90000
+    },
+    {
+      "control": "seo.audit-retry",
+      "action": "click",
+      "expect": {
+        "request": "GET /seo/audit"
+      },
+      "mock": [
+        {
+          "request": "GET /seo/audit",
+          "status": 500
+        }
+      ]
+    },
+    {
+      "control": "seo.audit-tile-high",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"seo.audit-severity-high\"][aria-pressed=\"true\"]"
+      }
+    },
+    {
+      "control": "seo.audit-tile-medium",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"seo.audit-severity-medium\"][aria-pressed=\"true\"]"
+      }
+    },
+    {
+      "control": "seo.audit-tile-low",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"seo.audit-severity-low\"][aria-pressed=\"true\"]"
+      }
+    },
+    {
+      "control": "seo.audit-severity-high",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"seo.audit-severity-high\"][aria-pressed=\"true\"]"
+      }
+    },
+    {
+      "control": "seo.audit-severity-medium",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"seo.audit-severity-medium\"][aria-pressed=\"true\"]"
+      }
+    },
+    {
+      "control": "seo.audit-severity-low",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"seo.audit-severity-low\"][aria-pressed=\"true\"]"
+      }
+    },
+    {
+      "control": "seo.audit-severity-all",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"seo.audit-severity-all\"][aria-pressed=\"true\"]"
+      },
+      "before": [
+        "seo.audit-severity-medium"
+      ]
+    },
+    {
+      "control": "seo.audit-issues-url",
+      "action": "click",
+      "expect": {
+        "popup": "localhost:8793"
+      }
+    },
+    {
+      "control": "seo.audit-issues-edit",
+      "action": "click",
+      "expect": {
+        "popup": "/wp-admin/post.php"
+      }
+    },
+    {
+      "control": "seo.audit-totals",
+      "action": "click",
+      "expect": {
+        "dom": "details[open] > [data-lga-control=\"seo.audit-totals\"]"
+      }
+    },
+    {
+      "control": "seo.audit-sample-toggle",
+      "action": "click",
+      "expect": {
+        "dom": "details[open] > [data-lga-control=\"seo.audit-sample-toggle\"]"
+      }
+    },
+    {
+      "control": "seo.audit-sample-url",
+      "action": "click",
+      "expect": {
+        "popup": "localhost:8793"
+      },
+      "before": [
+        "seo.audit-sample-toggle"
+      ]
+    },
+    {
+      "control": "seo.indexnow-submit",
+      "action": "click",
+      "expect": {
+        "request": "POST /seo/indexnow/run"
+      },
+      "timeout": 60000,
+      "mock": [
+        {
+          "request": "GET /seo/indexnow",
+          "status": 200,
+          "body": {
+            "available": true,
+            "status": {
+              "enabled": true,
+              "key": "e2e",
+              "key_url": "http://localhost:8793/e2e-indexnow-key.txt",
+              "last_submitted_at": null,
+              "last_status": 202,
+              "last_error": "",
+              "submitted_total": 3,
+              "pending": 2,
+              "tracked": 5,
+              "initialized": true,
+              "retry_after": null,
+              "blocked_reason": ""
+            },
+            "history": [
+              {
+                "at": "2026-01-01T10:00:00+00:00",
+                "urls": 3,
+                "status": 202,
+                "error": ""
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "control": "seo.indexnow-key-file",
+      "action": "click",
+      "expect": {
+        "popup": ".txt"
+      }
+    },
+    {
+      "control": "seo.indexnow-history-toggle",
+      "action": "click",
+      "expect": {
+        "dom": "details[open] > [data-lga-control=\"seo.indexnow-history-toggle\"]"
+      },
+      "mock": [
+        {
+          "request": "GET /seo/indexnow",
+          "status": 200,
+          "body": {
+            "available": true,
+            "status": {
+              "enabled": true,
+              "key": "e2e",
+              "key_url": "http://localhost:8793/e2e-indexnow-key.txt",
+              "last_submitted_at": null,
+              "last_status": 202,
+              "last_error": "",
+              "submitted_total": 3,
+              "pending": 2,
+              "tracked": 5,
+              "initialized": true,
+              "retry_after": null,
+              "blocked_reason": ""
+            },
+            "history": [
+              {
+                "at": "2026-01-01T10:00:00+00:00",
+                "urls": 3,
+                "status": 202,
+                "error": ""
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "control": "seo.indexnow-retry",
+      "action": "click",
+      "expect": {
+        "request": "GET /seo/indexnow"
+      },
+      "mock": [
+        {
+          "request": "GET /seo/indexnow",
+          "status": 500
+        }
+      ]
+    },
+    {
+      "control": "seo.links-find",
+      "action": "click",
+      "expect": {
+        "request": "POST /seo/links/run"
+      },
+      "timeout": 60000
+    },
+    {
+      "control": "seo.links-retry",
+      "action": "click",
+      "expect": {
+        "request": "GET /seo/links"
+      },
+      "mock": [
+        {
+          "request": "GET /seo/links",
+          "status": 500
+        }
+      ]
+    },
+    {
+      "control": "seo.links-status-pending",
+      "action": "click",
+      "expect": {
+        "request": "GET /seo/links?status=pending"
+      },
+      "view": "#links=applied"
+    },
+    {
+      "control": "seo.links-status-applied",
+      "action": "click",
+      "expect": {
+        "request": "GET /seo/links?status=applied"
+      }
+    },
+    {
+      "control": "seo.links-status-dismissed",
+      "action": "click",
+      "expect": {
+        "request": "GET /seo/links?status=dismissed"
+      }
+    },
+    {
+      "control": "seo.links-status-stale",
+      "action": "click",
+      "expect": {
+        "request": "GET /seo/links?status=stale"
+      }
+    },
+    {
+      "control": "seo.links-status-refused",
+      "action": "click",
+      "expect": {
+        "request": "GET /seo/links?status=refused"
+      },
+      "view": "#links=refused",
+      "note": "\"Left for you\" is listed when suggestions have that status, or while it is the selected status (as here: the seed has none); clicking it loads that list again."
+    },
+    {
+      "control": "seo.links-status-not-shown",
+      "action": "click",
+      "expect": {
+        "request": "GET /seo/links?status=not_shown"
+      },
+      "view": "#links=not_shown",
+      "note": "\"Not shown on the page\" is listed when suggestions have that status, or while it is the selected status (as here: the seed has none); clicking it loads that list again."
+    },
+    {
+      "control": "seo.links-source-view",
+      "action": "click",
+      "expect": {
+        "popup": "localhost:8793"
+      }
+    },
+    {
+      "control": "seo.links-source-edit",
+      "action": "click",
+      "expect": {
+        "popup": "/wp-admin/post.php"
+      }
+    },
+    {
+      "control": "seo.links-target",
+      "action": "click",
+      "expect": {
+        "popup": "localhost:8793"
+      }
+    },
+    {
+      "control": "seo.toast-dismiss",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-toast"
+      },
+      "before": [
+        "seo.links-find"
+      ]
+    },
+    {
+      "control": "seo.links-apply",
+      "action": "click",
+      "expect": {
+        "request": "POST /seo/links/apply"
+      },
+      "destructive": true,
+      "timeout": 60000,
+      "note": "Edits the seeded post (WordPress keeps a revision)."
+    },
+    {
+      "control": "seo.links-dismiss",
+      "action": "click",
+      "expect": {
+        "request": "POST /seo/links/dismiss"
+      },
+      "destructive": true
+    },
+    {
+      "control": "seo.links-apply-all",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-modal"
+      }
+    },
+    {
+      "control": "seo.links-apply-all-confirm-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "before": [
+        "seo.links-apply-all"
+      ]
+    },
+    {
+      "control": "seo.links-apply-all-confirm-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "before": [
+        "seo.links-apply-all"
+      ]
+    },
+    {
+      "control": "seo.links-apply-all-confirm-confirm",
+      "action": "click",
+      "expect": {
+        "request": "POST /seo/links/apply"
+      },
+      "destructive": true,
+      "timeout": 60000,
+      "before": [
+        "seo.links-apply-all"
+      ]
+    },
+    {
+      "control": "shell.nav-seo",
+      "action": "click",
+      "expect": {
+        "navigate": "/page=lga-seo(&|#|$)/"
+      }
+    }
+  ]
+}

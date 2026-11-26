@@ -265,7 +265,8 @@ namespace LinkGrowth\Autopilot\Tests\Unit\CrossSlice {
             $this->saveSettings( [ 'settings' => [ 'automation' => [ 'max_execution_seconds' => 22 ] ] ] );
             $this->assertSame( 22, $this->settings()->get( 'automation.max_execution_seconds' ) );
 
-            $js = (string) file_get_contents( dirname( __DIR__, 3 ) . '/assets/js/pages/settings.js' );
+            // WP3: the field is in the "Automation & limits" tab module.
+            $js = (string) file_get_contents( dirname( __DIR__, 3 ) . '/assets/js/settings/automation.js' );
             $this->assertStringContainsString( "label: 'Max seconds per tick', min: 15,", $js );
         }
 
@@ -302,19 +303,23 @@ namespace LinkGrowth\Autopilot\Tests\Unit\CrossSlice {
             $root       = dirname( __DIR__, 3 ) . '/assets/js/pages/';
             $automation = (string) file_get_contents( $root . 'automation.js' );
             $settings   = (string) file_get_contents( $root . 'settings.js' );
+            // WP3: the stage-flag hints and the approval toggle are in their tab modules.
+            $automationTab = (string) file_get_contents( dirname( __DIR__, 3 ) . '/assets/js/settings/automation.js' );
+            $outreachTab   = (string) file_get_contents( dirname( __DIR__, 3 ) . '/assets/js/settings/outreach.js' );
             // The Automation description and both consent texts name the "Require individual approval" condition.
             $this->assertSame( 2, substr_count( $automation, '“Require individual approval” (Settings → Outreach) is off' ), 'description and confirmation' );
             $this->assertStringContainsString( 'are also approved and sent without your review if “Require individual approval” (Settings → Outreach) is off; while it is on, they wait for your approval.', $automation );
             $this->assertStringContainsString( 'are also approved and sent without your review if “Require individual approval” (Settings → Outreach) is off; while it is on, they wait for your approval.', $settings );
             $this->assertStringContainsString( 'Follow-ups in campaigns set to “Auto-approve follow-ups” will be sent', $automation );
-            $this->assertStringContainsString( 'auto-drafted first messages also need “Require individual approval” (Outreach tab) turned off', $settings );
-            $this->assertStringContainsString( 'While on, automation never approves a message; only follow-ups in campaigns that opted in to auto-approval can send automatically, and only with Outreach autosend on.', $settings );
+            $this->assertStringContainsString( 'auto-drafted first messages also need “Require individual approval” (Outreach tab) turned off', $automationTab );
+            $this->assertStringContainsString( 'While on, automation never approves a message; only follow-ups in campaigns that opted in to auto-approval can send automatically, and only with Outreach autosend on.', $outreachTab );
         }
 
         // ------------------------------------------------------------------ [32] inbound secret URL forms
 
         public function testSettingsPageShowsTheInboundSecretUrlForms(): void {
-            $js = (string) file_get_contents( dirname( __DIR__, 3 ) . '/assets/js/pages/settings.js' );
+            // WP3: the inbound reply settings are in the "Integrations" tab module.
+            $js = (string) file_get_contents( dirname( __DIR__, 3 ) . '/assets/js/settings/integrations.js' );
             $this->assertStringContainsString( "api.buildUrl( '/inbound', { secret: 'SECRET' } )", $js );
             $this->assertStringContainsString( "u.username = 'lga';", $js );
             $this->assertStringContainsString( "u.password = 'SECRET';", $js );

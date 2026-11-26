@@ -31,9 +31,12 @@ final class AutopilotUiTest extends TestCase {
         $this->assertStringNotContainsString( 'autopilotCard(', $overview, 'the Overview shows the switch inside the Grow panel, not as a second card' );
         $this->assertStringContainsString( 'setAutopilot: ( status, onChange )', $overview );
         $this->assertStringContainsString( "'/seo/links/undo-auto'", (string) file_get_contents( LGA_DIR . 'assets/js/pages/seo.js' ) );
-        $settings = (string) file_get_contents( LGA_DIR . 'assets/js/pages/settings.js' );
-        foreach ( [ "'discovery.competitor_domains_auto'", "'seo.auto_apply_links'", "'seo.auto_apply_per_day'" ] as $needle ) {
-            $this->assertStringContainsString( $needle, $settings );
+        // WP3: each Settings tab is its own module (assets/js/settings/<tab>.js); the keys are bound in the tab that shows them.
+        $discovery  = (string) file_get_contents( LGA_DIR . 'assets/js/settings/discovery.js' );
+        $automation = (string) file_get_contents( LGA_DIR . 'assets/js/settings/automation.js' );
+        $this->assertStringContainsString( "'discovery.competitor_domains_auto'", $discovery );
+        foreach ( [ "'seo.auto_apply_links'", "'seo.auto_apply_per_day'" ] as $needle ) {
+            $this->assertStringContainsString( $needle, $automation );
         }
     }
 

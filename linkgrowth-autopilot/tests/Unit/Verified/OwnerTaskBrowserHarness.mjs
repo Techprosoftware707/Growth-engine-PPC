@@ -12,6 +12,8 @@ import path from 'node:path';
 
 const [ pluginDirArg, playwrightPath, chromePath ] = process.argv.slice( 2 );
 const pluginDir = path.resolve( pluginDirArg || '.' ) + path.sep;
+// lga-config's pages and Settings tabs as Admin\Menu prints them (WP3: the router and the Settings tabs are built from them).
+const SPA = JSON.parse( fs.readFileSync( path.join( pluginDir, 'tests/fixtures/spa-config.json' ), 'utf8' ) );
 const require = createRequire( import.meta.url );
 const print = ( value ) => process.stdout.write( JSON.stringify( value ) );
 
@@ -39,7 +41,7 @@ const LIST = { items: [], total: 0, page: 1, per_page: 25, pages: 1, unread: 0 }
 
 function importMap() {
     const imports = {};
-    for ( const dir of [ 'assets/js', 'assets/js/pages' ] ) {
+    for ( const dir of [ 'assets/js', 'assets/js/pages', 'assets/js/settings' ] ) {
         for ( const f of fs.readdirSync( path.join( pluginDir, dir ) ) ) {
             if ( f.endsWith( '.js' ) && f !== 'app.js' ) {
                 imports[ `${ PLUGIN }${ dir }/${ f }` ] = `${ PLUGIN }${ dir }/${ f }?ver=${ VERSION }`;
@@ -50,7 +52,7 @@ function importMap() {
 }
 
 function adminHtml( page ) {
-    const config = { page, restRoot: `${ ORIGIN }${ REST }/`, nonce: 'x', version: VERSION, siteDomain: 'example.ca', automationEnabled: true };
+    const config = { pages: SPA.pages, settingsTabs: SPA.settingsTabs, page, restRoot: `${ ORIGIN }${ REST }/`, nonce: 'x', version: VERSION, siteDomain: 'example.ca', automationEnabled: true };
     return `<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="${ PLUGIN }assets/css/admin.css?ver=${ VERSION }"></head><body>`
         + `<div class="wrap lga-wrap"><div id="lga-app" data-page="${ page }"></div></div>`
         + `<script type="application/json" id="lga-config">${ JSON.stringify( config ) }</script>`

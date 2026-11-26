@@ -18,7 +18,7 @@
 import * as api from '../api.js';
 import {
     el, replace, card, badge, button, linkButton, callout, statTile, dataTable, errorState, loading, pageHeader, extLink, timeEl,
-    fmtNumber, fmtDate, toast, confirm, labelize, truncate, kv, details, isObject,
+    fmtNumber, fmtDate, toast, confirm, labelize, truncate, kv, details, isObject, controlId,
 } from '../ui.js';
 
 const SEVERITY = {
@@ -150,7 +150,7 @@ export default async function render( root, ctx ) {
         try {
             data = await api.get( '/seo/audit', {}, { silent: true } );
         } catch ( e ) {
-            replace( auditHost, card( { title: 'Site audit', body: errorState( { title: 'The audit could not be loaded', message: reason( e, '' ), retry: loadAudit } ) } ) );
+            replace( auditHost, card( { title: 'Site audit', body: errorState( { title: 'The audit could not be loaded', message: reason( e, '' ), retry: loadAudit, control: 'audit-retry' } ) } ) );
             return;
         }
         renderAudit( obj( data ) );
@@ -198,14 +198,15 @@ export default async function render( root, ctx ) {
         const runBtn = button( progress.running ? 'Continue audit' : ( result ? 'Run audit again' : 'Run audit' ), {
             kind: 'primary', iconName: 'play', small: true,
             title: 'Reads published pages, posts and products from the database. Nothing is edited.',
+            control: 'audit-run',
             onClick: () => runAudit( progressNode ),
         } );
 
         const tiles = el( 'div', { class: 'lga-grid lga-grid--tiles' },
             statTile( { label: 'Pages audited', iconName: 'file', value: result ? fmtNumber( result.pages ) : 'Not run yet', hint: result && result.checked_at ? `Last finished ${ fmtDate( result.checked_at ) }` : 'Run the audit to see results' } ),
-            statTile( { label: 'High', iconName: 'alert', value: result ? fmtNumber( counts.high ) : '—', tone: Number( counts.high ) > 0 ? 'critical' : null, hint: 'Noindex in menus, missing or duplicate titles', onClick: result ? () => setSeverity( 'high' ) : null } ),
-            statTile( { label: 'Medium', iconName: 'info', value: result ? fmtNumber( counts.medium ) : '—', hint: 'Descriptions, title length, broken links, orphans', onClick: result ? () => setSeverity( 'medium' ) : null } ),
-            statTile( { label: 'Low', iconName: 'list', value: result ? fmtNumber( counts.low ) : '—', hint: 'Thin content, missing alt text, extra H1s', onClick: result ? () => setSeverity( 'low' ) : null } ),
+            statTile( { label: 'High', iconName: 'alert', value: result ? fmtNumber( counts.high ) : '—', tone: Number( counts.high ) > 0 ? 'critical' : null, hint: 'Noindex in menus, missing or duplicate titles', onClick: result ? () => setSeverity( 'high' ) : null, control: 'audit-tile-high' } ),
+            statTile( { label: 'Medium', iconName: 'info', value: result ? fmtNumber( counts.medium ) : '—', hint: 'Descriptions, title length, broken links, orphans', onClick: result ? () => setSeverity( 'medium' ) : null, control: 'audit-tile-medium' } ),
+            statTile( { label: 'Low', iconName: 'list', value: result ? fmtNumber( counts.low ) : '—', hint: 'Thin content, missing alt text, extra H1s', onClick: result ? () => setSeverity( 'low' ) : null, control: 'audit-tile-low' } ),
         );
 
         const notes = [];
@@ -235,6 +236,7 @@ export default async function render( root, ctx ) {
                 small: true,
                 kind: state.severity === o.id ? 'primary' : 'ghost',
                 attrs: { 'aria-pressed': state.severity === o.id ? 'true' : 'false' },
+                control: controlId( 'audit-severity', o.id || 'all' ),
                 onClick: () => setSeverity( o.id ),
             } ) ) );
         }
@@ -243,6 +245,7 @@ export default async function render( root, ctx ) {
             const rows = state.severity ? issues.filter( ( i ) => i.severity === state.severity ) : issues;
             replace( tableHost, dataTable( {
                 caption: 'Site audit issues',
+                control: 'audit-issues',
                 rows,
                 rowKey: ( r ) => `${ r.post_id }-${ r.code }-${ r.message }`,
                 empty: result
@@ -255,13 +258,13 @@ export default async function render( root, ctx ) {
                     } },
                     { key: 'page', label: 'Page', render: ( r ) => el( 'div', {},
                         el( 'div', {}, String( r.title || ( Number( r.post_id ) > 0 ? `#${ r.post_id }` : 'Whole site' ) ) ),
-                        r.url ? el( 'div', { class: 'lga-small' }, extLink( r.url, null, { maxLength: 60 } ) ) : null,
+                        r.url ? el( 'div', { class: 'lga-small' }, extLink( r.url, null, { maxLength: 60, control: 'audit-issues-url' } ) ) : null,
                     ) },
                     { key: 'issue', label: 'Issue and fix', render: ( r ) => el( 'div', {},
                         el( 'div', {}, String( r.message || '' ) ),
                         r.fix ? el( 'div', { class: 'lga-small lga-muted' }, `Fix: ${ r.fix }` ) : null,
                     ) },
-                    { key: 'edit', label: 'Edit', align: 'right', render: ( r ) => ( r.edit_url ? linkButton( 'Edit', r.edit_url, { small: true, iconName: 'edit', external: true } ) : null ) },
+                    { key: 'edit', label: 'Edit', align: 'right', render: ( r ) => ( r.edit_url ? linkButton( 'Edit', r.edit_url, { small: true, iconName: 'edit', external: true, control: 'audit-issues-edit' } ) : null ) },
                 ],
             } ) );
         }
@@ -276,21 +279,22 @@ export default async function render( root, ctx ) {
                 [ 'Internal links in content', stats.internal_links !== undefined ? fmtNumber( stats.internal_links ) : 'unknown' ],
                 [ 'External links in content', stats.external_links !== undefined ? fmtNumber( stats.external_links ) : 'unknown' ],
                 [ 'Average words per item', stats.average_words !== undefined ? fmtNumber( stats.average_words ) : 'unknown' ],
-            ], { compact: true } ) ) );
+            ], { compact: true } ), { control: 'audit-totals' } ) );
             const sample = arr( result.sample );
             extras.push( details( sample.length ? `HTTP spot check (${ plural( sample.length, 'address', 'addresses' ) })` : 'HTTP spot check (not run)', sample.length
                 ? dataTable( {
                     caption: 'HTTP spot check',
+                    control: 'audit-sample',
                     dense: true,
                     rows: sample,
                     columns: [
-                        { key: 'url', label: 'Address', render: ( s ) => extLink( s.url, null, { maxLength: 60 } ) },
+                        { key: 'url', label: 'Address', render: ( s ) => extLink( s.url, null, { maxLength: 60, control: 'audit-sample-url' } ) },
                         { key: 'status', label: 'HTTP', render: ( s ) => ( s.status ? String( s.status ) : 'unknown' ) },
                         { key: 'result', label: 'Result', render: ( s ) => badge( s.result === 'ok' ? 'OK' : ( s.result === 'issue' ? 'Issue' : 'Unknown' ), s.result === 'ok' ? 'success' : ( s.result === 'issue' ? 'warning' : 'neutral' ) ) },
                         { key: 'note', label: 'Note', render: ( s ) => truncate( String( s.note || '' ), 120 ) },
                     ],
                 } )
-                : el( 'p', { class: 'lga-muted' }, 'Up to 10 addresses are fetched at the end of an audit (robots.txt and crawl delay respected) to confirm the HTTP status, canonical tag and structured data. It was turned off or had no time in the last audit.' ) ) );
+                : el( 'p', { class: 'lga-muted' }, 'Up to 10 addresses are fetched at the end of an audit (robots.txt and crawl delay respected) to confirm the HTTP status, canonical tag and structured data. It was turned off or had no time in the last audit.' ), { control: 'audit-sample-toggle' } ) );
         }
 
         replace( auditHost, card( {
@@ -312,7 +316,7 @@ export default async function render( root, ctx ) {
         try {
             data = obj( await api.get( '/seo/indexnow', {}, { silent: true } ) );
         } catch ( e ) {
-            replace( indexHost, card( { title: 'IndexNow', body: errorState( { title: 'IndexNow status could not be loaded', message: reason( e, '' ), retry: loadIndexNow } ) } ) );
+            replace( indexHost, card( { title: 'IndexNow', body: errorState( { title: 'IndexNow status could not be loaded', message: reason( e, '' ), retry: loadIndexNow, control: 'indexnow-retry' } ) } ) );
             return;
         }
         if ( data.available === false ) {
@@ -328,6 +332,7 @@ export default async function render( root, ctx ) {
 
         const submitBtn = button( 'Submit now', {
             kind: 'primary', small: true, iconName: 'send',
+            control: 'indexnow-submit',
             disabled: blocked !== '' || slowDown,
             title: blocked !== '' ? blocked : ( slowDown ? `IndexNow asked us to wait; submissions resume at ${ resumeAt }.` : 'Sends new and changed public URLs to IndexNow now.' ),
             onClick: async () => {
@@ -355,7 +360,7 @@ export default async function render( root, ctx ) {
                 : el( 'span', {}, 'The scheduled submission waits until ', timeEl( s.retry_after, { relative: false } ), ' before it tries again.' ) ) : null,
             kv( [
                 [ 'Status', s.enabled ? badge( 'On', 'success', { dot: true } ) : badge( 'Off', 'neutral', { dot: true } ) ],
-                [ 'Key file', s.key_url ? extLink( s.key_url ) : el( 'span', { class: 'lga-muted' }, 'not generated yet (created on the first submission)' ) ],
+                [ 'Key file', s.key_url ? extLink( s.key_url, undefined, { control: 'indexnow-key-file' } ) : el( 'span', { class: 'lga-muted' }, 'not generated yet (created on the first submission)' ) ],
                 [ 'Last accepted submission', s.last_submitted_at ? timeEl( s.last_submitted_at ) : el( 'span', { class: 'lga-muted' }, 'never' ) ],
                 [ 'Last response', s.last_status ? `HTTP ${ s.last_status }${ Number( s.last_status ) === 202 ? ' (accepted; key being verified)' : '' }` : el( 'span', { class: 'lga-muted' }, 'no request sent yet' ) ],
                 [ 'URLs submitted in total', fmtNumber( s.submitted_total ) ],
@@ -364,6 +369,7 @@ export default async function render( root, ctx ) {
             ] ),
             history.length ? details( `Recent attempts (${ fmtNumber( history.length ) })`, dataTable( {
                 caption: 'Recent IndexNow attempts',
+                control: 'indexnow-history',
                 dense: true,
                 rows: history,
                 columns: [
@@ -372,7 +378,7 @@ export default async function render( root, ctx ) {
                     { key: 'status', label: 'HTTP', render: ( h ) => ( h.status ? badge( String( h.status ), [ 200, 202 ].includes( Number( h.status ) ) ? 'success' : 'danger' ) : 'no response' ) },
                     { key: 'error', label: 'Note', render: ( h ) => ( h.error ? truncate( String( h.error ), 140 ) : 'Accepted' ) },
                 ],
-            } ) ) : null,
+            } ), { control: 'indexnow-history-toggle' } ) : null,
         );
 
         replace( indexHost, card( {
@@ -392,7 +398,7 @@ export default async function render( root, ctx ) {
         try {
             data = obj( await api.get( '/seo/links', { status: state.linkStatus, per_page: LINKS_PER_PAGE, page: state.linkPage }, { silent: true } ) );
         } catch ( e ) {
-            replace( linksHost, card( { title: 'Internal link suggestions', body: errorState( { title: 'Suggestions could not be loaded', message: reason( e, '' ), retry: loadLinks } ) } ) );
+            replace( linksHost, card( { title: 'Internal link suggestions', body: errorState( { title: 'Suggestions could not be loaded', message: reason( e, '' ), retry: loadLinks, control: 'links-retry' } ) } ) );
             return;
         }
         // The page asked for no longer exists (rows were applied or dismissed): show the last one.
@@ -453,7 +459,7 @@ export default async function render( root, ctx ) {
     async function undoAuto( count ) {
         const ok = await confirm(
             `This removes ${ plural( count, 'automatic internal link', 'automatic internal links' ) } from your live site. An item not edited since gets back exactly the content it had before; in an item edited since, only the inserted link is removed and the words stay. WordPress keeps a revision of each edited item.`,
-            { title: 'Undo automatic links?', confirmText: 'Undo automatic links', danger: true },
+            { title: 'Undo automatic links?', confirmText: 'Undo automatic links', danger: true, control: 'links-undo-auto-confirm' },
         );
         if ( ! ok ) {
             return;
@@ -506,11 +512,13 @@ export default async function render( root, ctx ) {
         const refreshBtn = button( 'Find suggestions', {
             small: true, iconName: 'refresh',
             title: 'Reads published content and lists places where a product or key page could be linked. Nothing is edited.',
+            control: 'links-find',
             onClick: () => refreshSuggestions(),
         } );
         const onePage = pageInfo.pages <= 1;
         const applyAllBtn = button( onePage ? 'Apply all' : `Apply these ${ fmtNumber( pendingItems.length ) }`, {
             small: true, kind: 'primary', iconName: 'link',
+            control: 'links-apply-all',
             disabled: pendingItems.length === 0,
             title: pendingItems.length === 0 ? 'No suggestions are listed here.' : ( onePage ? 'Adds every suggested link listed below after you confirm.' : 'Adds the suggested links on this page of the list after you confirm.' ),
             onClick: async () => {
@@ -518,7 +526,7 @@ export default async function render( root, ctx ) {
                 const hiddenNote = state.linkStatus === 'not_shown' ? ' These pages don’t display this text to visitors, so the links will not be seen there.' : '';
                 const ok = await confirm(
                     `This edits ${ plural( sources, 'published item', 'published items' ) } on your live site: ${ plural( pendingItems.length, 'link is', 'links are' ) } added around the existing words shown below. Nothing else in the content changes, and WordPress saves a revision of each item so you can restore the previous version from the editor.${ hiddenNote }`,
-                    { title: onePage ? 'Apply all suggested links?' : 'Apply the suggested links on this page?', confirmText: `Apply ${ plural( pendingItems.length, 'link', 'links' ) }`, danger: true },
+                    { title: onePage ? 'Apply all suggested links?' : 'Apply the suggested links on this page?', confirmText: `Apply ${ plural( pendingItems.length, 'link', 'links' ) }`, danger: true, control: 'links-apply-all-confirm' },
                 );
                 if ( ok ) {
                     await applyIds( pendingItems.map( ( i ) => i.id ) );
@@ -531,6 +539,7 @@ export default async function render( root, ctx ) {
                 small: true,
                 kind: state.linkStatus === s.id ? 'primary' : 'ghost',
                 attrs: { 'aria-pressed': state.linkStatus === s.id ? 'true' : 'false' },
+                control: controlId( 'links-status', s.id ),
                 onClick: () => {
                     state.linkStatus = s.id;
                     state.linkPage = 1;
@@ -547,8 +556,8 @@ export default async function render( root, ctx ) {
         const pager = pageInfo.pages > 1 || pageInfo.page > 1
             ? el( 'div', { class: 'lga-row lga-links-pager', role: 'group', 'aria-label': 'Pages of suggestions' },
                 el( 'span', { class: 'lga-small lga-muted', role: 'status' }, `${ pageInfo.text } (page ${ fmtNumber( pageInfo.page ) } of ${ fmtNumber( pageInfo.pages ) })` ),
-                button( 'Previous', { small: true, kind: 'ghost', disabled: pageInfo.page <= 1, onClick: () => goTo( pageInfo.page - 1 ) } ),
-                button( 'Next', { small: true, kind: 'ghost', disabled: pageInfo.page >= pageInfo.pages, onClick: () => goTo( pageInfo.page + 1 ) } ),
+                button( 'Previous', { small: true, kind: 'ghost', disabled: pageInfo.page <= 1, onClick: () => goTo( pageInfo.page - 1 ), control: 'links-page-prev' } ),
+                button( 'Next', { small: true, kind: 'ghost', disabled: pageInfo.page >= pageInfo.pages, onClick: () => goTo( pageInfo.page + 1 ), control: 'links-page-next' } ),
             )
             : ( pageInfo.total > 0 ? el( 'div', { class: 'lga-small lga-muted' }, pageInfo.text ) : null );
 
@@ -569,18 +578,18 @@ export default async function render( root, ctx ) {
         const columns = [
             { key: 'source', label: 'In this item', render: ( r ) => el( 'div', {},
                 el( 'div', {}, String( r.source_title || `#${ r.source_post_id }` ) ),
-                el( 'div', { class: 'lga-small lga-row' }, r.source_url ? extLink( r.source_url, 'View', {} ) : null, r.edit_url ? extLink( r.edit_url, 'Edit', {} ) : null ),
+                el( 'div', { class: 'lga-small lga-row' }, r.source_url ? extLink( r.source_url, 'View', { control: 'links-source-view' } ) : null, r.edit_url ? extLink( r.edit_url, 'Edit', { control: 'links-source-edit' } ) : null ),
             ) },
             { key: 'excerpt', label: 'Words to link', render: ( r ) => el( 'div', {},
                 el( 'div', { class: 'lga-small' }, highlight( r.excerpt, r.anchor ) ),
-                el( 'div', { class: 'lga-small lga-muted' }, 'Links to ', extLink( r.target_url, r.target_title || r.target_url, { maxLength: 60 } ) ),
+                el( 'div', { class: 'lga-small lga-muted' }, 'Links to ', extLink( r.target_url, r.target_title || r.target_url, { maxLength: 60, control: 'links-target' } ) ),
                 open ? rowState( r ) : null,
             ) },
         ];
         if ( open ) {
             columns.push( { key: 'actions', label: 'Actions', align: 'right', render: ( r ) => el( 'div', { class: 'lga-row lga-row--end' },
-                button( 'Apply', { small: true, kind: 'primary', title: r.status === 'not_shown' ? 'Adds this link now, although visitors may not see it on this page (WordPress keeps a revision).' : 'Adds this one link now (WordPress keeps a revision).', onClick: () => applyIds( [ r.id ] ) } ),
-                button( 'Dismiss', { small: true, kind: 'ghost', title: 'Hide this suggestion; it will not be suggested again.', onClick: () => dismissIds( [ r.id ] ) } ),
+                button( 'Apply', { small: true, kind: 'primary', title: r.status === 'not_shown' ? 'Adds this link now, although visitors may not see it on this page (WordPress keeps a revision).' : 'Adds this one link now (WordPress keeps a revision).', onClick: () => applyIds( [ r.id ] ), control: 'links-apply' } ),
+                button( 'Dismiss', { small: true, kind: 'ghost', title: 'Hide this suggestion; it will not be suggested again.', onClick: () => dismissIds( [ r.id ] ), control: 'links-dismiss' } ),
             ) } );
         } else {
             columns.push( { key: 'status', label: 'Status', render: ( r ) => el( 'div', {},
@@ -590,7 +599,7 @@ export default async function render( root, ctx ) {
                 r.note ? el( 'div', { class: 'lga-small lga-muted' }, truncate( String( r.note ), 160 ) ) : null,
             ) } );
             if ( state.linkStatus === 'stale' ) {
-                columns.push( { key: 'actions', label: 'Actions', align: 'right', render: ( r ) => button( 'Dismiss', { small: true, kind: 'ghost', onClick: () => dismissIds( [ r.id ] ) } ) } );
+                columns.push( { key: 'actions', label: 'Actions', align: 'right', render: ( r ) => button( 'Dismiss', { small: true, kind: 'ghost', onClick: () => dismissIds( [ r.id ] ), control: 'links-dismiss' } ) } );
             }
         }
 
@@ -598,6 +607,7 @@ export default async function render( root, ctx ) {
         const autoNode = auto.show ? callout( 'info', auto.title, auto.extra ? `${ auto.text } ${ auto.extra }` : auto.text, {
             actions: button( 'Undo automatic links', {
                 small: true, iconName: 'refresh',
+                control: 'links-undo-auto',
                 disabled: auto.present === 0,
                 title: auto.present === 0 ? 'No automatic link is on the site.' : 'Removes every automatic link still present (asks first).',
                 onClick: () => undoAuto( auto.present ),
@@ -617,6 +627,7 @@ export default async function render( root, ctx ) {
                 state.linkStatus === 'refused' ? callout( 'info', null, 'Automation could not add these by itself; each row says why. Apply them by hand from an administrator account, or dismiss them.' ) : null,
                 dataTable( {
                     caption: 'Internal link suggestions',
+                    control: 'links',
                     rows: items,
                     rowKey: ( r ) => r.id,
                     empty: state.linkStatus === 'pending'

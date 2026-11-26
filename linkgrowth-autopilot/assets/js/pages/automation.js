@@ -6,7 +6,7 @@
 import * as api from '../api.js';
 import {
     el, replace, badge, statusBadge, button, callout, kv, pre, loading, errorState, emptyState, timeEl, fmtNumber, fmtDate, fmtDuration, labelize, truncate,
-    pageHeader, dataTable, confirm, toast, card, switchRow, meter, details, isObject, modal, formField,
+    pageHeader, dataTable, confirm, toast, card, switchRow, meter, details, isObject, modal, formField, controlId,
 } from '../ui.js';
 import { reportRun } from './outcome.js';
 import { autopilotCard } from '../autopilot.js';
@@ -98,7 +98,7 @@ export default async function render( root, ctx ) {
     let status = null;
 
     const content = el( 'div' );
-    const refreshToggle = formField( { type: 'checkbox', label: 'Auto-refresh every 30s', value: false, onChange: ( v ) => {
+    const refreshToggle = formField( { type: 'checkbox', label: 'Auto-refresh every 30s', value: false, control: 'auto-refresh', onChange: ( v ) => {
         autoRefresh = Boolean( v );
         schedule();
     } } );
@@ -107,7 +107,7 @@ export default async function render( root, ctx ) {
         pageHeader( {
             title: 'Automation',
             description: 'Background stages run on a schedule within the configured limits. Autopilot (below) is the one switch for hands-off growth; risky stages (Autopilot, automated submissions, outreach autosend) ask for confirmation before they are switched on.',
-            actions: [ refreshToggle.el, button( 'Refresh', { iconName: 'refresh', onClick: () => load() } ) ],
+            actions: [ refreshToggle.el, button( 'Refresh', { iconName: 'refresh', onClick: () => load(), control: 'refresh' } ) ],
         } ),
         content,
     );
@@ -131,7 +131,7 @@ export default async function render( root, ctx ) {
             status = normalizeStatus( await api.get( '/automation/status', {}, { silent: quiet } ) );
         } catch ( e ) {
             if ( ! quiet ) {
-                replace( content, errorState( { title: 'Could not load automation status', message: e && e.message ? e.message : '', retry: () => load() } ) );
+                replace( content, errorState( { title: 'Could not load automation status', message: e && e.message ? e.message : '', retry: () => load(), control: 'load-retry' } ) );
             }
             return;
         }
@@ -146,7 +146,7 @@ export default async function render( root, ctx ) {
         const def = FLAGS.find( ( f ) => f.key === key );
         const body = { key, value: Boolean( value ) };
         if ( value && def && def.gated ) {
-            if ( ! ( await confirm( def.confirmText, { title: `Enable ${ def.label.toLowerCase() }`, confirmText: 'Enable', danger: true } ) ) ) {
+            if ( ! ( await confirm( def.confirmText, { title: `Enable ${ def.label.toLowerCase() }`, confirmText: 'Enable', danger: true, control: controlId( 'flag', key, 'confirm' ) } ) ) ) {
                 return false;
             }
             body.confirm = true;
@@ -166,6 +166,7 @@ export default async function render( root, ctx ) {
             title: 'Master switch',
             body: [
                 switchRow( {
+                    control: 'flag-enabled',
                     label: 'Run background automation',
                     description: 'When off, the scheduler still ticks but only runs jobs you start manually. Turn it on to let the stages below run on their cadence.',
                     checked: s.enabled,
@@ -180,6 +181,7 @@ export default async function render( root, ctx ) {
             title: 'Stages',
             subtitle: 'Each flag gates the matching scheduled stage',
             body: FLAGS.map( ( f ) => switchRow( {
+                control: controlId( 'flag', f.key ),
                 label: f.label,
                 description: stageDescription( f.key, Boolean( s.autopilot && s.autopilot.enabled ) ),
                 checked: Boolean( s.flags[ f.key ] ),
@@ -208,7 +210,7 @@ export default async function render( root, ctx ) {
                 ], { compact: true } ),
             ],
             footer: [
-                button( 'Kick scheduler', { iconName: 'zap', title: 'Re-register the schedule and trigger an asynchronous tick', onClick: async () => {
+                button( 'Kick scheduler', { iconName: 'zap', title: 'Re-register the schedule and trigger an asynchronous tick', control: 'kick', onClick: async () => {
                     const res = await api.post( '/automation/kick', {} );
                     if ( isObject( res ) && isObject( res.paused ) ) {
                         // Paused for server pressure: nothing was kicked, on purpose.
@@ -219,7 +221,7 @@ export default async function render( root, ctx ) {
                     toast( res === false || ( isObject( res ) && res.ok === false ) ? 'The scheduler could not be kicked — check the logs.' : 'Tick triggered in the background.', res === false ? 'warning' : 'success' );
                     setTimeout( () => load( { quiet: true } ), 3000 );
                 } } ),
-                button( 'Run tick now', { kind: 'primary', iconName: 'play', title: 'Enqueue due stages and run the job queue for one time slice', onClick: async () => {
+                button( 'Run tick now', { kind: 'primary', iconName: 'play', title: 'Enqueue due stages and run the job queue for one time slice', control: 'tick', onClick: async () => {
                     const res = await api.post( '/automation/tick', {} );
                     const r = obj( res && ( res.tick || res.result ) ? ( res.tick || res.result ) : res );
                     const run = obj( r.run );
@@ -243,6 +245,7 @@ export default async function render( root, ctx ) {
             body: dataTable( {
                 dense: true,
                 plain: true,
+                control: 'limits',
                 rows: limitRows,
                 empty: { title: 'No limits configured', compact: true },
                 columns: [
@@ -265,7 +268,7 @@ export default async function render( root, ctx ) {
             const flagOn = flagKey ? Boolean( s.flags[ flagKey ] ) : true;
             const resultHost = el( 'div' );
             if ( Object.keys( last ).length ) {
-                resultHost.appendChild( details( el( 'span', { class: 'lga-row' }, 'Last result', statusBadge( last.status || 'completed', { dot: false } ), el( 'span', { class: 'lga-muted' }, last.finished_at ? timeEl( last.finished_at ) : '' ) ), pre( last.result !== undefined ? last.result : last ) ) );
+                resultHost.appendChild( details( el( 'span', { class: 'lga-row' }, 'Last result', statusBadge( last.status || 'completed', { dot: false } ), el( 'span', { class: 'lga-muted' }, last.finished_at ? timeEl( last.finished_at ) : '' ) ), pre( last.result !== undefined ? last.result : last ), { control: controlId( 'stage', type, 'result' ) } ) );
             }
             return card( {
                 className: 'lga-stage-card',
@@ -280,8 +283,8 @@ export default async function render( root, ctx ) {
                     ),
                     resultHost,
                 ],
-                footer: [ button( 'Run now', { small: true, kind: 'primary', iconName: 'play', onClick: async () => {
-                    if ( [ 'submit', 'outreach_send' ].includes( type ) && ! ( await confirm( `Run “${ def.label }” now? Approved items in the queue will be processed immediately (policy and compliance checks still apply).`, { confirmText: 'Run now' } ) ) ) {
+                footer: [ button( 'Run now', { small: true, kind: 'primary', iconName: 'play', control: controlId( 'stage', type, 'run' ), onClick: async () => {
+                    if ( [ 'submit', 'outreach_send' ].includes( type ) && ! ( await confirm( `Run “${ def.label }” now? Approved items in the queue will be processed immediately (policy and compliance checks still apply).`, { confirmText: 'Run now', control: controlId( 'stage', type, 'run-confirm' ) } ) ) ) {
                         return;
                     }
                     const res = await api.post( '/automation/run', { stage: type, options: {} } );
@@ -292,7 +295,7 @@ export default async function render( root, ctx ) {
                         toast( String( r.warning ), 'warning', { timeout: 9000 } );
                     }
                     if ( outcome.state !== 'queued' ) {
-                        replace( resultHost, details( el( 'span', { class: 'lga-row' }, 'Result', badge( 'just now', outcome.kind === 'success' ? 'success' : ( outcome.kind === 'error' ? 'danger' : 'warning' ) ) ), pre( r.result !== undefined ? r.result : r ), { open: true } ) );
+                        replace( resultHost, details( el( 'span', { class: 'lga-row' }, 'Result', badge( 'just now', outcome.kind === 'success' ? 'success' : ( outcome.kind === 'error' ? 'danger' : 'warning' ) ) ), pre( r.result !== undefined ? r.result : r ), { open: true, control: controlId( 'stage', type, 'result' ) } ) );
                     }
                     await load( { quiet: true } );
                 } } ) ],
@@ -300,14 +303,15 @@ export default async function render( root, ctx ) {
         } );
 
         // Recent jobs
-        const cancelBtn = button( 'Cancel queued jobs', { kind: 'danger', small: true, iconName: 'stop', onClick: async () => {
-            const typeField = formField( { type: 'select', label: 'Job type', options: [ { value: '', label: 'All queued jobs' } ].concat( stageIds.map( ( t ) => ( { value: t, label: ( STAGES[ t ] || { label: labelize( t ) } ).label } ) ) ) } );
+        const cancelBtn = button( 'Cancel queued jobs', { kind: 'danger', small: true, iconName: 'stop', control: 'jobs-cancel', onClick: async () => {
+            const typeField = formField( { type: 'select', label: 'Job type', options: [ { value: '', label: 'All queued jobs' } ].concat( stageIds.map( ( t ) => ( { value: t, label: ( STAGES[ t ] || { label: labelize( t ) } ).label } ) ) ), control: 'jobs-cancel-dialog-type' } );
             modal( {
                 title: 'Cancel queued jobs',
+                control: 'jobs-cancel-dialog',
                 content: [ el( 'p', {}, 'Queued jobs are marked cancelled; running jobs finish their current slice.' ), typeField.el ],
                 actions: [
-                    { label: 'Keep jobs', onClick: ( close ) => close() },
-                    { label: 'Cancel jobs', kind: 'danger', onClick: async ( close ) => {
+                    { label: 'Keep jobs', control: 'keep', onClick: ( close ) => close() },
+                    { label: 'Cancel jobs', control: 'confirm', kind: 'danger', onClick: async ( close ) => {
                         const res = await api.post( '/automation/cancel', typeField.get() ? { type: typeField.get() } : {} );
                         const n = isObject( res ) ? ( res.cancelled ?? res.count ?? res.result ) : res;
                         toast( `${ fmtNumber( Number( n ) || 0 ) } job(s) cancelled.`, 'success' );
@@ -325,6 +329,7 @@ export default async function render( root, ctx ) {
             body: dataTable( {
                 dense: true,
                 plain: true,
+                control: 'jobs',
                 rows: s.recent,
                 empty: { title: 'No jobs yet', message: 'Jobs appear once a tick enqueues stages or you run a stage manually.', compact: true },
                 expandable: ( j ) => el( 'div', { class: 'lga-stack' },

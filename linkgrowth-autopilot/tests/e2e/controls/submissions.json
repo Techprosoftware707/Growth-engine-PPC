@@ -1,0 +1,1618 @@
+{
+  "page": "submissions",
+  "description": "Submissions (administrator) and Owner tasks (the submitter role): tabs, list, the package drawer, the owner-task card and the manual kit.",
+  "controls": [
+    {
+      "control": "submissions.refresh",
+      "action": "click",
+      "expect": {
+        "request": "GET /submissions"
+      }
+    },
+    {
+      "control": "submissions.tab-all",
+      "action": "click",
+      "expect": {
+        "request": "GET /submissions"
+      },
+      "view": "#tab=failed"
+    },
+    {
+      "control": "submissions.tab-pending-review",
+      "action": "click",
+      "expect": {
+        "request": "GET /submissions?status=pending_review",
+        "dom": "[data-lga-control=\"submissions.tab-pending-review\"][aria-selected=\"true\"]"
+      }
+    },
+    {
+      "control": "submissions.tab-needs-manual",
+      "action": "click",
+      "expect": {
+        "request": "GET /submissions?status=needs_manual",
+        "dom": "[data-lga-control=\"submissions.tab-needs-manual\"][aria-selected=\"true\"]"
+      }
+    },
+    {
+      "control": "submissions.tab-approved",
+      "action": "click",
+      "expect": {
+        "request": "GET /submissions?status=approved,queued",
+        "dom": "[data-lga-control=\"submissions.tab-approved\"][aria-selected=\"true\"]"
+      }
+    },
+    {
+      "control": "submissions.tab-submitted",
+      "action": "click",
+      "expect": {
+        "request": "GET /submissions?status=submitted",
+        "dom": "[data-lga-control=\"submissions.tab-submitted\"][aria-selected=\"true\"]"
+      }
+    },
+    {
+      "control": "submissions.tab-confirmed",
+      "action": "click",
+      "expect": {
+        "request": "GET /submissions?status=confirmed",
+        "dom": "[data-lga-control=\"submissions.tab-confirmed\"][aria-selected=\"true\"]"
+      }
+    },
+    {
+      "control": "submissions.tab-failed",
+      "action": "click",
+      "expect": {
+        "request": "GET /submissions?status=failed",
+        "dom": "[data-lga-control=\"submissions.tab-failed\"][aria-selected=\"true\"]"
+      }
+    },
+    {
+      "control": "submissions.tab-rejected",
+      "action": "click",
+      "expect": {
+        "request": "GET /submissions?status=rejected",
+        "dom": "[data-lga-control=\"submissions.tab-rejected\"][aria-selected=\"true\"]"
+      }
+    },
+    {
+      "control": "submissions.tab-owner-tasks",
+      "action": "click",
+      "expect": {
+        "request": "GET /submissions?status=needs_manual&source=verified_db",
+        "dom": "[data-lga-control=\"submissions.tab-owner-tasks\"][aria-selected=\"true\"]"
+      }
+    },
+    {
+      "control": "submissions.list-filter-method",
+      "action": "select",
+      "input": "form",
+      "expect": {
+        "request": "GET /submissions?method=form"
+      }
+    },
+    {
+      "control": "submissions.list-filter-source",
+      "action": "select",
+      "input": "verified_db",
+      "expect": {
+        "request": "GET /submissions?source=verified_db"
+      }
+    },
+    {
+      "control": "submissions.list-filter-tier",
+      "action": "select",
+      "input": "2",
+      "expect": {
+        "request": "GET /submissions?tier=2"
+      }
+    },
+    {
+      "control": "submissions.list-filter-kind",
+      "action": "select",
+      "input": "listing",
+      "expect": {
+        "request": "GET /submissions?kind=listing"
+      }
+    },
+    {
+      "control": "submissions.list-filter-conditional",
+      "action": "select",
+      "input": "no",
+      "expect": {
+        "request": "GET /submissions?conditional=no"
+      }
+    },
+    {
+      "control": "submissions.list-filter-q",
+      "action": "fill",
+      "input": "labdirectory",
+      "expect": {
+        "request": "GET /submissions?q=labdirectory"
+      }
+    },
+    {
+      "control": "submissions.list-filter-reset",
+      "action": "click",
+      "expect": {
+        "request": "GET /submissions?!q"
+      },
+      "before": [
+        {
+          "control": "submissions.list-filter-q",
+          "action": "fill",
+          "input": "labdirectory"
+        }
+      ],
+      "note": "Reset clears the filters and loads the list again: the reload no longer carries the filter the before step typed."
+    },
+    {
+      "control": "submissions.list-sort-id",
+      "action": "click",
+      "expect": {
+        "request": "GET /submissions?orderby=id"
+      }
+    },
+    {
+      "control": "submissions.list-sort-method",
+      "action": "click",
+      "expect": {
+        "request": "GET /submissions?orderby=method"
+      }
+    },
+    {
+      "control": "submissions.list-sort-status",
+      "action": "click",
+      "expect": {
+        "request": "GET /submissions?orderby=status"
+      }
+    },
+    {
+      "control": "submissions.list-sort-scheduled-at",
+      "action": "click",
+      "expect": {
+        "request": "GET /submissions?orderby=scheduled_at"
+      }
+    },
+    {
+      "control": "submissions.list-sort-submitted-at",
+      "action": "click",
+      "expect": {
+        "request": "GET /submissions?orderby=submitted_at"
+      }
+    },
+    {
+      "control": "submissions.list-sort-updated-at",
+      "action": "click",
+      "expect": {
+        "request": "GET /submissions?orderby=updated_at"
+      }
+    },
+    {
+      "control": "submissions.list-pager-per-page",
+      "action": "select",
+      "input": "50",
+      "expect": {
+        "request": "GET /submissions?per_page=50"
+      }
+    },
+    {
+      "control": "submissions.list-pager-next",
+      "action": "click",
+      "expect": {
+        "request": "GET /submissions?page=2"
+      },
+      "mock": [
+        {
+          "request": "GET /submissions",
+          "status": 200,
+          "body": {
+            "items": [],
+            "total": 60,
+            "page": 1,
+            "per_page": 25,
+            "pages": 3
+          }
+        }
+      ],
+      "note": "The list is answered as three pages so the button is enabled."
+    },
+    {
+      "control": "submissions.list-pager-prev",
+      "action": "click",
+      "expect": {
+        "request": "GET /submissions?page=1"
+      },
+      "mock": [
+        {
+          "request": "GET /submissions",
+          "status": 200,
+          "body": {
+            "items": [],
+            "total": 60,
+            "page": 1,
+            "per_page": 25,
+            "pages": 3
+          }
+        },
+        {
+          "request": "GET /submissions",
+          "status": 200,
+          "body": {
+            "items": [],
+            "total": 60,
+            "page": 2,
+            "per_page": 25,
+            "pages": 3
+          }
+        }
+      ],
+      "before": [
+        "submissions.list-pager-next"
+      ],
+      "note": "The list is answered as three pages so the buttons are enabled."
+    },
+    {
+      "control": "submissions.list-row",
+      "action": "click",
+      "expect": {
+        "request": "GET /submissions/{id}",
+        "dom": ".lga-drawer"
+      }
+    },
+    {
+      "control": "submissions.list-target",
+      "action": "click",
+      "expect": {
+        "popup": ".test/"
+      }
+    },
+    {
+      "control": "submissions.list-retry",
+      "action": "click",
+      "expect": {
+        "request": "GET /submissions"
+      },
+      "mock": [
+        {
+          "request": "GET /submissions",
+          "status": 500
+        }
+      ]
+    },
+    {
+      "control": "submissions.drawer-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-drawer"
+      },
+      "view": "#open={seed.submissionDirectory}"
+    },
+    {
+      "control": "submissions.drawer-retry",
+      "action": "click",
+      "expect": {
+        "request": "GET /submissions/{id}"
+      },
+      "view": "#open={seed.submissionDirectory}",
+      "mock": [
+        {
+          "request": "GET /submissions/{seed.submissionDirectory}",
+          "status": 500
+        }
+      ]
+    },
+    {
+      "control": "submissions.drawer-prospect",
+      "action": "click",
+      "expect": {
+        "navigate": "/page=lga-prospects/",
+        "dom": ".lga-drawer"
+      },
+      "view": "#open={seed.submissionDirectory}"
+    },
+    {
+      "control": "submissions.drawer-target",
+      "action": "click",
+      "expect": {
+        "popup": "labdirectory.test/add-listing"
+      },
+      "view": "#open={seed.submissionDirectory}"
+    },
+    {
+      "control": "submissions.drawer-target-page",
+      "action": "click",
+      "expect": {
+        "popup": "labdirectory.test/add-listing"
+      },
+      "view": "#open={seed.submissionDirectory}"
+    },
+    {
+      "control": "submissions.drawer-opportunity",
+      "action": "click",
+      "expect": {
+        "popup": "labdirectory.test"
+      },
+      "view": "#open={seed.submissionDirectory}"
+    },
+    {
+      "control": "submissions.drawer-open-target",
+      "action": "click",
+      "expect": {
+        "popup": "labdirectory.test/add-listing"
+      },
+      "view": "#open={seed.submissionDirectory}"
+    },
+    {
+      "control": "submissions.business-copy",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-toast"
+      },
+      "view": "#open={seed.submissionDirectory}"
+    },
+    {
+      "control": "submissions.business-website",
+      "action": "click",
+      "expect": {
+        "popup": "northwind.test"
+      },
+      "view": "#open={seed.submissionDirectory}"
+    },
+    {
+      "control": "submissions.content-tagline",
+      "action": "fill",
+      "input": "E2E tagline text for the listing",
+      "expect": {
+        "request": "POST /submissions/{id}/payload"
+      },
+      "view": "#open={seed.submissionDirectory}",
+      "then": [
+        "submissions.content-save"
+      ]
+    },
+    {
+      "control": "submissions.content-short-description",
+      "action": "fill",
+      "input": "E2E short-description text for the listing",
+      "expect": {
+        "request": "POST /submissions/{id}/payload"
+      },
+      "view": "#open={seed.submissionDirectory}",
+      "then": [
+        "submissions.content-save"
+      ]
+    },
+    {
+      "control": "submissions.content-description",
+      "action": "fill",
+      "input": "E2E description text for the listing",
+      "expect": {
+        "request": "POST /submissions/{id}/payload"
+      },
+      "view": "#open={seed.submissionDirectory}",
+      "then": [
+        "submissions.content-save"
+      ]
+    },
+    {
+      "control": "submissions.content-company-background",
+      "action": "fill",
+      "input": "E2E company-background text for the listing",
+      "expect": {
+        "request": "POST /submissions/{id}/payload"
+      },
+      "view": "#open={seed.submissionDirectory}",
+      "then": [
+        "submissions.content-save"
+      ]
+    },
+    {
+      "control": "submissions.content-category-suggestions",
+      "action": "fill",
+      "input": "Industrial Supplies\nPackaging Supplies",
+      "expect": {
+        "request": "POST /submissions/{id}/payload",
+        "body": "Packaging Supplies"
+      },
+      "view": "#open={seed.submissionDirectory}",
+      "then": [
+        "submissions.content-save"
+      ]
+    },
+    {
+      "control": "submissions.content-keywords",
+      "action": "fill",
+      "input": "packaging\ncorrugated boxes",
+      "expect": {
+        "request": "POST /submissions/{id}/payload",
+        "body": "corrugated boxes"
+      },
+      "view": "#open={seed.submissionDirectory}",
+      "then": [
+        "submissions.content-save"
+      ]
+    },
+    {
+      "control": "submissions.content-copy",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-toast"
+      },
+      "view": "#open={seed.submissionDirectory}"
+    },
+    {
+      "control": "submissions.content-save",
+      "action": "click",
+      "expect": {
+        "request": "POST /submissions/{id}/payload"
+      },
+      "view": "#open={seed.submissionDirectory}"
+    },
+    {
+      "control": "submissions.fields-value",
+      "action": "fill",
+      "input": "E2E field value",
+      "expect": {
+        "request": "POST /submissions/{id}/payload"
+      },
+      "view": "#open={seed.submissionDirectory}",
+      "then": [
+        "submissions.fields-save"
+      ],
+      "note": "The first editable field of the form mapping."
+    },
+    {
+      "control": "submissions.fields-save",
+      "action": "click",
+      "expect": {
+        "request": "POST /submissions/{id}/payload"
+      },
+      "view": "#open={seed.submissionDirectory}"
+    },
+    {
+      "control": "submissions.steps-step-1",
+      "action": "toggle",
+      "expect": {
+        "dom": "li.lga-done [data-lga-control=\"submissions.steps-step-1\"]"
+      },
+      "view": "#open={seed.submissionDirectory}",
+      "note": "The submission steps; ticks are kept in this browser only."
+    },
+    {
+      "control": "submissions.steps-step-2",
+      "action": "toggle",
+      "expect": {
+        "dom": "li.lga-done [data-lga-control=\"submissions.steps-step-2\"]"
+      },
+      "view": "#open={seed.submissionDirectory}"
+    },
+    {
+      "control": "submissions.steps-step-3",
+      "action": "toggle",
+      "expect": {
+        "dom": "li.lga-done [data-lga-control=\"submissions.steps-step-3\"]"
+      },
+      "view": "#open={seed.submissionDirectory}"
+    },
+    {
+      "control": "submissions.steps-step-4",
+      "action": "toggle",
+      "expect": {
+        "dom": "li.lga-done [data-lga-control=\"submissions.steps-step-4\"]"
+      },
+      "view": "#open={seed.submissionDirectory}"
+    },
+    {
+      "control": "submissions.steps-step-5",
+      "action": "toggle",
+      "expect": {
+        "dom": "li.lga-done [data-lga-control=\"submissions.steps-step-5\"]"
+      },
+      "view": "#open={seed.submissionDirectory}"
+    },
+    {
+      "control": "submissions.steps-step-6",
+      "action": "toggle",
+      "expect": {
+        "dom": "li.lga-done [data-lga-control=\"submissions.steps-step-6\"]"
+      },
+      "view": "#open={seed.submissionDirectory}"
+    },
+    {
+      "control": "submissions.steps-step-7",
+      "action": "toggle",
+      "expect": {
+        "dom": "li.lga-done [data-lga-control=\"submissions.steps-step-7\"]"
+      },
+      "view": "#open={seed.submissionDirectory}"
+    },
+    {
+      "control": "submissions.toast-dismiss",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-toast"
+      },
+      "view": "#open={seed.submissionDirectory}",
+      "before": [
+        "submissions.content-save"
+      ]
+    },
+    {
+      "control": "submissions.drawer-approve",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-modal"
+      },
+      "view": "#open={seed.submissionDirectory}"
+    },
+    {
+      "control": "submissions.drawer-approve-confirm-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#open={seed.submissionDirectory}",
+      "before": [
+        "submissions.drawer-approve"
+      ]
+    },
+    {
+      "control": "submissions.drawer-approve-confirm-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#open={seed.submissionDirectory}",
+      "before": [
+        "submissions.drawer-approve"
+      ]
+    },
+    {
+      "control": "submissions.drawer-approve-confirm-confirm",
+      "action": "click",
+      "expect": {
+        "request": "POST /submissions/{id}/approve"
+      },
+      "view": "#open={seed.submissionDirectory}",
+      "note": "In manual mode the package stays a manual kit (the answer says so).",
+      "before": [
+        "submissions.drawer-approve"
+      ]
+    },
+    {
+      "control": "submissions.drawer-rebuild",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-modal"
+      },
+      "view": "#open={seed.submissionDirectory}"
+    },
+    {
+      "control": "submissions.drawer-rebuild-confirm-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#open={seed.submissionDirectory}",
+      "before": [
+        "submissions.drawer-rebuild"
+      ]
+    },
+    {
+      "control": "submissions.drawer-rebuild-confirm-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#open={seed.submissionDirectory}",
+      "before": [
+        "submissions.drawer-rebuild"
+      ]
+    },
+    {
+      "control": "submissions.drawer-rebuild-confirm-confirm",
+      "action": "click",
+      "expect": {
+        "request": "POST /submissions/{id}/rebuild"
+      },
+      "view": "#open={seed.submissionDirectory}",
+      "before": [
+        "submissions.drawer-rebuild"
+      ]
+    },
+    {
+      "control": "submissions.drawer-reject",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-modal"
+      },
+      "view": "#open={seed.submissionDirectory}"
+    },
+    {
+      "control": "submissions.drawer-reject-dialog-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#open={seed.submissionDirectory}",
+      "before": [
+        "submissions.drawer-reject"
+      ]
+    },
+    {
+      "control": "submissions.drawer-reject-dialog-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#open={seed.submissionDirectory}",
+      "before": [
+        "submissions.drawer-reject"
+      ]
+    },
+    {
+      "control": "submissions.drawer-reject-dialog-confirm",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-field-error:not([hidden])"
+      },
+      "view": "#open={seed.submissionDirectory}",
+      "before": [
+        "submissions.drawer-reject"
+      ],
+      "note": "Without a reason the dialog stays open and asks for one."
+    },
+    {
+      "control": "submissions.drawer-mark-submitted",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-modal"
+      },
+      "view": "#open={seed.submissionDirectory}"
+    },
+    {
+      "control": "submissions.drawer-mark-submitted-form-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#open={seed.submissionDirectory}",
+      "before": [
+        "submissions.drawer-mark-submitted"
+      ]
+    },
+    {
+      "control": "submissions.drawer-mark-submitted-form-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#open={seed.submissionDirectory}",
+      "before": [
+        "submissions.drawer-mark-submitted"
+      ]
+    },
+    {
+      "control": "submissions.drawer-reject-dialog-input",
+      "action": "fill",
+      "input": "E2E: wrong category",
+      "expect": {
+        "request": "POST /submissions/{id}/reject"
+      },
+      "view": "#open={seed.submissionDirectory}",
+      "before": [
+        "submissions.drawer-reject"
+      ],
+      "then": [
+        "submissions.drawer-reject-dialog-confirm"
+      ],
+      "destructive": true
+    },
+    {
+      "control": "submissions.drawer-retry-submission",
+      "action": "click",
+      "expect": {
+        "request": "POST /submissions/{id}/retry"
+      },
+      "view": "#open={seed.submissionDirectory}",
+      "destructive": true,
+      "note": "Shown for a rejected package."
+    },
+    {
+      "control": "submissions.drawer-mark-submitted-form-listing-url",
+      "action": "fill",
+      "input": "https://resources.test/links/#northwind",
+      "expect": {
+        "request": "POST /submissions/{id}/mark-submitted"
+      },
+      "view": "#open={seed.submissionOwnerTask}",
+      "before": [
+        "submissions.drawer-mark-submitted"
+      ],
+      "then": [
+        "submissions.drawer-mark-submitted-form-submit"
+      ],
+      "destructive": true
+    },
+    {
+      "control": "submissions.drawer-listing",
+      "action": "click",
+      "expect": {
+        "popup": "resources.test/links/"
+      },
+      "view": "#open={seed.submissionOwnerTask}",
+      "destructive": true,
+      "note": "The listing URL recorded by the entry before."
+    },
+    {
+      "control": "submissions.drawer-mark-submitted-form-confirmation-ref",
+      "action": "fill",
+      "input": "E2E-REF-1",
+      "expect": {
+        "request": "POST /submissions/{id}/mark-submitted"
+      },
+      "view": "#open={seed.submissionKit1}",
+      "before": [
+        "submissions.drawer-mark-submitted"
+      ],
+      "then": [
+        "submissions.drawer-mark-submitted-form-submit"
+      ],
+      "destructive": true
+    },
+    {
+      "control": "submissions.drawer-mark-submitted-form-note",
+      "action": "fill",
+      "input": "E2E note on the manual submission",
+      "expect": {
+        "request": "POST /submissions/{id}/mark-submitted"
+      },
+      "view": "#open={seed.submissionKit2}",
+      "before": [
+        "submissions.drawer-mark-submitted"
+      ],
+      "then": [
+        "submissions.drawer-mark-submitted-form-submit"
+      ],
+      "destructive": true
+    },
+    {
+      "control": "submissions.drawer-mark-submitted-form-submit",
+      "action": "click",
+      "expect": {
+        "request": "POST /submissions/{id}/mark-submitted"
+      },
+      "view": "#open={seed.submissionKit3}",
+      "before": [
+        "submissions.drawer-mark-submitted"
+      ],
+      "destructive": true
+    },
+    {
+      "control": "submissions.owner-task-requirements",
+      "action": "click",
+      "expect": {
+        "dom": "details[open] > [data-lga-control=\"submissions.owner-task-requirements\"]"
+      },
+      "view": "#open={seed.ownerTaskA}"
+    },
+    {
+      "control": "submissions.owner-task-terms",
+      "action": "click",
+      "expect": {
+        "dom": "details[open] > [data-lga-control=\"submissions.owner-task-terms\"]"
+      },
+      "view": "#open={seed.ownerTaskA}"
+    },
+    {
+      "control": "submissions.owner-task-website",
+      "action": "click",
+      "expect": {
+        "popup": "northwind.test"
+      },
+      "view": "#open={seed.ownerTaskA}"
+    },
+    {
+      "control": "submissions.owner-task-submission-page",
+      "action": "click",
+      "expect": {
+        "popup": "e2e-owner-a.test/add-listing"
+      },
+      "view": "#open={seed.ownerTaskA}",
+      "before": [
+        "submissions.owner-task-terms"
+      ]
+    },
+    {
+      "control": "submissions.owner-task-registration-page",
+      "action": "click",
+      "expect": {
+        "popup": "e2e-owner-a.test/register"
+      },
+      "view": "#open={seed.ownerTaskA}",
+      "before": [
+        "submissions.owner-task-terms"
+      ]
+    },
+    {
+      "control": "submissions.owner-task-open",
+      "action": "click",
+      "expect": {
+        "popup": "e2e-owner-a.test/add-listing"
+      },
+      "view": "#open={seed.ownerTaskA}"
+    },
+    {
+      "control": "submissions.owner-task-copy-kit",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-toast"
+      },
+      "view": "#open={seed.ownerTaskA}"
+    },
+    {
+      "control": "submissions.drawer-open-page",
+      "action": "click",
+      "expect": {
+        "popup": "e2e-owner-a.test/add-listing"
+      },
+      "view": "#open={seed.ownerTaskA}"
+    },
+    {
+      "control": "submissions.owner-task-listing-url",
+      "action": "fill",
+      "input": "https://e2e-owner-admin1.test/listing/northwind",
+      "expect": {
+        "request": "POST /submissions/{id}/mark-submitted"
+      },
+      "view": "#open={seed.ownerTaskAdmin1}",
+      "then": [
+        "submissions.owner-task-mark-submitted"
+      ],
+      "destructive": true
+    },
+    {
+      "control": "submissions.owner-task-note",
+      "action": "fill",
+      "input": "E2E: submitted by hand",
+      "expect": {
+        "request": "POST /submissions/{id}/mark-submitted"
+      },
+      "view": "#open={seed.ownerTaskAdmin2}",
+      "then": [
+        "submissions.owner-task-mark-submitted"
+      ],
+      "destructive": true
+    },
+    {
+      "control": "submissions.owner-task-mark-submitted",
+      "action": "click",
+      "expect": {
+        "request": "POST /submissions/{id}/mark-submitted"
+      },
+      "view": "#open={seed.ownerTaskAdmin3}",
+      "destructive": true
+    },
+    {
+      "control": "submissions.refresh",
+      "action": "click",
+      "expect": {
+        "request": "GET /submissions"
+      },
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter"
+    },
+    {
+      "control": "submissions.tab-needs-manual",
+      "action": "click",
+      "expect": {
+        "request": "GET /submissions?status=needs_manual",
+        "dom": "[data-lga-control=\"submissions.tab-needs-manual\"][aria-selected=\"true\"]"
+      },
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter",
+      "view": "#tab=done"
+    },
+    {
+      "control": "submissions.tab-done",
+      "action": "click",
+      "expect": {
+        "request": "GET /submissions?status=submitted,confirmed",
+        "dom": "[data-lga-control=\"submissions.tab-done\"][aria-selected=\"true\"]"
+      },
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter"
+    },
+    {
+      "control": "submissions.list-filter-tier",
+      "action": "select",
+      "input": "2",
+      "expect": {
+        "request": "GET /submissions?tier=2"
+      },
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter"
+    },
+    {
+      "control": "submissions.list-filter-conditional",
+      "action": "select",
+      "input": "no",
+      "expect": {
+        "request": "GET /submissions?conditional=no"
+      },
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter"
+    },
+    {
+      "control": "submissions.list-filter-q",
+      "action": "fill",
+      "input": "owner",
+      "expect": {
+        "request": "GET /submissions?q=owner"
+      },
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter"
+    },
+    {
+      "control": "submissions.list-filter-reset",
+      "action": "click",
+      "expect": {
+        "request": "GET /submissions?!q"
+      },
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter",
+      "before": [
+        {
+          "control": "submissions.list-filter-q",
+          "action": "fill",
+          "input": "owner"
+        }
+      ],
+      "note": "Reset clears the filters and loads the list again: the reload no longer carries the filter the before step typed."
+    },
+    {
+      "control": "submissions.list-sort-id",
+      "action": "click",
+      "expect": {
+        "request": "GET /submissions?orderby=id"
+      },
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter"
+    },
+    {
+      "control": "submissions.list-sort-status",
+      "action": "click",
+      "expect": {
+        "request": "GET /submissions?orderby=status"
+      },
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter"
+    },
+    {
+      "control": "submissions.list-sort-submitted-at",
+      "action": "click",
+      "expect": {
+        "request": "GET /submissions?orderby=submitted_at"
+      },
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter"
+    },
+    {
+      "control": "submissions.list-sort-updated-at",
+      "action": "click",
+      "expect": {
+        "request": "GET /submissions?orderby=updated_at"
+      },
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter"
+    },
+    {
+      "control": "submissions.list-pager-per-page",
+      "action": "select",
+      "input": "50",
+      "expect": {
+        "request": "GET /submissions?per_page=50"
+      },
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter"
+    },
+    {
+      "control": "submissions.list-pager-next",
+      "action": "click",
+      "expect": {
+        "request": "GET /submissions?page=2"
+      },
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter",
+      "mock": [
+        {
+          "request": "GET /submissions",
+          "status": 200,
+          "body": {
+            "items": [],
+            "total": 60,
+            "page": 1,
+            "per_page": 25,
+            "pages": 3
+          }
+        }
+      ],
+      "note": "The list is answered as three pages so the button is enabled."
+    },
+    {
+      "control": "submissions.list-pager-prev",
+      "action": "click",
+      "expect": {
+        "request": "GET /submissions?page=1"
+      },
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter",
+      "mock": [
+        {
+          "request": "GET /submissions",
+          "status": 200,
+          "body": {
+            "items": [],
+            "total": 60,
+            "page": 1,
+            "per_page": 25,
+            "pages": 3
+          }
+        },
+        {
+          "request": "GET /submissions",
+          "status": 200,
+          "body": {
+            "items": [],
+            "total": 60,
+            "page": 2,
+            "per_page": 25,
+            "pages": 3
+          }
+        }
+      ],
+      "before": [
+        "submissions.list-pager-next"
+      ],
+      "note": "The list is answered as three pages so the buttons are enabled."
+    },
+    {
+      "control": "submissions.list-row",
+      "action": "click",
+      "expect": {
+        "request": "GET /submissions/{id}",
+        "dom": ".lga-drawer"
+      },
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter"
+    },
+    {
+      "control": "submissions.list-target",
+      "action": "click",
+      "expect": {
+        "popup": ".test/"
+      },
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter"
+    },
+    {
+      "control": "submissions.drawer-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-drawer"
+      },
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter",
+      "view": "#open={seed.ownerTaskA}"
+    },
+    {
+      "control": "submissions.owner-task-requirements",
+      "action": "click",
+      "expect": {
+        "dom": "details[open] > [data-lga-control=\"submissions.owner-task-requirements\"]"
+      },
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter",
+      "view": "#open={seed.ownerTaskA}"
+    },
+    {
+      "control": "submissions.owner-task-terms",
+      "action": "click",
+      "expect": {
+        "dom": "details[open] > [data-lga-control=\"submissions.owner-task-terms\"]"
+      },
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter",
+      "view": "#open={seed.ownerTaskA}"
+    },
+    {
+      "control": "submissions.owner-task-website",
+      "action": "click",
+      "expect": {
+        "popup": "northwind.test"
+      },
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter",
+      "view": "#open={seed.ownerTaskA}"
+    },
+    {
+      "control": "submissions.owner-task-submission-page",
+      "action": "click",
+      "expect": {
+        "popup": "e2e-owner-a.test/add-listing"
+      },
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter",
+      "view": "#open={seed.ownerTaskA}",
+      "before": [
+        "submissions.owner-task-terms"
+      ]
+    },
+    {
+      "control": "submissions.owner-task-registration-page",
+      "action": "click",
+      "expect": {
+        "popup": "e2e-owner-a.test/register"
+      },
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter",
+      "view": "#open={seed.ownerTaskA}",
+      "before": [
+        "submissions.owner-task-terms"
+      ]
+    },
+    {
+      "control": "submissions.owner-task-open",
+      "action": "click",
+      "expect": {
+        "popup": "e2e-owner-a.test/add-listing"
+      },
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter",
+      "view": "#open={seed.ownerTaskA}"
+    },
+    {
+      "control": "submissions.owner-task-copy-kit",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-toast"
+      },
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter",
+      "view": "#open={seed.ownerTaskA}"
+    },
+    {
+      "control": "submissions.drawer-open-page",
+      "action": "click",
+      "expect": {
+        "popup": "e2e-owner-a.test/add-listing"
+      },
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter",
+      "view": "#open={seed.ownerTaskA}"
+    },
+    {
+      "control": "submissions.toast-dismiss",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-toast"
+      },
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter",
+      "view": "#open={seed.ownerTaskA}",
+      "before": [
+        {
+          "control": "submissions.owner-task-listing-url",
+          "action": "fill",
+          "input": "not a url"
+        },
+        "submissions.owner-task-mark-submitted"
+      ],
+      "note": "The error toast for a listing URL without http(s)."
+    },
+    {
+      "control": "submissions.kit-copy-business",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-toast"
+      },
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter",
+      "view": "#open={seed.submissionKit4}"
+    },
+    {
+      "control": "submissions.kit-website",
+      "action": "click",
+      "expect": {
+        "popup": "northwind.test"
+      },
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter",
+      "view": "#open={seed.submissionKit4}"
+    },
+    {
+      "control": "submissions.kit-copy-text",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-toast"
+      },
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter",
+      "view": "#open={seed.submissionKit4}"
+    },
+    {
+      "control": "submissions.steps-step-1",
+      "action": "toggle",
+      "expect": {
+        "dom": "li.lga-done [data-lga-control=\"submissions.steps-step-1\"]"
+      },
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter",
+      "view": "#open={seed.submissionKit4}"
+    },
+    {
+      "control": "submissions.steps-step-2",
+      "action": "toggle",
+      "expect": {
+        "dom": "li.lga-done [data-lga-control=\"submissions.steps-step-2\"]"
+      },
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter",
+      "view": "#open={seed.submissionKit4}"
+    },
+    {
+      "control": "submissions.steps-step-3",
+      "action": "toggle",
+      "expect": {
+        "dom": "li.lga-done [data-lga-control=\"submissions.steps-step-3\"]"
+      },
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter",
+      "view": "#open={seed.submissionKit4}"
+    },
+    {
+      "control": "submissions.steps-step-4",
+      "action": "toggle",
+      "expect": {
+        "dom": "li.lga-done [data-lga-control=\"submissions.steps-step-4\"]"
+      },
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter",
+      "view": "#open={seed.submissionKit4}"
+    },
+    {
+      "control": "submissions.steps-step-5",
+      "action": "toggle",
+      "expect": {
+        "dom": "li.lga-done [data-lga-control=\"submissions.steps-step-5\"]"
+      },
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter",
+      "view": "#open={seed.submissionKit4}"
+    },
+    {
+      "control": "submissions.drawer-target",
+      "action": "click",
+      "expect": {
+        "popup": "e2e-kit-4.test/add-listing"
+      },
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter",
+      "view": "#open={seed.submissionKit4}"
+    },
+    {
+      "control": "submissions.drawer-target-page",
+      "action": "click",
+      "expect": {
+        "popup": "e2e-kit-4.test/add-listing"
+      },
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter",
+      "view": "#open={seed.submissionKit4}"
+    },
+    {
+      "control": "submissions.drawer-opportunity",
+      "action": "click",
+      "expect": {
+        "popup": "e2e-kit-4.test"
+      },
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter",
+      "view": "#open={seed.submissionKit4}"
+    },
+    {
+      "control": "submissions.drawer-retry",
+      "action": "click",
+      "expect": {
+        "request": "GET /submissions/{id}"
+      },
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter",
+      "view": "#open={seed.submissionKit4}",
+      "mock": [
+        {
+          "request": "GET /submissions/{seed.submissionKit4}",
+          "status": 500
+        }
+      ]
+    },
+    {
+      "control": "submissions.drawer-mark-submitted",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-modal"
+      },
+      "view": "#open={seed.submissionKit4}",
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter"
+    },
+    {
+      "control": "submissions.drawer-mark-submitted-form-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#open={seed.submissionKit4}",
+      "before": [
+        "submissions.drawer-mark-submitted"
+      ],
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter"
+    },
+    {
+      "control": "submissions.drawer-mark-submitted-form-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#open={seed.submissionKit4}",
+      "before": [
+        "submissions.drawer-mark-submitted"
+      ],
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter"
+    },
+    {
+      "control": "submissions.drawer-open-page",
+      "action": "click",
+      "expect": {
+        "popup": "e2e-kit-4.test/add-listing"
+      },
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter-kit",
+      "view": "#open={seed.submissionKit4}"
+    },
+    {
+      "control": "submissions.owner-task-listing-url",
+      "action": "fill",
+      "input": "https://e2e-owner-sub1.test/listing/northwind",
+      "expect": {
+        "request": "POST /submissions/{id}/mark-submitted"
+      },
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter",
+      "view": "#open={seed.ownerTaskSub1}",
+      "then": [
+        "submissions.owner-task-mark-submitted"
+      ],
+      "destructive": true
+    },
+    {
+      "control": "submissions.owner-task-note",
+      "action": "fill",
+      "input": "E2E: submitted by the staff member",
+      "expect": {
+        "request": "POST /submissions/{id}/mark-submitted"
+      },
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter",
+      "view": "#open={seed.ownerTaskSub2}",
+      "then": [
+        "submissions.owner-task-mark-submitted"
+      ],
+      "destructive": true
+    },
+    {
+      "control": "submissions.owner-task-mark-submitted",
+      "action": "click",
+      "expect": {
+        "request": "POST /submissions/{id}/mark-submitted"
+      },
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter",
+      "view": "#open={seed.ownerTaskSub3}",
+      "destructive": true
+    },
+    {
+      "control": "submissions.drawer-mark-submitted-form-listing-url",
+      "action": "fill",
+      "input": "https://e2e-kit-4.test/listing/northwind",
+      "expect": {
+        "request": "POST /submissions/{id}/mark-submitted"
+      },
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter",
+      "view": "#open={seed.submissionKit4}",
+      "before": [
+        "submissions.drawer-mark-submitted"
+      ],
+      "then": [
+        "submissions.drawer-mark-submitted-form-submit"
+      ],
+      "destructive": true
+    },
+    {
+      "control": "submissions.drawer-listing",
+      "action": "click",
+      "expect": {
+        "popup": "e2e-kit-4.test/listing/northwind"
+      },
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter",
+      "view": "#open={seed.submissionKit4}",
+      "destructive": true,
+      "note": "The listing URL the entry before recorded."
+    },
+    {
+      "control": "submissions.drawer-mark-submitted-form-confirmation-ref",
+      "action": "fill",
+      "input": "E2E-REF-SUB",
+      "expect": {
+        "request": "POST /submissions/{id}/mark-submitted"
+      },
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter",
+      "view": "#open={seed.submissionKit5}",
+      "before": [
+        "submissions.drawer-mark-submitted"
+      ],
+      "then": [
+        "submissions.drawer-mark-submitted-form-submit"
+      ],
+      "destructive": true
+    },
+    {
+      "control": "submissions.drawer-mark-submitted-form-note",
+      "action": "fill",
+      "input": "E2E note by the staff member",
+      "expect": {
+        "request": "POST /submissions/{id}/mark-submitted"
+      },
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter",
+      "view": "#open={seed.submissionKit6}",
+      "before": [
+        "submissions.drawer-mark-submitted"
+      ],
+      "then": [
+        "submissions.drawer-mark-submitted-form-submit"
+      ],
+      "destructive": true
+    },
+    {
+      "control": "submissions.drawer-mark-submitted-form-submit",
+      "action": "click",
+      "expect": {
+        "request": "POST /submissions/{id}/mark-submitted"
+      },
+      "roles": [
+        "submitter"
+      ],
+      "id": "submitter",
+      "view": "#open={seed.submissionKit7}",
+      "before": [
+        "submissions.drawer-mark-submitted"
+      ],
+      "destructive": true
+    },
+    {
+      "control": "shell.nav-submissions",
+      "action": "click",
+      "expect": {
+        "navigate": "/page=lga-submissions(&|#|$)/"
+      },
+      "roles": [
+        "admin",
+        "submitter"
+      ],
+      "note": "The submitter's only page (\"Owner tasks\")."
+    }
+  ]
+}

@@ -6,7 +6,7 @@
 import * as api from '../api.js';
 import {
     el, replace, statTile, card, badge, button, linkButton, callout, kv, meter, loading, errorState, emptyState, timeEl, fmtNumber, fmtPercent, fmtCompact, labelize, pageHeader, statusBadge, truncate, fmtDate,
-    icon, spinner, progressBar, details, fmtDuration, sleep, toast, confirm, switchRow,
+    icon, spinner, progressBar, details, fmtDuration, sleep, toast, confirm, switchRow, link, controlId,
 } from '../ui.js';
 import { barChart, lineChart, histogram, segmentedBar } from '../charts.js';
 import { setAutopilot, autopilotSummary } from '../autopilot.js';
@@ -275,7 +275,7 @@ function needsYouList( actions, ctx, storefrontOk ) {
         const href = pageHref( ctx, String( a.page || '' ), a.params );
         const count = Number( a.count );
         return el( 'li', {},
-            href ? el( 'a', { href }, label ) : el( 'span', {}, label ),
+            href ? link( label, href, { control: controlId( 'grow-needs', a.key ) } ) : el( 'span', {}, label ),
             Number.isFinite( count ) && count > 0 ? [ ' ', badge( fmtNumber( count ), 'warning' ) ] : null,
         );
     } ) );
@@ -326,16 +326,16 @@ function headline( summary, ctx, policy ) {
     const backlinks = s.backlinks && typeof s.backlinks === 'object' ? s.backlinks : null;
     const audit = s.site_audit && typeof s.site_audit === 'object' ? s.site_audit : null;
     return el( 'div', { class: 'lga-grid lga-grid--tiles' },
-        statTile( { label: 'Owner tasks', iconName: 'package', value: subs ? valueOr( subs.owner_tasks, 'unknown' ) : 'unknown', hint: 'Listings you submit yourself', href: pageHref( ctx, 'submissions', { tab: 'needs_manual' } ) } ),
+        statTile( { label: 'Owner tasks', iconName: 'package', value: subs ? valueOr( subs.owner_tasks, 'unknown' ) : 'unknown', hint: 'Listings you submit yourself', href: pageHref( ctx, 'submissions', { tab: 'needs_manual' } ), control: 'grow-tile-owner-tasks' } ),
         modes.autopilot
-            ? statTile( { label: 'Outreach drafts', iconName: 'mail', value: valueOr( s.outreach_drafts, 'unknown' ), hint: 'Autopilot approves and sends them', href: pageHref( ctx, 'outreach', { tab: 'messages', status: 'draft' } ) } )
-            : statTile( { label: 'Drafts to approve', iconName: 'mail', value: valueOr( s.outreach_drafts, 'unknown' ), hint: 'Nothing is sent without approval', href: pageHref( ctx, 'outreach', { tab: 'messages', status: 'draft' } ) } ),
-        statTile( { label: 'Qualified prospects', iconName: 'target', value: prospects ? valueOr( prospects.qualified, 'unknown' ) : 'unknown', hint: prospects ? `${ valueOr( prospects.total, 'unknown' ) } prospects in total` : '', href: pageHref( ctx, 'prospects', { status: 'qualified' } ) } ),
+            ? statTile( { label: 'Outreach drafts', iconName: 'mail', value: valueOr( s.outreach_drafts, 'unknown' ), hint: 'Autopilot approves and sends them', href: pageHref( ctx, 'outreach', { tab: 'messages', status: 'draft' } ), control: 'grow-tile-outreach-drafts' } )
+            : statTile( { label: 'Drafts to approve', iconName: 'mail', value: valueOr( s.outreach_drafts, 'unknown' ), hint: 'Nothing is sent without approval', href: pageHref( ctx, 'outreach', { tab: 'messages', status: 'draft' } ), control: 'grow-tile-outreach-drafts' } ),
+        statTile( { label: 'Qualified prospects', iconName: 'target', value: prospects ? valueOr( prospects.qualified, 'unknown' ) : 'unknown', hint: prospects ? `${ valueOr( prospects.total, 'unknown' ) } prospects in total` : '', href: pageHref( ctx, 'prospects', { status: 'qualified' } ), control: 'grow-tile-qualified-prospects' } ),
         statTile( { label: 'Live backlinks', iconName: 'link', value: backlinks ? valueOr( backlinks.live, 'unknown' ) : 'unknown', hint: backlinks ? `${ valueOr( backlinks.lost, 'unknown' ) } lost` : '' } ),
-        statTile( { label: 'High-priority SEO issues', iconName: 'alert', ...auditTile( audit ), href: audit ? pageHref( ctx, 'seo', { severity: 'high' } ) : null } ),
+        statTile( { label: 'High-priority SEO issues', iconName: 'alert', ...auditTile( audit ), href: audit ? pageHref( ctx, 'seo', { severity: 'high' } ) : null, control: 'grow-tile-seo-issues' } ),
         modes.autoLinks && s.links_auto && s.links_auto.enabled === true
-            ? statTile( { label: 'Automatic internal links', iconName: 'link', value: valueOr( s.links_auto.present, 'unknown' ), hint: `Added automatically, up to ${ fmtNumber( s.links_auto.per_day ) } a day`, href: pageHref( ctx, 'seo', { links: 'applied' } ) } )
-            : statTile( { label: 'Link suggestions', iconName: 'link', value: valueOr( s.link_suggestions_pending, 'not available' ), hint: 'Applied only when you click Apply', href: pageHref( ctx, 'seo', { links: 'pending' } ) } ),
+            ? statTile( { label: 'Automatic internal links', iconName: 'link', value: valueOr( s.links_auto.present, 'unknown' ), hint: `Added automatically, up to ${ fmtNumber( s.links_auto.per_day ) } a day`, href: pageHref( ctx, 'seo', { links: 'applied' } ), control: 'grow-tile-internal-links' } )
+            : statTile( { label: 'Link suggestions', iconName: 'link', value: valueOr( s.link_suggestions_pending, 'not available' ), hint: 'Applied only when you click Apply', href: pageHref( ctx, 'seo', { links: 'pending' } ), control: 'grow-tile-internal-links' } ),
     );
 }
 
@@ -505,7 +505,7 @@ export function createGrowPanel( ctx, options = {} ) {
             : null;
         return el( 'div', { class: 'lga-grid lga-grid--2 lga-grow-results' },
             el( 'div', {}, el( 'h4', {}, 'Needs you' ), switched, needsYouList( actions, ctx, s.storefrontOk ) ),
-            el( 'div', {}, el( 'h4', {}, 'What happened' ), details( recent ? 'Step by step' : 'Step by step (last run)', el( 'ol', { class: 'lga-list lga-grow-steps' }, asArray( run.steps ).map( ( st ) => stepRow( st, String( run.status || '' ) ) ) ), { open: recent } ) ),
+            el( 'div', {}, el( 'h4', {}, 'What happened' ), details( recent ? 'Step by step' : 'Step by step (last run)', el( 'ol', { class: 'lga-list lga-grow-steps' }, asArray( run.steps ).map( ( st ) => stepRow( st, String( run.status || '' ) ) ) ), { open: recent, control: 'grow-steps-toggle' } ) ),
         );
     }
 
@@ -517,21 +517,21 @@ export function createGrowPanel( ctx, options = {} ) {
         const actions = [];
         if ( kind === 'session' ) {
             // A dead nonce makes Resume and Stop fail the same way: only a reload helps.
-            actions.push( button( 'Reload the page', { kind: 'primary', iconName: 'refresh', onClick: () => {
+            actions.push( button( 'Reload the page', { kind: 'primary', iconName: 'refresh', control: 'grow-reload', onClick: () => {
                 window.location.reload();
             } } ) );
         } else if ( s.mode === 'error' ) {
-            actions.push( button( 'Resume', { kind: 'primary', iconName: 'play', onClick: () => {
+            actions.push( button( 'Resume', { kind: 'primary', iconName: 'play', control: 'grow-resume', onClick: () => {
                 loop();
             } } ) );
             if ( run && run.status === 'running' ) {
                 // The run is still running on the server (the scheduler continues it): it must stay stoppable.
-                actions.push( button( 'Stop', { small: true, iconName: 'stop', onClick: stopRun } ) );
+                actions.push( button( 'Stop', { small: true, iconName: 'stop', onClick: stopRun, control: 'grow-stop' } ) );
             }
         } else if ( running ) {
-            actions.push( button( 'Stop', { small: true, iconName: 'stop', onClick: stopRun, disabled: status !== 'running' } ) );
+            actions.push( button( 'Stop', { small: true, iconName: 'stop', onClick: stopRun, disabled: status !== 'running', control: 'grow-stop' } ) );
         } else {
-            actions.push( button( 'Grow now', { kind: 'primary', iconName: 'zap', onClick: startRun, disabled: s.mode === 'loading' } ) );
+            actions.push( button( 'Grow now', { kind: 'primary', iconName: 'zap', onClick: startRun, disabled: s.mode === 'loading', control: 'grow-start' } ) );
         }
         const body = [ el( 'p', { class: 'lga-muted lga-grow-explain' }, growExplainText( s.policy ) ) ];
         const autopilotNode = autopilotRow();
@@ -556,7 +556,7 @@ export function createGrowPanel( ctx, options = {} ) {
             const logs = pageHref( ctx, 'logs', {} );
             body.push( callout( 'danger', 'The server reported an error', [
                 el( 'div', {}, `${ s.error } Work done so far is saved; click Resume to try again.` ),
-                el( 'div', { class: 'lga-small' }, 'Details are in ', logs ? el( 'a', { href: logs }, 'Logs' ) : 'Logs', '.' ),
+                el( 'div', { class: 'lga-small' }, 'Details are in ', logs ? link( 'Logs', logs, { control: 'grow-error-logs' } ) : 'Logs', '.' ),
             ] ) );
         }
         if ( ! running && s.mode !== 'error' && s.mode !== 'loading' && run && [ 'completed', 'cancelled', 'failed' ].includes( status ) ) {
@@ -590,6 +590,7 @@ export function createGrowPanel( ctx, options = {} ) {
             return null;
         }
         const toggle = st ? switchRow( {
+            control: 'autopilot',
             label: on ? 'Autopilot' : 'Autopilot: let the engine work without asking me',
             description: on ? 'Switch off to go back to approving drafts, campaigns, listings and links yourself.' : 'Sends outreach, adds internal links and submits listings that pass every safety check on its own, within your daily limits. You confirm first.',
             checked: on,
@@ -746,7 +747,7 @@ export function createGrowPanel( ctx, options = {} ) {
     }
 
     async function stopRun() {
-        const yes = await confirm( 'Stop the growth run? Steps already finished are kept; queued follow-up jobs of this run are cancelled, and a job that is already running finishes its current batch without continuing.', { title: 'Stop the growth run', confirmText: 'Stop run', danger: true } );
+        const yes = await confirm( 'Stop the growth run? Steps already finished are kept; queued follow-up jobs of this run are cancelled, and a job that is already running finishes its current batch without continuing.', { title: 'Stop the growth run', confirmText: 'Stop run', danger: true, control: 'grow-stop-confirm' } );
         if ( ! yes ) {
             refocusIfLost( 'Stop' );
             return;
@@ -965,7 +966,7 @@ export default async function render( root, ctx ) {
     try {
         data = await api.get( '/overview' );
     } catch ( e ) {
-        replace( root, pageHeader( { title: 'Overview' } ), bannerHost, grow, errorState( { title: 'The overview could not be loaded', message: e && e.message ? e.message : '', retry: () => render( root, ctx ) } ) );
+        replace( root, pageHeader( { title: 'Overview' } ), bannerHost, grow, errorState( { title: 'The overview could not be loaded', message: e && e.message ? e.message : '', retry: () => render( root, ctx ), control: 'load-retry' } ) );
         return;
     }
 
@@ -991,20 +992,21 @@ export default async function render( root, ctx ) {
 
     // ----- Tiles ------------------------------------------------------
     const tiles = el( 'div', { class: 'lga-grid lga-grid--tiles lga-section' },
-        statTile( { label: 'Prospects', iconName: 'target', value: fmtNumber( stats.prospects_total ), hint: `${ fmtNumber( stats.prospects_qualified ) } qualified · ${ fmtNumber( stats.prospects_approved ) } approved`, href: ctx.pageUrl( 'prospects' ) } ),
-        statTile( { label: 'Active backlinks', iconName: 'link', value: fmtNumber( stats.backlinks_active ), delta: Number( stats.backlinks_new_30d ) > 0 ? { value: stats.backlinks_new_30d, label: `+${ fmtNumber( stats.backlinks_new_30d ) } in 30d`, good: true, direction: 'up' } : null, hint: `${ fmtNumber( stats.backlinks_lost ) } lost`, href: ctx.pageUrl( 'backlinks', { status: 'active' } ) } ),
-        statTile( { label: 'Referring domains', iconName: 'globe', value: fmtNumber( stats.referring_domains ), hint: `${ fmtNumber( stats.quality_domains !== undefined ? stats.quality_domains : stats.high_authority_domains ) } with quality score ≥ 60`, href: ctx.pageUrl( 'backlinks' ) } ),
-        statTile( { label: 'Submissions', iconName: 'package', value: fmtNumber( stats.submissions_submitted ), hint: `${ fmtNumber( stats.submissions_confirmed ) } confirmed live`, href: ctx.pageUrl( 'submissions' ) } ),
-        statTile( { label: 'Outreach sent', iconName: 'mail', value: fmtNumber( stats.outreach_sent ), hint: `${ fmtNumber( stats.outreach_replied ) } replies · ${ responseRate === null || responseRate === undefined ? '—' : fmtPercent( responseRate ) } response rate`, href: ctx.pageUrl( 'outreach', { tab: 'messages' } ) } ),
+        statTile( { label: 'Prospects', iconName: 'target', value: fmtNumber( stats.prospects_total ), hint: `${ fmtNumber( stats.prospects_qualified ) } qualified · ${ fmtNumber( stats.prospects_approved ) } approved`, href: ctx.pageUrl( 'prospects' ), control: 'tile-prospects' } ),
+        statTile( { label: 'Active backlinks', iconName: 'link', value: fmtNumber( stats.backlinks_active ), delta: Number( stats.backlinks_new_30d ) > 0 ? { value: stats.backlinks_new_30d, label: `+${ fmtNumber( stats.backlinks_new_30d ) } in 30d`, good: true, direction: 'up' } : null, hint: `${ fmtNumber( stats.backlinks_lost ) } lost`, href: ctx.pageUrl( 'backlinks', { status: 'active' } ), control: 'tile-active-backlinks' } ),
+        statTile( { label: 'Referring domains', iconName: 'globe', value: fmtNumber( stats.referring_domains ), hint: `${ fmtNumber( stats.quality_domains !== undefined ? stats.quality_domains : stats.high_authority_domains ) } with quality score ≥ 60`, href: ctx.pageUrl( 'backlinks' ), control: 'tile-referring-domains' } ),
+        statTile( { label: 'Submissions', iconName: 'package', value: fmtNumber( stats.submissions_submitted ), hint: `${ fmtNumber( stats.submissions_confirmed ) } confirmed live`, href: ctx.pageUrl( 'submissions' ), control: 'tile-submissions' } ),
+        statTile( { label: 'Outreach sent', iconName: 'mail', value: fmtNumber( stats.outreach_sent ), hint: `${ fmtNumber( stats.outreach_replied ) } replies · ${ responseRate === null || responseRate === undefined ? '—' : fmtPercent( responseRate ) } response rate`, href: ctx.pageUrl( 'outreach', { tab: 'messages' } ), control: 'tile-outreach-sent' } ),
         statTile( { label: 'Search clicks (28d)', iconName: 'search', value: stats.gsc_clicks_28d === null || stats.gsc_clicks_28d === undefined ? '—' : fmtCompact( stats.gsc_clicks_28d ), hint: stats.gsc_clicks_28d === null || stats.gsc_clicks_28d === undefined ? 'Search Console not connected' : `${ fmtCompact( stats.gsc_impressions_28d ) } impressions · via ${ stats.gsc_source || 'service account' }` } ),
         statTile( { label: 'Referral sessions (28d)', iconName: 'activity', value: stats.referral_sessions_28d === null || stats.referral_sessions_28d === undefined ? '—' : fmtCompact( stats.referral_sessions_28d ), hint: stats.referral_source ? `Source: ${ stats.referral_source === 'ga4' ? 'Google Analytics 4' : 'Site Kit' }` : 'Analytics not connected' } ),
-        statTile( { label: 'Unread alerts', iconName: 'bell', value: fmtNumber( stats.unread_notifications ), hint: 'Open the bell to review', onClick: () => shell.openNotifications() } ),
+        statTile( { label: 'Unread alerts', iconName: 'bell', value: fmtNumber( stats.unread_notifications ), hint: 'Open the bell to review', onClick: () => shell.openNotifications(), control: 'tile-unread-alerts' } ),
     );
 
     // ----- Charts -----------------------------------------------------
     const trend = Array.isArray( charts.backlink_trend ) ? charts.backlink_trend : [];
     const trendChart = lineChart( {
         title: 'Backlinks: new vs. lost',
+        control: 'chart-backlinks',
         subtitle: 'Weekly, last 12 weeks',
         series: [
             { name: 'New', points: trend.map( ( r ) => ( { x: r.week, y: Number( r.new ) || 0 } ) ) },
@@ -1015,22 +1017,26 @@ export default async function render( root, ctx ) {
     } );
     const histChart = histogram( {
         title: 'Prospect score distribution',
+        control: 'chart-scores',
         subtitle: '0–100 opportunity score',
         data: Array.isArray( charts.score_histogram ) ? charts.score_histogram : [],
         emptyMessage: 'Scores appear once prospects have been evaluated.',
     } );
     const oppChart = barChart( {
         title: 'Opportunity types',
+        control: 'chart-opportunity-types',
         data: ( Array.isArray( charts.opportunity_types ) ? charts.opportunity_types : [] ).map( ( r ) => ( { label: r.label || labelize( r.type ), value: r.count } ) ).sort( ( a, b ) => b.value - a.value ),
         emptyMessage: 'No opportunities recorded yet.',
     } );
     const statusChart = barChart( {
         title: 'Prospects by status',
+        control: 'chart-prospect-status',
         data: ( Array.isArray( charts.status_counts ) ? charts.status_counts : [] ).map( ( r ) => ( { label: labelize( r.status ), value: r.count } ) ),
         emptyMessage: 'No prospects yet — run discovery.',
     } );
     const anchorChart = barChart( {
         title: 'Anchor text distribution',
+        control: 'chart-anchors',
         subtitle: 'Top anchors across active backlinks',
         data: ( Array.isArray( charts.anchor_distribution ) ? charts.anchor_distribution : [] ).map( ( r ) => ( { label: r.anchor === '' || r.anchor === null ? '(empty / image)' : truncate( r.anchor, 40 ), value: r.count } ) ),
         maxBars: 10,
@@ -1038,6 +1044,7 @@ export default async function render( root, ctx ) {
     } );
     const relChart = segmentedBar( {
         title: 'Link attributes',
+        control: 'chart-link-attributes',
         subtitle: 'dofollow vs. nofollow / sponsored / ugc',
         parts: ( Array.isArray( charts.rel_distribution ) ? charts.rel_distribution : [] ).map( ( r ) => ( { label: labelize( r.rel || 'unknown' ), value: r.count } ) ),
         emptyMessage: 'No verified backlinks yet.',
@@ -1056,11 +1063,11 @@ export default async function render( root, ctx ) {
     const providerRows = Object.entries( providers ).map( ( [ id, p ] ) => el( 'div', { class: 'lga-health-row' },
         el( 'div', { class: 'lga-health-name' }, String( ( p && p.label ) || labelize( id ) ), el( 'span', { class: 'lga-health-kind' }, [ labelize( ( p && p.kind ) || '' ), p && p.remaining_today !== undefined ? `${ fmtNumber( p.remaining_today ) } lookups left today` : '', p && p.error ? truncate( String( p.error ), 70 ) : '' ].filter( Boolean ).join( ' · ' ) ) ),
         providerBadge( p ),
-        el( 'a', { href: settingsUrl, class: 'lga-small' }, 'Configure' ),
+        link( 'Configure', settingsUrl, { className: 'lga-small', control: 'integration-configure' } ),
     ) );
     const healthCard = card( {
         title: 'Integration health',
-        actions: linkButton( 'Settings', settingsUrl, { small: true, iconName: 'settings' } ),
+        actions: linkButton( 'Settings', settingsUrl, { small: true, iconName: 'settings', control: 'integrations-settings' } ),
         body: providerRows.length ? providerRows : emptyState( { title: 'No integrations reported', compact: true } ),
     } );
 
@@ -1068,7 +1075,7 @@ export default async function render( root, ctx ) {
     const paused = pausedText( automation.paused );
     const automationCard = card( {
         title: 'Automation',
-        actions: linkButton( 'Manage', ctx.pageUrl( 'automation' ), { small: true, iconName: 'zap' } ),
+        actions: linkButton( 'Manage', ctx.pageUrl( 'automation' ), { small: true, iconName: 'zap', control: 'automation-manage' } ),
         body: [
             el( 'div', { class: 'lga-row', style: { marginBottom: '10px' } },
                 automation.automation_enabled ? badge( 'Master switch on', 'success', { dot: true } ) : badge( 'Master switch off', 'warning', { dot: true } ),
@@ -1094,7 +1101,7 @@ export default async function render( root, ctx ) {
     // ----- Notifications feed ----------------------------------------
     const feed = card( {
         title: 'Recent notifications',
-        actions: [ button( 'Open all', { small: true, kind: 'ghost', iconName: 'bell', onClick: () => shell.openNotifications() } ) ],
+        actions: [ button( 'Open all', { small: true, kind: 'ghost', iconName: 'bell', onClick: () => shell.openNotifications(), control: 'notifications-open-all' } ) ],
         body: notifications.length ? el( 'div', { class: 'lga-list' }, notifications.slice( 0, 10 ).map( ( n ) => el( 'div', { class: [ 'lga-feed-item', Number( n.is_read ) === 0 ? 'lga-feed-item--unread' : '' ] },
             el( 'span', { class: [ 'lga-feed-dot', `lga-feed-dot--${ n.severity || 'info' }` ] } ),
             el( 'div', { class: 'lga-grow' },
@@ -1110,13 +1117,13 @@ export default async function render( root, ctx ) {
         pageHeader( {
             title: 'Overview',
             description: `Link acquisition health for ${ config.siteDomain || config.brand }. Data refreshed ${ fmtDate( new Date() ) }.`,
-            actions: [ button( 'Refresh', { iconName: 'refresh', onClick: () => render( root, ctx ) } ) ],
+            actions: [ button( 'Refresh', { iconName: 'refresh', onClick: () => render( root, ctx ), control: 'refresh' } ) ],
         } ),
         bannerHost,
         grow,
         opcacheCallout( data ? data.opcache : null ),
-        missing.length ? callout( 'warning', 'Some integrations are not configured', el( 'ul', {}, missing.map( ( m ) => el( 'li', {}, String( m ) ) ) ), { actions: linkButton( 'Configure integrations', settingsUrl, { small: true, kind: 'primary' } ) } ) : null,
-        ! automation.automation_enabled ? callout( 'info', 'Automation is switched off', 'Discovery, evaluation, monitoring and the submission/outreach queues only run while the master switch is on. Manual actions still work.', { actions: linkButton( 'Open automation', ctx.pageUrl( 'automation' ), { small: true } ) } ) : null,
+        missing.length ? callout( 'warning', 'Some integrations are not configured', el( 'ul', {}, missing.map( ( m ) => el( 'li', {}, String( m ) ) ) ), { actions: linkButton( 'Configure integrations', settingsUrl, { small: true, kind: 'primary', control: 'integrations-configure' } ) } ) : null,
+        ! automation.automation_enabled ? callout( 'info', 'Automation is switched off', 'Discovery, evaluation, monitoring and the submission/outreach queues only run while the master switch is on. Manual actions still work.', { actions: linkButton( 'Open automation', ctx.pageUrl( 'automation' ), { small: true, control: 'automation-open' } ) } ) : null,
         tiles,
         el( 'div', { class: 'lga-grid lga-grid--main-side' },
             el( 'div', { class: 'lga-stack' }, chartGrid, feed ),

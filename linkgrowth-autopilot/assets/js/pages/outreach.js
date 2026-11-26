@@ -7,6 +7,7 @@ import * as api from '../api.js';
 import {
     el, replace, badge, statusBadge, button, callout, kv, loading, errorState, emptyState, timeEl, fmtNumber, fmtDate, labelize, truncate,
     pageHeader, drawer, tabs, dataTable, formField, formModal, modal, confirm, prompt, toast, extLink, listView, normalizeList, card, linkButton, isObject, icon, debounce, switchRow,
+    link, input, checkbox, select, setControl, controlId,
 } from '../ui.js';
 import { reportAction } from './outcome.js';
 
@@ -160,6 +161,7 @@ export default async function render( root, ctx ) {
     let messagesList = null;
     const view = tabs( {
         pills: true,
+        control: 'tab',
         active: [ 'campaigns', 'messages', 'contacts' ].includes( params.tab ) ? params.tab : 'campaigns',
         onChange: ( id ) => ctx.setHash( { tab: id } ),
         items: [
@@ -173,7 +175,7 @@ export default async function render( root, ctx ) {
         pageHeader( {
             title: 'Outreach',
             description: 'Personalised, CASL/CAN-SPAM-compliant email outreach. A new campaign gets drafts at once for every matching prospect with a published address. Messages are sent only after approval: by you, or automatically under Autopilot (Automation). Every email carries your postal address and a one-click unsubscribe.',
-            actions: button( 'New campaign', { kind: 'primary', iconName: 'plus', onClick: () => createCampaign() } ),
+            actions: button( 'New campaign', { kind: 'primary', iconName: 'plus', onClick: () => createCampaign(), control: 'campaign-new' } ),
         } ),
         bannerHost,
         view.el,
@@ -196,7 +198,7 @@ export default async function render( root, ctx ) {
             const suggestion = sender && isObject( sender.suggestion ) ? sender.suggestion : null;
             const auto = autosendBanner( sender );
             const win = obj( sender && sender.send_window );
-            const useSuggested = suggestion && suggestion.sender_email ? button( `Use ${ suggestion.sender_email }`, { small: true, kind: 'primary', onClick: async () => {
+            const useSuggested = suggestion && suggestion.sender_email ? button( `Use ${ suggestion.sender_email }`, { small: true, kind: 'primary', control: 'sender-use-suggested', onClick: async () => {
                 const saved = await api.post( '/settings', { settings: { outreach: { sender_email: suggestion.sender_email } } } );
                 const approvedNow = Number( saved && saved.approved_now ) || 0;
                 toast( `Sender email changed to ${ suggestion.sender_email }.${ approvedNow > 0 ? ` ${ fmtNumber( approvedNow ) } waiting ${ approvedNow === 1 ? 'draft was' : 'drafts were' } approved.` : '' }`, 'success' );
@@ -210,10 +212,10 @@ export default async function render( root, ctx ) {
                     problems.length ? el( 'ul', {}, problems.map( ( p ) => el( 'li', {}, String( p ) ) ) ) : `Missing: ${ missing.join( ', ' ) }.`,
                     suggestion && suggestion.reason ? el( 'p', {}, String( suggestion.reason ) ) : null,
                     el( 'p', { class: 'lga-small' }, 'Anti-spam law requires the sender name, a working reply address and a postal address in every message.' ),
-                ), { actions: [ useSuggested, linkButton( 'Complete sender settings', settingsUrl, { small: true, kind: useSuggested ? 'secondary' : 'primary' } ) ].filter( Boolean ) } ) : null,
+                ), { actions: [ useSuggested, linkButton( 'Complete sender settings', settingsUrl, { small: true, kind: useSuggested ? 'secondary' : 'primary', control: 'sender-settings' } ) ].filter( Boolean ) } ) : null,
                 warnings.length ? callout( 'info', 'Sender identity notes', el( 'ul', {}, warnings.map( ( w ) => el( 'li', {}, String( w ) ) ) ) ) : null,
                 // sender.autosend === true / sender.autopilot === true: see autosendBanner().
-                auto ? callout( auto.kind, auto.title, auto.text, { actions: linkButton( 'Open automation', ctx.pageUrl( 'automation' ), { small: true } ) } ) : null,
+                auto ? callout( auto.kind, auto.title, auto.text, { actions: linkButton( 'Open automation', ctx.pageUrl( 'automation' ), { small: true, control: 'automation-open' } ) } ) : null,
                 win.timezone ? el( 'p', { class: 'lga-small lga-muted' }, `Send window: ${ win.start }:00–${ win.end }:00 on ${ arr( win.days ).map( ( d ) => [ 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun' ][ Number( d ) ] || d ).join( ', ' ) }, ${ win.timezone_label || win.timezone }${ win.timezone_source === 'region' ? ` (from your business region, because WordPress is set to ${ win.wp_timezone || 'UTC' })` : '' }. ${ win.open_now ? 'Open now.' : ( win.next_open ? `Next: ${ win.next_open }.` : '' ) }` ) : null,
             );
         } catch ( e ) {
@@ -249,25 +251,26 @@ export default async function render( root, ctx ) {
     // ------------------------------------------------------------------
     async function createCampaign() {
         const list = await approaches();
-        const approachField = formField( { type: 'select', name: 'approach', label: 'Approach', options: list.length ? list.map( ( a ) => ( { value: a.id, label: a.label } ) ) : { resource_page: 'Resource page inclusion' }, required: true } );
+        const approachField = formField( { type: 'select', name: 'approach', label: 'Approach', options: list.length ? list.map( ( a ) => ( { value: a.id, label: a.label } ) ) : { resource_page: 'Resource page inclusion' }, required: true, control: 'campaign-new-dialog-approach' } );
         const desc = el( 'div', { class: 'lga-field-hint' } );
         const variantsBox = el( 'div' );
         const syncDesc = () => {
             const a = list.find( ( x ) => x.id === approachField.get() );
             replace( desc, a && a.description ? a.description : '' );
-            replace( variantsBox, a && a.variants.length ? el( 'details', { class: 'lga-details' }, el( 'summary', {}, `${ a.variants.length } template variants (preview)` ), el( 'div', { class: 'lga-stack' }, a.variants.map( ( v ) => el( 'div', { class: 'lga-message-preview' }, el( 'div', { class: 'lga-message-preview-head' }, `Subject: ${ v.subject || '' }` ), String( v.body || '' ) ) ) ) ) : null );
+            replace( variantsBox, a && a.variants.length ? el( 'details', { class: 'lga-details' }, setControl( el( 'summary', {}, `${ a.variants.length } template variants (preview)` ), 'campaign-new-dialog-variants' ), el( 'div', { class: 'lga-stack' }, a.variants.map( ( v ) => el( 'div', { class: 'lga-message-preview' }, el( 'div', { class: 'lga-message-preview-head' }, `Subject: ${ v.subject || '' }` ), String( v.body || '' ) ) ) ) ) : null );
         };
         approachField.input.addEventListener( 'change', syncDesc );
         syncDesc();
-        const nameField = formField( { type: 'text', name: 'name', label: 'Campaign name', placeholder: 'Canadian lab resource pages — Q1', required: true } );
-        const limitField = formField( { type: 'number', name: 'daily_limit', label: 'Daily send limit', value: 5, min: 1, max: 100, hint: 'Also capped by the global outreach limits.' } );
-        const followField = formField( { type: 'toggle', name: 'follow_ups', label: 'Allow one polite follow-up', value: true, hint: 'A single follow-up draft is created after the configured number of days without a reply.' } );
-        const autoField = formField( { type: 'toggle', name: 'auto_follow_up', label: 'Auto-approve follow-ups', value: false, hint: 'Only takes effect when the global “Outreach autosend” stage is on; otherwise follow-ups wait for approval like any message. Under Autopilot follow-ups are sent automatically only when reply tracking is set up.' } );
-        const notesField = formField( { type: 'textarea', name: 'notes', label: 'Notes', rows: 2 } );
+        const nameField = formField( { type: 'text', name: 'name', label: 'Campaign name', placeholder: 'Canadian lab resource pages — Q1', required: true, control: 'campaign-new-dialog-name' } );
+        const limitField = formField( { type: 'number', name: 'daily_limit', label: 'Daily send limit', value: 5, min: 1, max: 100, hint: 'Also capped by the global outreach limits.', control: 'campaign-new-dialog-daily-limit' } );
+        const followField = formField( { type: 'toggle', name: 'follow_ups', label: 'Allow one polite follow-up', value: true, hint: 'A single follow-up draft is created after the configured number of days without a reply.', control: 'campaign-new-dialog-follow-ups' } );
+        const autoField = formField( { type: 'toggle', name: 'auto_follow_up', label: 'Auto-approve follow-ups', value: false, hint: 'Only takes effect when the global “Outreach autosend” stage is on; otherwise follow-ups wait for approval like any message. Under Autopilot follow-ups are sent automatically only when reply tracking is set up.', control: 'campaign-new-dialog-auto-follow-up' } );
+        const notesField = formField( { type: 'textarea', name: 'notes', label: 'Notes', rows: 2, control: 'campaign-new-dialog-notes' } );
 
         const dialog = modal( {
             title: 'New campaign',
             width: 'wide',
+            control: 'campaign-new-dialog',
             content: el( 'div', { class: 'lga-stack' },
                 el( 'div', { class: 'lga-form-grid' }, nameField.el, el( 'div', { class: 'lga-field' }, approachField.el, desc ), limitField.el ),
                 variantsBox,
@@ -276,8 +279,8 @@ export default async function render( root, ctx ) {
                 notesField.el,
             ),
             actions: [
-                { label: 'Cancel', onClick: ( close ) => close() },
-                { label: 'Create campaign', kind: 'primary', onClick: async ( close ) => {
+                { label: 'Cancel', control: 'cancel', onClick: ( close ) => close() },
+                { label: 'Create campaign', control: 'create', kind: 'primary', onClick: async ( close ) => {
                     const name = String( nameField.get() || '' ).trim();
                     if ( name === '' ) {
                         nameField.setError( 'Give the campaign a name.' );
@@ -312,11 +315,11 @@ export default async function render( root, ctx ) {
             await approaches();
             items = await campaigns( true );
         } catch ( e ) {
-            replace( panel, errorState( { title: 'Could not load campaigns', message: e && e.message ? e.message : '', retry: () => view.refresh( 'campaigns' ) } ) );
+            replace( panel, errorState( { title: 'Could not load campaigns', message: e && e.message ? e.message : '', retry: () => view.refresh( 'campaigns' ), control: 'campaigns-retry' } ) );
             return;
         }
         if ( ! items.length ) {
-            replace( panel, emptyState( { title: 'No campaigns yet', message: 'Create a campaign, choose an approach and build drafts for qualified prospects.', iconName: 'send', action: button( 'New campaign', { kind: 'primary', iconName: 'plus', onClick: () => createCampaign() } ) } ) );
+            replace( panel, emptyState( { title: 'No campaigns yet', message: 'Create a campaign, choose an approach and build drafts for qualified prospects.', iconName: 'send', action: button( 'New campaign', { kind: 'primary', iconName: 'plus', onClick: () => createCampaign(), control: 'campaigns-empty-new' } ) } ) );
             return;
         }
         replace( panel, el( 'div', { class: 'lga-grid lga-grid--cards' }, items.map( ( c ) => campaignCard( c ) ) ) );
@@ -327,7 +330,7 @@ export default async function render( root, ctx ) {
         const stats = obj( c.stats );
         const statRows = Object.entries( stats ).filter( ( [ , v ] ) => typeof v === 'number' || typeof v === 'string' ).slice( 0, 6 );
         const act = async ( action, confirmText ) => {
-            if ( confirmText && ! ( await confirm( confirmText, { confirmText: labelize( action ) } ) ) ) {
+            if ( confirmText && ! ( await confirm( confirmText, { confirmText: labelize( action ), control: controlId( 'campaign', action, 'confirm' ) } ) ) ) {
                 return;
             }
             let res;
@@ -352,7 +355,7 @@ export default async function render( root, ctx ) {
             view.select( 'messages' );
         };
         const approveAll = async () => {
-            if ( ! ( await confirm( `Approve “${ c.name }” and all its drafts? Each email is checked again (claims filter, unsubscribe link, postal address, suppression list) and is then sent automatically inside the send window and the daily limits.`, { title: 'Approve all drafts', confirmText: 'Approve all' } ) ) ) {
+            if ( ! ( await confirm( `Approve “${ c.name }” and all its drafts? Each email is checked again (claims filter, unsubscribe link, postal address, suppression list) and is then sent automatically inside the send window and the daily limits.`, { title: 'Approve all drafts', confirmText: 'Approve all', control: 'campaign-approve-drafts-confirm' } ) ) ) {
                 return;
             }
             let res;
@@ -365,32 +368,32 @@ export default async function render( root, ctx ) {
             const campaignRefused = res && res.campaign_approved === false;
             toast( `${ fmtNumber( Number( res && res.approved ) || 0 ) } draft(s) approved${ failed.length ? `, ${ failed.length } need editing first` : '' }.${ campaignRefused ? ' The campaign itself could not be approved yet: check the sender identity (Settings → Outreach).' : '' }`, failed.length || campaignRefused ? 'warning' : 'success' );
             if ( failed.length ) {
-                modal( { title: 'Drafts that need editing', content: el( 'ul', { class: 'lga-list--bullets' }, failed.map( ( [ id, why ] ) => el( 'li', {}, `#${ id }: ${ why }` ) ) ), actions: [ { label: 'Close', kind: 'primary', onClick: ( close2 ) => close2() } ] } );
+                modal( { title: 'Drafts that need editing', control: 'campaign-drafts-failed-dialog', content: el( 'ul', { class: 'lga-list--bullets' }, failed.map( ( [ id, why ] ) => el( 'li', {}, `#${ id }: ${ why }` ) ) ), actions: [ { label: 'Close', control: 'ok', kind: 'primary', onClick: ( close2 ) => close2() } ] } );
             }
             await campaigns( true );
             view.refresh( 'campaigns' );
         };
         const actions = [];
         if ( c.status === 'draft' ) {
-            actions.push( button( 'Submit for approval', { small: true, iconName: 'check', onClick: () => act( 'submit' ) } ) );
+            actions.push( button( 'Submit for approval', { small: true, iconName: 'check', onClick: () => act( 'submit' ), control: 'campaign-submit' } ) );
         }
         if ( c.status === 'pending_approval' ) {
-            actions.push( button( 'Approve campaign', { small: true, kind: 'success', iconName: 'check', onClick: () => act( 'approve', 'Approve this campaign? Its messages still need approval too: approve them one by one or with “Approve all drafts”; approved messages are then sent within the send window.' ) } ) );
+            actions.push( button( 'Approve campaign', { small: true, kind: 'success', iconName: 'check', control: 'campaign-approve', onClick: () => act( 'approve', 'Approve this campaign? Its messages still need approval too: approve them one by one or with “Approve all drafts”; approved messages are then sent within the send window.' ) } ) );
         }
         if ( Number( next.waiting ) > 0 ) {
-            actions.push( button( `Approve all drafts (${ fmtNumber( Number( next.waiting ) ) })`, { small: true, kind: 'success', iconName: 'check', onClick: () => approveAll() } ) );
+            actions.push( button( `Approve all drafts (${ fmtNumber( Number( next.waiting ) ) })`, { small: true, kind: 'success', iconName: 'check', onClick: () => approveAll(), control: 'campaign-approve-drafts' } ) );
         }
         if ( [ 'approved', 'sending' ].includes( c.status ) ) {
-            actions.push( button( 'Pause', { small: true, iconName: 'pause', onClick: () => act( 'pause' ) } ) );
+            actions.push( button( 'Pause', { small: true, iconName: 'pause', onClick: () => act( 'pause' ), control: 'campaign-pause' } ) );
         }
         if ( c.status === 'paused' ) {
-            actions.push( button( 'Resume', { small: true, iconName: 'play', onClick: () => act( 'resume' ) } ) );
+            actions.push( button( 'Resume', { small: true, iconName: 'play', onClick: () => act( 'resume' ), control: 'campaign-resume' } ) );
         }
         if ( ! [ 'archived' ].includes( c.status ) ) {
-            actions.push( button( 'Build drafts', { small: true, kind: 'primary', iconName: 'edit', onClick: () => buildDrafts( c ) } ) );
-            actions.push( button( 'Archive', { small: true, kind: 'ghost', iconName: 'inbox', onClick: () => act( 'archive', 'Archive this campaign? Unsent messages will no longer be sent.' ) } ) );
+            actions.push( button( 'Build drafts', { small: true, kind: 'primary', iconName: 'edit', onClick: () => buildDrafts( c ), control: 'campaign-build-drafts' } ) );
+            actions.push( button( 'Archive', { small: true, kind: 'ghost', iconName: 'inbox', control: 'campaign-archive', onClick: () => act( 'archive', 'Archive this campaign? Unsent messages will no longer be sent.' ) } ) );
         }
-        actions.push( button( 'Messages', { small: true, kind: 'ghost', iconName: 'mail', onClick: () => showMessages( '' ) } ) );
+        actions.push( button( 'Messages', { small: true, kind: 'ghost', iconName: 'mail', onClick: () => showMessages( '' ), control: 'campaign-messages' } ) );
 
         const countsHost = el( 'div', { class: 'lga-row', style: { marginTop: '8px' } } );
         const nextHost = el( 'div', { class: 'lga-campaign-next', style: { marginTop: '8px' } } );
@@ -401,10 +404,10 @@ export default async function render( root, ctx ) {
                 return;
             }
             const kind = { sending: 'success', waiting: 'warning', blocked: 'danger', needs_edit: 'warning', empty: 'info', paused: 'neutral' }[ st.state ] || 'info';
-            replace( nextHost, el( 'div', { class: 'lga-small' }, el( 'strong', {}, 'What happens next: ' ), String( st.text ), Number( st.waiting ) > 0 ? el( 'span', {}, ' ', el( 'a', { href: '#', onClick: ( ev ) => {
+            replace( nextHost, el( 'div', { class: 'lga-small' }, el( 'strong', {}, 'What happens next: ' ), String( st.text ), Number( st.waiting ) > 0 ? el( 'span', {}, ' ', link( 'Open the drafts', '#', { control: 'campaign-open-drafts', onClick: ( ev ) => {
                 ev.preventDefault();
                 showMessages( 'draft' );
-            } }, 'Open the drafts' ) ) : null ), badge( labelize( st.state || 'status' ), kind ) );
+            } } ) ) : null ), badge( labelize( st.state || 'status' ), kind ) );
         };
         drawNext( next );
         const drawCounts = ( counts ) => {
@@ -434,8 +437,8 @@ export default async function render( root, ctx ) {
 
     async function buildDrafts( c ) {
         const picker = el( 'div', { class: 'lga-prospect-picker' }, loading( 'Loading qualified prospects…', true ) );
-        const search = el( 'input', { type: 'search', class: 'lga-input', placeholder: 'Filter by domain or name…', 'aria-label': 'Filter prospects' } );
-        const aiField = formField( { type: 'toggle', name: 'use_ai', label: 'AI personalisation', value: false, hint: 'Rewrites the opening observation with the configured AI writer (if enabled). The compliance footer and unsubscribe link are always preserved.' } );
+        const search = input( { type: 'search', class: 'lga-input', placeholder: 'Filter by domain or name…', 'aria-label': 'Filter prospects', control: 'drafts-dialog-search' } );
+        const aiField = formField( { type: 'toggle', name: 'use_ai', label: 'AI personalisation', value: false, hint: 'Rewrites the opening observation with the configured AI writer (if enabled). The compliance footer and unsubscribe link are always preserved.', control: 'drafts-dialog-use-ai' } );
         const selected = new Set();
         const countEl = el( 'span', { class: 'lga-muted lga-small' }, '0 selected' );
         let rows = [];
@@ -444,7 +447,7 @@ export default async function render( root, ctx ) {
             const q = search.value.trim().toLowerCase();
             const visible = rows.filter( ( p ) => q === '' || String( p.domain || '' ).toLowerCase().includes( q ) || String( p.name || '' ).toLowerCase().includes( q ) );
             replace( picker, visible.length ? visible.map( ( p ) => {
-                const cb = el( 'input', { type: 'checkbox', checked: selected.has( p.id ), 'aria-label': p.domain } );
+                const cb = checkbox( { checked: selected.has( p.id ), 'aria-label': p.domain, control: 'drafts-dialog-pick' } );
                 cb.addEventListener( 'change', () => {
                     if ( cb.checked ) {
                         selected.add( p.id );
@@ -469,9 +472,9 @@ export default async function render( root, ctx ) {
             toast( `${ fmtNumber( created ) } draft(s) created${ skippedEntries.length ? `, ${ skippedEntries.length } skipped` : '' }${ remaining.length ? `, ${ remaining.length } not processed yet` : '' }.`, created > 0 ? 'success' : 'warning' );
             if ( skippedEntries.length || remaining.length ) {
                 let busy = false;
-                const actions = [ { label: 'Close', kind: remaining.length ? 'secondary' : 'primary', onClick: ( close2 ) => close2() } ];
+                const actions = [ { label: 'Close', control: 'close-dialog', kind: remaining.length ? 'secondary' : 'primary', onClick: ( close2 ) => close2() } ];
                 if ( remaining.length ) {
-                    actions.push( { label: `Continue (${ fmtNumber( remaining.length ) } left)`, kind: 'primary', iconName: 'play', onClick: async ( close2 ) => {
+                    actions.push( { label: `Continue (${ fmtNumber( remaining.length ) } left)`, control: 'continue', kind: 'primary', iconName: 'play', onClick: async ( close2 ) => {
                         if ( busy ) {
                             return;
                         }
@@ -490,6 +493,7 @@ export default async function render( root, ctx ) {
                 }
                 modal( {
                     title: remaining.length ? 'Drafts not finished' : 'Skipped prospects',
+                    control: 'drafts-result-dialog',
                     content: [
                         remaining.length ? el( 'p', {}, `The time limit for one request was reached, so ${ fmtNumber( remaining.length ) } prospect(s) were not processed yet. Choose Continue to build their drafts now.` ) : null,
                         skippedEntries.length ? el( 'ul', { class: 'lga-list--bullets' }, skippedEntries.map( ( [ pid, reason ] ) => el( 'li', {}, `${ domainOf( pid ) }: ${ reason }` ) ) ) : null,
@@ -527,19 +531,20 @@ export default async function render( root, ctx ) {
                 }
                 renderRows();
             } catch ( e ) {
-                replace( picker, errorState( { title: 'Could not load prospects', message: e && e.message ? e.message : '' } ) );
+                replace( picker, errorState( { title: 'Could not load prospects', message: e && e.message ? e.message : '', control: 'drafts-dialog-retry' } ) );
             }
         };
-        const allField = formField( { type: 'toggle', name: 'all_prospects', label: 'Show all qualified prospects', value: false, hint: 'Off: only websites whose best opportunity fits this approach, with a published address and no open message elsewhere.', onChange: ( v ) => loadRows( Boolean( v ) ) } );
+        const allField = formField( { type: 'toggle', name: 'all_prospects', label: 'Show all qualified prospects', value: false, hint: 'Off: only websites whose best opportunity fits this approach, with a published address and no open message elsewhere.', onChange: ( v ) => loadRows( Boolean( v ) ), control: 'drafts-dialog-all-prospects' } );
         loadRows( false );
 
         modal( {
             title: `Build drafts — ${ c.name }`,
             width: 'wide',
+            control: 'drafts-dialog',
             content: el( 'div', { class: 'lga-stack' },
                 el( 'p', {}, 'Drafts are created for prospects with an active, conspicuously published contact and no open message in another campaign (one open message per website). They are sent after approval: yours, or automatically under Autopilot.' ),
                 allField.el,
-                el( 'div', { class: 'lga-row lga-row--between' }, el( 'div', { class: 'lga-grow' }, search ), countEl, button( 'Select all visible', { small: true, kind: 'ghost', onClick: () => {
+                el( 'div', { class: 'lga-row lga-row--between' }, el( 'div', { class: 'lga-grow' }, search ), countEl, button( 'Select all visible', { small: true, kind: 'ghost', control: 'drafts-dialog-select-all', onClick: () => {
                     picker.querySelectorAll( 'input[type="checkbox"]' ).forEach( ( cb ) => {
                         if ( ! cb.checked ) {
                             cb.click();
@@ -550,8 +555,8 @@ export default async function render( root, ctx ) {
                 aiField.el,
             ),
             actions: [
-                { label: 'Cancel', onClick: ( close ) => close() },
-                { label: 'Build drafts', kind: 'primary', onClick: async ( close ) => {
+                { label: 'Cancel', control: 'cancel', onClick: ( close ) => close() },
+                { label: 'Build drafts', control: 'build', kind: 'primary', onClick: async ( close ) => {
                     if ( selected.size === 0 ) {
                         toast( 'Select at least one prospect.', 'warning' );
                         return;
@@ -572,6 +577,7 @@ export default async function render( root, ctx ) {
         replace( panel, loading( 'Loading messages…', true ) );
         const [ list, appr ] = await Promise.all( [ campaigns().catch( () => [] ), approaches() ] );
         messagesList = listView( {
+            control: 'messages',
             fetch: ( p ) => api.get( '/outreach/messages', p ),
             defaultSort: { key: 'id', dir: 'desc' },
             initial: { filters: messageFilters },
@@ -609,7 +615,7 @@ export default async function render( root, ctx ) {
             return;
         }
         const body = el( 'div', {}, loading( 'Loading message…', true ) );
-        const dr = drawer( `Message #${ id }`, body, { width: 'wide' } );
+        const dr = drawer( `Message #${ id }`, body, { width: 'wide', control: 'drawer' } );
         await approaches();
 
         async function load() {
@@ -617,7 +623,7 @@ export default async function render( root, ctx ) {
             try {
                 data = await api.get( `/outreach/messages/${ id }` );
             } catch ( e ) {
-                dr.setContent( errorState( { title: 'Could not load this message', message: e && e.message ? e.message : '', retry: load } ) );
+                dr.setContent( errorState( { title: 'Could not load this message', message: e && e.message ? e.message : '', retry: load, control: 'drawer-retry' } ) );
                 return;
             }
             const m = obj( data.message ).id ? obj( data.message ) : obj( data );
@@ -642,7 +648,7 @@ export default async function render( root, ctx ) {
                 badge( approachLabel( m.approach ), 'brand' ),
                 Number( m.sequence ) > 1 ? badge( 'Follow-up', 'info' ) : null,
                 m.variant ? badge( `Variant ${ m.variant }`, 'neutral' ) : null,
-                prospect.id ? el( 'a', { href: ctx.pageUrl( 'prospects', { open: prospect.id } ) }, prospect.name || prospect.domain ) : null,
+                prospect.id ? link( prospect.name || prospect.domain, ctx.pageUrl( 'prospects', { open: prospect.id } ), { control: 'drawer-prospect' } ) : null,
             ] );
 
             const stack = el( 'div', { class: 'lga-stack' } );
@@ -655,15 +661,15 @@ export default async function render( root, ctx ) {
             stack.appendChild( card( { title: 'Recipient', body: kv( [
                 [ 'To', contact.email ? el( 'span', {}, contact.name ? `${ contact.name } ` : '', el( 'span', { class: 'lga-mono' }, `<${ contact.email }>` ), ' ', statusBadge( contact.status, { dot: false } ) ) : ( preview.to || null ) ],
                 [ 'Role / consent', [ contact.role ? labelize( contact.role ) : '', contact.consent_basis ? labelize( contact.consent_basis ) : '' ].filter( Boolean ).join( ' · ' ) ],
-                [ 'Prospect', prospect.domain ? extLink( prospect.homepage_url || `https://${ prospect.domain }/`, prospect.domain ) : null ],
-                [ 'Campaign', m.campaign_id ? el( 'a', { href: ctx.pageUrl( 'outreach', { tab: 'messages', campaign_id: m.campaign_id } ) }, `Campaign #${ m.campaign_id }` ) : null ],
+                [ 'Prospect', prospect.domain ? extLink( prospect.homepage_url || `https://${ prospect.domain }/`, prospect.domain, { control: 'drawer-prospect-site' } ) : null ],
+                [ 'Campaign', m.campaign_id ? link( `Campaign #${ m.campaign_id }`, ctx.pageUrl( 'outreach', { tab: 'messages', campaign_id: m.campaign_id } ), { control: 'drawer-campaign' } ) : null ],
                 [ 'Scheduled / sent', [ m.scheduled_at ? `scheduled ${ fmtDate( m.scheduled_at ) }` : '', m.sent_at ? `sent ${ fmtDate( m.sent_at ) }` : '' ].filter( Boolean ).join( ' · ' ) ],
                 [ 'Message-ID', m.message_id || null ],
             ], { compact: true } ) } ) );
 
             // Editor with live claims check
-            const subjectField = formField( { type: 'text', name: 'subject', label: 'Subject', value: m.subject || '', disabled: ! editable, full: true } );
-            const bodyField = formField( { type: 'textarea', name: 'body', label: 'Body (plain text)', value: m.body || '', rows: 14, disabled: ! editable, full: true, hint: 'Keep the compliance footer and unsubscribe link intact; the server rejects messages without them.' } );
+            const subjectField = formField( { type: 'text', name: 'subject', label: 'Subject', value: m.subject || '', disabled: ! editable, full: true, control: 'drawer-subject' } );
+            const bodyField = formField( { type: 'textarea', name: 'body', label: 'Body (plain text)', value: m.body || '', rows: 14, disabled: ! editable, full: true, hint: 'Keep the compliance footer and unsubscribe link intact; the server rejects messages without them.', control: 'drawer-body' } );
             const liveBox = el( 'div', { 'aria-live': 'polite' } );
             const runLive = () => {
                 const v = localClaimsCheck( `${ subjectField.get() }\n${ bodyField.get() }` );
@@ -678,7 +684,7 @@ export default async function render( root, ctx ) {
                 title: 'Message',
                 subtitle: editable ? 'Edit the copy; the claims filter runs as you type and again on save' : 'Read-only in this status',
                 body: [ subjectField.el, bodyField.el, liveBox ],
-                footer: editable ? [ button( 'Save', { kind: 'primary', onClick: async () => {
+                footer: editable ? [ button( 'Save', { kind: 'primary', control: 'drawer-save', onClick: async () => {
                     const res = await api.post( `/outreach/messages/${ m.id }`, { subject: subjectField.get(), body: bodyField.get() } );
                     const violations = arr( res && res.violations );
                     if ( violations.length ) {
@@ -702,14 +708,14 @@ export default async function render( root, ctx ) {
 
             const actions = [];
             if ( [ 'draft', 'rejected', 'failed' ].includes( m.status ) ) {
-                actions.push( button( 'Approve', { kind: 'success', iconName: 'check', onClick: async () => {
-                    if ( ! ( await confirm( 'Approve this message? It becomes eligible for sending in the next send window once its campaign is approved.', { confirmText: 'Approve' } ) ) ) {
+                actions.push( button( 'Approve', { kind: 'success', iconName: 'check', control: 'drawer-approve', onClick: async () => {
+                    if ( ! ( await confirm( 'Approve this message? It becomes eligible for sending in the next send window once its campaign is approved.', { confirmText: 'Approve', control: 'drawer-approve-confirm' } ) ) ) {
                         return;
                     }
                     const res = await api.post( `/outreach/messages/${ m.id }/approve`, {} );
                     const violations = arr( res && res.violations );
                     if ( res && res.ok === false ) {
-                        modal( { title: 'Not approved', content: [ el( 'p', {}, 'Compliance checks failed:' ), violationList( violations.map( ( v ) => ( typeof v === 'string' ? { message: v, match: '' } : v ) ) ) ], actions: [ { label: 'Close', kind: 'primary', onClick: ( close ) => close() } ] } );
+                        modal( { title: 'Not approved', control: 'drawer-not-approved-dialog', content: [ el( 'p', {}, 'Compliance checks failed:' ), violationList( violations.map( ( v ) => ( typeof v === 'string' ? { message: v, match: '' } : v ) ) ) ], actions: [ { label: 'Close', control: 'ok', kind: 'primary', onClick: ( close ) => close() } ] } );
                         return;
                     }
                     toast( 'Message approved.', 'success' );
@@ -717,8 +723,8 @@ export default async function render( root, ctx ) {
                 } } ) );
             }
             if ( [ 'draft', 'approved', 'scheduled' ].includes( m.status ) ) {
-                actions.push( button( 'Reject', { kind: 'danger', iconName: 'x', onClick: async () => {
-                    const reason = await prompt( 'Reason for rejecting this draft (optional):', { title: 'Reject message', label: 'Reason', required: false, confirmText: 'Reject', danger: true } );
+                actions.push( button( 'Reject', { kind: 'danger', iconName: 'x', control: 'drawer-reject', onClick: async () => {
+                    const reason = await prompt( 'Reason for rejecting this draft (optional):', { title: 'Reject message', label: 'Reason', required: false, confirmText: 'Reject', danger: true, control: 'drawer-reject-dialog' } );
                     if ( reason === null ) {
                         return;
                     }
@@ -728,8 +734,8 @@ export default async function render( root, ctx ) {
                 } } ) );
             }
             if ( [ 'approved', 'scheduled' ].includes( m.status ) ) {
-                actions.push( button( 'Send now', { kind: 'primary', iconName: 'send', onClick: async () => {
-                    if ( ! ( await confirm( `Send this email to ${ contact.email || 'the contact' } right now? Compliance checks and limits still apply; the send window is bypassed.`, { title: 'Send email', confirmText: 'Send now' } ) ) ) {
+                actions.push( button( 'Send now', { kind: 'primary', iconName: 'send', control: 'drawer-send', onClick: async () => {
+                    if ( ! ( await confirm( `Send this email to ${ contact.email || 'the contact' } right now? Compliance checks and limits still apply; the send window is bypassed.`, { title: 'Send email', confirmText: 'Send now', control: 'drawer-send-confirm' } ) ) ) {
                         return;
                     }
                     let res;
@@ -749,8 +755,8 @@ export default async function render( root, ctx ) {
                 } } ) );
             }
             if ( [ 'sent', 'replied' ].includes( m.status ) ) {
-                actions.push( button( 'Log reply', { iconName: 'mail', onClick: async () => {
-                    const summary = await prompt( 'Summarise the reply (stored for reporting; keep it short and free of personal data).', { title: 'Log a reply', label: 'Summary', multiline: true, confirmText: 'Log reply' } );
+                actions.push( button( 'Log reply', { iconName: 'mail', control: 'drawer-log-reply', onClick: async () => {
+                    const summary = await prompt( 'Summarise the reply (stored for reporting; keep it short and free of personal data).', { title: 'Log a reply', label: 'Summary', multiline: true, confirmText: 'Log reply', control: 'drawer-log-reply-dialog' } );
                     if ( summary === null ) {
                         return;
                     }
@@ -760,8 +766,8 @@ export default async function render( root, ctx ) {
                 } } ) );
             }
             if ( ! [ 'closed' ].includes( m.status ) ) {
-                actions.push( button( 'Close thread', { kind: 'ghost', iconName: 'stop', onClick: async () => {
-                    if ( ! ( await confirm( 'Close this thread? No follow-ups will be generated.', { confirmText: 'Close thread' } ) ) ) {
+                actions.push( button( 'Close thread', { kind: 'ghost', iconName: 'stop', control: 'drawer-close-thread', onClick: async () => {
+                    if ( ! ( await confirm( 'Close this thread? No follow-ups will be generated.', { confirmText: 'Close thread', control: 'drawer-close-thread-confirm' } ) ) ) {
                         return;
                     }
                     await api.post( `/outreach/messages/${ m.id }/close`, {} );
@@ -780,6 +786,7 @@ export default async function render( root, ctx ) {
     // ------------------------------------------------------------------
     async function contactsTab( panel ) {
         const contactsList = listView( {
+            control: 'contacts',
             fetch: ( p ) => api.get( '/outreach/contacts', p ),
             defaultSort: { key: 'id', dir: 'desc' },
             initial: { filters: { prospect_id: params.prospect_id || '', status: '', q: '' } },
@@ -791,22 +798,22 @@ export default async function render( root, ctx ) {
                 { name: 'q', label: 'Search', type: 'search', placeholder: 'Email or name…' },
             ],
             columns: [
-                { key: 'prospect', label: 'Prospect', render: ( c ) => ( c.prospect_domain ? el( 'a', { href: ctx.pageUrl( 'prospects', { open: c.prospect_id } ) }, c.prospect_domain ) : `#${ c.prospect_id }` ) },
+                { key: 'prospect', label: 'Prospect', render: ( c ) => ( c.prospect_domain ? link( c.prospect_domain, ctx.pageUrl( 'prospects', { open: c.prospect_id } ), { control: 'contacts-prospect' } ) : `#${ c.prospect_id }` ) },
                 { key: 'name', label: 'Name', render: ( c ) => c.name || null },
                 { key: 'email', label: 'Email', sortable: true, render: ( c ) => el( 'span', { class: 'lga-mono' }, c.email ) },
                 { key: 'role', label: 'Role', render: ( c ) => ( c.role ? labelize( c.role ) : null ) },
                 { key: 'confidence', label: 'Confidence', align: 'right', render: ( c ) => ( c.confidence === null || c.confidence === undefined ? null : fmtNumber( c.confidence ) ) },
                 { key: 'consent_basis', label: 'Consent basis', render: ( c ) => ( c.consent_basis ? labelize( c.consent_basis ) : null ) },
-                { key: 'source_url', label: 'Source', render: ( c ) => ( c.source_url ? extLink( c.source_url, 'page' ) : null ) },
+                { key: 'source_url', label: 'Source', render: ( c ) => ( c.source_url ? extLink( c.source_url, /^https?:\/\//i.test( String( c.source_url ) ) ? 'page' : labelize( c.source_url ), { control: 'contacts-source' } ) : null ) },
                 { key: 'status', label: 'Status', sortable: true, render: ( c ) => {
-                    const select = el( 'select', { class: 'lga-select lga-input--small', 'aria-label': `Status for ${ c.email }`, style: { width: 'auto', minWidth: '120px' } }, CONTACT_STATUSES.map( ( s ) => el( 'option', { value: s, selected: s === c.status }, labelize( s ) ) ) );
-                    select.addEventListener( 'change', async () => {
-                        const next = select.value;
+                    const statusSelect = select( { class: 'lga-select lga-input--small', 'aria-label': `Status for ${ c.email }`, style: { width: 'auto', minWidth: '120px' }, options: CONTACT_STATUSES, value: c.status, control: 'contacts-status' } );
+                    statusSelect.addEventListener( 'change', async () => {
+                        const next = statusSelect.value;
                         const question = next === 'active'
                             ? `Reactivate ${ c.email }? Only do this if they have agreed to be contacted.`
                             : `Mark ${ c.email } as ${ labelize( next ).toLowerCase() }? They will not be contacted again.`;
-                        if ( ! ( await confirm( question, { confirmText: next === 'active' ? 'Reactivate' : 'Update' } ) ) ) {
-                            select.value = c.status;
+                        if ( ! ( await confirm( question, { confirmText: next === 'active' ? 'Reactivate' : 'Update', control: 'contacts-status-confirm' } ) ) ) {
+                            statusSelect.value = c.status;
                             return;
                         }
                         try {
@@ -814,10 +821,10 @@ export default async function render( root, ctx ) {
                             toast( 'Contact status updated.', 'success' );
                             contactsList.reload();
                         } catch ( e ) {
-                            select.value = c.status;
+                            statusSelect.value = c.status;
                         }
                     } );
-                    return select;
+                    return statusSelect;
                 } },
                 { key: 'created_at', label: 'Added', render: ( c ) => timeEl( c.created_at ) },
             ],

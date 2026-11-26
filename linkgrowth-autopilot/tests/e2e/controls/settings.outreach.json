@@ -1,0 +1,578 @@
+{
+  "page": "settings",
+  "description": "Settings › outreach tab: every field (Save sends its value: the request and its body are checked, the answer is mocked) and the tab's own controls.",
+  "controls": [
+    {
+      "control": "settings.field-compliance-storefront-gate",
+      "action": "toggle",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"compliance\":{\"storefront_gate\":",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=outreach",
+      "then": [
+        "settings.save",
+        "settings.storefront-gate-off-confirm-confirm"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-outreach-follow-up-days",
+      "action": "fill",
+      "input": "8",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"outreach\":{\"follow_up_days\":8",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=outreach",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-outreach-max-follow-ups",
+      "action": "fill",
+      "input": "2",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"outreach\":{\"max_follow_ups\":2",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=outreach",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-outreach-min-days-between-contacts",
+      "action": "fill",
+      "input": "91",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"outreach\":{\"min_days_between_contacts\":91",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=outreach",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-outreach-postal-address",
+      "action": "fill",
+      "input": "1200 NW Front Ave, Portland, OR 97209, United States\ne2e",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"outreach\":{\"postal_address\":\"1200 NW Front Ave, Portland, OR 97209, United States\\ne2e\"",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=outreach",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-outreach-reply-to",
+      "action": "fill",
+      "input": "e2e@northwind.test",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"outreach\":{\"reply_to\":\"e2e@northwind.test\"",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=outreach",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-outreach-require-approval",
+      "action": "toggle",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"outreach\":{\"require_approval\":",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=outreach",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-outreach-send-window-end",
+      "action": "fill",
+      "input": "18",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"outreach\":{\"send_window_end\":18",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=outreach",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-outreach-send-window-start",
+      "action": "fill",
+      "input": "10",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"outreach\":{\"send_window_start\":10",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=outreach",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-outreach-sender-email",
+      "action": "fill",
+      "input": "e2e@northwind.test",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"outreach\":{\"sender_email\":\"e2e@northwind.test\"",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=outreach",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-outreach-sender-name",
+      "action": "fill",
+      "input": "Test Sender e2e",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"outreach\":{\"sender_name\":\"Test Sender e2e\"",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=outreach",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-outreach-signature",
+      "action": "fill",
+      "input": "Test Sender, Northwind Supply Co\ne2e",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"outreach\":{\"signature\":\"Test Sender, Northwind Supply Co\\ne2e\"",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=outreach",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-outreach-timezone",
+      "action": "fill",
+      "input": "e2e",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"outreach\":{\"timezone\":\"e2e\"",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=outreach",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.send-day-mon",
+      "action": "toggle",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"send_days\":[",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=outreach",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.send-day-tue",
+      "action": "toggle",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"send_days\":[",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=outreach",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.send-day-wed",
+      "action": "toggle",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"send_days\":[",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=outreach",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.send-day-thu",
+      "action": "toggle",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"send_days\":[",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=outreach",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.send-day-fri",
+      "action": "toggle",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"send_days\":[",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=outreach",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.send-day-sat",
+      "action": "toggle",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"send_days\":[",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=outreach",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.send-day-sun",
+      "action": "toggle",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"send_days\":[",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=outreach",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    }
+  ]
+}

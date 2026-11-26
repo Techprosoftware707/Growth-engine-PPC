@@ -1,0 +1,494 @@
+{
+  "page": "logs",
+  "description": "Logs: application log, audit log and suppression list tabs.",
+  "controls": [
+    {
+      "control": "logs.tab-logs",
+      "action": "click",
+      "expect": {
+        "request": "GET /logs"
+      },
+      "view": "#tab=audit"
+    },
+    {
+      "control": "logs.tab-audit",
+      "action": "click",
+      "expect": {
+        "request": "GET /audit"
+      }
+    },
+    {
+      "control": "logs.tab-suppression",
+      "action": "click",
+      "expect": {
+        "request": "GET /suppression"
+      }
+    },
+    {
+      "control": "logs.logs-filter-level",
+      "action": "select",
+      "input": "info",
+      "expect": {
+        "request": "GET /logs?level=info"
+      }
+    },
+    {
+      "control": "logs.logs-filter-channel",
+      "action": "fill",
+      "input": "rest",
+      "expect": {
+        "request": "GET /logs?channel=rest"
+      }
+    },
+    {
+      "control": "logs.logs-filter-q",
+      "action": "fill",
+      "input": "prospect",
+      "expect": {
+        "request": "GET /logs?q=prospect"
+      }
+    },
+    {
+      "control": "logs.logs-filter-reset",
+      "action": "click",
+      "expect": {
+        "request": "GET /logs?!channel"
+      },
+      "before": [
+        {
+          "control": "logs.logs-filter-channel",
+          "action": "fill",
+          "input": "rest"
+        }
+      ],
+      "note": "Reset clears the filters and loads the list again: the reload no longer carries the filter the before step typed."
+    },
+    {
+      "control": "logs.logs-sort-created-at",
+      "action": "click",
+      "expect": {
+        "request": "GET /logs?orderby=created_at"
+      }
+    },
+    {
+      "control": "logs.logs-sort-level",
+      "action": "click",
+      "expect": {
+        "request": "GET /logs?orderby=level"
+      }
+    },
+    {
+      "control": "logs.logs-sort-channel",
+      "action": "click",
+      "expect": {
+        "request": "GET /logs?orderby=channel"
+      }
+    },
+    {
+      "control": "logs.logs-pager-per-page",
+      "action": "select",
+      "input": "50",
+      "expect": {
+        "request": "GET /logs?per_page=50"
+      }
+    },
+    {
+      "control": "logs.logs-pager-next",
+      "action": "click",
+      "expect": {
+        "request": "GET /logs?page=2"
+      }
+    },
+    {
+      "control": "logs.logs-pager-prev",
+      "action": "click",
+      "expect": {
+        "request": "GET /logs?page=1"
+      },
+      "before": [
+        "logs.logs-pager-next"
+      ]
+    },
+    {
+      "control": "logs.logs-row-expand",
+      "action": "click",
+      "expect": {
+        "dom": "tr.lga-expand-row"
+      }
+    },
+    {
+      "control": "logs.logs-refresh",
+      "action": "click",
+      "expect": {
+        "request": "GET /logs"
+      }
+    },
+    {
+      "control": "logs.logs-auto-refresh",
+      "action": "toggle",
+      "expect": {
+        "request": "GET /logs"
+      },
+      "timeout": 25000,
+      "note": "Reloads the list every 15 s while ticked."
+    },
+    {
+      "control": "logs.audit-filter-action",
+      "action": "fill",
+      "input": "prospect",
+      "expect": {
+        "request": "GET /audit?action=prospect"
+      },
+      "view": "#tab=audit"
+    },
+    {
+      "control": "logs.audit-filter-object-type",
+      "action": "select",
+      "input": "prospect",
+      "expect": {
+        "request": "GET /audit?object_type=prospect"
+      },
+      "view": "#tab=audit"
+    },
+    {
+      "control": "logs.audit-filter-q",
+      "action": "fill",
+      "input": "manual",
+      "expect": {
+        "request": "GET /audit?q=manual"
+      },
+      "view": "#tab=audit"
+    },
+    {
+      "control": "logs.audit-filter-reset",
+      "action": "click",
+      "expect": {
+        "request": "GET /audit?!action"
+      },
+      "view": "#tab=audit",
+      "before": [
+        {
+          "control": "logs.audit-filter-action",
+          "action": "fill",
+          "input": "prospect"
+        }
+      ],
+      "note": "Reset clears the filters and loads the list again: the reload no longer carries the filter the before step typed."
+    },
+    {
+      "control": "logs.audit-sort-created-at",
+      "action": "click",
+      "expect": {
+        "request": "GET /audit?orderby=created_at"
+      },
+      "view": "#tab=audit"
+    },
+    {
+      "control": "logs.audit-sort-actor",
+      "action": "click",
+      "expect": {
+        "request": "GET /audit?orderby=actor"
+      },
+      "view": "#tab=audit"
+    },
+    {
+      "control": "logs.audit-sort-action",
+      "action": "click",
+      "expect": {
+        "request": "GET /audit?orderby=action"
+      },
+      "view": "#tab=audit"
+    },
+    {
+      "control": "logs.audit-pager-per-page",
+      "action": "select",
+      "input": "50",
+      "expect": {
+        "request": "GET /audit?per_page=50"
+      },
+      "view": "#tab=audit"
+    },
+    {
+      "control": "logs.audit-pager-next",
+      "action": "click",
+      "expect": {
+        "request": "GET /audit?page=2"
+      },
+      "view": "#tab=audit"
+    },
+    {
+      "control": "logs.audit-pager-prev",
+      "action": "click",
+      "expect": {
+        "request": "GET /audit?page=1"
+      },
+      "view": "#tab=audit",
+      "before": [
+        "logs.audit-pager-next"
+      ]
+    },
+    {
+      "control": "logs.audit-row-expand",
+      "action": "click",
+      "expect": {
+        "dom": "tr.lga-expand-row"
+      },
+      "view": "#tab=audit"
+    },
+    {
+      "control": "logs.suppression-filter-type",
+      "action": "select",
+      "input": "domain",
+      "expect": {
+        "request": "GET /suppression?type=domain"
+      },
+      "view": "#tab=suppression"
+    },
+    {
+      "control": "logs.suppression-filter-q",
+      "action": "fill",
+      "input": "bulk",
+      "expect": {
+        "request": "GET /suppression?q=bulk"
+      },
+      "view": "#tab=suppression"
+    },
+    {
+      "control": "logs.suppression-filter-reset",
+      "action": "click",
+      "expect": {
+        "request": "GET /suppression?!q"
+      },
+      "view": "#tab=suppression",
+      "before": [
+        {
+          "control": "logs.suppression-filter-q",
+          "action": "fill",
+          "input": "bulk"
+        }
+      ],
+      "note": "Reset clears the filters and loads the list again: the reload no longer carries the filter the before step typed."
+    },
+    {
+      "control": "logs.suppression-sort-type",
+      "action": "click",
+      "expect": {
+        "request": "GET /suppression?orderby=type"
+      },
+      "view": "#tab=suppression"
+    },
+    {
+      "control": "logs.suppression-sort-value",
+      "action": "click",
+      "expect": {
+        "request": "GET /suppression?orderby=value"
+      },
+      "view": "#tab=suppression"
+    },
+    {
+      "control": "logs.suppression-sort-created-at",
+      "action": "click",
+      "expect": {
+        "request": "GET /suppression?orderby=created_at"
+      },
+      "view": "#tab=suppression"
+    },
+    {
+      "control": "logs.suppression-pager-per-page",
+      "action": "select",
+      "input": "50",
+      "expect": {
+        "request": "GET /suppression?per_page=50"
+      },
+      "view": "#tab=suppression"
+    },
+    {
+      "control": "logs.suppression-pager-next",
+      "action": "click",
+      "expect": {
+        "request": "GET /suppression?page=2"
+      },
+      "view": "#tab=suppression"
+    },
+    {
+      "control": "logs.suppression-pager-prev",
+      "action": "click",
+      "expect": {
+        "request": "GET /suppression?page=1"
+      },
+      "view": "#tab=suppression",
+      "before": [
+        "logs.suppression-pager-next"
+      ]
+    },
+    {
+      "control": "logs.suppression-add",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-modal"
+      },
+      "view": "#tab=suppression"
+    },
+    {
+      "control": "logs.suppression-add-form-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#tab=suppression",
+      "before": [
+        "logs.suppression-add"
+      ]
+    },
+    {
+      "control": "logs.suppression-add-form-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#tab=suppression",
+      "before": [
+        "logs.suppression-add"
+      ]
+    },
+    {
+      "control": "logs.suppression-add-form-type",
+      "action": "select",
+      "input": "email",
+      "expect": {
+        "request": "POST /suppression",
+        "body": "\"type\":\"email\""
+      },
+      "view": "#tab=suppression",
+      "before": [
+        "logs.suppression-add",
+        {
+          "control": "logs.suppression-add-form-value",
+          "action": "fill",
+          "input": "someone@e2e-blocked.test"
+        }
+      ],
+      "then": [
+        "logs.suppression-add-form-submit"
+      ]
+    },
+    {
+      "control": "logs.suppression-add-form-value",
+      "action": "fill",
+      "input": "added-by-e2e.test",
+      "expect": {
+        "request": "POST /suppression"
+      },
+      "view": "#tab=suppression",
+      "before": [
+        "logs.suppression-add"
+      ],
+      "then": [
+        "logs.suppression-add-form-submit"
+      ]
+    },
+    {
+      "control": "logs.suppression-add-form-reason",
+      "action": "fill",
+      "input": "E2E reason text",
+      "expect": {
+        "request": "POST /suppression"
+      },
+      "view": "#tab=suppression",
+      "before": [
+        "logs.suppression-add",
+        {
+          "control": "logs.suppression-add-form-value",
+          "action": "fill",
+          "input": "reason-by-e2e.test"
+        }
+      ],
+      "then": [
+        "logs.suppression-add-form-submit"
+      ]
+    },
+    {
+      "control": "logs.suppression-add-form-submit",
+      "action": "click",
+      "expect": {
+        "request": "POST /suppression",
+        "body": "submit-by-e2e.test"
+      },
+      "view": "#tab=suppression",
+      "before": [
+        "logs.suppression-add",
+        {
+          "control": "logs.suppression-add-form-value",
+          "action": "fill",
+          "input": "submit-by-e2e.test"
+        }
+      ]
+    },
+    {
+      "control": "logs.suppression-remove",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-modal"
+      },
+      "view": "#tab=suppression"
+    },
+    {
+      "control": "logs.suppression-remove-confirm-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#tab=suppression",
+      "before": [
+        "logs.suppression-remove"
+      ]
+    },
+    {
+      "control": "logs.suppression-remove-confirm-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#tab=suppression",
+      "before": [
+        "logs.suppression-remove"
+      ]
+    },
+    {
+      "control": "logs.suppression-remove-confirm-confirm",
+      "action": "click",
+      "expect": {
+        "request": "DELETE /suppression/{id}"
+      },
+      "view": "#tab=suppression",
+      "destructive": true,
+      "before": [
+        "logs.suppression-remove"
+      ]
+    },
+    {
+      "control": "logs.toast-dismiss",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-toast"
+      },
+      "view": "#tab=suppression",
+      "before": [
+        "logs.suppression-add",
+        {
+          "control": "logs.suppression-add-form-value",
+          "action": "fill",
+          "input": "toast-by-e2e.test"
+        },
+        "logs.suppression-add-form-submit"
+      ]
+    },
+    {
+      "control": "shell.nav-logs",
+      "action": "click",
+      "expect": {
+        "navigate": "/page=lga-logs(&|#|$)/"
+      }
+    }
+  ]
+}

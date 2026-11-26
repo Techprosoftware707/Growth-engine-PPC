@@ -1,0 +1,236 @@
+{
+  "page": "settings",
+  "description": "Settings › monitoring tab: every field (Save sends its value: the request and its body are checked, the answer is mocked) and the tab's own controls.",
+  "controls": [
+    {
+      "control": "settings.field-monitoring-check-interval-days-new",
+      "action": "fill",
+      "input": "2",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"monitoring\":{\"check_interval_days_new\":2",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=monitoring",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-monitoring-check-interval-days-stable",
+      "action": "fill",
+      "input": "8",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"monitoring\":{\"check_interval_days_stable\":8",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=monitoring",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-monitoring-digest-email",
+      "action": "toggle",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"monitoring\":{\"digest_email\":",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=monitoring",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-monitoring-import-interval-days",
+      "action": "fill",
+      "input": "8",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"monitoring\":{\"import_interval_days\":8",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=monitoring",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-monitoring-import-limit",
+      "action": "fill",
+      "input": "501",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"monitoring\":{\"import_limit\":501",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=monitoring",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-monitoring-lost-after-failures",
+      "action": "fill",
+      "input": "3",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"monitoring\":{\"lost_after_failures\":3",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=monitoring",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-monitoring-notify-critical-immediately",
+      "action": "toggle",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"monitoring\":{\"notify_critical_immediately\":",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=monitoring",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-monitoring-notify-email",
+      "action": "fill",
+      "input": "e2e@northwind.test",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"monitoring\":{\"notify_email\":\"e2e@northwind.test\"",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=monitoring",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    }
+  ]
+}

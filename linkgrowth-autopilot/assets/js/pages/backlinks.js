@@ -6,7 +6,7 @@
 import * as api from '../api.js';
 import {
     el, replace, badge, statusBadge, button, callout, kv, pre, loading, errorState, emptyState, timeEl, fmtNumber, fmtDate, labelize, truncate,
-    pageHeader, drawer, dataTable, formModal, confirm, toast, extLink, listView, card, statTile, isObject, copyButton,
+    pageHeader, drawer, dataTable, formModal, confirm, toast, extLink, listView, card, statTile, isObject, copyButton, link,
 } from '../ui.js';
 import { barChart, lineChart, segmentedBar } from '../charts.js';
 import { reportRun } from './outcome.js';
@@ -38,6 +38,7 @@ export default async function render( root, ctx ) {
     const summaryHost = el( 'div', { class: 'lga-section' }, loading( 'Loading summary…', true ) );
 
     const list = listView( {
+        control: 'list',
         fetch: ( p ) => api.get( '/backlinks', p ),
         defaultSort: { key: 'id', dir: 'desc' },
         initial: { filters: { status: params.status || '', rel: params.rel || '', origin: params.origin || '', q: params.q || '' } },
@@ -51,7 +52,7 @@ export default async function render( root, ctx ) {
             { name: 'q', label: 'Search', type: 'search', placeholder: 'Source domain or anchor…' },
         ],
         columns: [
-            { key: 'source_domain', label: 'Source', sortable: true, render: ( b ) => el( 'span', {}, el( 'span', { class: 'lga-cell-title' }, b.source_domain || '' ), extLink( b.source_url, truncate( String( b.source_url || '' ).replace( /^https?:\/\//, '' ), 52 ), { className: 'lga-cell-sub' } ) ) },
+            { key: 'source_domain', label: 'Source', sortable: true, render: ( b ) => el( 'span', {}, el( 'span', { class: 'lga-cell-title' }, b.source_domain || '' ), extLink( b.source_url, truncate( String( b.source_url || '' ).replace( /^https?:\/\//, '' ), 52 ), { className: 'lga-cell-sub', control: 'list-source-url' } ) ) },
             { key: 'anchor_text', label: 'Anchor', render: ( b ) => ( b.anchor_text ? el( 'span', { title: b.anchor_text }, truncate( b.anchor_text, 36 ) ) : el( 'span', { class: 'lga-muted' }, '(empty / image)' ) ) },
             { key: 'rel', label: 'Rel', render: ( b ) => relBadges( b.rel ) },
             { key: 'placement', label: 'Placement', render: ( b ) => ( b.placement ? labelize( b.placement ) : null ) },
@@ -64,8 +65,8 @@ export default async function render( root, ctx ) {
             { key: 'next_check_at', label: 'Next check', sortable: true, render: ( b ) => ( b.next_check_at ? timeEl( b.next_check_at ) : null ) },
         ],
         toolbar: [
-            button( 'Import from providers', { iconName: 'download', onClick: async () => {
-                if ( ! ( await confirm( 'Import backlinks from every configured provider (SE Ranking, Ahrefs, Semrush) and GA4 referral sources now? This uses provider API credits.', { confirmText: 'Import' } ) ) ) {
+            button( 'Import from providers', { iconName: 'download', control: 'import', onClick: async () => {
+                if ( ! ( await confirm( 'Import backlinks from every configured provider (SE Ranking, Ahrefs, Semrush) and GA4 referral sources now? This uses provider API credits.', { confirmText: 'Import', control: 'import-confirm' } ) ) ) {
                     return;
                 }
                 const res = await api.post( '/backlinks/import', {} );
@@ -86,8 +87,9 @@ export default async function render( root, ctx ) {
                 list.reload();
                 loadSummary();
             } } ),
-            button( 'Add backlink', { kind: 'primary', iconName: 'plus', onClick: () => formModal( {
+            button( 'Add backlink', { kind: 'primary', iconName: 'plus', control: 'add', onClick: () => formModal( {
                 title: 'Add a known backlink',
+                control: 'add-form',
                 description: 'The link is verified on the next monitoring pass (or immediately with “Check now”).',
                 submitText: 'Add backlink',
                 fields: [
@@ -145,15 +147,15 @@ export default async function render( root, ctx ) {
 
         replace( summaryHost,
             el( 'div', { class: 'lga-grid lga-grid--tiles', style: { marginBottom: '16px' } },
-                statTile( { label: 'Active', iconName: 'check', value: fmtNumber( count( 'active' ) ), hint: `${ fmtNumber( count( 'pending' ) ) } pending verification`, onClick: () => list.setFilters( { status: 'active' } ) } ),
-                statTile( { label: 'Lost or broken', iconName: 'alert', value: fmtNumber( count( 'lost' ) + count( 'broken' ) ), hint: `${ fmtNumber( count( 'redirected' ) ) } redirected · ${ fmtNumber( count( 'unverified' ) ) } unverified`, tone: count( 'lost' ) + count( 'broken' ) > 0 ? 'critical' : null, onClick: () => list.setFilters( { status: 'lost' } ) } ),
+                statTile( { label: 'Active', iconName: 'check', value: fmtNumber( count( 'active' ) ), hint: `${ fmtNumber( count( 'pending' ) ) } pending verification`, onClick: () => list.setFilters( { status: 'active' } ), control: 'tile-active' } ),
+                statTile( { label: 'Lost or broken', iconName: 'alert', value: fmtNumber( count( 'lost' ) + count( 'broken' ) ), hint: `${ fmtNumber( count( 'redirected' ) ) } redirected · ${ fmtNumber( count( 'unverified' ) ) } unverified`, tone: count( 'lost' ) + count( 'broken' ) > 0 ? 'critical' : null, onClick: () => list.setFilters( { status: 'lost' } ), control: 'tile-lost' } ),
                 statTile( { label: 'Referring domains', iconName: 'globe', value: fmtNumber( referring ), hint: 'Unique source domains with a live link' } ),
                 statTile( { label: 'High-authority domains', iconName: 'shield', value: fmtNumber( highAuth ), hint: `Authority ≥ ${ fmtNumber( authorityMin ) } on a configured provider${ qualityNote }` } ),
             ),
             el( 'div', { class: 'lga-grid lga-grid--3' },
-                card( { body: lineChart( { title: 'New vs. lost per week', series: [ { name: 'New', points: trend.map( ( r ) => ( { x: r.week, y: Number( r.new ) || 0 } ) ) }, { name: 'Lost', points: trend.map( ( r ) => ( { x: r.week, y: Number( r.lost ) || 0 } ) ) } ], height: 200, emptyMessage: 'No weekly history yet.' } ) } ),
-                card( { body: segmentedBar( { title: 'Link attributes', subtitle: 'Share of verified links', parts: rel, emptyMessage: 'No verified links yet.' } ) } ),
-                card( { body: barChart( { title: 'Top anchor texts', data: anchors, maxBars: 8, emptyMessage: 'Anchors appear after verification.' } ) } ),
+                card( { body: lineChart( { title: 'New vs. lost per week', control: 'chart-trend', series: [ { name: 'New', points: trend.map( ( r ) => ( { x: r.week, y: Number( r.new ) || 0 } ) ) }, { name: 'Lost', points: trend.map( ( r ) => ( { x: r.week, y: Number( r.lost ) || 0 } ) ) } ], height: 200, emptyMessage: 'No weekly history yet.' } ) } ),
+                card( { body: segmentedBar( { title: 'Link attributes', control: 'chart-link-attributes', subtitle: 'Share of verified links', parts: rel, emptyMessage: 'No verified links yet.' } ) } ),
+                card( { body: barChart( { title: 'Top anchor texts', control: 'chart-anchors', data: anchors, maxBars: 8, emptyMessage: 'Anchors appear after verification.' } ) } ),
             ),
         );
     }
@@ -164,14 +166,14 @@ export default async function render( root, ctx ) {
             return;
         }
         const body = el( 'div', {}, loading( 'Loading backlink…', true ) );
-        const dr = drawer( `Backlink #${ id }`, body, {} );
+        const dr = drawer( `Backlink #${ id }`, body, { control: 'drawer' } );
 
         async function load() {
             let data;
             try {
                 data = await api.get( `/backlinks/${ id }` );
             } catch ( e ) {
-                dr.setContent( errorState( { title: 'Could not load this backlink', message: e && e.message ? e.message : '', retry: load } ) );
+                dr.setContent( errorState( { title: 'Could not load this backlink', message: e && e.message ? e.message : '', retry: load, control: 'drawer-retry' } ) );
                 return;
             }
             const b = obj( data.backlink ).id ? obj( data.backlink ) : obj( data );
@@ -191,16 +193,16 @@ export default async function render( root, ctx ) {
             const stack = el( 'div', { class: 'lga-stack' },
                 b.status === 'lost' || b.status === 'broken' ? callout( 'danger', `Link ${ b.status }${ b.lost_at ? ` since ${ fmtDate( b.lost_at ) }` : '' }`, `${ fmtNumber( b.consecutive_failures ) } consecutive failed checks. Lost links are re-checked weekly for 60 days.` ) : null,
                 b.status === 'unverified' ? callout( 'info', 'Unverified', 'The source page could not be checked (robots.txt disallows crawling or the page was unreachable). The link may still exist.' ) : null,
-                card( { title: 'Details', actions: copyButton( () => `${ b.source_url } -> ${ b.target_url }`, 'Copy URLs' ), body: kv( [
-                    [ 'Source page', extLink( b.source_url ) ],
-                    [ 'Links to', extLink( b.target_url ) ],
+                card( { title: 'Details', actions: copyButton( () => `${ b.source_url } -> ${ b.target_url }`, 'Copy URLs', { control: 'drawer-copy-urls' } ), body: kv( [
+                    [ 'Source page', extLink( b.source_url, undefined, { control: 'drawer-source-url' } ) ],
+                    [ 'Links to', extLink( b.target_url, undefined, { control: 'drawer-target-url' } ) ],
                     [ 'Anchor text', b.anchor_text || el( 'span', { class: 'lga-muted' }, '(empty / image)' ) ],
                     [ 'Rel', b.rel || 'dofollow' ],
                     [ 'Placement', b.placement ? labelize( b.placement ) : null ],
                     [ 'Indexable', b.is_indexable === null || b.is_indexable === undefined ? null : ( Number( b.is_indexable ) ? 'Yes' : 'No' ) ],
                     [ 'HTTP status', b.http_status || null ],
                     [ 'Quality score', b.quality_score === null || b.quality_score === undefined ? null : `${ fmtNumber( b.quality_score ) } / 100` ],
-                    [ 'Prospect', b.prospect_id ? el( 'a', { href: ctx.pageUrl( 'prospects', { open: b.prospect_id } ) }, `Prospect #${ b.prospect_id }` ) : null ],
+                    [ 'Prospect', b.prospect_id ? link( `Prospect #${ b.prospect_id }`, ctx.pageUrl( 'prospects', { open: b.prospect_id } ), { control: 'drawer-prospect' } ) : null ],
                     [ 'First seen', b.first_seen ? fmtDate( b.first_seen ) : null ],
                     [ 'Last checked', b.last_checked ? fmtDate( b.last_checked ) : 'Never' ],
                     [ 'Last seen live', b.last_seen_live ? fmtDate( b.last_seen_live ) : null ],
@@ -214,8 +216,8 @@ export default async function render( root, ctx ) {
             );
 
             dr.setActions( [
-                button( 'Delete', { kind: 'danger', iconName: 'trash', onClick: async () => {
-                    if ( ! ( await confirm( 'Delete this backlink record? It may be re-imported from providers later.', { danger: true, confirmText: 'Delete' } ) ) ) {
+                button( 'Delete', { kind: 'danger', iconName: 'trash', control: 'drawer-delete', onClick: async () => {
+                    if ( ! ( await confirm( 'Delete this backlink record? It may be re-imported from providers later.', { danger: true, confirmText: 'Delete', control: 'drawer-delete-confirm' } ) ) ) {
                         return;
                     }
                     await api.del( `/backlinks/${ b.id }` );
@@ -224,7 +226,7 @@ export default async function render( root, ctx ) {
                     list.reload();
                     loadSummary();
                 } } ),
-                button( 'Check now', { kind: 'primary', iconName: 'refresh', onClick: async () => {
+                button( 'Check now', { kind: 'primary', iconName: 'refresh', control: 'drawer-check', onClick: async () => {
                     const res = await api.post( `/backlinks/${ b.id }/check`, {} );
                     const r = obj( res && res.result ? res.result : res );
                     const bits = [ r.status ? `status ${ labelize( r.status ) }` : '', r.lost ? 'link lost' : '', r.recovered ? 'link recovered' : '', r.changed ? 'changes recorded' : '', r.note ? r.note : '' ].filter( Boolean );

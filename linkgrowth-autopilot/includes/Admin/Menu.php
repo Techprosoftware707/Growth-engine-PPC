@@ -124,6 +124,27 @@ final class Menu {
         return $out;
     }
 
+    /**
+     * The pages the SPA builds its router and navigation from (lga-config `pages`, DESIGN.md §10.1): the definitions of
+     * pagesFor()'s pages, in navigation order. For the submitter role, the owner-task queue under its own label and
+     * capability.
+     *
+     * @return array<string,array{label:string,icon:string,module:string,cap:string,order:int}>
+     */
+    public static function spaPages( bool $submitOnly ): array {
+        $defs = self::pageDefinitions();
+        $out  = [];
+        foreach ( self::pagesFor( $submitOnly ) as $key => $label ) {
+            $def = $defs[ $key ] ?? [ 'label' => $label, 'icon' => '', 'module' => 'pages/' . $key . '.js', 'cap' => Capabilities::CAP, 'order' => 100 ];
+            $def['label'] = $label;
+            if ( $submitOnly ) {
+                $def['cap'] = Capabilities::SUBMIT_CAP;
+            }
+            $out[ $key ] = $def;
+        }
+        return $out;
+    }
+
     /** Admin menu slug for a page key: "lga" for the overview, "lga-{page}" otherwise. */
     public static function slugFor( string $page ): string {
         return 'overview' === $page ? self::SLUG : self::SLUG . '-' . $page;
@@ -264,10 +285,10 @@ final class Menu {
     public function config( string $page ): array {
         $user       = wp_get_current_user();
         $submitOnly = Capabilities::submitOnly();
-        $pages      = self::pagesFor( $submitOnly );
+        $pages      = self::spaPages( $submitOnly );
         $urls       = [];
         $slugs      = [];
-        foreach ( $pages as $key => $label ) {
+        foreach ( array_keys( $pages ) as $key ) {
             $urls[ $key ]  = esc_url_raw( self::url( $key ) );
             $slugs[ $key ] = self::slugFor( $key );
         }
@@ -312,8 +333,7 @@ final class Menu {
             'brand'               => $this->settings->brandName(),
                 'productName'         => __( Plugin::NAME, 'linkgrowth-autopilot' ), // phpcs:ignore WordPress.WP.I18n.NonSingularStringLiteralText
             'pages'               => $pages,
-            // Settings tabs from the modules (DESIGN.md §10.1); the Settings page still renders its own tabs until the
-            // SPA builds them from this list.
+            // Settings tabs from the modules (DESIGN.md §10.1): the Settings page renders these, each from its module.
             'settingsTabs'        => self::settingsTabs(),
             'version'             => defined( 'LGA_VERSION' ) ? LGA_VERSION : '',
             'user'                => [

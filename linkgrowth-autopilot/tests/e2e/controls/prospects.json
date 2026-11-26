@@ -1,0 +1,1422 @@
+{
+  "page": "prospects",
+  "description": "Prospects: list (filters, sorting, pager), \"Add prospect\", and the prospect drawer with its seven tabs.",
+  "controls": [
+    {
+      "control": "prospects.list-filter-status",
+      "action": "select",
+      "input": "qualified",
+      "expect": {
+        "request": "GET /prospects?status=qualified"
+      }
+    },
+    {
+      "control": "prospects.list-filter-class",
+      "action": "select",
+      "input": "moderate",
+      "expect": {
+        "request": "GET /prospects?class=moderate"
+      }
+    },
+    {
+      "control": "prospects.list-filter-type",
+      "action": "select",
+      "input": "directory_listing",
+      "expect": {
+        "request": "GET /prospects?type=directory_listing"
+      }
+    },
+    {
+      "control": "prospects.list-filter-site-type",
+      "action": "select",
+      "input": "directory",
+      "expect": {
+        "request": "GET /prospects?site_type=directory"
+      }
+    },
+    {
+      "control": "prospects.list-filter-via",
+      "action": "select",
+      "input": "manual",
+      "expect": {
+        "request": "GET /prospects?via=manual"
+      }
+    },
+    {
+      "control": "prospects.list-filter-country",
+      "action": "fill",
+      "input": "US",
+      "expect": {
+        "request": "GET /prospects?country=US"
+      }
+    },
+    {
+      "control": "prospects.list-filter-min-score",
+      "action": "fill",
+      "input": "50",
+      "expect": {
+        "request": "GET /prospects?min_score=50"
+      }
+    },
+    {
+      "control": "prospects.list-filter-q",
+      "action": "fill",
+      "input": "lab",
+      "expect": {
+        "request": "GET /prospects?q=lab"
+      }
+    },
+    {
+      "control": "prospects.list-filter-reset",
+      "action": "click",
+      "expect": {
+        "request": "GET /prospects?!country"
+      },
+      "before": [
+        {
+          "control": "prospects.list-filter-country",
+          "action": "fill",
+          "input": "US"
+        }
+      ],
+      "note": "Reset clears the filters and loads the list again: the reload no longer carries the filter the before step typed."
+    },
+    {
+      "control": "prospects.list-sort-domain",
+      "action": "click",
+      "expect": {
+        "request": "GET /prospects?orderby=domain"
+      }
+    },
+    {
+      "control": "prospects.list-sort-score",
+      "action": "click",
+      "expect": {
+        "request": "GET /prospects?orderby=score"
+      }
+    },
+    {
+      "control": "prospects.list-sort-relevance",
+      "action": "click",
+      "expect": {
+        "request": "GET /prospects?orderby=relevance"
+      }
+    },
+    {
+      "control": "prospects.list-sort-country",
+      "action": "click",
+      "expect": {
+        "request": "GET /prospects?orderby=country"
+      }
+    },
+    {
+      "control": "prospects.list-sort-status",
+      "action": "click",
+      "expect": {
+        "request": "GET /prospects?orderby=status"
+      }
+    },
+    {
+      "control": "prospects.list-sort-last-evaluated",
+      "action": "click",
+      "expect": {
+        "request": "GET /prospects?orderby=last_evaluated"
+      }
+    },
+    {
+      "control": "prospects.list-pager-per-page",
+      "action": "select",
+      "input": "50",
+      "expect": {
+        "request": "GET /prospects?per_page=50"
+      }
+    },
+    {
+      "control": "prospects.list-pager-next",
+      "action": "click",
+      "expect": {
+        "request": "GET /prospects?page=2"
+      }
+    },
+    {
+      "control": "prospects.list-pager-prev",
+      "action": "click",
+      "expect": {
+        "request": "GET /prospects?page=1"
+      },
+      "before": [
+        "prospects.list-pager-next"
+      ]
+    },
+    {
+      "control": "prospects.list-row",
+      "action": "click",
+      "expect": {
+        "request": "GET /prospects/{id}",
+        "dom": ".lga-drawer"
+      }
+    },
+    {
+      "control": "prospects.list-retry",
+      "action": "click",
+      "expect": {
+        "request": "GET /prospects"
+      },
+      "mock": [
+        {
+          "request": "GET /prospects",
+          "status": 500
+        }
+      ],
+      "note": "The list's error state and its retry."
+    },
+    {
+      "control": "prospects.add",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-modal"
+      }
+    },
+    {
+      "control": "prospects.add-form-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "before": [
+        "prospects.add"
+      ]
+    },
+    {
+      "control": "prospects.add-form-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "before": [
+        "prospects.add"
+      ]
+    },
+    {
+      "control": "prospects.add-form-url",
+      "action": "fill",
+      "input": "https://e2e-added-a.test/resources/",
+      "expect": {
+        "request": "POST /prospects"
+      },
+      "before": [
+        "prospects.add"
+      ],
+      "then": [
+        "prospects.add-form-submit"
+      ]
+    },
+    {
+      "control": "prospects.add-form-note",
+      "action": "fill",
+      "input": "E2E note text",
+      "expect": {
+        "request": "POST /prospects"
+      },
+      "before": [
+        "prospects.add",
+        {
+          "control": "prospects.add-form-url",
+          "action": "fill",
+          "input": "https://e2e-added-b.test/resources/"
+        }
+      ],
+      "then": [
+        "prospects.add-form-submit"
+      ]
+    },
+    {
+      "control": "prospects.add-form-submit",
+      "action": "click",
+      "expect": {
+        "request": "POST /prospects",
+        "body": "e2e-added-c.test"
+      },
+      "before": [
+        "prospects.add",
+        {
+          "control": "prospects.add-form-url",
+          "action": "fill",
+          "input": "https://e2e-added-c.test/resources/"
+        }
+      ]
+    },
+    {
+      "control": "prospects.drawer-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-drawer"
+      },
+      "view": "#open={seed.prospectDirectory}"
+    },
+    {
+      "control": "prospects.drawer-site",
+      "action": "click",
+      "expect": {
+        "popup": "labdirectory.test"
+      },
+      "view": "#open={seed.prospectDirectory}"
+    },
+    {
+      "control": "prospects.drawer-retry",
+      "action": "click",
+      "expect": {
+        "request": "GET /prospects/{id}"
+      },
+      "view": "#open={seed.prospectDirectory}",
+      "mock": [
+        {
+          "request": "GET /prospects/{id}",
+          "status": 500
+        }
+      ],
+      "note": "The drawer's error state and its retry."
+    },
+    {
+      "control": "prospects.drawer-tab-summary",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"prospects.drawer-tab-summary\"][aria-selected=\"true\"]"
+      },
+      "view": "#open={seed.prospectDirectory}",
+      "before": [
+        "prospects.drawer-tab-contacts"
+      ]
+    },
+    {
+      "control": "prospects.drawer-tab-opportunities",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"prospects.drawer-tab-opportunities\"][aria-selected=\"true\"]"
+      },
+      "view": "#open={seed.prospectDirectory}"
+    },
+    {
+      "control": "prospects.drawer-tab-contacts",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"prospects.drawer-tab-contacts\"][aria-selected=\"true\"]"
+      },
+      "view": "#open={seed.prospectDirectory}"
+    },
+    {
+      "control": "prospects.drawer-tab-submissions",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"prospects.drawer-tab-submissions\"][aria-selected=\"true\"]"
+      },
+      "view": "#open={seed.prospectDirectory}"
+    },
+    {
+      "control": "prospects.drawer-tab-outreach",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"prospects.drawer-tab-outreach\"][aria-selected=\"true\"]"
+      },
+      "view": "#open={seed.prospectDirectory}"
+    },
+    {
+      "control": "prospects.drawer-tab-backlinks",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"prospects.drawer-tab-backlinks\"][aria-selected=\"true\"]"
+      },
+      "view": "#open={seed.prospectDirectory}"
+    },
+    {
+      "control": "prospects.drawer-tab-actions",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"prospects.drawer-tab-actions\"][aria-selected=\"true\"]"
+      },
+      "view": "#open={seed.prospectDirectory}"
+    },
+    {
+      "control": "prospects.summary-homepage",
+      "action": "click",
+      "expect": {
+        "popup": "labdirectory.test"
+      },
+      "view": "#open={seed.prospectDirectory}"
+    },
+    {
+      "control": "prospects.summary-submission-page",
+      "action": "click",
+      "expect": {
+        "popup": "labdirectory.test/add-listing"
+      },
+      "view": "#open={seed.prospectDirectory}"
+    },
+    {
+      "control": "prospects.summary-contact-page",
+      "action": "click",
+      "expect": {
+        "popup": "labdirectory.test"
+      },
+      "view": "#open={seed.prospectDirectory}"
+    },
+    {
+      "control": "prospects.summary-headings",
+      "action": "click",
+      "expect": {
+        "dom": "details[open] > [data-lga-control=\"prospects.summary-headings\"]"
+      },
+      "view": "#open={seed.prospectDirectory}"
+    },
+    {
+      "control": "prospects.opportunities-scan",
+      "action": "click",
+      "expect": {
+        "request": "POST /prospects/{id}/find-opportunities"
+      },
+      "view": "#open={seed.prospectDirectory}",
+      "before": [
+        "prospects.drawer-tab-opportunities"
+      ],
+      "timeout": 60000
+    },
+    {
+      "control": "prospects.opportunities-url",
+      "action": "click",
+      "expect": {
+        "popup": "labdirectory.test"
+      },
+      "view": "#open={seed.prospectDirectory}",
+      "before": [
+        "prospects.drawer-tab-opportunities"
+      ]
+    },
+    {
+      "control": "prospects.contacts-add",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-modal"
+      },
+      "view": "#open={seed.prospectResource}",
+      "before": [
+        "prospects.drawer-tab-contacts"
+      ]
+    },
+    {
+      "control": "prospects.contacts-add-form-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#open={seed.prospectResource}",
+      "before": [
+        "prospects.drawer-tab-contacts",
+        "prospects.contacts-add"
+      ]
+    },
+    {
+      "control": "prospects.contacts-add-form-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#open={seed.prospectResource}",
+      "before": [
+        "prospects.drawer-tab-contacts",
+        "prospects.contacts-add"
+      ]
+    },
+    {
+      "control": "prospects.contacts-add-form-email",
+      "action": "fill",
+      "input": "editor-a@resources.test",
+      "expect": {
+        "request": "POST /prospects/{id}/contacts"
+      },
+      "view": "#open={seed.prospectResource}",
+      "before": [
+        "prospects.drawer-tab-contacts",
+        "prospects.contacts-add"
+      ],
+      "then": [
+        "prospects.contacts-add-form-submit"
+      ]
+    },
+    {
+      "control": "prospects.contacts-add-form-name",
+      "action": "fill",
+      "input": "E2E Editor",
+      "expect": {
+        "request": "POST /prospects/{id}/contacts"
+      },
+      "view": "#open={seed.prospectResource}",
+      "before": [
+        "prospects.drawer-tab-contacts",
+        "prospects.contacts-add",
+        {
+          "control": "prospects.contacts-add-form-email",
+          "action": "fill",
+          "input": "editor-b@resources.test"
+        }
+      ],
+      "then": [
+        "prospects.contacts-add-form-submit"
+      ]
+    },
+    {
+      "control": "prospects.contacts-add-form-role",
+      "action": "select",
+      "input": "editor",
+      "expect": {
+        "request": "POST /prospects/{id}/contacts",
+        "body": "\"role\":\"editor\""
+      },
+      "view": "#open={seed.prospectResource}",
+      "before": [
+        "prospects.drawer-tab-contacts",
+        "prospects.contacts-add",
+        {
+          "control": "prospects.contacts-add-form-email",
+          "action": "fill",
+          "input": "editor-c@resources.test"
+        }
+      ],
+      "then": [
+        "prospects.contacts-add-form-submit"
+      ]
+    },
+    {
+      "control": "prospects.contacts-add-form-submit",
+      "action": "click",
+      "expect": {
+        "request": "POST /prospects/{id}/contacts",
+        "body": "editor-d@resources.test"
+      },
+      "view": "#open={seed.prospectResource}",
+      "before": [
+        "prospects.drawer-tab-contacts",
+        "prospects.contacts-add",
+        {
+          "control": "prospects.contacts-add-form-email",
+          "action": "fill",
+          "input": "editor-d@resources.test"
+        }
+      ]
+    },
+    {
+      "control": "prospects.contacts-source",
+      "action": "click",
+      "expect": {
+        "popup": "labdirectory.test"
+      },
+      "view": "#open={seed.prospectDirectory}",
+      "before": [
+        "prospects.drawer-tab-contacts"
+      ]
+    },
+    {
+      "control": "prospects.contacts-status",
+      "action": "select",
+      "input": "bounced",
+      "expect": {
+        "dom": ".lga-modal"
+      },
+      "view": "#open={seed.prospectDirectory}",
+      "before": [
+        "prospects.drawer-tab-contacts"
+      ],
+      "note": "Any status but \"active\" asks first."
+    },
+    {
+      "control": "prospects.contacts-status-confirm-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#open={seed.prospectDirectory}",
+      "before": [
+        "prospects.drawer-tab-contacts",
+        {
+          "control": "prospects.contacts-status",
+          "action": "select",
+          "input": "bounced"
+        }
+      ]
+    },
+    {
+      "control": "prospects.contacts-status-confirm-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#open={seed.prospectDirectory}",
+      "before": [
+        "prospects.drawer-tab-contacts",
+        {
+          "control": "prospects.contacts-status",
+          "action": "select",
+          "input": "bounced"
+        }
+      ]
+    },
+    {
+      "control": "prospects.contacts-status-confirm-confirm",
+      "action": "click",
+      "expect": {
+        "request": "POST /outreach/contacts/{id}/status",
+        "body": "\"status\":\"bounced\""
+      },
+      "view": "#open={seed.prospectDirectory}",
+      "before": [
+        "prospects.drawer-tab-contacts",
+        {
+          "control": "prospects.contacts-status",
+          "action": "select",
+          "input": "bounced"
+        }
+      ]
+    },
+    {
+      "control": "prospects.submissions-package",
+      "action": "click",
+      "expect": {
+        "request": "POST /prospects/{id}/package"
+      },
+      "view": "#open={seed.prospectPackage}",
+      "before": [
+        "prospects.drawer-tab-submissions"
+      ],
+      "prepare": [
+        {
+          "rest": "POST /prospects/{seed.prospectPackage}/status",
+          "body": {
+            "status": "qualified",
+            "reason": "E2E: package from the drawer"
+          }
+        }
+      ],
+      "note": "The Overview's growth run evaluates this unreachable directory (and rejects it) before the walk gets here: qualified again first."
+    },
+    {
+      "control": "prospects.toast-open-package",
+      "action": "click",
+      "expect": {
+        "navigate": "/page=lga-submissions/",
+        "dom": ".lga-drawer"
+      },
+      "view": "#open={seed.prospectPackageToast}",
+      "before": [
+        "prospects.drawer-tab-submissions",
+        "prospects.submissions-package"
+      ],
+      "note": "The \"Open\" action of the toast a new package shows. Qualified again first (the Overview's growth run rejects the unreachable directory).",
+      "prepare": [
+        {
+          "rest": "POST /prospects/{seed.prospectPackageToast}/status",
+          "body": {
+            "status": "qualified",
+            "reason": "E2E: package from the drawer"
+          }
+        }
+      ]
+    },
+    {
+      "control": "prospects.submissions-row",
+      "action": "click",
+      "expect": {
+        "navigate": "/page=lga-submissions/",
+        "dom": ".lga-drawer"
+      },
+      "view": "#open={seed.prospectDirectory}",
+      "before": [
+        "prospects.drawer-tab-submissions"
+      ]
+    },
+    {
+      "control": "prospects.submissions-target",
+      "action": "click",
+      "expect": {
+        "popup": "labdirectory.test/add-listing"
+      },
+      "view": "#open={seed.prospectDirectory}",
+      "before": [
+        "prospects.drawer-tab-submissions"
+      ]
+    },
+    {
+      "control": "prospects.outreach-open",
+      "action": "click",
+      "expect": {
+        "navigate": "page=lga-outreach#tab=messages"
+      },
+      "view": "#open={seed.prospectResource}",
+      "before": [
+        "prospects.drawer-tab-outreach"
+      ]
+    },
+    {
+      "control": "prospects.outreach-row",
+      "action": "click",
+      "expect": {
+        "navigate": "/page=lga-outreach/",
+        "dom": ".lga-drawer"
+      },
+      "view": "#open={seed.prospectResource}",
+      "before": [
+        "prospects.drawer-tab-outreach"
+      ]
+    },
+    {
+      "control": "prospects.actions-evaluate",
+      "action": "click",
+      "expect": {
+        "request": "POST /prospects/{id}/evaluate"
+      },
+      "view": "#open={seed.prospectDirectory}",
+      "before": [
+        "prospects.drawer-tab-actions"
+      ],
+      "timeout": 60000
+    },
+    {
+      "control": "prospects.actions-status",
+      "action": "select",
+      "input": "on_hold",
+      "expect": {
+        "request": "POST /prospects/{id}/status",
+        "body": "\"status\":\"on_hold\""
+      },
+      "view": "#open={seed.prospectBulk1}",
+      "before": [
+        "prospects.drawer-tab-actions"
+      ],
+      "then": [
+        "prospects.actions-status-update"
+      ]
+    },
+    {
+      "control": "prospects.actions-status-reason",
+      "action": "fill",
+      "input": "E2E reason for the change",
+      "expect": {
+        "request": "POST /prospects/{id}/status"
+      },
+      "view": "#open={seed.prospectBulk1}",
+      "before": [
+        "prospects.drawer-tab-actions"
+      ],
+      "then": [
+        "prospects.actions-status-update"
+      ]
+    },
+    {
+      "control": "prospects.actions-status-update",
+      "action": "click",
+      "expect": {
+        "request": "POST /prospects/{id}/status"
+      },
+      "view": "#open={seed.prospectBulk2}",
+      "before": [
+        "prospects.drawer-tab-actions"
+      ]
+    },
+    {
+      "control": "prospects.actions-status-reject-confirm-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#open={seed.prospectBulk3}",
+      "before": [
+        "prospects.drawer-tab-actions",
+        {
+          "control": "prospects.actions-status",
+          "action": "select",
+          "input": "rejected"
+        },
+        {
+          "control": "prospects.actions-status-reason",
+          "action": "fill",
+          "input": "E2E: not relevant"
+        },
+        "prospects.actions-status-update"
+      ]
+    },
+    {
+      "control": "prospects.actions-status-reject-confirm-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#open={seed.prospectBulk3}",
+      "before": [
+        "prospects.drawer-tab-actions",
+        {
+          "control": "prospects.actions-status",
+          "action": "select",
+          "input": "rejected"
+        },
+        {
+          "control": "prospects.actions-status-reason",
+          "action": "fill",
+          "input": "E2E: not relevant"
+        },
+        "prospects.actions-status-update"
+      ]
+    },
+    {
+      "control": "prospects.actions-status-reject-confirm-confirm",
+      "action": "click",
+      "expect": {
+        "request": "POST /prospects/{id}/status",
+        "body": "\"status\":\"rejected\""
+      },
+      "view": "#open={seed.prospectBulk3}",
+      "before": [
+        "prospects.drawer-tab-actions",
+        {
+          "control": "prospects.actions-status",
+          "action": "select",
+          "input": "rejected"
+        },
+        {
+          "control": "prospects.actions-status-reason",
+          "action": "fill",
+          "input": "E2E: not relevant"
+        },
+        "prospects.actions-status-update"
+      ]
+    },
+    {
+      "control": "prospects.actions-automation",
+      "action": "select",
+      "input": "-1",
+      "expect": {
+        "request": "POST /prospects/{id}/automation",
+        "body": "\"automation_allowed\":-1"
+      },
+      "view": "#open={seed.prospectDirectory}",
+      "before": [
+        "prospects.drawer-tab-actions"
+      ],
+      "after": [
+        {
+          "rest": "POST /prospects/{seed.prospectDirectory}/automation",
+          "body": {
+            "automation_allowed": 0
+          }
+        }
+      ]
+    },
+    {
+      "control": "prospects.actions-automation-allow-confirm-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#open={seed.prospectDirectory}",
+      "before": [
+        "prospects.drawer-tab-actions",
+        {
+          "control": "prospects.actions-automation",
+          "action": "select",
+          "input": "1"
+        }
+      ]
+    },
+    {
+      "control": "prospects.actions-automation-allow-confirm-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#open={seed.prospectDirectory}",
+      "before": [
+        "prospects.drawer-tab-actions",
+        {
+          "control": "prospects.actions-automation",
+          "action": "select",
+          "input": "1"
+        }
+      ]
+    },
+    {
+      "control": "prospects.actions-automation-allow-confirm-confirm",
+      "action": "click",
+      "expect": {
+        "request": "POST /prospects/{id}/automation",
+        "body": "\"automation_allowed\":1"
+      },
+      "view": "#open={seed.prospectDirectory}",
+      "after": [
+        {
+          "rest": "POST /prospects/{seed.prospectDirectory}/automation",
+          "body": {
+            "automation_allowed": 0
+          }
+        }
+      ],
+      "before": [
+        "prospects.drawer-tab-actions",
+        {
+          "control": "prospects.actions-automation",
+          "action": "select",
+          "input": "1"
+        }
+      ]
+    },
+    {
+      "control": "prospects.actions-automation-inherit-confirm-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#open={seed.prospectDirectory}",
+      "prepare": [
+        {
+          "rest": "POST /prospects/{seed.prospectDirectory}/automation",
+          "body": {
+            "automation_allowed": -1
+          }
+        }
+      ],
+      "after": [
+        {
+          "rest": "POST /prospects/{seed.prospectDirectory}/automation",
+          "body": {
+            "automation_allowed": 0
+          }
+        }
+      ],
+      "before": [
+        "prospects.drawer-tab-actions",
+        {
+          "control": "prospects.actions-automation",
+          "action": "select",
+          "input": "0"
+        }
+      ]
+    },
+    {
+      "control": "prospects.actions-automation-inherit-confirm-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#open={seed.prospectDirectory}",
+      "prepare": [
+        {
+          "rest": "POST /prospects/{seed.prospectDirectory}/automation",
+          "body": {
+            "automation_allowed": -1
+          }
+        }
+      ],
+      "after": [
+        {
+          "rest": "POST /prospects/{seed.prospectDirectory}/automation",
+          "body": {
+            "automation_allowed": 0
+          }
+        }
+      ],
+      "before": [
+        "prospects.drawer-tab-actions",
+        {
+          "control": "prospects.actions-automation",
+          "action": "select",
+          "input": "0"
+        }
+      ]
+    },
+    {
+      "control": "prospects.actions-automation-inherit-confirm-confirm",
+      "action": "click",
+      "expect": {
+        "request": "POST /prospects/{id}/automation",
+        "body": "\"automation_allowed\":0"
+      },
+      "view": "#open={seed.prospectDirectory}",
+      "prepare": [
+        {
+          "rest": "POST /prospects/{seed.prospectDirectory}/automation",
+          "body": {
+            "automation_allowed": -1
+          }
+        }
+      ],
+      "before": [
+        "prospects.drawer-tab-actions",
+        {
+          "control": "prospects.actions-automation",
+          "action": "select",
+          "input": "0"
+        }
+      ]
+    },
+    {
+      "control": "prospects.api-toggle",
+      "action": "click",
+      "expect": {
+        "dom": "details[open] > [data-lga-control=\"prospects.api-toggle\"]"
+      },
+      "view": "#open={seed.prospectDirectory}",
+      "before": [
+        "prospects.drawer-tab-actions"
+      ]
+    },
+    {
+      "control": "prospects.api-endpoint",
+      "action": "fill",
+      "input": "https://partner.example/api/listings",
+      "expect": {
+        "request": "POST /prospects/{id}/automation",
+        "body": "partner.example/api/listings"
+      },
+      "view": "#open={seed.prospectMention}",
+      "before": [
+        "prospects.drawer-tab-actions",
+        "prospects.api-toggle"
+      ],
+      "then": [
+        "prospects.api-save"
+      ],
+      "after": [
+        {
+          "rest": "POST /prospects/{seed.prospectMention}/automation",
+          "body": {
+            "submission_config": null
+          }
+        }
+      ]
+    },
+    {
+      "control": "prospects.api-method",
+      "action": "select",
+      "input": "PUT",
+      "expect": {
+        "request": "POST /prospects/{id}/automation",
+        "body": "\"method\":\"PUT\""
+      },
+      "view": "#open={seed.prospectMention}",
+      "before": [
+        "prospects.drawer-tab-actions",
+        "prospects.api-toggle",
+        {
+          "control": "prospects.api-endpoint",
+          "action": "fill",
+          "input": "https://partner.example/api/listings"
+        }
+      ],
+      "then": [
+        "prospects.api-save"
+      ],
+      "after": [
+        {
+          "rest": "POST /prospects/{seed.prospectMention}/automation",
+          "body": {
+            "submission_config": null
+          }
+        }
+      ]
+    },
+    {
+      "control": "prospects.api-success-path",
+      "action": "fill",
+      "input": "data.id",
+      "expect": {
+        "request": "POST /prospects/{id}/automation",
+        "body": "data.id"
+      },
+      "view": "#open={seed.prospectMention}",
+      "before": [
+        "prospects.drawer-tab-actions",
+        "prospects.api-toggle",
+        {
+          "control": "prospects.api-endpoint",
+          "action": "fill",
+          "input": "https://partner.example/api/listings"
+        }
+      ],
+      "then": [
+        "prospects.api-save"
+      ],
+      "after": [
+        {
+          "rest": "POST /prospects/{seed.prospectMention}/automation",
+          "body": {
+            "submission_config": null
+          }
+        }
+      ]
+    },
+    {
+      "control": "prospects.api-listing-url-path",
+      "action": "fill",
+      "input": "data.url",
+      "expect": {
+        "request": "POST /prospects/{id}/automation",
+        "body": "data.url"
+      },
+      "view": "#open={seed.prospectMention}",
+      "before": [
+        "prospects.drawer-tab-actions",
+        "prospects.api-toggle",
+        {
+          "control": "prospects.api-endpoint",
+          "action": "fill",
+          "input": "https://partner.example/api/listings"
+        }
+      ],
+      "then": [
+        "prospects.api-save"
+      ],
+      "after": [
+        {
+          "rest": "POST /prospects/{seed.prospectMention}/automation",
+          "body": {
+            "submission_config": null
+          }
+        }
+      ]
+    },
+    {
+      "control": "prospects.api-partner-api-key",
+      "action": "fill",
+      "input": "e2e-partner-key-123",
+      "expect": {
+        "request": "POST /prospects/{id}/automation",
+        "body": "e2e-partner-key-123"
+      },
+      "view": "#open={seed.prospectMention}",
+      "before": [
+        "prospects.drawer-tab-actions",
+        "prospects.api-toggle",
+        {
+          "control": "prospects.api-endpoint",
+          "action": "fill",
+          "input": "https://partner.example/api/listings"
+        }
+      ],
+      "then": [
+        "prospects.api-save"
+      ],
+      "after": [
+        {
+          "rest": "POST /prospects/{seed.prospectMention}/automation",
+          "body": {
+            "submission_config": null
+          }
+        }
+      ]
+    },
+    {
+      "control": "prospects.api-headers",
+      "action": "fill",
+      "input": "{\"X-E2E\":\"1\"}",
+      "expect": {
+        "request": "POST /prospects/{id}/automation",
+        "body": "X-E2E"
+      },
+      "view": "#open={seed.prospectMention}",
+      "before": [
+        "prospects.drawer-tab-actions",
+        "prospects.api-toggle",
+        {
+          "control": "prospects.api-endpoint",
+          "action": "fill",
+          "input": "https://partner.example/api/listings"
+        }
+      ],
+      "then": [
+        "prospects.api-save"
+      ],
+      "after": [
+        {
+          "rest": "POST /prospects/{seed.prospectMention}/automation",
+          "body": {
+            "submission_config": null
+          }
+        }
+      ]
+    },
+    {
+      "control": "prospects.api-body-template",
+      "action": "fill",
+      "input": "{\"name\":\"{{business.name}}\"}",
+      "expect": {
+        "request": "POST /prospects/{id}/automation",
+        "body": "business.name"
+      },
+      "view": "#open={seed.prospectMention}",
+      "before": [
+        "prospects.drawer-tab-actions",
+        "prospects.api-toggle",
+        {
+          "control": "prospects.api-endpoint",
+          "action": "fill",
+          "input": "https://partner.example/api/listings"
+        }
+      ],
+      "then": [
+        "prospects.api-save"
+      ],
+      "after": [
+        {
+          "rest": "POST /prospects/{seed.prospectMention}/automation",
+          "body": {
+            "submission_config": null
+          }
+        }
+      ]
+    },
+    {
+      "control": "prospects.api-save",
+      "action": "click",
+      "expect": {
+        "request": "POST /prospects/{id}/automation",
+        "body": "submission_config"
+      },
+      "view": "#open={seed.prospectMention}",
+      "before": [
+        "prospects.drawer-tab-actions",
+        "prospects.api-toggle",
+        {
+          "control": "prospects.api-endpoint",
+          "action": "fill",
+          "input": "https://partner.example/api/listings"
+        }
+      ],
+      "after": [
+        {
+          "rest": "POST /prospects/{seed.prospectMention}/automation",
+          "body": {
+            "submission_config": null
+          }
+        }
+      ]
+    },
+    {
+      "control": "prospects.api-clear",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-modal"
+      },
+      "view": "#open={seed.prospectMention}",
+      "before": [
+        "prospects.drawer-tab-actions",
+        "prospects.api-toggle"
+      ]
+    },
+    {
+      "control": "prospects.api-clear-confirm-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#open={seed.prospectMention}",
+      "before": [
+        "prospects.drawer-tab-actions",
+        "prospects.api-toggle",
+        "prospects.api-clear"
+      ]
+    },
+    {
+      "control": "prospects.api-clear-confirm-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#open={seed.prospectMention}",
+      "before": [
+        "prospects.drawer-tab-actions",
+        "prospects.api-toggle",
+        "prospects.api-clear"
+      ]
+    },
+    {
+      "control": "prospects.api-clear-confirm-confirm",
+      "action": "click",
+      "expect": {
+        "request": "POST /prospects/{id}/automation",
+        "body": "\"submission_config\":null"
+      },
+      "view": "#open={seed.prospectMention}",
+      "before": [
+        "prospects.drawer-tab-actions",
+        "prospects.api-toggle",
+        "prospects.api-clear"
+      ]
+    },
+    {
+      "control": "prospects.actions-notes",
+      "action": "fill",
+      "input": "E2E internal note",
+      "expect": {
+        "request": "POST /prospects/{id}/notes"
+      },
+      "view": "#open={seed.prospectDirectory}",
+      "before": [
+        "prospects.drawer-tab-actions"
+      ],
+      "then": [
+        "prospects.actions-notes-save"
+      ]
+    },
+    {
+      "control": "prospects.actions-notes-save",
+      "action": "click",
+      "expect": {
+        "request": "POST /prospects/{id}/notes"
+      },
+      "view": "#open={seed.prospectDirectory}",
+      "before": [
+        "prospects.drawer-tab-actions"
+      ]
+    },
+    {
+      "control": "prospects.actions-copy-summary",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-toast"
+      },
+      "view": "#open={seed.prospectDirectory}",
+      "before": [
+        "prospects.drawer-tab-actions"
+      ]
+    },
+    {
+      "control": "prospects.toast-dismiss",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-toast"
+      },
+      "view": "#open={seed.prospectDirectory}",
+      "before": [
+        "prospects.drawer-tab-actions",
+        "prospects.actions-notes-save"
+      ],
+      "note": "The \"Notes saved.\" toast."
+    },
+    {
+      "control": "prospects.actions-suppress",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-modal"
+      },
+      "view": "#open={seed.prospectDirectory}",
+      "before": [
+        "prospects.drawer-tab-actions"
+      ]
+    },
+    {
+      "control": "prospects.actions-suppress-dialog-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#open={seed.prospectDirectory}",
+      "before": [
+        "prospects.drawer-tab-actions",
+        "prospects.actions-suppress"
+      ]
+    },
+    {
+      "control": "prospects.actions-suppress-dialog-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#open={seed.prospectDirectory}",
+      "before": [
+        "prospects.drawer-tab-actions",
+        "prospects.actions-suppress"
+      ]
+    },
+    {
+      "control": "prospects.actions-suppress-dialog-input",
+      "action": "fill",
+      "input": "E2E: suppressed by the walk",
+      "expect": {
+        "request": "POST /prospects/{id}/suppress"
+      },
+      "view": "#open={seed.prospectSpam}",
+      "before": [
+        "prospects.drawer-tab-actions",
+        "prospects.actions-suppress"
+      ],
+      "then": [
+        "prospects.actions-suppress-dialog-confirm"
+      ],
+      "destructive": true
+    },
+    {
+      "control": "prospects.actions-suppress-dialog-confirm",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-field-error:not([hidden])"
+      },
+      "view": "#open={seed.prospectDirectory}",
+      "before": [
+        "prospects.drawer-tab-actions",
+        "prospects.actions-suppress"
+      ],
+      "note": "Without a reason the dialog stays open and asks for one (the suppress request is the input entry)."
+    },
+    {
+      "control": "prospects.actions-delete",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-modal"
+      },
+      "view": "#open={seed.prospectDirectory}",
+      "before": [
+        "prospects.drawer-tab-actions"
+      ]
+    },
+    {
+      "control": "prospects.actions-delete-confirm-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#open={seed.prospectDirectory}",
+      "before": [
+        "prospects.drawer-tab-actions",
+        "prospects.actions-delete"
+      ]
+    },
+    {
+      "control": "prospects.actions-delete-confirm-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#open={seed.prospectDirectory}",
+      "before": [
+        "prospects.drawer-tab-actions",
+        "prospects.actions-delete"
+      ]
+    },
+    {
+      "control": "prospects.actions-delete-confirm-confirm",
+      "action": "click",
+      "expect": {
+        "request": "DELETE /prospects/{id}"
+      },
+      "view": "#open={seed.prospectDelete}",
+      "destructive": true,
+      "before": [
+        "prospects.drawer-tab-actions",
+        "prospects.actions-delete"
+      ]
+    },
+    {
+      "control": "shell.nav-prospects",
+      "action": "click",
+      "expect": {
+        "navigate": "/page=lga-prospects(&|#|$)/"
+      }
+    }
+  ]
+}

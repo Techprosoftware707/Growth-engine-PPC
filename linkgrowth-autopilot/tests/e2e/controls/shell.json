@@ -1,0 +1,63 @@
+{
+  "page": "shell",
+  "description": "Header and the notifications drawer: on every page, exercised from the Overview. Each page's link in the section navigation (shell.nav-<page>) is in that page's own manifest.",
+  "controls": [
+    {
+      "control": "shell.theme",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-wrap[data-theme=\"dark\"]"
+      },
+      "roles": [
+        "admin",
+        "submitter"
+      ],
+      "note": "The theme cycles auto → light → dark; the run starts every page in light."
+    },
+    {
+      "control": "shell.automation-status",
+      "action": "click",
+      "expect": {
+        "navigate": "/page=lga-automation(&|#|$)/"
+      }
+    },
+    {
+      "control": "shell.notifications",
+      "action": "click",
+      "expect": {
+        "request": "GET /notifications",
+        "dom": ".lga-drawer"
+      }
+    },
+    {
+      "control": "shell.notifications-drawer-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-drawer"
+      },
+      "before": [
+        "shell.notifications"
+      ]
+    },
+    {
+      "control": "shell.notifications-mark-all-read",
+      "action": "click",
+      "expect": {
+        "request": "POST /notifications/read"
+      },
+      "before": [
+        "shell.notifications"
+      ]
+    },
+    {
+      "control": "shell.notifications-view-logs",
+      "action": "click",
+      "expect": {
+        "navigate": "/page=lga-logs(&|#|$)/"
+      },
+      "before": [
+        "shell.notifications"
+      ]
+    }
+  ]
+}

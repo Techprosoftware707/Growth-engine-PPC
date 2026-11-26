@@ -1,0 +1,989 @@
+{
+  "page": "automation",
+  "description": "Automation: Autopilot, the master switch and stage flags, scheduler buttons, every stage's \"Run now\", and the recent jobs.",
+  "controls": [
+    {
+      "control": "automation.refresh",
+      "action": "click",
+      "expect": {
+        "request": "GET /automation/status"
+      }
+    },
+    {
+      "control": "automation.auto-refresh",
+      "action": "toggle",
+      "expect": {
+        "request": "GET /automation/status"
+      },
+      "timeout": 40000,
+      "note": "Reloads the status every 30 s while ticked."
+    },
+    {
+      "control": "automation.load-retry",
+      "action": "click",
+      "expect": {
+        "request": "GET /automation/status"
+      },
+      "mock": [
+        {
+          "request": "GET /automation/status",
+          "status": 500
+        }
+      ],
+      "note": "The error state of a failed load and its retry."
+    },
+    {
+      "control": "automation.kick",
+      "action": "click",
+      "expect": {
+        "request": "POST /automation/kick"
+      }
+    },
+    {
+      "control": "automation.tick",
+      "action": "click",
+      "expect": {
+        "request": "POST /automation/tick"
+      },
+      "timeout": 60000
+    },
+    {
+      "control": "automation.toast-dismiss",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-toast"
+      },
+      "before": [
+        "automation.kick"
+      ]
+    },
+    {
+      "control": "automation.autopilot",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-modal"
+      }
+    },
+    {
+      "control": "automation.autopilot-limits",
+      "action": "click",
+      "expect": {
+        "dom": "details[open] > [data-lga-control=\"automation.autopilot-limits\"]"
+      }
+    },
+    {
+      "control": "automation.autopilot-on-confirm-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "before": [
+        "automation.autopilot"
+      ]
+    },
+    {
+      "control": "automation.autopilot-on-confirm-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "before": [
+        "automation.autopilot"
+      ]
+    },
+    {
+      "control": "automation.autopilot-on-confirm-confirm",
+      "action": "click",
+      "expect": {
+        "request": "POST /automation/autopilot",
+        "body": "\"enabled\":true"
+      },
+      "after": [
+        {
+          "rest": "POST /automation/autopilot",
+          "body": {
+            "enabled": false
+          }
+        }
+      ],
+      "before": [
+        "automation.autopilot"
+      ]
+    },
+    {
+      "control": "automation.autopilot-off-confirm-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "prepare": [
+        {
+          "rest": "POST /automation/autopilot",
+          "body": {
+            "enabled": true,
+            "confirm": true
+          }
+        }
+      ],
+      "after": [
+        {
+          "rest": "POST /automation/autopilot",
+          "body": {
+            "enabled": false
+          }
+        }
+      ],
+      "before": [
+        "automation.autopilot"
+      ]
+    },
+    {
+      "control": "automation.autopilot-off-confirm-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "prepare": [
+        {
+          "rest": "POST /automation/autopilot",
+          "body": {
+            "enabled": true,
+            "confirm": true
+          }
+        }
+      ],
+      "after": [
+        {
+          "rest": "POST /automation/autopilot",
+          "body": {
+            "enabled": false
+          }
+        }
+      ],
+      "before": [
+        "automation.autopilot"
+      ]
+    },
+    {
+      "control": "automation.autopilot-off-confirm-confirm",
+      "action": "click",
+      "expect": {
+        "request": "POST /automation/autopilot",
+        "body": "\"enabled\":false"
+      },
+      "prepare": [
+        {
+          "rest": "POST /automation/autopilot",
+          "body": {
+            "enabled": true,
+            "confirm": true
+          }
+        }
+      ],
+      "before": [
+        "automation.autopilot"
+      ]
+    },
+    {
+      "control": "automation.flag-enabled",
+      "action": "click",
+      "expect": {
+        "request": "POST /automation/toggle",
+        "body": "\"key\":\"enabled\""
+      },
+      "after": [
+        {
+          "rest": "POST /automation/toggle",
+          "body": {
+            "key": "enabled",
+            "value": true,
+            "confirm": true
+          }
+        }
+      ]
+    },
+    {
+      "control": "automation.flag-discovery",
+      "action": "click",
+      "expect": {
+        "request": "POST /automation/toggle",
+        "body": "\"key\":\"discovery\""
+      },
+      "after": [
+        {
+          "rest": "POST /automation/toggle",
+          "body": {
+            "key": "discovery",
+            "value": true,
+            "confirm": true
+          }
+        }
+      ]
+    },
+    {
+      "control": "automation.flag-evaluation",
+      "action": "click",
+      "expect": {
+        "request": "POST /automation/toggle",
+        "body": "\"key\":\"evaluation\""
+      },
+      "after": [
+        {
+          "rest": "POST /automation/toggle",
+          "body": {
+            "key": "evaluation",
+            "value": true,
+            "confirm": true
+          }
+        }
+      ]
+    },
+    {
+      "control": "automation.flag-opportunities",
+      "action": "click",
+      "expect": {
+        "request": "POST /automation/toggle",
+        "body": "\"key\":\"opportunities\""
+      },
+      "after": [
+        {
+          "rest": "POST /automation/toggle",
+          "body": {
+            "key": "opportunities",
+            "value": true,
+            "confirm": true
+          }
+        }
+      ]
+    },
+    {
+      "control": "automation.flag-packaging",
+      "action": "click",
+      "expect": {
+        "request": "POST /automation/toggle",
+        "body": "\"key\":\"packaging\""
+      },
+      "after": [
+        {
+          "rest": "POST /automation/toggle",
+          "body": {
+            "key": "packaging",
+            "value": true,
+            "confirm": true
+          }
+        }
+      ]
+    },
+    {
+      "control": "automation.flag-submissions",
+      "action": "click",
+      "expect": {
+        "request": "POST /automation/toggle",
+        "body": "\"key\":\"submissions\""
+      },
+      "after": [
+        {
+          "rest": "POST /automation/toggle",
+          "body": {
+            "key": "submissions",
+            "value": true,
+            "confirm": true
+          }
+        }
+      ]
+    },
+    {
+      "control": "automation.flag-monitoring",
+      "action": "click",
+      "expect": {
+        "request": "POST /automation/toggle",
+        "body": "\"key\":\"monitoring\""
+      },
+      "after": [
+        {
+          "rest": "POST /automation/toggle",
+          "body": {
+            "key": "monitoring",
+            "value": true,
+            "confirm": true
+          }
+        }
+      ]
+    },
+    {
+      "control": "automation.flag-imports",
+      "action": "click",
+      "expect": {
+        "request": "POST /automation/toggle",
+        "body": "\"key\":\"imports\""
+      },
+      "after": [
+        {
+          "rest": "POST /automation/toggle",
+          "body": {
+            "key": "imports",
+            "value": true,
+            "confirm": true
+          }
+        }
+      ]
+    },
+    {
+      "control": "automation.flag-submissions-confirm-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "prepare": [
+        {
+          "rest": "POST /automation/toggle",
+          "body": {
+            "key": "submissions",
+            "value": false
+          }
+        }
+      ],
+      "after": [
+        {
+          "rest": "POST /automation/toggle",
+          "body": {
+            "key": "submissions",
+            "value": true,
+            "confirm": true
+          }
+        }
+      ],
+      "before": [
+        "automation.flag-submissions"
+      ]
+    },
+    {
+      "control": "automation.flag-submissions-confirm-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "prepare": [
+        {
+          "rest": "POST /automation/toggle",
+          "body": {
+            "key": "submissions",
+            "value": false
+          }
+        }
+      ],
+      "after": [
+        {
+          "rest": "POST /automation/toggle",
+          "body": {
+            "key": "submissions",
+            "value": true,
+            "confirm": true
+          }
+        }
+      ],
+      "before": [
+        "automation.flag-submissions"
+      ]
+    },
+    {
+      "control": "automation.flag-submissions-confirm-confirm",
+      "action": "click",
+      "expect": {
+        "request": "POST /automation/toggle",
+        "body": "\"confirm\":true"
+      },
+      "prepare": [
+        {
+          "rest": "POST /automation/toggle",
+          "body": {
+            "key": "submissions",
+            "value": false
+          }
+        }
+      ],
+      "note": "Switching a gated stage on asks first; the request carries the confirmation.",
+      "before": [
+        "automation.flag-submissions"
+      ]
+    },
+    {
+      "control": "automation.flag-outreach-autosend",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-modal"
+      },
+      "note": "Off by default; switching it on asks first."
+    },
+    {
+      "control": "automation.flag-outreach-autosend-confirm-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "before": [
+        "automation.flag-outreach-autosend"
+      ]
+    },
+    {
+      "control": "automation.flag-outreach-autosend-confirm-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "before": [
+        "automation.flag-outreach-autosend"
+      ]
+    },
+    {
+      "control": "automation.flag-outreach-autosend-confirm-confirm",
+      "action": "click",
+      "expect": {
+        "request": "POST /automation/toggle",
+        "body": "\"key\":\"outreach_autosend\""
+      },
+      "after": [
+        {
+          "rest": "POST /automation/toggle",
+          "body": {
+            "key": "outreach_autosend",
+            "value": false
+          }
+        }
+      ],
+      "before": [
+        "automation.flag-outreach-autosend"
+      ]
+    },
+    {
+      "control": "automation.stage-discover-run",
+      "action": "click",
+      "expect": {
+        "request": "POST /automation/run",
+        "body": "\"stage\":\"discover\""
+      },
+      "timeout": 60000
+    },
+    {
+      "control": "automation.stage-discover-result",
+      "action": "click",
+      "expect": {
+        "dom": "details[open] > [data-lga-control=\"automation.stage-discover-result\"]"
+      },
+      "before": [
+        "automation.stage-discover-run"
+      ],
+      "note": "The result the run leaves (closed): a click opens it."
+    },
+    {
+      "control": "automation.stage-evaluate-run",
+      "action": "click",
+      "expect": {
+        "request": "POST /automation/run",
+        "body": "\"stage\":\"evaluate\""
+      },
+      "timeout": 60000
+    },
+    {
+      "control": "automation.stage-evaluate-result",
+      "action": "click",
+      "expect": {
+        "dom": "details[open] > [data-lga-control=\"automation.stage-evaluate-result\"]"
+      },
+      "before": [
+        "automation.stage-evaluate-run"
+      ],
+      "note": "The result the run leaves (closed): a click opens it."
+    },
+    {
+      "control": "automation.stage-find-opportunities-run",
+      "action": "click",
+      "expect": {
+        "request": "POST /automation/run",
+        "body": "\"stage\":\"find_opportunities\""
+      },
+      "timeout": 60000
+    },
+    {
+      "control": "automation.stage-find-opportunities-result",
+      "action": "click",
+      "expect": {
+        "dom": "details[open] > [data-lga-control=\"automation.stage-find-opportunities-result\"]"
+      },
+      "before": [
+        "automation.stage-find-opportunities-run"
+      ],
+      "note": "The result the run leaves (closed): a click opens it."
+    },
+    {
+      "control": "automation.stage-package-run",
+      "action": "click",
+      "expect": {
+        "request": "POST /automation/run",
+        "body": "\"stage\":\"package\""
+      },
+      "timeout": 60000
+    },
+    {
+      "control": "automation.stage-package-result",
+      "action": "click",
+      "expect": {
+        "dom": "details[open] > [data-lga-control=\"automation.stage-package-result\"]"
+      },
+      "before": [
+        "automation.stage-package-run"
+      ],
+      "note": "The result the run leaves (closed): a click opens it."
+    },
+    {
+      "control": "automation.stage-submit-run",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-modal"
+      }
+    },
+    {
+      "control": "automation.stage-submit-run-confirm-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "before": [
+        "automation.stage-submit-run"
+      ]
+    },
+    {
+      "control": "automation.stage-submit-run-confirm-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "before": [
+        "automation.stage-submit-run"
+      ]
+    },
+    {
+      "control": "automation.stage-submit-run-confirm-confirm",
+      "action": "click",
+      "expect": {
+        "request": "POST /automation/run",
+        "body": "\"stage\":\"submit\""
+      },
+      "timeout": 60000,
+      "before": [
+        "automation.stage-submit-run"
+      ]
+    },
+    {
+      "control": "automation.stage-submit-result",
+      "action": "click",
+      "expect": {
+        "dom": "details[open] > [data-lga-control=\"automation.stage-submit-result\"]"
+      },
+      "before": [
+        "automation.stage-submit-run",
+        "automation.stage-submit-run-confirm-confirm"
+      ],
+      "note": "The result the run leaves (closed): a click opens it."
+    },
+    {
+      "control": "automation.stage-verify-listings-run",
+      "action": "click",
+      "expect": {
+        "request": "POST /automation/run",
+        "body": "\"stage\":\"verify_listings\""
+      },
+      "timeout": 60000
+    },
+    {
+      "control": "automation.stage-verify-listings-result",
+      "action": "click",
+      "expect": {
+        "dom": "details[open] > [data-lga-control=\"automation.stage-verify-listings-result\"]"
+      },
+      "before": [
+        "automation.stage-verify-listings-run"
+      ],
+      "note": "The result the run leaves (closed): a click opens it."
+    },
+    {
+      "control": "automation.stage-outreach-send-run",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-modal"
+      }
+    },
+    {
+      "control": "automation.stage-outreach-send-run-confirm-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "before": [
+        "automation.stage-outreach-send-run"
+      ]
+    },
+    {
+      "control": "automation.stage-outreach-send-run-confirm-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "before": [
+        "automation.stage-outreach-send-run"
+      ]
+    },
+    {
+      "control": "automation.stage-outreach-send-run-confirm-confirm",
+      "action": "click",
+      "expect": {
+        "request": "POST /automation/run",
+        "body": "\"stage\":\"outreach_send\""
+      },
+      "timeout": 60000,
+      "before": [
+        "automation.stage-outreach-send-run"
+      ]
+    },
+    {
+      "control": "automation.stage-outreach-send-result",
+      "action": "click",
+      "expect": {
+        "dom": "details[open] > [data-lga-control=\"automation.stage-outreach-send-result\"]"
+      },
+      "before": [
+        "automation.stage-outreach-send-run",
+        "automation.stage-outreach-send-run-confirm-confirm"
+      ],
+      "note": "The result the run leaves (closed): a click opens it."
+    },
+    {
+      "control": "automation.stage-auto-outreach-run",
+      "action": "click",
+      "expect": {
+        "request": "POST /automation/run",
+        "body": "\"stage\":\"auto_outreach\""
+      },
+      "timeout": 60000
+    },
+    {
+      "control": "automation.stage-auto-outreach-result",
+      "action": "click",
+      "expect": {
+        "dom": "details[open] > [data-lga-control=\"automation.stage-auto-outreach-result\"]"
+      },
+      "before": [
+        "automation.stage-auto-outreach-run"
+      ],
+      "note": "The result the run leaves (closed): a click opens it."
+    },
+    {
+      "control": "automation.stage-follow-ups-run",
+      "action": "click",
+      "expect": {
+        "request": "POST /automation/run",
+        "body": "\"stage\":\"follow_ups\""
+      },
+      "timeout": 60000
+    },
+    {
+      "control": "automation.stage-follow-ups-result",
+      "action": "click",
+      "expect": {
+        "dom": "details[open] > [data-lga-control=\"automation.stage-follow-ups-result\"]"
+      },
+      "before": [
+        "automation.stage-follow-ups-run"
+      ],
+      "note": "The result the run leaves (closed): a click opens it."
+    },
+    {
+      "control": "automation.stage-monitor-backlinks-run",
+      "action": "click",
+      "expect": {
+        "request": "POST /automation/run",
+        "body": "\"stage\":\"monitor_backlinks\""
+      },
+      "timeout": 60000
+    },
+    {
+      "control": "automation.stage-monitor-backlinks-result",
+      "action": "click",
+      "expect": {
+        "dom": "details[open] > [data-lga-control=\"automation.stage-monitor-backlinks-result\"]"
+      },
+      "before": [
+        "automation.stage-monitor-backlinks-run"
+      ],
+      "note": "The result the run leaves (closed): a click opens it."
+    },
+    {
+      "control": "automation.stage-import-backlinks-run",
+      "action": "click",
+      "expect": {
+        "request": "POST /automation/run",
+        "body": "\"stage\":\"import_backlinks\""
+      },
+      "timeout": 60000
+    },
+    {
+      "control": "automation.stage-import-backlinks-result",
+      "action": "click",
+      "expect": {
+        "dom": "details[open] > [data-lga-control=\"automation.stage-import-backlinks-result\"]"
+      },
+      "before": [
+        "automation.stage-import-backlinks-run"
+      ],
+      "note": "The result the run leaves (closed): a click opens it."
+    },
+    {
+      "control": "automation.stage-mention-scan-run",
+      "action": "click",
+      "expect": {
+        "request": "POST /automation/run",
+        "body": "\"stage\":\"mention_scan\""
+      },
+      "timeout": 60000
+    },
+    {
+      "control": "automation.stage-mention-scan-result",
+      "action": "click",
+      "expect": {
+        "dom": "details[open] > [data-lga-control=\"automation.stage-mention-scan-result\"]"
+      },
+      "before": [
+        "automation.stage-mention-scan-run"
+      ],
+      "note": "The result the run leaves (closed): a click opens it."
+    },
+    {
+      "control": "automation.stage-broken-link-scan-run",
+      "action": "click",
+      "expect": {
+        "request": "POST /automation/run",
+        "body": "\"stage\":\"broken_link_scan\""
+      },
+      "timeout": 60000
+    },
+    {
+      "control": "automation.stage-broken-link-scan-result",
+      "action": "click",
+      "expect": {
+        "dom": "details[open] > [data-lga-control=\"automation.stage-broken-link-scan-result\"]"
+      },
+      "before": [
+        "automation.stage-broken-link-scan-run"
+      ],
+      "note": "The result the run leaves (closed): a click opens it."
+    },
+    {
+      "control": "automation.stage-cleanup-run",
+      "action": "click",
+      "expect": {
+        "request": "POST /automation/run",
+        "body": "\"stage\":\"cleanup\""
+      },
+      "timeout": 60000
+    },
+    {
+      "control": "automation.stage-cleanup-result",
+      "action": "click",
+      "expect": {
+        "dom": "details[open] > [data-lga-control=\"automation.stage-cleanup-result\"]"
+      },
+      "before": [
+        "automation.stage-cleanup-run"
+      ],
+      "note": "The result the run leaves (closed): a click opens it."
+    },
+    {
+      "control": "automation.stage-metrics-refresh-run",
+      "action": "click",
+      "expect": {
+        "request": "POST /automation/run",
+        "body": "\"stage\":\"metrics_refresh\""
+      },
+      "timeout": 60000
+    },
+    {
+      "control": "automation.stage-metrics-refresh-result",
+      "action": "click",
+      "expect": {
+        "dom": "details[open] > [data-lga-control=\"automation.stage-metrics-refresh-result\"]"
+      },
+      "before": [
+        "automation.stage-metrics-refresh-run"
+      ],
+      "note": "The result the run leaves (closed): a click opens it."
+    },
+    {
+      "control": "automation.stage-import-verified-run",
+      "action": "click",
+      "expect": {
+        "request": "POST /automation/run",
+        "body": "\"stage\":\"import_verified\""
+      },
+      "timeout": 60000
+    },
+    {
+      "control": "automation.stage-import-verified-result",
+      "action": "click",
+      "expect": {
+        "dom": "details[open] > [data-lga-control=\"automation.stage-import-verified-result\"]"
+      },
+      "before": [
+        "automation.stage-import-verified-run"
+      ],
+      "note": "The result the run leaves (closed): a click opens it."
+    },
+    {
+      "control": "automation.stage-indexnow-run",
+      "action": "click",
+      "expect": {
+        "request": "POST /automation/run",
+        "body": "\"stage\":\"indexnow\""
+      },
+      "timeout": 60000
+    },
+    {
+      "control": "automation.stage-indexnow-result",
+      "action": "click",
+      "expect": {
+        "dom": "details[open] > [data-lga-control=\"automation.stage-indexnow-result\"]"
+      },
+      "before": [
+        "automation.stage-indexnow-run"
+      ],
+      "note": "The result the run leaves (closed): a click opens it."
+    },
+    {
+      "control": "automation.stage-internal-links-run",
+      "action": "click",
+      "expect": {
+        "request": "POST /automation/run",
+        "body": "\"stage\":\"internal_links\""
+      },
+      "timeout": 60000
+    },
+    {
+      "control": "automation.stage-internal-links-result",
+      "action": "click",
+      "expect": {
+        "dom": "details[open] > [data-lga-control=\"automation.stage-internal-links-result\"]"
+      },
+      "before": [
+        "automation.stage-internal-links-run"
+      ],
+      "note": "The result the run leaves (closed): a click opens it."
+    },
+    {
+      "control": "automation.stage-site-audit-run",
+      "action": "click",
+      "expect": {
+        "request": "POST /automation/run",
+        "body": "\"stage\":\"site_audit\""
+      },
+      "timeout": 60000
+    },
+    {
+      "control": "automation.stage-site-audit-result",
+      "action": "click",
+      "expect": {
+        "dom": "details[open] > [data-lga-control=\"automation.stage-site-audit-result\"]"
+      },
+      "before": [
+        "automation.stage-site-audit-run"
+      ],
+      "note": "The result the run leaves (closed): a click opens it."
+    },
+    {
+      "control": "automation.stage-storefront-audit-run",
+      "action": "click",
+      "expect": {
+        "request": "POST /automation/run",
+        "body": "\"stage\":\"storefront_audit\""
+      },
+      "timeout": 60000
+    },
+    {
+      "control": "automation.stage-storefront-audit-result",
+      "action": "click",
+      "expect": {
+        "dom": "details[open] > [data-lga-control=\"automation.stage-storefront-audit-result\"]"
+      },
+      "before": [
+        "automation.stage-storefront-audit-run"
+      ],
+      "note": "The result the run leaves (closed): a click opens it."
+    },
+    {
+      "control": "automation.jobs-row-expand",
+      "action": "click",
+      "expect": {
+        "dom": "tr.lga-expand-row"
+      }
+    },
+    {
+      "control": "automation.jobs-cancel",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-modal"
+      }
+    },
+    {
+      "control": "automation.jobs-cancel-dialog-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "before": [
+        "automation.jobs-cancel"
+      ]
+    },
+    {
+      "control": "automation.jobs-cancel-dialog-keep",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "before": [
+        "automation.jobs-cancel"
+      ]
+    },
+    {
+      "control": "automation.jobs-cancel-dialog-type",
+      "action": "select",
+      "input": "cleanup",
+      "expect": {
+        "request": "POST /automation/cancel",
+        "body": "\"type\":\"cleanup\""
+      },
+      "before": [
+        "automation.jobs-cancel"
+      ],
+      "then": [
+        "automation.jobs-cancel-dialog-confirm"
+      ],
+      "destructive": true
+    },
+    {
+      "control": "automation.jobs-cancel-dialog-confirm",
+      "action": "click",
+      "expect": {
+        "request": "POST /automation/cancel"
+      },
+      "before": [
+        "automation.jobs-cancel"
+      ],
+      "destructive": true
+    },
+    {
+      "control": "shell.nav-automation",
+      "action": "click",
+      "expect": {
+        "navigate": "/page=lga-automation(&|#|$)/"
+      }
+    }
+  ]
+}

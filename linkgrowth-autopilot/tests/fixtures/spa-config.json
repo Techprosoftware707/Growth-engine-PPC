@@ -1,0 +1,110 @@
+{
+  "_about": "lga-config pages and settingsTabs as Admin\\Menu prints them for the owner with the WP2 modules (Menu::spaPages(false), Menu::settingsTabs()). The browser harnesses under tests/Unit build their lga-config from this file; tests/Unit/Admin/SpaConfigTest.php checks it against Admin\\Menu.",
+  "pages": {
+    "overview": {
+      "label": "Overview",
+      "icon": "home",
+      "module": "pages/overview.js",
+      "cap": "lga_manage",
+      "order": 10
+    },
+    "prospects": {
+      "label": "Prospects",
+      "icon": "target",
+      "module": "pages/prospects.js",
+      "cap": "lga_manage",
+      "order": 20
+    },
+    "submissions": {
+      "label": "Submissions",
+      "icon": "package",
+      "module": "pages/submissions.js",
+      "cap": "lga_manage",
+      "order": 30
+    },
+    "outreach": {
+      "label": "Outreach",
+      "icon": "mail",
+      "module": "pages/outreach.js",
+      "cap": "lga_manage",
+      "order": 40
+    },
+    "backlinks": {
+      "label": "Backlinks",
+      "icon": "link",
+      "module": "pages/backlinks.js",
+      "cap": "lga_manage",
+      "order": 50
+    },
+    "seo": {
+      "label": "On-site SEO",
+      "icon": "search",
+      "module": "pages/seo.js",
+      "cap": "lga_manage",
+      "order": 60
+    },
+    "automation": {
+      "label": "Automation",
+      "icon": "zap",
+      "module": "pages/automation.js",
+      "cap": "lga_manage",
+      "order": 70
+    },
+    "settings": {
+      "label": "Settings",
+      "icon": "settings",
+      "module": "pages/settings.js",
+      "cap": "lga_manage",
+      "order": 80
+    },
+    "logs": {
+      "label": "Logs",
+      "icon": "list",
+      "module": "pages/logs.js",
+      "cap": "lga_manage",
+      "order": 90
+    }
+  },
+  "settingsTabs": {
+    "business": {
+      "label": "Business profile",
+      "module": "settings/business.js",
+      "order": 10
+    },
+    "automation": {
+      "label": "Automation & limits",
+      "module": "settings/automation.js",
+      "order": 20
+    },
+    "discovery": {
+      "label": "Discovery",
+      "module": "settings/discovery.js",
+      "order": 30
+    },
+    "integrations": {
+      "label": "Integrations",
+      "module": "settings/integrations.js",
+      "order": 40
+    },
+    "outreach": {
+      "label": "Outreach & compliance",
+      "module": "settings/outreach.js",
+      "order": 50
+    },
+    "content": {
+      "label": "Content & facts",
+      "module": "settings/content.js",
+      "order": 60
+    },
+    "monitoring": {
+      "label": "Monitoring",
+      "module": "settings/monitoring.js",
+      "order": 70
+    },
+    "advanced": {
+      "label": "Advanced",
+      "module": "settings/advanced.js",
+      "order": 80
+    }
+  }
+}

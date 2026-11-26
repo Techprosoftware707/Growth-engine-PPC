@@ -57,7 +57,7 @@ final class ContentModule extends AbstractModule {
 
     public function settingsTabs(): array {
         return [
-            'content' => [ 'label' => __( 'Content & facts', 'linkgrowth-autopilot' ), 'module' => 'pages/settings.js', 'order' => 60 ],
+            'content' => [ 'label' => __( 'Content & facts', 'linkgrowth-autopilot' ), 'module' => 'settings/content.js', 'order' => 60 ],
         ];
     }
 }

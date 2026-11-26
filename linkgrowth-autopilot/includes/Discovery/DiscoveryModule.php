@@ -217,7 +217,7 @@ final class DiscoveryModule extends AbstractModule {
 
     public function settingsTabs(): array {
         return [
-            'discovery' => [ 'label' => __( 'Discovery', 'linkgrowth-autopilot' ), 'module' => 'pages/settings.js', 'order' => 30 ],
+            'discovery' => [ 'label' => __( 'Discovery', 'linkgrowth-autopilot' ), 'module' => 'settings/discovery.js', 'order' => 30 ],
         ];
     }
 }

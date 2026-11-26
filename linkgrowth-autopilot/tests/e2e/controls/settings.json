@@ -1,0 +1,619 @@
+{
+  "page": "settings",
+  "description": "Settings: the tab bar, the save bar and the confirmations a save may ask for (each tab has its own settings.<tab>.json).",
+  "controls": [
+    {
+      "control": "settings.tab-business",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"settings.tab-business\"][aria-selected=\"true\"]"
+      },
+      "view": "#tab=advanced"
+    },
+    {
+      "control": "settings.tab-automation",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"settings.tab-automation\"][aria-selected=\"true\"]"
+      }
+    },
+    {
+      "control": "settings.tab-discovery",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"settings.tab-discovery\"][aria-selected=\"true\"]"
+      }
+    },
+    {
+      "control": "settings.tab-integrations",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"settings.tab-integrations\"][aria-selected=\"true\"]"
+      }
+    },
+    {
+      "control": "settings.tab-outreach",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"settings.tab-outreach\"][aria-selected=\"true\"]"
+      }
+    },
+    {
+      "control": "settings.tab-content",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"settings.tab-content\"][aria-selected=\"true\"]"
+      }
+    },
+    {
+      "control": "settings.tab-monitoring",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"settings.tab-monitoring\"][aria-selected=\"true\"]"
+      }
+    },
+    {
+      "control": "settings.tab-advanced",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"settings.tab-advanced\"][aria-selected=\"true\"]"
+      }
+    },
+    {
+      "control": "settings.save",
+      "action": "click",
+      "expect": {
+        "request": "POST /settings",
+        "body": "Northwind Supply Co E2E"
+      },
+      "before": [
+        {
+          "control": "settings.field-site-brand-name",
+          "action": "fill",
+          "input": "Northwind Supply Co E2E"
+        }
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "settings": {
+              "site": {
+                "brand_name": "Northwind Supply Co"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.discard",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-modal"
+      },
+      "before": [
+        {
+          "control": "settings.field-site-brand-name",
+          "action": "fill",
+          "input": "Northwind Supply Co E2E"
+        }
+      ]
+    },
+    {
+      "control": "settings.discard-confirm-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "before": [
+        {
+          "control": "settings.field-site-brand-name",
+          "action": "fill",
+          "input": "Northwind Supply Co E2E"
+        },
+        "settings.discard"
+      ]
+    },
+    {
+      "control": "settings.discard-confirm-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "before": [
+        {
+          "control": "settings.field-site-brand-name",
+          "action": "fill",
+          "input": "Northwind Supply Co E2E"
+        },
+        "settings.discard"
+      ]
+    },
+    {
+      "control": "settings.discard-confirm-confirm",
+      "action": "click",
+      "expect": {
+        "request": "GET /settings"
+      },
+      "before": [
+        {
+          "control": "settings.field-site-brand-name",
+          "action": "fill",
+          "input": "Northwind Supply Co E2E"
+        },
+        "settings.discard"
+      ]
+    },
+    {
+      "control": "settings.toast-dismiss",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-toast"
+      },
+      "before": [
+        {
+          "control": "settings.field-site-brand-name",
+          "action": "fill",
+          "input": "Northwind Supply Co E2E"
+        },
+        "settings.save"
+      ],
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "settings": {
+              "site": {
+                "brand_name": "Northwind Supply Co"
+              }
+            }
+          }
+        }
+      ],
+      "note": "The \"saved\" toast."
+    },
+    {
+      "control": "settings.load-retry",
+      "action": "click",
+      "expect": {
+        "request": "GET /settings"
+      },
+      "mock": [
+        {
+          "request": "GET /settings",
+          "status": 500
+        }
+      ]
+    },
+    {
+      "control": "settings.add-submitter-user",
+      "action": "click",
+      "expect": {
+        "navigate": "user-new.php"
+      }
+    },
+    {
+      "control": "settings.remove-limits-confirm-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "before": [
+        "settings.tab-automation",
+        {
+          "control": "settings.field-automation-daily-limits-submissions",
+          "action": "fill",
+          "input": "0"
+        },
+        "settings.save"
+      ]
+    },
+    {
+      "control": "settings.remove-limits-confirm-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "before": [
+        "settings.tab-automation",
+        {
+          "control": "settings.field-automation-daily-limits-submissions",
+          "action": "fill",
+          "input": "0"
+        },
+        "settings.save"
+      ]
+    },
+    {
+      "control": "settings.remove-limits-confirm-confirm",
+      "action": "click",
+      "expect": {
+        "request": "POST /settings",
+        "body": "\"submissions\":0"
+      },
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "settings": {
+              "automation": {
+                "daily_limits": {
+                  "submissions": 5
+                }
+              }
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.tab-automation",
+        {
+          "control": "settings.field-automation-daily-limits-submissions",
+          "action": "fill",
+          "input": "0"
+        },
+        "settings.save"
+      ]
+    },
+    {
+      "control": "settings.enable-outreach-autosend-confirm-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "before": [
+        "settings.tab-automation",
+        "settings.field-automation-outreach-autosend",
+        "settings.save"
+      ]
+    },
+    {
+      "control": "settings.enable-outreach-autosend-confirm-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "before": [
+        "settings.tab-automation",
+        "settings.field-automation-outreach-autosend",
+        "settings.save"
+      ]
+    },
+    {
+      "control": "settings.enable-outreach-autosend-confirm-confirm",
+      "action": "click",
+      "expect": {
+        "request": "POST /automation/toggle",
+        "body": "\"outreach_autosend\""
+      },
+      "after": [
+        {
+          "rest": "POST /automation/toggle",
+          "body": {
+            "key": "outreach_autosend",
+            "value": false
+          }
+        }
+      ],
+      "before": [
+        "settings.tab-automation",
+        "settings.field-automation-outreach-autosend",
+        "settings.save"
+      ]
+    },
+    {
+      "control": "settings.enable-submissions-confirm-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "prepare": [
+        {
+          "rest": "POST /automation/toggle",
+          "body": {
+            "key": "submissions",
+            "value": false
+          }
+        }
+      ],
+      "after": [
+        {
+          "rest": "POST /automation/toggle",
+          "body": {
+            "key": "submissions",
+            "value": true,
+            "confirm": true
+          }
+        }
+      ],
+      "before": [
+        "settings.tab-automation",
+        "settings.field-automation-submissions",
+        "settings.save"
+      ]
+    },
+    {
+      "control": "settings.enable-submissions-confirm-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "prepare": [
+        {
+          "rest": "POST /automation/toggle",
+          "body": {
+            "key": "submissions",
+            "value": false
+          }
+        }
+      ],
+      "after": [
+        {
+          "rest": "POST /automation/toggle",
+          "body": {
+            "key": "submissions",
+            "value": true,
+            "confirm": true
+          }
+        }
+      ],
+      "before": [
+        "settings.tab-automation",
+        "settings.field-automation-submissions",
+        "settings.save"
+      ]
+    },
+    {
+      "control": "settings.enable-submissions-confirm-confirm",
+      "action": "click",
+      "expect": {
+        "request": "POST /automation/toggle",
+        "body": "\"submissions\""
+      },
+      "prepare": [
+        {
+          "rest": "POST /automation/toggle",
+          "body": {
+            "key": "submissions",
+            "value": false
+          }
+        }
+      ],
+      "before": [
+        "settings.tab-automation",
+        "settings.field-automation-submissions",
+        "settings.save"
+      ]
+    },
+    {
+      "control": "settings.approval-off-confirm-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "prepare": [
+        {
+          "rest": "POST /automation/toggle",
+          "body": {
+            "key": "outreach_autosend",
+            "value": true,
+            "confirm": true
+          }
+        }
+      ],
+      "after": [
+        {
+          "rest": "POST /automation/toggle",
+          "body": {
+            "key": "outreach_autosend",
+            "value": false
+          }
+        },
+        {
+          "rest": "POST /settings",
+          "body": {
+            "settings": {
+              "outreach": {
+                "require_approval": true
+              }
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.tab-outreach",
+        "settings.field-outreach-require-approval",
+        "settings.save"
+      ]
+    },
+    {
+      "control": "settings.approval-off-confirm-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "prepare": [
+        {
+          "rest": "POST /automation/toggle",
+          "body": {
+            "key": "outreach_autosend",
+            "value": true,
+            "confirm": true
+          }
+        }
+      ],
+      "after": [
+        {
+          "rest": "POST /automation/toggle",
+          "body": {
+            "key": "outreach_autosend",
+            "value": false
+          }
+        },
+        {
+          "rest": "POST /settings",
+          "body": {
+            "settings": {
+              "outreach": {
+                "require_approval": true
+              }
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.tab-outreach",
+        "settings.field-outreach-require-approval",
+        "settings.save"
+      ]
+    },
+    {
+      "control": "settings.approval-off-confirm-confirm",
+      "action": "click",
+      "expect": {
+        "request": "POST /settings",
+        "body": "\"require_approval\":false"
+      },
+      "prepare": [
+        {
+          "rest": "POST /automation/toggle",
+          "body": {
+            "key": "outreach_autosend",
+            "value": true,
+            "confirm": true
+          }
+        }
+      ],
+      "after": [
+        {
+          "rest": "POST /automation/toggle",
+          "body": {
+            "key": "outreach_autosend",
+            "value": false
+          }
+        },
+        {
+          "rest": "POST /settings",
+          "body": {
+            "settings": {
+              "outreach": {
+                "require_approval": true
+              }
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.tab-outreach",
+        "settings.field-outreach-require-approval",
+        "settings.save"
+      ]
+    },
+    {
+      "control": "settings.storefront-gate-off-confirm-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "before": [
+        "settings.tab-outreach",
+        "settings.field-compliance-storefront-gate",
+        "settings.save"
+      ]
+    },
+    {
+      "control": "settings.storefront-gate-off-confirm-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "before": [
+        "settings.tab-outreach",
+        "settings.field-compliance-storefront-gate",
+        "settings.save"
+      ]
+    },
+    {
+      "control": "settings.storefront-gate-off-confirm-confirm",
+      "action": "click",
+      "expect": {
+        "request": "POST /settings",
+        "body": "\"storefront_gate\":false"
+      },
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "settings": {
+              "compliance": {
+                "storefront_gate": true
+              }
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.tab-outreach",
+        "settings.field-compliance-storefront-gate",
+        "settings.save"
+      ]
+    },
+    {
+      "control": "settings.auto-links-confirm-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "before": [
+        "settings.tab-automation",
+        "settings.field-seo-auto-apply-links",
+        "settings.save"
+      ]
+    },
+    {
+      "control": "settings.auto-links-confirm-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "before": [
+        "settings.tab-automation",
+        "settings.field-seo-auto-apply-links",
+        "settings.save"
+      ]
+    },
+    {
+      "control": "settings.auto-links-confirm-confirm",
+      "action": "click",
+      "expect": {
+        "request": "POST /settings",
+        "body": "\"auto_apply_links\":true"
+      },
+      "after": [
+        {
+          "rest": "POST /settings",
+          "body": {
+            "settings": {
+              "seo": {
+                "auto_apply_links": false
+              }
+            }
+          }
+        }
+      ],
+      "before": [
+        "settings.tab-automation",
+        "settings.field-seo-auto-apply-links",
+        "settings.save"
+      ]
+    },
+    {
+      "control": "shell.nav-settings",
+      "action": "click",
+      "expect": {
+        "navigate": "/page=lga-settings(&|#|$)/"
+      }
+    }
+  ]
+}

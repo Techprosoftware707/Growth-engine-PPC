@@ -113,6 +113,8 @@ function surface( error, silent ) {
     if ( ! silent ) {
         try {
             toast( error.message, 'error' );
+            // ui.button() lets a button's handler end on this error without an uncaught rejection: it was shown.
+            error.surfaced = true;
         } catch ( e ) {
             // Toast layer unavailable (very early failure); nothing else to do.
         }

@@ -6,7 +6,7 @@
  * text tokens, hover tooltips, a legend for ≥ 2 series and a table view toggle.
  */
 
-import { el, svg, replace, fmtNumber, fmtPercent, dataTable, truncate } from './ui.js';
+import { el, svg, replace, fmtNumber, fmtPercent, dataTable, truncate, setControl, controlId } from './ui.js';
 
 const SERIES = [ 'var(--series-1)', 'var(--series-2)', 'var(--series-3)', 'var(--series-4)' ];
 const BAR_MAX = 24;
@@ -81,12 +81,14 @@ function label( x, y, content, { anchor = 'start', muted = false, strong = false
 // Frame: title, chart/table toggle, tooltip layer, resize handling
 // ---------------------------------------------------------------------
 
-function frame( { title, subtitle, columns, rows, draw, minHeight = 60, emptyMessage = 'No data yet' } ) {
+/** The chart/table switch is `<control>-view-chart` / `<control>-view-table` (control defaults to "chart-<title>"). */
+function frame( { title, subtitle, columns, rows, draw, minHeight = 60, emptyMessage = 'No data yet', control = '' } ) {
+    const name = control || controlId( 'chart', title );
     const body = el( 'div', { class: 'lga-chart-body', style: { minHeight: `${ minHeight }px` } } );
     const tableWrap = el( 'div', { class: 'lga-chart-table', hidden: true } );
     const tip = el( 'div', { class: 'lga-chart-tip', hidden: true, role: 'status' } );
-    const chartBtn = el( 'button', { type: 'button', 'aria-pressed': 'true' }, 'Chart' );
-    const tableBtn = el( 'button', { type: 'button', 'aria-pressed': 'false' }, 'Table' );
+    const chartBtn = setControl( el( 'button', { type: 'button', 'aria-pressed': 'true' }, 'Chart' ), controlId( name, 'view', 'chart' ) );
+    const tableBtn = setControl( el( 'button', { type: 'button', 'aria-pressed': 'false' }, 'Table' ), controlId( name, 'view', 'table' ) );
     const toggle = el( 'div', { class: 'lga-chart-toggle', role: 'group', 'aria-label': 'View as chart or table' }, chartBtn, tableBtn );
     const root = el( 'div', { class: 'lga-chart', role: 'figure', 'aria-label': title || 'Chart' },
         el( 'div', { class: 'lga-chart-head' },
@@ -105,7 +107,7 @@ function frame( { title, subtitle, columns, rows, draw, minHeight = 60, emptyMes
         body.hidden = on;
         tableWrap.hidden = ! on;
         if ( on && ! tableWrap.firstChild ) {
-            tableWrap.appendChild( dataTable( { columns, rows, dense: true, plain: true, empty: emptyMessage } ) );
+            tableWrap.appendChild( dataTable( { columns, rows, dense: true, plain: true, empty: emptyMessage, control: controlId( name, 'table' ) } ) );
         }
     };
     chartBtn.addEventListener( 'click', () => showTable( false ) );
@@ -183,7 +185,7 @@ function foldOther( data, maxBars ) {
 /**
  * @param {{data: Array<{label: string, value: number}>, horizontal?: boolean, title?: string, subtitle?: string, valueFormat?: Function, color?: string, maxBars?: number, height?: number, emptyMessage?: string}} options
  */
-export function barChart( { data = [], horizontal = true, title = '', subtitle = '', valueFormat = ( v ) => fmtNumber( v ), color = seriesColor( 0 ), maxBars = 12, height = 0, emptyMessage = 'No data yet' } ) {
+export function barChart( { data = [], horizontal = true, title = '', subtitle = '', valueFormat = ( v ) => fmtNumber( v ), color = seriesColor( 0 ), maxBars = 12, height = 0, emptyMessage = 'No data yet', control = '' } ) {
     const clean = foldOther( ( data || [] ).map( ( d ) => ( { label: String( d.label ?? '' ), value: num( d.value ), other: Boolean( d.other ) } ) ), maxBars );
     const total = clean.reduce( ( s, d ) => s + d.value, 0 );
     const columns = [
@@ -259,7 +261,7 @@ export function barChart( { data = [], horizontal = true, title = '', subtitle =
         return node;
     };
 
-    return frame( { title, subtitle, columns, rows: clean, draw, emptyMessage, minHeight: horizontal ? 40 : 120 } );
+    return frame( { title, subtitle, columns, rows: clean, draw, emptyMessage, minHeight: horizontal ? 40 : 120, control } );
 }
 
 // ---------------------------------------------------------------------
@@ -269,7 +271,7 @@ export function barChart( { data = [], horizontal = true, title = '', subtitle =
 /**
  * @param {{series: Array<{name: string, points: Array<{x: any, y: number}>}>, title?: string, subtitle?: string, height?: number, xFormat?: Function, yFormat?: Function, emptyMessage?: string}} options
  */
-export function lineChart( { series = [], title = '', subtitle = '', height = 240, xFormat = ( x ) => String( x ), yFormat = ( v ) => fmtNumber( v ), emptyMessage = 'No data yet' } ) {
+export function lineChart( { series = [], title = '', subtitle = '', height = 240, xFormat = ( x ) => String( x ), yFormat = ( v ) => fmtNumber( v ), emptyMessage = 'No data yet', control = '' } ) {
     const clean = ( series || [] ).filter( ( s ) => s && Array.isArray( s.points ) ).map( ( s, i ) => ( {
         name: String( s.name ?? `Series ${ i + 1 }` ),
         color: s.color || seriesColor( i ),
@@ -391,7 +393,7 @@ export function lineChart( { series = [], title = '', subtitle = '', height = 24
         return node;
     };
 
-    const root = frame( { title, subtitle, columns, rows, draw, emptyMessage, minHeight: 120 } );
+    const root = frame( { title, subtitle, columns, rows, draw, emptyMessage, minHeight: 120, control } );
     if ( clean.length >= 2 && rows.length > 0 ) {
         root.appendChild( el( 'div', { class: 'lga-chart-legend', 'aria-label': 'Legend' }, clean.map( ( s ) => el( 'span', { class: 'lga-chart-legend-item' }, el( 'span', { class: 'lga-chart-swatch lga-chart-swatch--line', style: { background: s.color } } ), s.name ) ) ) );
     }
@@ -405,7 +407,7 @@ export function lineChart( { series = [], title = '', subtitle = '', height = 24
 /**
  * @param {{data: Array<{bucket: string, count: number}>, title?: string, subtitle?: string, height?: number, color?: string, emptyMessage?: string}} options
  */
-export function histogram( { data = [], title = '', subtitle = '', height = 200, color = seriesColor( 0 ), emptyMessage = 'No data yet' } ) {
+export function histogram( { data = [], title = '', subtitle = '', height = 200, color = seriesColor( 0 ), emptyMessage = 'No data yet', control = '' } ) {
     const clean = ( data || [] ).map( ( d ) => ( { bucket: String( d.bucket ?? d.label ?? '' ), count: num( d.count ?? d.value ) } ) );
     const total = clean.reduce( ( s, d ) => s + d.count, 0 );
     const columns = [
@@ -446,7 +448,7 @@ export function histogram( { data = [], title = '', subtitle = '', height = 200,
         } );
         return node;
     };
-    return frame( { title, subtitle, columns, rows: clean, draw, emptyMessage, minHeight: 120 } );
+    return frame( { title, subtitle, columns, rows: clean, draw, emptyMessage, minHeight: 120, control } );
 }
 
 // ---------------------------------------------------------------------
@@ -456,7 +458,7 @@ export function histogram( { data = [], title = '', subtitle = '', height = 200,
 /**
  * @param {{parts: Array<{label: string, value: number, color?: string}>, title?: string, subtitle?: string, valueFormat?: Function, showLegend?: boolean, emptyMessage?: string}} options
  */
-export function segmentedBar( { parts = [], title = '', subtitle = '', valueFormat = ( v ) => fmtNumber( v ), showLegend = true, emptyMessage = 'No data yet' } ) {
+export function segmentedBar( { parts = [], title = '', subtitle = '', valueFormat = ( v ) => fmtNumber( v ), showLegend = true, emptyMessage = 'No data yet', control = '' } ) {
     const clean = ( parts || [] ).map( ( p, i ) => ( { label: String( p.label ?? '' ), value: Math.max( 0, num( p.value ) ), color: p.color || seriesColor( i ) } ) ).filter( ( p ) => p.value > 0 );
     const total = clean.reduce( ( s, p ) => s + p.value, 0 );
     const columns = [
@@ -486,7 +488,7 @@ export function segmentedBar( { parts = [], title = '', subtitle = '', valueForm
         node.appendChild( group );
         return node;
     };
-    const root = frame( { title, subtitle, columns, rows: clean, draw, emptyMessage, minHeight: barH } );
+    const root = frame( { title, subtitle, columns, rows: clean, draw, emptyMessage, minHeight: barH, control } );
     if ( showLegend && clean.length > 0 ) {
         root.appendChild( el( 'div', { class: 'lga-segbar-legend', 'aria-label': 'Legend' }, clean.map( ( p ) => el( 'span', { class: 'lga-segbar-legend-item' },
             el( 'span', { class: 'lga-chart-swatch', style: { background: p.color } } ),

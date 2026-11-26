@@ -13,7 +13,7 @@
  */
 
 import * as api from './api.js';
-import { el, replace, callout, button, badge, details, toast, confirm, timeEl, fmtNumber } from './ui.js';
+import { el, replace, callout, button, badge, details, toast, confirm, timeEl, fmtNumber, link } from './ui.js';
 
 const WHERE_LABELS = {
     category: 'Product category',
@@ -148,7 +148,7 @@ function findingRow( f ) {
         el( 'strong', {}, `“${ String( f.term || '' ) }”` ),
         ` in ${ where.toLowerCase() } `,
         href !== ''
-            ? el( 'a', { href, target: '_blank', rel: 'noopener noreferrer', title: 'Edit in WordPress (opens a new tab)' }, String( f.label || '(no title)' ) )
+            ? link( String( f.label || '(no title)' ), href, { external: true, title: 'Edit in WordPress (opens a new tab)', control: 'storefront-finding-edit' } )
             : el( 'span', {}, String( f.label || '(no title)' ) ),
         f.excerpt && String( f.excerpt ) !== String( f.label || '' ) ? el( 'div', { class: 'lga-muted lga-compliance-excerpt' }, String( f.excerpt ) ) : null,
     );
@@ -165,7 +165,7 @@ function findingsList( status ) {
     return el( 'div', { class: 'lga-compliance-findings' },
         el( 'ul', { class: 'lga-compliance-list' }, top.map( findingRow ) ),
         rest.length > 0
-            ? details( `Show all ${ fmtNumber( all.length ) } findings`, el( 'ul', { class: 'lga-compliance-list' }, rest.map( findingRow ) ) )
+            ? details( `Show all ${ fmtNumber( all.length ) } findings`, el( 'ul', { class: 'lga-compliance-list' }, rest.map( findingRow ) ), { control: 'storefront-findings-all' } )
             : null,
         total > all.length ? el( 'div', { class: 'lga-muted' }, `Showing the first ${ fmtNumber( all.length ) } of ${ fmtNumber( total ) } findings.` ) : null,
     );
@@ -212,7 +212,7 @@ export default function renderComplianceBanner( container, status, { onRecheck, 
         const n = num( counts.block ) + num( counts.warn );
         const ok = await confirm(
             `You are recording that you reviewed these ${ plural( n, 'finding', 'findings' ) } and decided, as the owner and with your regulatory counsel, how the store presents itself. Automated submissions and outreach sending resume for exactly these findings; any change in the findings pauses them again. The store itself is not changed.`,
-            { title: 'Acknowledge storefront findings', confirmText: 'Acknowledge', danger: true },
+            { title: 'Acknowledge storefront findings', confirmText: 'Acknowledge', danger: true, control: 'storefront-acknowledge-confirm' },
         );
         if ( ! ok ) {
             return;
@@ -252,10 +252,10 @@ export default function renderComplianceBanner( container, status, { onRecheck, 
 
     const actions = [];
     if ( model.canRecheck ) {
-        actions.push( button( model.recheckLabel, { kind: model.kind === 'danger' ? 'primary' : 'secondary', small: true, iconName: 'refresh', onClick: recheck } ) );
+        actions.push( button( model.recheckLabel, { kind: model.kind === 'danger' ? 'primary' : 'secondary', small: true, iconName: 'refresh', onClick: recheck, control: 'storefront-recheck' } ) );
     }
     if ( model.canAcknowledge ) {
-        actions.push( button( 'Acknowledge these findings', { small: true, iconName: 'shield', onClick: acknowledge } ) );
+        actions.push( button( 'Acknowledge these findings', { small: true, iconName: 'shield', onClick: acknowledge, control: 'storefront-acknowledge' } ) );
     }
 
     const meta = s.checked_at

@@ -2,6 +2,12 @@
  * Application entry: reads the injected configuration, renders the shell
  * (header, sub-navigation, notification bell, automation pill) and lazy-loads
  * the page module named by #lga-app[data-page].
+ *
+ * The router and the navigation come from lga-config.pages (DESIGN.md §10.1): Admin\Menu fills it from the
+ * modules' adminPages() with the pages this user may open (label, icon, module path, capability, order). A page
+ * that is not in it is neither listed nor routable: an unknown or forbidden page key opens the Overview (or the
+ * first page the user has). Module paths are relative to assets/js/ ("pages/overview.js"), or an absolute URL on
+ * this site for a page another plugin adds.
  */
 
 // api.js and ui.js are loaded with dynamic import() from start() rather than static imports: a static
@@ -12,41 +18,8 @@
 // so the versioned import map Assets prints for every sibling module applies to all of them alike.
 const loadCore = () => Promise.all( [ import( './api.js' ), import( './ui.js' ) ] );
 
-const PAGES = {
-    overview: () => import( './pages/overview.js' ),
-    prospects: () => import( './pages/prospects.js' ),
-    submissions: () => import( './pages/submissions.js' ),
-    outreach: () => import( './pages/outreach.js' ),
-    backlinks: () => import( './pages/backlinks.js' ),
-    seo: () => import( './pages/seo.js' ),
-    automation: () => import( './pages/automation.js' ),
-    settings: () => import( './pages/settings.js' ),
-    logs: () => import( './pages/logs.js' ),
-};
-
-const PAGE_ICONS = {
-    overview: 'home',
-    prospects: 'target',
-    submissions: 'package',
-    outreach: 'mail',
-    backlinks: 'link',
-    seo: 'search',
-    automation: 'zap',
-    settings: 'settings',
-    logs: 'list',
-};
-
-const DEFAULT_PAGES = {
-    overview: 'Overview',
-    prospects: 'Prospects',
-    submissions: 'Submissions',
-    outreach: 'Outreach',
-    backlinks: 'Backlinks',
-    seo: 'On-site SEO',
-    automation: 'Automation',
-    settings: 'Settings',
-    logs: 'Logs',
-};
+/** The page an unknown or forbidden page key opens (when the user has it; else their first page). */
+const DEFAULT_PAGE = 'overview';
 
 const THEME_KEY = 'lga_theme';
 const THEMES = [ 'auto', 'light', 'dark' ];
@@ -67,14 +40,94 @@ function readConfig() {
 /** Pages a submitter-only user (the "LinkGrowth Submitter" role) sees: the owner-task queue only. */
 const SUBMITTER_PAGES = [ 'submissions' ];
 
+const isPlainObject = ( v ) => v !== null && typeof v === 'object' && ! Array.isArray( v );
+
+/**
+ * One page or tab definition of lga-config: {label, icon, module, cap, order} (a bare string is read as the label of
+ * a page whose module is pages/<key>.js). Null when it has no label.
+ */
+function pageDef( key, def, { modulePrefix = 'pages/' } = {} ) {
+    const d = typeof def === 'string' ? { label: def } : ( isPlainObject( def ) ? def : null );
+    if ( ! d || typeof d.label !== 'string' || d.label.trim() === '' ) {
+        return null;
+    }
+    const order = Number( d.order );
+    return {
+        key,
+        label: d.label,
+        icon: typeof d.icon === 'string' ? d.icon : '',
+        module: typeof d.module === 'string' && d.module !== '' ? d.module : `${ modulePrefix }${ key }.js`,
+        cap: typeof d.cap === 'string' ? d.cap : '',
+        order: Number.isFinite( order ) ? order : 100,
+    };
+}
+
+/** The definitions of a lga-config map (pages or settingsTabs) in their `order` (stable: ties keep the config order). */
+export function definitionsFrom( map, options = {} ) {
+    if ( ! isPlainObject( map ) ) {
+        return {};
+    }
+    const list = [];
+    for ( const [ key, def ] of Object.entries( map ) ) {
+        if ( /^[a-z0-9_-]+$/.test( key ) ) {
+            const d = pageDef( key, def, options );
+            if ( d ) {
+                list.push( d );
+            }
+        }
+    }
+    list.sort( ( a, b ) => a.order - b.order );
+    return Object.fromEntries( list.map( ( d ) => [ d.key, d ] ) );
+}
+
+/**
+ * The URL import() loads for a page or tab module path of lga-config: a path relative to assets/js/
+ * ("pages/overview.js", "settings/business.js"), or an absolute http(s) URL of a .js file on this site's origin.
+ * '' for anything else (another origin, "..", a query), which is never loaded.
+ */
+export function moduleUrl( path, base = import.meta.url ) {
+    const p = String( path || '' );
+    if ( /^[a-z0-9_-]+(\/[a-z0-9_-]+)*\.js$/i.test( p ) ) {
+        return new URL( p, base ).href;
+    }
+    try {
+        const u = new URL( p );
+        if ( ( u.protocol === 'https:' || u.protocol === 'http:' ) && u.origin === window.location.origin && u.pathname.endsWith( '.js' ) && u.search === '' && u.hash === '' && ! u.pathname.includes( '/../' ) ) {
+            return u.href;
+        }
+    } catch ( e ) {
+        // Not a URL.
+    }
+    return '';
+}
+
+/** Loads a page or tab module of lga-config (rejects for a path moduleUrl() refuses). */
+function loadModule( path ) {
+    const url = moduleUrl( path );
+    if ( url === '' ) {
+        return Promise.reject( new Error( `The module path "${ String( path ) }" is not allowed.` ) );
+    }
+    return import( url );
+}
+
+/** The page a page key opens: itself when the user has it, else the Overview, else their first page ('' for none). */
+export function routeFor( requested, pages ) {
+    const keys = Object.keys( pages || {} );
+    if ( typeof requested === 'string' && keys.includes( requested ) ) {
+        return requested;
+    }
+    return keys.includes( DEFAULT_PAGE ) ? DEFAULT_PAGE : ( keys[ 0 ] || '' );
+}
+
 function normalizeConfig( raw, mount ) {
     const adminUrl = typeof raw.adminUrl === 'string' && raw.adminUrl !== '' ? raw.adminUrl : `${ window.location.origin }/wp-admin/`;
     const capabilities = raw.capabilities && typeof raw.capabilities === 'object' ? raw.capabilities : {};
     const submitOnly = capabilities.submitOnly === true;
-    let pages = raw.pages && typeof raw.pages === 'object' && Object.keys( raw.pages ).length > 0 ? raw.pages : DEFAULT_PAGES;
+    let pages = definitionsFrom( raw.pages );
     if ( submitOnly ) {
         // The server already sends only the owner-task page; never show another tab even if it did not.
-        pages = { submissions: typeof pages.submissions === 'string' && pages.submissions !== '' ? pages.submissions : 'Owner tasks' };
+        const own = pages[ SUBMITTER_PAGES[ 0 ] ];
+        pages = { [ SUBMITTER_PAGES[ 0 ] ]: own || pageDef( SUBMITTER_PAGES[ 0 ], 'Owner tasks' ) };
     }
     const pageUrls = {};
     for ( const key of Object.keys( pages ) ) {
@@ -84,15 +137,17 @@ function normalizeConfig( raw, mount ) {
             pageUrls[ key ] = `${ adminUrl.replace( /\/+$/, '' ) }/admin.php?page=${ key === 'overview' ? 'lga' : `lga-${ key }` }`;
         }
     }
-    const requested = submitOnly ? SUBMITTER_PAGES[ 0 ] : ( ( mount && mount.dataset.page ) || raw.page || 'overview' );
+    const requested = submitOnly ? SUBMITTER_PAGES[ 0 ] : ( ( mount && mount.dataset.page ) || raw.page || DEFAULT_PAGE );
     return {
         restRoot: typeof raw.restRoot === 'string' ? raw.restRoot : '',
         nonce: typeof raw.nonce === 'string' ? raw.nonce : '',
-        page: Object.prototype.hasOwnProperty.call( PAGES, requested ) ? requested : 'overview',
+        page: routeFor( requested, pages ),
         siteDomain: typeof raw.siteDomain === 'string' ? raw.siteDomain : '',
         brand: typeof raw.brand === 'string' ? raw.brand : '',
         productName: typeof raw.productName === 'string' && raw.productName !== '' ? raw.productName : 'LinkGrowth Autopilot',
         pages,
+        // Settings tabs from the modules' settingsTabs() (owner view only), in tab order.
+        settingsTabs: submitOnly ? {} : definitionsFrom( raw.settingsTabs, { modulePrefix: 'settings/' } ),
         pageUrls,
         version: typeof raw.version === 'string' ? raw.version : '',
         user: raw.user && typeof raw.user === 'object' ? raw.user : { name: '' },
@@ -213,6 +268,8 @@ function renderLoadFailure( mount, error ) {
     reload.type = 'button';
     reload.className = 'button button-primary';
     reload.textContent = 'Reload the page';
+    // ui.js may be what failed to load, so the control id is set here by hand (same convention as ui.setControl).
+    reload.setAttribute( 'data-lga-control', 'shell.reload' );
     reload.addEventListener( 'click', () => window.location.reload() );
     actions.appendChild( reload );
     box.append( title, hint, actions );
@@ -252,17 +309,23 @@ async function start() {
 }
 
 function boot( mount, api, ui ) {
-    const { el, replace, icon, iconButton, toast, drawer, button, badge, timeEl, errorState, loading, emptyState, setLocale, fmtNumber, closeOverlays } = ui;
+    const { el, replace, icon, iconButton, toast, drawer, button, badge, timeEl, errorState, loading, emptyState, setLocale, fmtNumber, closeOverlays, setControlScope, link } = ui;
     const wrap = mount.closest( '.lga-wrap' ) || mount;
     const config = normalizeConfig( readConfig(), mount );
     api.configure( config );
     setLocale( config.locale, config.timezone );
+    if ( config.page === '' ) {
+        replace( mount, errorState( { title: 'No dashboard page is available', message: 'Your account has no LinkGrowth page it may open.' } ) );
+        return;
+    }
+    // Every control the page creates is named "<page>.<control>"; the header and navigation use "shell.<control>".
+    setControlScope( config.page );
 
     let theme = readTheme();
     wrap.dataset.theme = theme;
 
     // ----- Header -----------------------------------------------------
-    const themeBtn = iconButton( 'monitor', 'Theme: auto', { onClick: () => {
+    const themeBtn = iconButton( 'monitor', 'Theme: auto', { control: 'shell.theme', onClick: () => {
         theme = THEMES[ ( THEMES.indexOf( theme ) + 1 ) % THEMES.length ];
         wrap.dataset.theme = theme;
         storeTheme( theme );
@@ -278,12 +341,12 @@ function boot( mount, api, ui ) {
     syncThemeButton();
 
     const bellBadge = el( 'span', { class: 'lga-bell-badge', hidden: true, 'aria-hidden': 'true' } );
-    const bellBtn = el( 'button', { type: 'button', class: 'lga-iconbtn', 'aria-label': 'Notifications', title: 'Notifications' }, icon( 'bell', 18 ), bellBadge );
+    const bellBtn = ui.setControl( el( 'button', { type: 'button', class: 'lga-iconbtn', 'aria-label': 'Notifications', title: 'Notifications' }, icon( 'bell', 18 ), bellBadge ), 'shell.notifications' );
     bellBtn.addEventListener( 'click', () => openNotifications() );
 
     const pillDot = el( 'span', { class: 'lga-pill-dot' } );
     const pillText = el( 'span' );
-    const pill = el( 'a', { class: 'lga-pill', href: config.pageUrls.automation || '#', title: 'Open automation settings' }, pillDot, pillText );
+    const pill = link( [ pillDot, pillText ], config.pageUrls.automation || '#', { className: 'lga-pill', title: 'Open automation settings', control: 'shell.automation-status' } );
 
     const header = el( 'header', { class: 'lga-header' },
         el( 'div', { class: 'lga-brand' },
@@ -299,12 +362,12 @@ function boot( mount, api, ui ) {
 
     // ----- Sub navigation ---------------------------------------------
     const nav = el( 'nav', { class: 'lga-subnav', 'aria-label': 'LinkGrowth sections' } );
-    for ( const [ key, labelText ] of Object.entries( config.pages ) ) {
-        nav.appendChild( el( 'a', {
-            class: 'lga-subnav-link',
-            href: config.pageUrls[ key ] || '#',
-            'aria-current': key === config.page ? 'page' : null,
-        }, icon( PAGE_ICONS[ key ] || 'chevronRight', 15 ), String( labelText ) ) );
+    for ( const [ key, def ] of Object.entries( config.pages ) ) {
+        const item = link( [ icon( def.icon || 'chevronRight', 15 ), String( def.label ) ], config.pageUrls[ key ] || '#', { className: 'lga-subnav-link', control: `shell.nav-${ key }` } );
+        if ( key === config.page ) {
+            item.setAttribute( 'aria-current', 'page' );
+        }
+        nav.appendChild( item );
     }
 
     const main = el( 'main', { class: 'lga-main', id: 'lga-main', tabindex: '-1' } );
@@ -352,18 +415,23 @@ function boot( mount, api, ui ) {
         config,
         shell,
         api,
+        page: config.page,
         params: parseHash(),
+        /** Loads a module path of lga-config (a page's, or a Settings tab's) the way the router loads pages. */
+        loadModule,
+        /** URL of a page; a page this user has not (unknown, or no capability) opens the Overview, without params. */
         pageUrl( page, params ) {
-            return ( config.pageUrls[ page ] || '#' ) + buildHash( params );
+            const target = routeFor( page, config.pages );
+            return ( config.pageUrls[ target ] || '#' ) + ( target === page ? buildHash( params ) : '' );
         },
         navigate( page, params ) {
             const target = ctx.pageUrl( page, params );
-            if ( page === config.page && isSameDocument( target ) ) {
+            if ( routeFor( page, config.pages ) === config.page && isSameDocument( target ) ) {
                 // Only the fragment would change: the browser would neither reload nor tell the page,
                 // so re-render the current page with the new parameters ourselves (a history entry is
                 // pushed so Back returns to the previous view).
                 if ( window.history && window.history.pushState ) {
-                    window.history.pushState( null, '', `${ window.location.pathname }${ window.location.search }${ buildHash( params ) }` );
+                    window.history.pushState( null, '', `${ window.location.pathname }${ window.location.search }${ page === config.page ? buildHash( params ) : '' }` );
                 }
                 rerender();
                 return;
@@ -422,7 +490,7 @@ function boot( mount, api, ui ) {
             return;
         }
         const body = el( 'div', {}, loading( 'Loading notifications…', true ) );
-        const markAll = button( 'Mark all as read', { small: true, iconName: 'check', onClick: async () => {
+        const markAll = button( 'Mark all as read', { small: true, iconName: 'check', control: 'shell.notifications-mark-all-read', onClick: async () => {
             await api.post( '/notifications/read', {} );
             shell.setUnread( 0 );
             body.querySelectorAll( '.lga-feed-item--unread' ).forEach( ( n ) => n.classList.remove( 'lga-feed-item--unread' ) );
@@ -430,8 +498,9 @@ function boot( mount, api, ui ) {
         } } );
         notificationsDrawer = drawer( 'Notifications', body, {
             width: 'narrow',
+            control: 'shell.notifications-drawer',
             subtitle: 'Alerts from monitoring, discovery, submissions and outreach.',
-            actions: [ button( 'View logs', { small: true, kind: 'ghost', onClick: () => ctx.navigate( 'logs' ) } ), markAll ],
+            actions: [ button( 'View logs', { small: true, kind: 'ghost', control: 'shell.notifications-view-logs', onClick: () => ctx.navigate( 'logs' ) } ), markAll ],
             onClose: () => {
                 notificationsDrawer = null;
             },
@@ -467,17 +536,18 @@ function boot( mount, api, ui ) {
         // A newer loadPage() (re-render after a fragment navigation) supersedes one still importing.
         loadSeq += 1;
         const seq = loadSeq;
-        replace( main, loading( `Loading ${ config.pages[ page ] || page }…` ) );
-        document.title = `${ config.pages[ page ] || page } – LinkGrowth`;
+        const def = config.pages[ page ];
+        replace( main, loading( `Loading ${ def ? def.label : page }…` ) );
+        document.title = `${ def ? def.label : page } – LinkGrowth`;
         let module;
         try {
-            module = await PAGES[ page ]();
+            module = await loadModule( def ? def.module : '' );
         } catch ( e ) {
             if ( seq !== loadSeq ) {
                 return;
             }
             const detail = e && e.message ? String( e.message ).replace( /([^.!?])$/, '$1.' ) + ' ' : '';
-            replace( main, errorState( { title: 'This page could not be loaded', message: `The script for "${ page }" failed to load. ${ detail }If this keeps happening after a plugin update, reload the page (hard refresh: Ctrl+Shift+R / Cmd+Shift+R).`, retry: () => loadPage( page ) } ) );
+            replace( main, errorState( { title: 'This page could not be loaded', message: `The script for "${ page }" failed to load. ${ detail }If this keeps happening after a plugin update, reload the page (hard refresh: Ctrl+Shift+R / Cmd+Shift+R).`, retry: () => loadPage( page ), control: 'page-retry' } ) );
             return;
         }
         if ( seq !== loadSeq ) {
@@ -493,12 +563,16 @@ function boot( mount, api, ui ) {
         try {
             await render( root, ctx );
         } catch ( e ) {
-            replace( root, errorState( { title: 'Something went wrong while rendering this page', message: e && e.message ? e.message : '', retry: () => loadPage( page ) } ) );
+            replace( root, errorState( { title: 'Something went wrong while rendering this page', message: e && e.message ? e.message : '', retry: () => loadPage( page ), control: 'page-retry' } ) );
         }
     }
 }
 
-if ( document.readyState === 'loading' ) {
+// The pure helpers above (definitionsFrom, moduleUrl, routeFor) are exported for tests, which import this file
+// without a DOM.
+if ( typeof document === 'undefined' ) {
+    // Nothing to start.
+} else if ( document.readyState === 'loading' ) {
     document.addEventListener( 'DOMContentLoaded', start, { once: true } );
 } else {
     start();

@@ -12,8 +12,10 @@ C 2 assets/js/compliance-banner.js WP7
 C 3 assets/js/pages/outreach.js WP8
 C 1 assets/js/pages/overview.js WP3
 C 1 assets/js/pages/prospects.js WP3
-C 7 assets/js/pages/settings.js WP4a
+C 2 assets/js/pages/settings.js WP4a
 C 5 assets/js/pages/submissions.js WP3
+C 1 assets/js/settings/automation.js WP4a
+C 4 assets/js/settings/outreach.js WP4a
 C 1 data/universal/excluded-domains.json WP4a
 C 7 data/universal/keywords.json WP4a
 C 2 includes/Admin/Rest/SettingsController.php WP4a

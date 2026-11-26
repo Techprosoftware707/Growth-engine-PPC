@@ -33,6 +33,7 @@ export default async function render( root, ctx ) {
 
     const view = tabs( {
         pills: true,
+        control: 'tab',
         active: [ 'logs', 'audit', 'suppression' ].includes( params.tab ) ? params.tab : 'logs',
         onChange: ( id ) => ctx.setHash( { tab: id } ),
         items: [
@@ -49,7 +50,7 @@ export default async function render( root, ctx ) {
 
     // ------------------------------------------------------------------
     function logsTab( panel ) {
-        const autoField = formField( { type: 'checkbox', label: 'Auto-refresh every 15s', value: false, onChange: ( v ) => {
+        const autoField = formField( { type: 'checkbox', label: 'Auto-refresh every 15s', value: false, control: 'logs-auto-refresh', onChange: ( v ) => {
             clearTimeout( autoTimer );
             if ( v ) {
                 const tick = () => {
@@ -64,6 +65,7 @@ export default async function render( root, ctx ) {
             }
         } } );
         logsList = listView( {
+            control: 'logs',
             fetch: ( p ) => api.get( '/logs', p ),
             defaultSort: { key: 'id', dir: 'desc' },
             initial: { filters: { level: params.level || '', channel: params.channel || '', q: params.q || '' } },
@@ -74,7 +76,7 @@ export default async function render( root, ctx ) {
                 { name: 'channel', label: 'Channel', type: 'text', placeholder: 'e.g. discovery, http, rest', width: '180px' },
                 { name: 'q', label: 'Search', type: 'search', placeholder: 'Message text…' },
             ],
-            toolbar: [ autoField.el, button( 'Refresh', { small: true, iconName: 'refresh', onClick: () => logsList.reload() } ) ],
+            toolbar: [ autoField.el, button( 'Refresh', { small: true, iconName: 'refresh', onClick: () => logsList.reload(), control: 'logs-refresh' } ) ],
             expandable: ( r ) => el( 'div', {}, el( 'div', { class: 'lga-field-label', style: { marginBottom: '6px' } }, 'Context' ), contextBlock( r.context ) ),
             columns: [
                 { key: 'created_at', label: 'Time', sortable: true, render: ( r ) => el( 'span', { title: fmtDate( r.created_at ) }, timeEl( r.created_at ) ) },
@@ -91,6 +93,7 @@ export default async function render( root, ctx ) {
     // ------------------------------------------------------------------
     function auditTab( panel ) {
         const auditList = listView( {
+            control: 'audit',
             fetch: ( p ) => api.get( '/audit', p ),
             defaultSort: { key: 'id', dir: 'desc' },
             // Outreach messages are audited as 'outreach_message'; an old #object_type=message link maps onto it.
@@ -123,6 +126,7 @@ export default async function render( root, ctx ) {
     // ------------------------------------------------------------------
     function suppressionTab( panel ) {
         const list = listView( {
+            control: 'suppression',
             fetch: ( p ) => api.get( '/suppression', p ),
             defaultSort: { key: 'id', dir: 'desc' },
             initial: { filters: { type: '', q: '' } },
@@ -132,8 +136,9 @@ export default async function render( root, ctx ) {
                 { name: 'type', label: 'Type', type: 'select', options: SUPPRESSION_TYPES, allLabel: 'All types' },
                 { name: 'q', label: 'Search', type: 'search', placeholder: 'Value…' },
             ],
-            toolbar: button( 'Add entry', { kind: 'primary', small: true, iconName: 'plus', onClick: () => formModal( {
+            toolbar: button( 'Add entry', { kind: 'primary', small: true, iconName: 'plus', control: 'suppression-add', onClick: () => formModal( {
                 title: 'Add to the suppression list',
+                control: 'suppression-add-form',
                 description: 'Use this for unsubscribe requests received outside the system, competitors, or domains you never want to pursue.',
                 submitText: 'Add',
                 fields: [
@@ -153,8 +158,8 @@ export default async function render( root, ctx ) {
                 { key: 'value', label: 'Value', sortable: true, render: ( r ) => el( 'span', { class: 'lga-mono' }, r.value ) },
                 { key: 'reason', label: 'Reason', render: ( r ) => r.reason || null },
                 { key: 'created_at', label: 'Added', sortable: true, render: ( r ) => timeEl( r.created_at ) },
-                { key: 'actions', label: 'Actions', hideLabel: true, align: 'right', render: ( r ) => button( 'Remove', { small: true, kind: 'danger', iconName: 'trash', onClick: async () => {
-                    if ( ! ( await confirm( `Remove ${ r.value } from the suppression list? It becomes eligible for discovery and outreach again.`, { danger: true, confirmText: 'Remove' } ) ) ) {
+                { key: 'actions', label: 'Actions', hideLabel: true, align: 'right', render: ( r ) => button( 'Remove', { small: true, kind: 'danger', iconName: 'trash', control: 'suppression-remove', onClick: async () => {
+                    if ( ! ( await confirm( `Remove ${ r.value } from the suppression list? It becomes eligible for discovery and outreach again.`, { danger: true, confirmText: 'Remove', control: 'suppression-remove-confirm' } ) ) ) {
                         return;
                     }
                     await api.del( `/suppression/${ r.id }` );

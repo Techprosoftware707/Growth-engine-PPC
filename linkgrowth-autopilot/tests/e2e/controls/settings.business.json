@@ -1,0 +1,470 @@
+{
+  "page": "settings",
+  "description": "Settings › business tab: every field (Save sends its value: the request and its body are checked, the answer is mocked) and the tab's own controls.",
+  "controls": [
+    {
+      "control": "settings.field-site-address",
+      "action": "fill",
+      "input": "1200 NW Front Ave e2e",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"site\":{\"address\":\"1200 NW Front Ave e2e\"",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-site-brand-name",
+      "action": "fill",
+      "input": "Northwind Supply Co e2e",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"site\":{\"brand_name\":\"Northwind Supply Co e2e\"",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-site-categories",
+      "action": "fill",
+      "input": "Industrial Supplies\nPackaging\ne2e",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"site\":{\"categories\":[\"Industrial Supplies\",\"Packaging\",\"e2e\"]",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-site-city",
+      "action": "fill",
+      "input": "Portland e2e",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"site\":{\"city\":\"Portland e2e\"",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-site-country",
+      "action": "fill",
+      "input": "GB",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"site\":{\"country\":\"GB\"",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "",
+      "note": "A short field: a different value of the same form. Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save).",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.field-site-domain",
+      "action": "fill",
+      "input": "northwind.test e2e",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"site\":{\"domain\":\"northwind.test e2e\"",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-site-email",
+      "action": "fill",
+      "input": "e2e@northwind.test",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"site\":{\"email\":\"e2e@northwind.test\"",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-site-founded-year",
+      "action": "fill",
+      "input": "2020",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"site\":{\"founded_year\":\"2020\"",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "",
+      "note": "A short field: a different value of the same form. Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save).",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.field-site-home-url",
+      "action": "fill",
+      "input": "https://northwind.test/e2e/",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"site\":{\"home_url\":\"https://northwind.test/e2e/\"",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-site-legal-name",
+      "action": "fill",
+      "input": "NORTHWIND SUPPLY CO e2e",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"site\":{\"legal_name\":\"NORTHWIND SUPPLY CO e2e\"",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-site-logo-url",
+      "action": "fill",
+      "input": "https://northwind.test/e2e/",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"site\":{\"logo_url\":\"https://northwind.test/e2e/\"",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-site-phone",
+      "action": "fill",
+      "input": "+1 503 555 0100",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"site\":{\"phone\":\"+1 503 555 0100\"",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-site-postal-code",
+      "action": "fill",
+      "input": "98101",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"site\":{\"postal_code\":\"98101\"",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "",
+      "note": "A short field: a different value of the same form. Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save).",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.field-site-region",
+      "action": "fill",
+      "input": "WA",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"site\":{\"region\":\"WA\"",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "",
+      "note": "A short field: a different value of the same form. Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save).",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ]
+    },
+    {
+      "control": "settings.field-site-social",
+      "action": "fill",
+      "input": "https://social.example/northwindsupply\ne2e",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"site\":{\"social\":[\"https://social.example/northwindsupply\",\"e2e\"]",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-site-tagline",
+      "action": "fill",
+      "input": "Industrial supplies and packaging for workshops and warehouses\ne2e",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"site\":{\"tagline\":\"Industrial supplies and packaging for workshops and warehouses\\ne2e\"",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    }
+  ]
+}

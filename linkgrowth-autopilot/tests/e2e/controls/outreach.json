@@ -1,0 +1,1257 @@
+{
+  "page": "outreach",
+  "description": "Outreach: campaigns (new, approve, pause, resume, build drafts, archive), messages with the message drawer, and contacts.",
+  "controls": [
+    {
+      "control": "outreach.tab-campaigns",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"outreach.tab-campaigns\"][aria-selected=\"true\"]"
+      },
+      "view": "#tab=messages"
+    },
+    {
+      "control": "outreach.tab-messages",
+      "action": "click",
+      "expect": {
+        "request": "GET /outreach/messages"
+      }
+    },
+    {
+      "control": "outreach.tab-contacts",
+      "action": "click",
+      "expect": {
+        "request": "GET /outreach/contacts"
+      }
+    },
+    {
+      "control": "outreach.campaign-new",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-modal"
+      }
+    },
+    {
+      "control": "outreach.campaign-new-dialog-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "before": [
+        "outreach.campaign-new"
+      ]
+    },
+    {
+      "control": "outreach.campaign-new-dialog-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "before": [
+        "outreach.campaign-new"
+      ]
+    },
+    {
+      "control": "outreach.campaign-new-dialog-name",
+      "action": "fill",
+      "input": "E2E campaign by name",
+      "expect": {
+        "request": "POST /outreach/campaigns"
+      },
+      "before": [
+        "outreach.campaign-new"
+      ],
+      "then": [
+        "outreach.campaign-new-dialog-create"
+      ]
+    },
+    {
+      "control": "outreach.campaign-new-dialog-approach",
+      "action": "select",
+      "input": "broken_link",
+      "expect": {
+        "request": "POST /outreach/campaigns",
+        "body": "\"approach\":\"broken_link\""
+      },
+      "before": [
+        "outreach.campaign-new",
+        {
+          "control": "outreach.campaign-new-dialog-name",
+          "action": "fill",
+          "input": "E2E broken links"
+        }
+      ],
+      "then": [
+        "outreach.campaign-new-dialog-create"
+      ]
+    },
+    {
+      "control": "outreach.campaign-new-dialog-variants",
+      "action": "click",
+      "expect": {
+        "dom": "details[open] > [data-lga-control=\"outreach.campaign-new-dialog-variants\"]"
+      },
+      "before": [
+        "outreach.campaign-new"
+      ]
+    },
+    {
+      "control": "outreach.campaign-new-dialog-daily-limit",
+      "action": "fill",
+      "input": "7",
+      "expect": {
+        "request": "POST /outreach/campaigns",
+        "body": "\"daily_limit\":7"
+      },
+      "before": [
+        "outreach.campaign-new",
+        {
+          "control": "outreach.campaign-new-dialog-name",
+          "action": "fill",
+          "input": "E2E daily limit"
+        }
+      ],
+      "then": [
+        "outreach.campaign-new-dialog-create"
+      ]
+    },
+    {
+      "control": "outreach.campaign-new-dialog-follow-ups",
+      "action": "toggle",
+      "expect": {
+        "request": "POST /outreach/campaigns",
+        "body": "\"follow_ups\":false"
+      },
+      "before": [
+        "outreach.campaign-new",
+        {
+          "control": "outreach.campaign-new-dialog-name",
+          "action": "fill",
+          "input": "E2E no follow-ups"
+        }
+      ],
+      "then": [
+        "outreach.campaign-new-dialog-create"
+      ]
+    },
+    {
+      "control": "outreach.campaign-new-dialog-auto-follow-up",
+      "action": "toggle",
+      "expect": {
+        "request": "POST /outreach/campaigns",
+        "body": "\"auto_follow_up\":true"
+      },
+      "before": [
+        "outreach.campaign-new",
+        {
+          "control": "outreach.campaign-new-dialog-name",
+          "action": "fill",
+          "input": "E2E auto follow-up"
+        }
+      ],
+      "then": [
+        "outreach.campaign-new-dialog-create"
+      ]
+    },
+    {
+      "control": "outreach.campaign-new-dialog-notes",
+      "action": "fill",
+      "input": "E2E campaign notes",
+      "expect": {
+        "request": "POST /outreach/campaigns"
+      },
+      "before": [
+        "outreach.campaign-new",
+        {
+          "control": "outreach.campaign-new-dialog-name",
+          "action": "fill",
+          "input": "E2E notes"
+        }
+      ],
+      "then": [
+        "outreach.campaign-new-dialog-create"
+      ]
+    },
+    {
+      "control": "outreach.campaign-new-dialog-create",
+      "action": "click",
+      "expect": {
+        "request": "POST /outreach/campaigns",
+        "body": "E2E created"
+      },
+      "before": [
+        "outreach.campaign-new",
+        {
+          "control": "outreach.campaign-new-dialog-name",
+          "action": "fill",
+          "input": "E2E created"
+        }
+      ]
+    },
+    {
+      "control": "outreach.campaign-messages",
+      "action": "click",
+      "expect": {
+        "request": "GET /outreach/messages?campaign_id=*"
+      }
+    },
+    {
+      "control": "outreach.campaign-open-drafts",
+      "action": "click",
+      "expect": {
+        "request": "GET /outreach/messages?status=draft"
+      }
+    },
+    {
+      "control": "outreach.campaign-pause",
+      "action": "click",
+      "expect": {
+        "request": "POST /outreach/campaigns/{id}/pause"
+      },
+      "after": [
+        {
+          "rest": "POST /outreach/campaigns/{seed.campaignMain}/resume"
+        }
+      ]
+    },
+    {
+      "control": "outreach.campaign-resume",
+      "action": "click",
+      "expect": {
+        "request": "POST /outreach/campaigns/{id}/resume"
+      },
+      "prepare": [
+        {
+          "rest": "POST /outreach/campaigns/{seed.campaignMain}/pause"
+        }
+      ]
+    },
+    {
+      "control": "outreach.campaign-submit",
+      "action": "click",
+      "expect": {
+        "request": "POST /outreach/campaigns/{id}/submit"
+      },
+      "prepare": [
+        {
+          "rest": "POST /outreach/campaigns",
+          "body": {
+            "name": "E2E draft campaign",
+            "approach": "partnership",
+            "settings": {
+              "daily_limit": 2
+            }
+          }
+        }
+      ],
+      "note": "A new campaign starts as a draft."
+    },
+    {
+      "control": "outreach.campaign-approve",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-modal"
+      },
+      "before": [
+        "outreach.campaign-submit"
+      ]
+    },
+    {
+      "control": "outreach.campaign-approve-confirm-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "before": [
+        "outreach.campaign-submit",
+        "outreach.campaign-approve"
+      ]
+    },
+    {
+      "control": "outreach.campaign-approve-confirm-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "before": [
+        "outreach.campaign-submit",
+        "outreach.campaign-approve"
+      ]
+    },
+    {
+      "control": "outreach.campaign-approve-confirm-confirm",
+      "action": "click",
+      "expect": {
+        "request": "POST /outreach/campaigns/{id}/approve"
+      },
+      "before": [
+        "outreach.campaign-submit",
+        "outreach.campaign-approve"
+      ]
+    },
+    {
+      "control": "outreach.campaign-approve-drafts",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-modal"
+      }
+    },
+    {
+      "control": "outreach.campaign-approve-drafts-confirm-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "before": [
+        "outreach.campaign-approve-drafts"
+      ]
+    },
+    {
+      "control": "outreach.campaign-approve-drafts-confirm-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "before": [
+        "outreach.campaign-approve-drafts"
+      ]
+    },
+    {
+      "control": "outreach.campaign-approve-drafts-confirm-confirm",
+      "action": "click",
+      "expect": {
+        "request": "POST /outreach/campaigns/{id}/approve-drafts"
+      },
+      "destructive": true,
+      "before": [
+        "outreach.campaign-approve-drafts"
+      ],
+      "note": "Runs on the newest campaign (the first card with drafts), whose drafts drafts-dialog-select-all built for every listed prospect; some fail the compliance check and stay drafts, so the failed-drafts dialog opens. The seed campaign keeps its drafts for the message drawer entries."
+    },
+    {
+      "control": "outreach.campaign-drafts-failed-dialog-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "before": [
+        "outreach.campaign-approve-drafts",
+        "outreach.campaign-approve-drafts-confirm-confirm"
+      ],
+      "destructive": true,
+      "note": "Runs on the newest campaign (the first card with drafts), whose drafts drafts-dialog-select-all built for every listed prospect; some fail the compliance check and stay drafts, so the failed-drafts dialog opens. The seed campaign keeps its drafts for the message drawer entries."
+    },
+    {
+      "control": "outreach.campaign-drafts-failed-dialog-ok",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "before": [
+        "outreach.campaign-approve-drafts",
+        "outreach.campaign-approve-drafts-confirm-confirm"
+      ],
+      "destructive": true,
+      "note": "Runs on the newest campaign (the first card with drafts), whose drafts drafts-dialog-select-all built for every listed prospect; some fail the compliance check and stay drafts, so the failed-drafts dialog opens. The seed campaign keeps its drafts for the message drawer entries."
+    },
+    {
+      "control": "outreach.campaign-archive",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-modal"
+      }
+    },
+    {
+      "control": "outreach.campaign-archive-confirm-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "before": [
+        "outreach.campaign-archive"
+      ]
+    },
+    {
+      "control": "outreach.campaign-archive-confirm-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "before": [
+        "outreach.campaign-archive"
+      ]
+    },
+    {
+      "control": "outreach.campaign-archive-confirm-confirm",
+      "action": "click",
+      "expect": {
+        "request": "POST /outreach/campaigns/{id}/archive"
+      },
+      "prepare": [
+        {
+          "rest": "POST /outreach/campaigns",
+          "body": {
+            "name": "E2E campaign to archive",
+            "approach": "partnership",
+            "settings": {
+              "daily_limit": 2
+            }
+          }
+        }
+      ],
+      "destructive": true,
+      "note": "Archives the newest campaign (made for it), the first card.",
+      "before": [
+        "outreach.campaign-archive"
+      ]
+    },
+    {
+      "control": "outreach.campaign-build-drafts",
+      "action": "click",
+      "expect": {
+        "request": "GET /outreach/campaigns/{id}/candidates",
+        "dom": ".lga-modal"
+      }
+    },
+    {
+      "control": "outreach.drafts-dialog-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "before": [
+        "outreach.campaign-build-drafts"
+      ]
+    },
+    {
+      "control": "outreach.drafts-dialog-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "before": [
+        "outreach.campaign-build-drafts"
+      ]
+    },
+    {
+      "control": "outreach.drafts-dialog-all-prospects",
+      "action": "toggle",
+      "expect": {
+        "request": "GET /prospects?status=qualified"
+      },
+      "before": [
+        "outreach.campaign-build-drafts"
+      ],
+      "note": "Lists every qualified prospect instead of the campaign's candidates."
+    },
+    {
+      "control": "outreach.drafts-dialog-search",
+      "action": "fill",
+      "input": "labdirectory",
+      "expect": {
+        "dom": ".lga-prospect-picker > label:only-child [data-lga-control=\"outreach.drafts-dialog-pick\"][aria-label=\"labdirectory.test\"]"
+      },
+      "before": [
+        "outreach.campaign-build-drafts",
+        "outreach.drafts-dialog-all-prospects"
+      ],
+      "note": "Filters the listed prospects in the browser: the matching prospect is left as the only row."
+    },
+    {
+      "control": "outreach.drafts-dialog-pick",
+      "action": "toggle",
+      "expect": {
+        "request": "POST /outreach/campaigns/{id}/drafts"
+      },
+      "before": [
+        "outreach.campaign-build-drafts",
+        "outreach.drafts-dialog-all-prospects"
+      ],
+      "then": [
+        "outreach.drafts-dialog-build"
+      ]
+    },
+    {
+      "control": "outreach.drafts-dialog-select-all",
+      "action": "click",
+      "expect": {
+        "request": "POST /outreach/campaigns/{id}/drafts"
+      },
+      "before": [
+        "outreach.campaign-build-drafts",
+        "outreach.drafts-dialog-all-prospects"
+      ],
+      "then": [
+        "outreach.drafts-dialog-build"
+      ],
+      "note": "Selects every listed prospect and builds their drafts in the newest campaign; the destructive approve-drafts entries approve those drafts, and the ones that fail the compliance check open the failed-drafts dialog. (The list filter is checked by drafts-dialog-search.)"
+    },
+    {
+      "control": "outreach.drafts-dialog-use-ai",
+      "action": "toggle",
+      "expect": {
+        "request": "POST /outreach/campaigns/{id}/drafts",
+        "body": "\"use_ai\":true"
+      },
+      "before": [
+        "outreach.campaign-build-drafts",
+        "outreach.drafts-dialog-all-prospects",
+        "outreach.drafts-dialog-pick"
+      ],
+      "then": [
+        "outreach.drafts-dialog-build"
+      ]
+    },
+    {
+      "control": "outreach.drafts-dialog-build",
+      "action": "click",
+      "expect": {
+        "request": "POST /outreach/campaigns/{id}/drafts"
+      },
+      "before": [
+        "outreach.campaign-build-drafts",
+        "outreach.drafts-dialog-all-prospects",
+        "outreach.drafts-dialog-pick"
+      ]
+    },
+    {
+      "control": "outreach.drafts-result-dialog-close-dialog",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "before": [
+        "outreach.campaign-build-drafts",
+        "outreach.drafts-dialog-all-prospects",
+        "outreach.drafts-dialog-pick",
+        "outreach.drafts-dialog-build"
+      ],
+      "note": "Prospects that already have a message are skipped, and the dialog lists them."
+    },
+    {
+      "control": "outreach.drafts-result-dialog-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "before": [
+        "outreach.campaign-build-drafts",
+        "outreach.drafts-dialog-all-prospects",
+        "outreach.drafts-dialog-pick",
+        "outreach.drafts-dialog-build"
+      ]
+    },
+    {
+      "control": "outreach.toast-dismiss",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-toast"
+      },
+      "before": [
+        "outreach.campaign-pause"
+      ],
+      "after": [
+        {
+          "rest": "POST /outreach/campaigns/{seed.campaignMain}/resume"
+        }
+      ],
+      "note": "The \"Campaign paused.\" toast."
+    },
+    {
+      "control": "outreach.messages-filter-status",
+      "action": "select",
+      "input": "draft",
+      "expect": {
+        "request": "GET /outreach/messages?status=draft"
+      },
+      "view": "#tab=messages"
+    },
+    {
+      "control": "outreach.messages-filter-campaign-id",
+      "action": "select",
+      "input": "{seed.campaignMain}",
+      "expect": {
+        "request": "GET /outreach/messages?campaign_id={seed.campaignMain}"
+      },
+      "view": "#tab=messages"
+    },
+    {
+      "control": "outreach.messages-filter-approach",
+      "action": "select",
+      "input": "resource_page",
+      "expect": {
+        "request": "GET /outreach/messages?approach=resource_page"
+      },
+      "view": "#tab=messages"
+    },
+    {
+      "control": "outreach.messages-filter-prospect-id",
+      "action": "fill",
+      "input": "{seed.prospectResource}",
+      "expect": {
+        "request": "GET /outreach/messages?prospect_id={seed.prospectResource}"
+      },
+      "view": "#tab=messages"
+    },
+    {
+      "control": "outreach.messages-filter-q",
+      "action": "fill",
+      "input": "lab",
+      "expect": {
+        "request": "GET /outreach/messages?q=lab"
+      },
+      "view": "#tab=messages"
+    },
+    {
+      "control": "outreach.messages-filter-reset",
+      "action": "click",
+      "expect": {
+        "request": "GET /outreach/messages?!prospect_id"
+      },
+      "view": "#tab=messages",
+      "before": [
+        {
+          "control": "outreach.messages-filter-prospect-id",
+          "action": "fill",
+          "input": "{seed.prospectResource}"
+        }
+      ],
+      "note": "Reset clears the filters and loads the list again: the reload no longer carries the filter the before step typed."
+    },
+    {
+      "control": "outreach.messages-sort-subject",
+      "action": "click",
+      "expect": {
+        "request": "GET /outreach/messages?orderby=subject"
+      },
+      "view": "#tab=messages"
+    },
+    {
+      "control": "outreach.messages-sort-status",
+      "action": "click",
+      "expect": {
+        "request": "GET /outreach/messages?orderby=status"
+      },
+      "view": "#tab=messages"
+    },
+    {
+      "control": "outreach.messages-sort-scheduled-at",
+      "action": "click",
+      "expect": {
+        "request": "GET /outreach/messages?orderby=scheduled_at"
+      },
+      "view": "#tab=messages"
+    },
+    {
+      "control": "outreach.messages-sort-sent-at",
+      "action": "click",
+      "expect": {
+        "request": "GET /outreach/messages?orderby=sent_at"
+      },
+      "view": "#tab=messages"
+    },
+    {
+      "control": "outreach.messages-pager-per-page",
+      "action": "select",
+      "input": "50",
+      "expect": {
+        "request": "GET /outreach/messages?per_page=50"
+      },
+      "view": "#tab=messages"
+    },
+    {
+      "control": "outreach.messages-pager-next",
+      "action": "click",
+      "expect": {
+        "request": "GET /outreach/messages?page=2"
+      },
+      "view": "#tab=messages",
+      "mock": [
+        {
+          "request": "GET /outreach/messages",
+          "status": 200,
+          "body": {
+            "items": [],
+            "total": 60,
+            "page": 1,
+            "per_page": 25,
+            "pages": 3
+          }
+        }
+      ],
+      "note": "The list is answered as three pages so the button is enabled."
+    },
+    {
+      "control": "outreach.messages-pager-prev",
+      "action": "click",
+      "expect": {
+        "request": "GET /outreach/messages?page=1"
+      },
+      "view": "#tab=messages",
+      "mock": [
+        {
+          "request": "GET /outreach/messages",
+          "status": 200,
+          "body": {
+            "items": [],
+            "total": 60,
+            "page": 1,
+            "per_page": 25,
+            "pages": 3
+          }
+        },
+        {
+          "request": "GET /outreach/messages",
+          "status": 200,
+          "body": {
+            "items": [],
+            "total": 60,
+            "page": 2,
+            "per_page": 25,
+            "pages": 3
+          }
+        }
+      ],
+      "before": [
+        "outreach.messages-pager-next"
+      ],
+      "note": "The list is answered as three pages so the buttons are enabled."
+    },
+    {
+      "control": "outreach.messages-row",
+      "action": "click",
+      "expect": {
+        "request": "GET /outreach/messages/{id}",
+        "dom": ".lga-drawer"
+      },
+      "view": "#tab=messages"
+    },
+    {
+      "control": "outreach.drawer-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-drawer"
+      },
+      "view": "#tab=messages&open={seed.message1}"
+    },
+    {
+      "control": "outreach.drawer-retry",
+      "action": "click",
+      "expect": {
+        "request": "GET /outreach/messages/{id}"
+      },
+      "view": "#tab=messages&open={seed.message1}",
+      "mock": [
+        {
+          "request": "GET /outreach/messages/{seed.message1}",
+          "status": 500
+        }
+      ]
+    },
+    {
+      "control": "outreach.drawer-prospect",
+      "action": "click",
+      "expect": {
+        "navigate": "/page=lga-prospects/",
+        "dom": ".lga-drawer"
+      },
+      "view": "#tab=messages&open={seed.message1}"
+    },
+    {
+      "control": "outreach.drawer-prospect-site",
+      "action": "click",
+      "expect": {
+        "popup": "e2e-outreach-1.test"
+      },
+      "view": "#tab=messages&open={seed.message1}"
+    },
+    {
+      "control": "outreach.drawer-campaign",
+      "action": "click",
+      "expect": {
+        "request": "GET /outreach/messages?campaign_id={seed.campaignMain}"
+      },
+      "view": "#tab=messages&open={seed.message1}"
+    },
+    {
+      "control": "outreach.drawer-subject",
+      "action": "fill",
+      "input": "E2E subject line",
+      "expect": {
+        "request": "POST /outreach/messages/{id}"
+      },
+      "view": "#tab=messages&open={seed.message1}",
+      "then": [
+        "outreach.drawer-save"
+      ]
+    },
+    {
+      "control": "outreach.drawer-body",
+      "action": "fill",
+      "input": "Hello, this is the E2E body text. Unsubscribe: {unsubscribe_url}",
+      "expect": {
+        "request": "POST /outreach/messages/{id}"
+      },
+      "view": "#tab=messages&open={seed.message5}",
+      "then": [
+        "outreach.drawer-save"
+      ]
+    },
+    {
+      "control": "outreach.drawer-save",
+      "action": "click",
+      "expect": {
+        "request": "POST /outreach/messages/{id}"
+      },
+      "view": "#tab=messages&open={seed.message1}"
+    },
+    {
+      "control": "outreach.drawer-approve",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-modal"
+      },
+      "view": "#tab=messages&open={seed.message1}"
+    },
+    {
+      "control": "outreach.drawer-approve-confirm-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#tab=messages&open={seed.message1}",
+      "before": [
+        "outreach.drawer-approve"
+      ]
+    },
+    {
+      "control": "outreach.drawer-approve-confirm-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#tab=messages&open={seed.message1}",
+      "before": [
+        "outreach.drawer-approve"
+      ]
+    },
+    {
+      "control": "outreach.drawer-approve-confirm-confirm",
+      "action": "click",
+      "expect": {
+        "request": "POST /outreach/messages/{id}/approve"
+      },
+      "view": "#tab=messages&open={seed.message5}",
+      "destructive": true,
+      "before": [
+        "outreach.drawer-approve"
+      ]
+    },
+    {
+      "control": "outreach.drawer-reject",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-modal"
+      },
+      "view": "#tab=messages&open={seed.message1}"
+    },
+    {
+      "control": "outreach.drawer-reject-dialog-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#tab=messages&open={seed.message1}",
+      "before": [
+        "outreach.drawer-reject"
+      ]
+    },
+    {
+      "control": "outreach.drawer-reject-dialog-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#tab=messages&open={seed.message1}",
+      "before": [
+        "outreach.drawer-reject"
+      ]
+    },
+    {
+      "control": "outreach.drawer-reject-dialog-input",
+      "action": "fill",
+      "input": "E2E: not this time",
+      "expect": {
+        "request": "POST /outreach/messages/{id}/reject"
+      },
+      "view": "#tab=messages&open={seed.message1}",
+      "before": [
+        "outreach.drawer-reject"
+      ],
+      "then": [
+        "outreach.drawer-reject-dialog-confirm"
+      ],
+      "destructive": true
+    },
+    {
+      "control": "outreach.drawer-reject-dialog-confirm",
+      "action": "click",
+      "expect": {
+        "request": "POST /outreach/messages/{id}/reject"
+      },
+      "view": "#tab=messages&open={seed.messageResource}",
+      "before": [
+        "outreach.drawer-reject"
+      ],
+      "destructive": true
+    },
+    {
+      "control": "outreach.drawer-send",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-modal"
+      },
+      "view": "#tab=messages&open={seed.message2}"
+    },
+    {
+      "control": "outreach.drawer-send-confirm-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#tab=messages&open={seed.message2}",
+      "before": [
+        "outreach.drawer-send"
+      ]
+    },
+    {
+      "control": "outreach.drawer-send-confirm-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#tab=messages&open={seed.message2}",
+      "before": [
+        "outreach.drawer-send"
+      ]
+    },
+    {
+      "control": "outreach.drawer-send-confirm-confirm",
+      "action": "click",
+      "expect": {
+        "request": "POST /outreach/messages/{id}/send"
+      },
+      "view": "#tab=messages&open={seed.message2}",
+      "destructive": true,
+      "before": [
+        "outreach.drawer-send"
+      ]
+    },
+    {
+      "control": "outreach.drawer-log-reply",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-modal"
+      },
+      "view": "#tab=messages&open={seed.message3}"
+    },
+    {
+      "control": "outreach.drawer-log-reply-dialog-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#tab=messages&open={seed.message3}",
+      "before": [
+        "outreach.drawer-log-reply"
+      ]
+    },
+    {
+      "control": "outreach.drawer-log-reply-dialog-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#tab=messages&open={seed.message3}",
+      "before": [
+        "outreach.drawer-log-reply"
+      ]
+    },
+    {
+      "control": "outreach.drawer-log-reply-dialog-input",
+      "action": "fill",
+      "input": "E2E: they replied kindly",
+      "expect": {
+        "request": "POST /outreach/messages/{id}/log-reply"
+      },
+      "view": "#tab=messages&open={seed.message3}",
+      "before": [
+        "outreach.drawer-log-reply"
+      ],
+      "then": [
+        "outreach.drawer-log-reply-dialog-confirm"
+      ]
+    },
+    {
+      "control": "outreach.drawer-log-reply-dialog-confirm",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-field-error:not([hidden])"
+      },
+      "view": "#tab=messages&open={seed.message3}",
+      "before": [
+        "outreach.drawer-log-reply"
+      ],
+      "note": "Without a summary the dialog stays open and asks for one (the request is the input entry)."
+    },
+    {
+      "control": "outreach.drawer-close-thread",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-modal"
+      },
+      "view": "#tab=messages&open={seed.message4}"
+    },
+    {
+      "control": "outreach.drawer-close-thread-confirm-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#tab=messages&open={seed.message4}",
+      "before": [
+        "outreach.drawer-close-thread"
+      ]
+    },
+    {
+      "control": "outreach.drawer-close-thread-confirm-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#tab=messages&open={seed.message4}",
+      "before": [
+        "outreach.drawer-close-thread"
+      ]
+    },
+    {
+      "control": "outreach.drawer-close-thread-confirm-confirm",
+      "action": "click",
+      "expect": {
+        "request": "POST /outreach/messages/{id}/close"
+      },
+      "view": "#tab=messages&open={seed.message4}",
+      "destructive": true,
+      "before": [
+        "outreach.drawer-close-thread"
+      ]
+    },
+    {
+      "control": "outreach.contacts-filter-status",
+      "action": "select",
+      "input": "active",
+      "expect": {
+        "request": "GET /outreach/contacts?status=active"
+      },
+      "view": "#tab=contacts"
+    },
+    {
+      "control": "outreach.contacts-filter-prospect-id",
+      "action": "fill",
+      "input": "{seed.prospectResource}",
+      "expect": {
+        "request": "GET /outreach/contacts?prospect_id={seed.prospectResource}"
+      },
+      "view": "#tab=contacts"
+    },
+    {
+      "control": "outreach.contacts-filter-q",
+      "action": "fill",
+      "input": "editor",
+      "expect": {
+        "request": "GET /outreach/contacts?q=editor"
+      },
+      "view": "#tab=contacts"
+    },
+    {
+      "control": "outreach.contacts-filter-reset",
+      "action": "click",
+      "expect": {
+        "request": "GET /outreach/contacts?!prospect_id"
+      },
+      "view": "#tab=contacts",
+      "before": [
+        {
+          "control": "outreach.contacts-filter-prospect-id",
+          "action": "fill",
+          "input": "{seed.prospectResource}"
+        }
+      ],
+      "note": "Reset clears the filters and loads the list again: the reload no longer carries the filter the before step typed."
+    },
+    {
+      "control": "outreach.contacts-sort-email",
+      "action": "click",
+      "expect": {
+        "request": "GET /outreach/contacts?orderby=email"
+      },
+      "view": "#tab=contacts"
+    },
+    {
+      "control": "outreach.contacts-sort-status",
+      "action": "click",
+      "expect": {
+        "request": "GET /outreach/contacts?orderby=status"
+      },
+      "view": "#tab=contacts"
+    },
+    {
+      "control": "outreach.contacts-pager-per-page",
+      "action": "select",
+      "input": "50",
+      "expect": {
+        "request": "GET /outreach/contacts?per_page=50"
+      },
+      "view": "#tab=contacts"
+    },
+    {
+      "control": "outreach.contacts-pager-next",
+      "action": "click",
+      "expect": {
+        "request": "GET /outreach/contacts?page=2"
+      },
+      "view": "#tab=contacts",
+      "mock": [
+        {
+          "request": "GET /outreach/contacts",
+          "status": 200,
+          "body": {
+            "items": [],
+            "total": 60,
+            "page": 1,
+            "per_page": 25,
+            "pages": 3
+          }
+        }
+      ],
+      "note": "The list is answered as three pages so the button is enabled."
+    },
+    {
+      "control": "outreach.contacts-pager-prev",
+      "action": "click",
+      "expect": {
+        "request": "GET /outreach/contacts?page=1"
+      },
+      "view": "#tab=contacts",
+      "mock": [
+        {
+          "request": "GET /outreach/contacts",
+          "status": 200,
+          "body": {
+            "items": [],
+            "total": 60,
+            "page": 1,
+            "per_page": 25,
+            "pages": 3
+          }
+        },
+        {
+          "request": "GET /outreach/contacts",
+          "status": 200,
+          "body": {
+            "items": [],
+            "total": 60,
+            "page": 2,
+            "per_page": 25,
+            "pages": 3
+          }
+        }
+      ],
+      "before": [
+        "outreach.contacts-pager-next"
+      ],
+      "note": "The list is answered as three pages so the buttons are enabled."
+    },
+    {
+      "control": "outreach.contacts-prospect",
+      "action": "click",
+      "expect": {
+        "navigate": "/page=lga-prospects/",
+        "dom": ".lga-drawer"
+      },
+      "view": "#tab=contacts"
+    },
+    {
+      "control": "outreach.contacts-source",
+      "action": "click",
+      "expect": {
+        "popup": "labdirectory.test"
+      },
+      "view": "#tab=contacts&prospect_id={seed.prospectDirectory}",
+      "note": "Contacts found on the site have a source page (added ones say \"Manual\")."
+    },
+    {
+      "control": "outreach.contacts-status",
+      "action": "select",
+      "input": "invalid",
+      "expect": {
+        "dom": ".lga-modal"
+      },
+      "view": "#tab=contacts"
+    },
+    {
+      "control": "outreach.contacts-status-confirm-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#tab=contacts",
+      "before": [
+        {
+          "control": "outreach.contacts-status",
+          "action": "select",
+          "input": "invalid"
+        }
+      ]
+    },
+    {
+      "control": "outreach.contacts-status-confirm-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#tab=contacts",
+      "before": [
+        {
+          "control": "outreach.contacts-status",
+          "action": "select",
+          "input": "invalid"
+        }
+      ]
+    },
+    {
+      "control": "outreach.contacts-status-confirm-confirm",
+      "action": "click",
+      "expect": {
+        "request": "POST /outreach/contacts/{id}/status",
+        "body": "\"status\":\"invalid\""
+      },
+      "view": "#tab=contacts",
+      "destructive": true,
+      "before": [
+        {
+          "control": "outreach.contacts-status",
+          "action": "select",
+          "input": "invalid"
+        }
+      ]
+    },
+    {
+      "control": "shell.nav-outreach",
+      "action": "click",
+      "expect": {
+        "navigate": "/page=lga-outreach(&|#|$)/"
+      }
+    }
+  ]
+}

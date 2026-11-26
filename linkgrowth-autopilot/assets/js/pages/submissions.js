@@ -19,7 +19,7 @@ import * as api from '../api.js';
 import {
     el, replace, badge, statusBadge, button, callout, kv, pre, loading, errorState, emptyState, timeEl, fmtNumber, fmtDate, labelize, truncate,
     pageHeader, drawer, tabs, dataTable, formField, formModal, confirm, prompt, toast, extLink, listView, normalizeList, card, checklist, copyButton, isObject, icon, linkButton,
-    details,
+    details, input, textarea, link, setControl,
 } from '../ui.js';
 import { reportAction } from './outcome.js';
 
@@ -197,7 +197,7 @@ export function ownerTaskCard( s, pkg, { onMarked = null, submitOnly = false } =
         stepsBlock( p.steps ),
     ) );
     if ( p.requirements && String( p.requirements ).trim() !== '' && String( p.requirements ).trim() !== stepLines( p.steps ).join( ' ' ) ) {
-        stack.appendChild( details( 'Requirements recorded during verification', el( 'p', {}, String( p.requirements ) ) ) );
+        stack.appendChild( details( 'Requirements recorded during verification', el( 'p', {}, String( p.requirements ) ), { control: 'owner-task-requirements' } ) );
     }
 
     const kitText = listingKitText( p );
@@ -207,7 +207,7 @@ export function ownerTaskCard( s, pkg, { onMarked = null, submitOnly = false } =
         subtitle: 'Use these exact details; the description stays research-use-only',
         body: kv( [
             [ 'Business name', p.business_name || null ],
-            [ 'Website', safeHttpUrl( p.website ) ? extLink( p.website ) : ( p.website || null ) ],
+            [ 'Website', safeHttpUrl( p.website ) ? extLink( p.website, undefined, { control: 'owner-task-website' } ) : ( p.website || null ) ],
             [ 'Address', p.address || null ],
             [ 'Email', p.email || null ],
             [ 'Description', p.description ? el( 'span', {}, String( p.description ) ) : el( 'span', { class: 'lga-muted' }, 'No description passed the research-use-only check; write one by hand.' ) ],
@@ -220,8 +220,8 @@ export function ownerTaskCard( s, pkg, { onMarked = null, submitOnly = false } =
 
     stack.appendChild( details( 'Verification and terms', kv( [
         [ 'Platform', p.platform || null ],
-        [ 'Submission page', target ? extLink( target ) : el( 'span', { class: 'lga-muted' }, 'No web page recorded' ) ],
-        [ 'Registration page', registration ? extLink( registration ) : null ],
+        [ 'Submission page', target ? extLink( target, undefined, { control: 'owner-task-submission-page' } ) : el( 'span', { class: 'lga-muted' }, 'No web page recorded' ) ],
+        [ 'Registration page', registration ? extLink( registration, undefined, { control: 'owner-task-registration-page' } ) : null ],
         [ 'Free', p.free || null ],
         [ 'Payment', p.payment || null ],
         [ 'Approval', p.approval_required || null ],
@@ -229,19 +229,19 @@ export function ownerTaskCard( s, pkg, { onMarked = null, submitOnly = false } =
         [ 'Risk', p.risk || null ],
         [ 'Verification', p.verification_note || null ],
         [ 'Data version', p.data_version || null ],
-    ], { compact: true } ) ) );
+    ], { compact: true } ), { control: 'owner-task-terms' } ) );
 
     const buttons = [];
     if ( target ) {
-        buttons.push( el( 'a', { href: target, target: '_blank', rel: 'noopener noreferrer', class: 'lga-btn lga-btn--primary' }, icon( 'external', 14 ), 'Open submission page' ) );
+        buttons.push( setControl( el( 'a', { href: target, target: '_blank', rel: 'noopener noreferrer', class: 'lga-btn lga-btn--primary' }, icon( 'external', 14 ), 'Open submission page' ), 'owner-task-open' ) );
     }
-    buttons.push( button( 'Copy listing kit', { iconName: 'copy', onClick: () => copyText( kitText, 'listing kit' ) } ) );
+    buttons.push( button( 'Copy listing kit', { iconName: 'copy', onClick: () => copyText( kitText, 'listing kit' ), control: 'owner-task-copy-kit' } ) );
     stack.appendChild( el( 'div', { class: 'lga-row', style: { flexWrap: 'wrap', gap: '8px' } }, buttons ) );
 
     if ( ! ( submitOnly && p.outreach ) && ( submitOnly ? SUBMITTER_OPEN_STATUSES : OPEN_TASK_STATUSES ).includes( String( s.status ) ) ) {
-        const urlInput = el( 'input', { type: 'url', class: 'lga-input', placeholder: 'https://directory.example/listing/your-business', 'aria-label': 'Listing URL' } );
-        const noteInput = el( 'textarea', { class: 'lga-textarea', rows: 2, 'aria-label': 'Note (optional)' } );
-        const markBtn = button( 'Mark submitted', { kind: 'success', iconName: 'send', onClick: async () => {
+        const urlInput = input( { type: 'url', class: 'lga-input', placeholder: 'https://directory.example/listing/your-business', 'aria-label': 'Listing URL', control: 'owner-task-listing-url' } );
+        const noteInput = textarea( { class: 'lga-textarea', rows: 2, 'aria-label': 'Note (optional)', control: 'owner-task-note' } );
+        const markBtn = button( 'Mark submitted', { kind: 'success', iconName: 'send', control: 'owner-task-mark-submitted', onClick: async () => {
             const listing = urlInput.value.trim();
             if ( listing !== '' && ! safeHttpUrl( listing ) ) {
                 toast( 'The listing URL must start with http:// or https://.', 'error' );
@@ -291,14 +291,14 @@ function verifiedSummaryCard( status, { onImport, onShowTasks } ) {
             [ 'Data version', st.data_version || null ],
             [ 'Imported version', st.imported_version || el( 'span', { class: 'lga-muted' }, 'not imported yet' ) ],
         ], { compact: true } ),
-        skippedList.length ? details( `Skipped items (${ skippedList.length })`, el( 'ul', { class: 'lga-small' }, skippedList.map( ( i ) => el( 'li', {}, `${ i.platform || i.host || i.id } (tier ${ i.tier || '?' }): ${ SKIP_REASONS[ i.reason ] || labelize( i.reason || '' ) }` ) ) ) ) : null,
+        skippedList.length ? details( `Skipped items (${ skippedList.length })`, el( 'ul', { class: 'lga-small' }, skippedList.map( ( i ) => el( 'li', {}, `${ i.platform || i.host || i.id } (tier ${ i.tier || '?' }): ${ SKIP_REASONS[ i.reason ] || labelize( i.reason || '' ) }` ) ) ), { control: 'verified-skipped' } ) : null,
     ];
     return card( {
         title: 'Verified opportunity database',
         subtitle: 'Researched listing and outreach opportunities, each turned into one owner task',
         actions: [
-            button( 'Show owner tasks', { small: true, iconName: 'list', onClick: onShowTasks } ),
-            button( st.up_to_date ? 'Check for changes' : 'Import now', { small: true, kind: st.up_to_date ? 'secondary' : 'primary', iconName: 'download', onClick: onImport } ),
+            button( 'Show owner tasks', { small: true, iconName: 'list', onClick: onShowTasks, control: 'verified-show-tasks' } ),
+            button( st.up_to_date ? 'Check for changes' : 'Import now', { small: true, kind: st.up_to_date ? 'secondary' : 'primary', iconName: 'download', onClick: onImport, control: 'verified-import' } ),
         ],
         body,
     } );
@@ -306,8 +306,9 @@ function verifiedSummaryCard( status, { onImport, onShowTasks } ) {
 
 /** "Mark submitted" button with the manual-submission form (listing URL, confirmation reference, note). */
 function markSubmittedButton( s, refresh ) {
-    return button( 'Mark submitted', { kind: 'primary', iconName: 'send', onClick: () => formModal( {
+    return button( 'Mark submitted', { kind: 'primary', iconName: 'send', control: 'drawer-mark-submitted', onClick: () => formModal( {
         title: 'Mark as submitted manually',
+        control: 'drawer-mark-submitted-form',
         description: 'Record that you submitted this listing by hand. Verification will look for the live listing starting now.',
         submitText: 'Mark submitted',
         fields: [
@@ -344,8 +345,8 @@ export function submitterKitCards( payload, id ) {
     cards.push( card( {
         title: 'Business details',
         subtitle: 'Use these exact details',
-        actions: copyButton( () => Object.entries( business ).map( ( [ k, v ] ) => `${ labelize( k ) }: ${ text( v ) }` ).join( '\n' ), 'Copy all' ),
-        body: Object.keys( business ).length ? kv( Object.entries( business ).map( ( [ k, v ] ) => [ labelize( k ), ( k === 'website' || k === 'logo_url' ) && safeHttpUrl( v ) ? extLink( String( v ) ) : ( text( v ) || null ) ] ), { compact: true } ) : emptyState( { title: 'No business fields in this package', compact: true } ),
+        actions: copyButton( () => Object.entries( business ).map( ( [ k, v ] ) => `${ labelize( k ) }: ${ text( v ) }` ).join( '\n' ), 'Copy all', { control: 'kit-copy-business' } ),
+        body: Object.keys( business ).length ? kv( Object.entries( business ).map( ( [ k, v ] ) => [ labelize( k ), ( k === 'website' || k === 'logo_url' ) && safeHttpUrl( v ) ? extLink( String( v ), undefined, { control: `kit-${ k === 'website' ? 'website' : 'logo-url' }` } ) : ( text( v ) || null ) ] ), { compact: true } ) : emptyState( { title: 'No business fields in this package', compact: true } ),
     } ) );
     const rows = [
         ...CONTENT_FIELDS,
@@ -355,7 +356,7 @@ export function submitterKitCards( payload, id ) {
     cards.push( card( {
         title: 'Listing text',
         subtitle: 'Use the text as written; it stays research-use-only',
-        actions: copyButton( () => rows.map( ( f ) => `${ f.label }\n${ text( content[ f.key ] ) }` ).join( '\n\n' ), 'Copy text' ),
+        actions: copyButton( () => rows.map( ( f ) => `${ f.label }\n${ text( content[ f.key ] ) }` ).join( '\n\n' ), 'Copy text', { control: 'kit-copy-text' } ),
         body: rows.length ? kv( rows.map( ( f ) => [ f.label, el( 'span', {}, text( content[ f.key ] ) ) ] ), { compact: true } ) : emptyState( { title: 'No listing text in this package', compact: true } ),
     } ) );
     // The values the package prepared for each field of the site's form (hidden tokens are not sent).
@@ -373,10 +374,11 @@ export function submitterKitCards( payload, id ) {
         cards.push( card( {
             title: 'Form fields',
             subtitle: 'What to put in each field of the site\'s form',
-            actions: copyButton( () => fields.map( ( f ) => `${ f.label || f.name }: ${ fieldValue( f ) }` ).join( '\n' ), 'Copy fields' ),
+            actions: copyButton( () => fields.map( ( f ) => `${ f.label || f.name }: ${ fieldValue( f ) }` ).join( '\n' ), 'Copy fields', { control: 'kit-copy-fields' } ),
             body: dataTable( {
                 dense: true,
                 plain: true,
+                control: 'kit-fields',
                 rows: fields,
                 columns: [
                     { key: 'label', label: 'Field', render: ( f ) => el( 'span', { class: 'lga-cell-title' }, text( f.label || f.name ) ) },
@@ -393,7 +395,7 @@ export function submitterKitCards( payload, id ) {
         } ) );
     }
     if ( arr( p.instructions ).length ) {
-        cards.push( card( { title: 'Submission steps', subtitle: 'Tick steps as you complete them (saved in this browser only)', body: checklist( arr( p.instructions ).map( String ), { storageKey: `lga_sub_steps_${ id }` } ) } ) );
+        cards.push( card( { title: 'Submission steps', subtitle: 'Tick steps as you complete them (saved in this browser only)', body: checklist( arr( p.instructions ).map( String ), { storageKey: `lga_sub_steps_${ id }`, control: 'steps' } ) } ) );
     }
     return cards;
 }
@@ -424,6 +426,7 @@ export default async function render( root, ctx ) {
     const verifiedHost = el( 'div' );
 
     const list = listView( {
+        control: 'list',
         fetch: fetchSubmissions,
         defaultSort: { key: 'id', dir: 'desc' },
         initial: { filters: {
@@ -451,7 +454,7 @@ export default async function render( root, ctx ) {
         columns: submitOnly ? [
             { key: 'id', label: '#', sortable: true, render: ( r ) => `#${ r.id }` },
             { key: 'prospect', label: 'Site', render: ( r ) => el( 'span', {}, el( 'span', { class: 'lga-cell-title' }, r.prospect_name || r.prospect_domain || '' ), el( 'span', { class: 'lga-cell-sub' }, r.prospect_domain || '' ) ) },
-            { key: 'target_url', label: 'Submission page', render: ( r ) => extLink( r.target_url, truncate( String( r.target_url || '' ).replace( /^https?:\/\//, '' ), 48 ) ) },
+            { key: 'target_url', label: 'Submission page', render: ( r ) => extLink( r.target_url, truncate( String( r.target_url || '' ).replace( /^https?:\/\//, '' ), 48 ), { control: 'list-target' } ) },
             { key: 'owner_task', label: 'Owner task', render: ( r ) => {
                 const pkg = ownerTaskPackage( r.payload );
                 return pkg ? el( 'span', { class: 'lga-row', style: { flexWrap: 'wrap', gap: '4px' } }, ownerTaskBadges( pkg ) ) : null;
@@ -462,7 +465,7 @@ export default async function render( root, ctx ) {
         ] : [
             { key: 'id', label: '#', sortable: true, render: ( r ) => `#${ r.id }` },
             { key: 'prospect', label: 'Prospect', render: ( r ) => el( 'span', {}, el( 'span', { class: 'lga-cell-title' }, r.prospect_name || r.prospect_domain || `Prospect #${ r.prospect_id }` ), el( 'span', { class: 'lga-cell-sub' }, r.prospect_domain || '' ) ) },
-            { key: 'target_url', label: 'Target', render: ( r ) => extLink( r.target_url, truncate( String( r.target_url || '' ).replace( /^https?:\/\//, '' ), 48 ) ) },
+            { key: 'target_url', label: 'Target', render: ( r ) => extLink( r.target_url, truncate( String( r.target_url || '' ).replace( /^https?:\/\//, '' ), 48 ), { control: 'list-target' } ) },
             { key: 'owner_task', label: 'Owner task', render: ( r ) => {
                 const pkg = ownerTaskPackage( r.payload );
                 return pkg ? el( 'span', { class: 'lga-row', style: { flexWrap: 'wrap', gap: '4px' } }, ownerTaskBadges( pkg ) ) : null;
@@ -503,6 +506,7 @@ export default async function render( root, ctx ) {
 
     const view = tabs( {
         pills: true,
+        control: 'tab',
         active: initialTab,
         items: tabDefs.map( ( t ) => ( { id: t.id, label: t.label } ) ),
         onChange: ( id ) => {
@@ -606,12 +610,12 @@ export default async function render( root, ctx ) {
             ? pageHeader( {
                 title: 'Owner tasks',
                 description: 'Listings that need a real person. Open the submission page, fill it in with the listing kit, then mark the task submitted. The plugin checks later that the listing went live.',
-                actions: button( 'Refresh', { iconName: 'refresh', onClick: () => list.reload() } ),
+                actions: button( 'Refresh', { iconName: 'refresh', onClick: () => list.reload(), control: 'refresh' } ),
             } )
             : pageHeader( {
                 title: 'Submissions',
                 description: 'Listing packages generated for directories and resource pages. Review the content, approve or hand-submit, and track confirmations.',
-                actions: button( 'Refresh', { iconName: 'refresh', onClick: () => list.reload() } ),
+                actions: button( 'Refresh', { iconName: 'refresh', onClick: () => list.reload(), control: 'refresh' } ),
             } ),
         submitOnly ? null : bannerHost,
         submitOnly ? null : verifiedHost,
@@ -637,14 +641,14 @@ export default async function render( root, ctx ) {
             return;
         }
         const body = el( 'div', {}, loading( 'Loading package…', true ) );
-        const dr = drawer( `Submission #${ id }`, body, { width: 'wide' } );
+        const dr = drawer( `Submission #${ id }`, body, { width: 'wide', control: 'drawer' } );
 
         async function load() {
             let data;
             try {
                 data = await api.get( `/submissions/${ id }` );
             } catch ( e ) {
-                dr.setContent( errorState( { title: 'Could not load this submission', message: e && e.message ? e.message : '', retry: load } ) );
+                dr.setContent( errorState( { title: 'Could not load this submission', message: e && e.message ? e.message : '', retry: load, control: 'drawer-retry' } ) );
                 return;
             }
             const s = obj( data.submission ).id ? obj( data.submission ) : obj( data );
@@ -662,7 +666,7 @@ export default async function render( root, ctx ) {
             };
 
             dr.setTitle( `${ prospect.name || prospect.domain || `Submission #${ s.id }` }` );
-            dr.setSubtitle( [ statusBadge( s.status ), statusBadge( s.method, { dot: false } ), s.adapter ? badge( labelize( s.adapter ), 'neutral' ) : null, ownerPkg ? ownerTaskBadges( ownerPkg ) : null, extLink( s.target_url, truncate( String( s.target_url || '' ), 60 ) ) ] );
+            dr.setSubtitle( [ statusBadge( s.status ), statusBadge( s.method, { dot: false } ), s.adapter ? badge( labelize( s.adapter ), 'neutral' ) : null, ownerPkg ? ownerTaskBadges( ownerPkg ) : null, extLink( s.target_url, truncate( String( s.target_url || '' ), 60 ), { control: 'drawer-target' } ) ] );
 
             const stack = el( 'div', { class: 'lga-stack' } );
 
@@ -690,9 +694,9 @@ export default async function render( root, ctx ) {
             }
 
             stack.appendChild( card( { title: 'Status & timeline', body: kv( [
-                [ submitOnly ? 'Site' : 'Prospect', submitOnly ? ( prospect.name || prospect.domain || null ) : ( prospect.id ? el( 'a', { href: ctx.pageUrl( 'prospects', { open: prospect.id } ) }, `${ prospect.name || prospect.domain } ` ) : null ) ],
-                [ 'Opportunity', ( opportunity.id || opportunity.title || safeHttpUrl( opportunity.url ) ) ? el( 'span', {}, badge( labelize( opportunity.type || '' ), 'brand' ), ' ', opportunity.title || '', safeHttpUrl( opportunity.url ) ? [ ' ', extLink( opportunity.url, 'page' ) ] : null ) : null ],
-                [ 'Target page', extLink( s.target_url ) ],
+                [ submitOnly ? 'Site' : 'Prospect', submitOnly ? ( prospect.name || prospect.domain || null ) : ( prospect.id ? link( `${ prospect.name || prospect.domain } `, ctx.pageUrl( 'prospects', { open: prospect.id } ), { control: 'drawer-prospect' } ) : null ) ],
+                [ 'Opportunity', ( opportunity.id || opportunity.title || safeHttpUrl( opportunity.url ) ) ? el( 'span', {}, badge( labelize( opportunity.type || '' ), 'brand' ), ' ', opportunity.title || '', safeHttpUrl( opportunity.url ) ? [ ' ', extLink( opportunity.url, 'page', { control: 'drawer-opportunity' } ) ] : null ) : null ],
+                [ 'Target page', extLink( s.target_url, undefined, { control: 'drawer-target-page' } ) ],
                 [ 'Category', s.category || null ],
                 [ 'Attempts', fmtNumber( s.attempts ) ],
                 [ 'Scheduled', s.scheduled_at ? fmtDate( s.scheduled_at ) : null ],
@@ -700,7 +704,7 @@ export default async function render( root, ctx ) {
                 [ 'Confirmed', s.confirmed_at ? fmtDate( s.confirmed_at ) : null ],
                 [ 'Next verification', s.next_verify_at ? fmtDate( s.next_verify_at ) : null ],
                 [ 'Confirmation ref', s.confirmation_ref || null ],
-                [ 'Listing URL', s.listing_url ? extLink( s.listing_url ) : null ],
+                [ 'Listing URL', s.listing_url ? extLink( s.listing_url, undefined, { control: 'drawer-listing' } ) : null ],
                 [ 'Reviewed by', ! submitOnly && s.reviewed_by ? `User #${ s.reviewed_by }` : null ],
                 [ 'Created', fmtDate( s.created_at ) ],
             ], { compact: true } ) } ) );
@@ -717,15 +721,15 @@ export default async function render( root, ctx ) {
                 stack.appendChild( card( {
                     title: 'Business details',
                     subtitle: 'Copied from Settings → Business profile when the package was built',
-                    actions: copyButton( () => Object.entries( business ).map( ( [ k, v ] ) => `${ labelize( k ) }: ${ Array.isArray( v ) ? v.join( ', ' ) : v }` ).join( '\n' ), 'Copy all' ),
-                    body: Object.keys( business ).length ? kv( Object.entries( business ).map( ( [ k, v ] ) => [ labelize( k ), Array.isArray( v ) ? v.join( ', ' ) : ( k === 'website' || k === 'logo_url' ? ( v ? extLink( String( v ) ) : null ) : v ) ] ), { compact: true } ) : emptyState( { title: 'No business fields in this package', compact: true } ),
+                    actions: copyButton( () => Object.entries( business ).map( ( [ k, v ] ) => `${ labelize( k ) }: ${ Array.isArray( v ) ? v.join( ', ' ) : v }` ).join( '\n' ), 'Copy all', { control: 'business-copy' } ),
+                    body: Object.keys( business ).length ? kv( Object.entries( business ).map( ( [ k, v ] ) => [ labelize( k ), Array.isArray( v ) ? v.join( ', ' ) : ( k === 'website' || k === 'logo_url' ? ( v ? extLink( String( v ), undefined, { control: `business-${ k === 'website' ? 'website' : 'logo-url' }` } ) : null ) : v ) ] ), { compact: true } ) : emptyState( { title: 'No business fields in this package', compact: true } ),
                 } ) );
 
                 // Generated content (editable)
                 const content = obj( payload.content );
-                const contentFields = CONTENT_FIELDS.map( ( f ) => formField( { type: 'textarea', name: f.key, label: f.label, value: content[ f.key ] || '', rows: f.rows, full: true } ) );
-                const categoriesField = formField( { type: 'list', name: 'category_suggestions', label: 'Category suggestions (one per line)', value: arr( content.category_suggestions ), rows: 3 } );
-                const keywordsField = formField( { type: 'list', name: 'keywords', label: 'Keywords (one per line)', value: arr( content.keywords ), rows: 3 } );
+                const contentFields = CONTENT_FIELDS.map( ( f ) => formField( { type: 'textarea', name: f.key, label: f.label, value: content[ f.key ] || '', rows: f.rows, full: true, control: `content-${ f.key }` } ) );
+                const categoriesField = formField( { type: 'list', name: 'category_suggestions', label: 'Category suggestions (one per line)', value: arr( content.category_suggestions ), rows: 3, control: 'content-category-suggestions' } );
+                const keywordsField = formField( { type: 'list', name: 'keywords', label: 'Keywords (one per line)', value: arr( content.keywords ), rows: 3, control: 'content-keywords' } );
                 const violationsBox = el( 'div' );
                 const editable = ! [ 'confirmed', 'submitted' ].includes( s.status );
                 const fieldInputs = {};
@@ -755,12 +759,12 @@ export default async function render( root, ctx ) {
                 stack.appendChild( card( {
                     title: 'Generated content',
                     subtitle: content.style ? `Style: ${ labelize( content.style ) } · generated ${ fmtDate( payload.generated_at ) }` : 'Edit freely; every save re-runs the claims filter',
-                    actions: copyButton( () => CONTENT_FIELDS.map( ( f ) => `${ f.label }\n${ contentFields.find( ( c ) => c.name === f.key ).get() }` ).join( '\n\n' ), 'Copy text' ),
+                    actions: copyButton( () => CONTENT_FIELDS.map( ( f ) => `${ f.label }\n${ contentFields.find( ( c ) => c.name === f.key ).get() }` ).join( '\n\n' ), 'Copy text', { control: 'content-copy' } ),
                     body: [
                         el( 'div', { class: 'lga-form-grid' }, contentFields.map( ( f ) => f.el ), categoriesField.el, keywordsField.el ),
                         violationsBox,
                     ],
-                    footer: editable ? [ button( 'Save & check claims', { kind: 'primary', iconName: 'shield', onClick: () => saveContent() } ) ] : [ el( 'span', { class: 'lga-notice-inline' }, 'Content is locked once submitted.' ) ],
+                    footer: editable ? [ button( 'Save & check claims', { kind: 'primary', iconName: 'shield', onClick: () => saveContent(), control: 'content-save' } ) ] : [ el( 'span', { class: 'lga-notice-inline' }, 'Content is locked once submitted.' ) ],
                 } ) );
 
                 // Form field mapping
@@ -770,6 +774,7 @@ export default async function render( root, ctx ) {
                     body: fieldRows.length ? dataTable( {
                         dense: true,
                         plain: true,
+                        control: 'fields',
                         rows: fieldRows,
                         columns: [
                             { key: 'label', label: 'Field', render: ( f ) => el( 'span', {}, el( 'span', { class: 'lga-cell-title' }, f.label || f.name ), el( 'span', { class: 'lga-cell-sub lga-mono' }, f.name ) ) },
@@ -782,18 +787,18 @@ export default async function render( root, ctx ) {
                                 if ( ! editable || [ 'hidden', 'captcha', 'password', 'file' ].includes( f.type ) ) {
                                     return f.value === '' || f.value === null || f.value === undefined ? el( 'span', { class: 'lga-muted' }, f.required ? 'Missing (required)' : '—' ) : el( 'span', {}, truncate( String( f.value ), 80 ) );
                                 }
-                                const input = el( f.type === 'textarea' ? 'textarea' : 'input', { class: f.type === 'textarea' ? 'lga-textarea' : 'lga-input lga-input--small', value: f.value === null || f.value === undefined ? '' : String( f.value ), rows: 2, 'aria-label': f.label || f.name } );
-                                fieldInputs[ f.name ] = input;
-                                return input;
+                                const field = ( f.type === 'textarea' ? textarea : input )( { class: f.type === 'textarea' ? 'lga-textarea' : 'lga-input lga-input--small', value: f.value === null || f.value === undefined ? '' : String( f.value ), rows: 2, 'aria-label': f.label || f.name, control: 'fields-value' } );
+                                fieldInputs[ f.name ] = field;
+                                return field;
                             } },
                         ],
                     } ) : el( 'p', {}, 'The package is a manual kit: open the target page and fill the form with the business details and content above.' ),
-                    footer: fieldRows.length && editable ? [ button( 'Save field values', { onClick: () => saveContent() } ) ] : null,
+                    footer: fieldRows.length && editable ? [ button( 'Save field values', { onClick: () => saveContent(), control: 'fields-save' } ) ] : null,
                 } ) );
 
                 // Instructions
                 if ( arr( payload.instructions ).length ) {
-                    stack.appendChild( card( { title: 'Submission steps', subtitle: 'Tick steps as you complete them (saved in this browser only)', body: checklist( arr( payload.instructions ).map( String ), { storageKey: `lga_sub_steps_${ s.id }` } ) } ) );
+                    stack.appendChild( card( { title: 'Submission steps', subtitle: 'Tick steps as you complete them (saved in this browser only)', body: checklist( arr( payload.instructions ).map( String ), { storageKey: `lga_sub_steps_${ s.id }`, control: 'steps' } ) } ) );
                 }
             }
 
@@ -811,15 +816,15 @@ export default async function render( root, ctx ) {
                 }
                 const page = safeHttpUrl( s.target_url );
                 if ( page ) {
-                    actions.push( linkButton( 'Open submission page', page, { iconName: 'external', external: true } ) );
+                    actions.push( linkButton( 'Open submission page', page, { iconName: 'external', external: true, control: 'drawer-open-page' } ) );
                 }
                 dr.setActions( actions );
                 dr.setContent( stack );
                 return;
             }
             if ( ! ownerPkg && [ 'pending_review', 'needs_manual' ].includes( s.status ) ) {
-                actions.push( button( 'Approve', { kind: 'success', iconName: 'check', onClick: async () => {
-                    if ( ! ( await confirm( 'Approve this package? If automated submission is permitted for this site it will be queued; otherwise it stays as a manual kit.', { confirmText: 'Approve' } ) ) ) {
+                actions.push( button( 'Approve', { kind: 'success', iconName: 'check', control: 'drawer-approve', onClick: async () => {
+                    if ( ! ( await confirm( 'Approve this package? If automated submission is permitted for this site it will be queued; otherwise it stays as a manual kit.', { confirmText: 'Approve', control: 'drawer-approve-confirm' } ) ) ) {
                         return;
                     }
                     const res = await api.post( `/submissions/${ s.id }/approve`, {} );
@@ -831,8 +836,8 @@ export default async function render( root, ctx ) {
                 } } ) );
             }
             if ( ! [ 'confirmed', 'rejected', 'duplicate' ].includes( s.status ) ) {
-                actions.push( button( 'Reject', { kind: 'danger', iconName: 'x', onClick: async () => {
-                    const reason = await prompt( 'Why is this package being rejected?', { title: 'Reject submission', label: 'Reason', confirmText: 'Reject', danger: true } );
+                actions.push( button( 'Reject', { kind: 'danger', iconName: 'x', control: 'drawer-reject', onClick: async () => {
+                    const reason = await prompt( 'Why is this package being rejected?', { title: 'Reject submission', label: 'Reason', confirmText: 'Reject', danger: true, control: 'drawer-reject-dialog' } );
                     if ( reason === null ) {
                         return;
                     }
@@ -841,15 +846,15 @@ export default async function render( root, ctx ) {
                 } } ) );
             }
             if ( [ 'failed', 'rejected' ].includes( s.status ) ) {
-                actions.push( button( 'Retry', { iconName: 'refresh', onClick: async () => {
+                actions.push( button( 'Retry', { iconName: 'refresh', control: 'drawer-retry-submission', onClick: async () => {
                     // A refused retry (policy no longer allows it) answers ok: false with the reason.
                     reportAction( await api.post( `/submissions/${ s.id }/retry`, {} ), 'Submission queued again for automatic sending.' );
                     await refresh();
                 } } ) );
             }
             if ( ! ownerPkg && ! [ 'submitted', 'confirmed' ].includes( s.status ) ) {
-                actions.push( button( 'Rebuild package', { iconName: 'package', onClick: async () => {
-                    if ( ! ( await confirm( 'Rebuild the package from the current site profile and settings? Your edits to the generated content will be replaced.', { confirmText: 'Rebuild' } ) ) ) {
+                actions.push( button( 'Rebuild package', { iconName: 'package', control: 'drawer-rebuild', onClick: async () => {
+                    if ( ! ( await confirm( 'Rebuild the package from the current site profile and settings? Your edits to the generated content will be replaced.', { confirmText: 'Rebuild', control: 'drawer-rebuild-confirm' } ) ) ) {
                         return;
                     }
                     // rebuildPackage() returns false when the crawl fails or the submission is locked: ok false + message.
@@ -863,10 +868,10 @@ export default async function render( root, ctx ) {
             if ( ownerPkg ) {
                 const page = safeHttpUrl( s.target_url );
                 if ( page ) {
-                    actions.push( linkButton( 'Open submission page', page, { iconName: 'external', external: true } ) );
+                    actions.push( linkButton( 'Open submission page', page, { iconName: 'external', external: true, control: 'drawer-open-page' } ) );
                 }
             } else {
-                actions.push( linkButton( 'Open target page', s.target_url || '#', { iconName: 'external', external: true } ) );
+                actions.push( linkButton( 'Open target page', s.target_url || '#', { iconName: 'external', external: true, control: 'drawer-open-target' } ) );
             }
             dr.setActions( actions );
             dr.setContent( stack );

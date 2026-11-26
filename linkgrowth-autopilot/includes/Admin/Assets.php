@@ -15,6 +15,9 @@ final class Assets {
 
     public const HANDLE = 'lga-admin';
 
+    /** The folders of the admin app's ES modules: the core, the pages and the Settings tabs (DESIGN.md §10.1). */
+    public const MODULE_GLOBS = [ 'assets/js/*.js', 'assets/js/pages/*.js', 'assets/js/settings/*.js' ];
+
     public function __construct( private Settings $settings ) {}
 
     public function register(): void {
@@ -76,7 +79,7 @@ final class Assets {
     }
 
     /**
-     * Every ES module the admin app imports (all of assets/js except the app.js entry), keyed by its
+     * Every ES module the admin app imports (all of MODULE_GLOBS except the app.js entry), keyed by its
      * unversioned URL — the exact URL a relative import resolves to — with its cache-busting version.
      *
      * @return array<string,string>
@@ -84,7 +87,7 @@ final class Assets {
     public function moduleVersions( string $version ): array {
         $base = rtrim( str_replace( '\\', '/', LGA_DIR ), '/' ) . '/';
         $out  = [];
-        foreach ( [ 'assets/js/*.js', 'assets/js/pages/*.js' ] as $pattern ) {
+        foreach ( self::MODULE_GLOBS as $pattern ) {
             $files = glob( $base . $pattern );
             foreach ( is_array( $files ) ? $files : [] as $file ) {
                 $relative = substr( str_replace( '\\', '/', $file ), strlen( $base ) );

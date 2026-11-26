@@ -1,0 +1,461 @@
+{
+  "page": "backlinks",
+  "description": "Backlinks: summary tiles and charts, the list with filters, sorting and pager, add/import, and the backlink drawer.",
+  "controls": [
+    {
+      "control": "backlinks.tile-active",
+      "action": "click",
+      "expect": {
+        "request": "GET /backlinks?status=active"
+      }
+    },
+    {
+      "control": "backlinks.tile-lost",
+      "action": "click",
+      "expect": {
+        "request": "GET /backlinks?status=lost"
+      }
+    },
+    {
+      "control": "backlinks.chart-trend-view-table",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"backlinks.chart-trend-view-table\"][aria-pressed=\"true\"]"
+      }
+    },
+    {
+      "control": "backlinks.chart-trend-view-chart",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"backlinks.chart-trend-view-chart\"][aria-pressed=\"true\"]"
+      },
+      "before": [
+        "backlinks.chart-trend-view-table"
+      ]
+    },
+    {
+      "control": "backlinks.chart-link-attributes-view-table",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"backlinks.chart-link-attributes-view-table\"][aria-pressed=\"true\"]"
+      }
+    },
+    {
+      "control": "backlinks.chart-link-attributes-view-chart",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"backlinks.chart-link-attributes-view-chart\"][aria-pressed=\"true\"]"
+      },
+      "before": [
+        "backlinks.chart-link-attributes-view-table"
+      ]
+    },
+    {
+      "control": "backlinks.chart-anchors-view-table",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"backlinks.chart-anchors-view-table\"][aria-pressed=\"true\"]"
+      }
+    },
+    {
+      "control": "backlinks.chart-anchors-view-chart",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"backlinks.chart-anchors-view-chart\"][aria-pressed=\"true\"]"
+      },
+      "before": [
+        "backlinks.chart-anchors-view-table"
+      ]
+    },
+    {
+      "control": "backlinks.list-filter-status",
+      "action": "select",
+      "input": "active",
+      "expect": {
+        "request": "GET /backlinks?status=active"
+      }
+    },
+    {
+      "control": "backlinks.list-filter-rel",
+      "action": "select",
+      "input": "nofollow",
+      "expect": {
+        "request": "GET /backlinks?rel=nofollow"
+      }
+    },
+    {
+      "control": "backlinks.list-filter-origin",
+      "action": "select",
+      "input": "manual",
+      "expect": {
+        "request": "GET /backlinks?origin=manual"
+      }
+    },
+    {
+      "control": "backlinks.list-filter-q",
+      "action": "fill",
+      "input": "mention",
+      "expect": {
+        "request": "GET /backlinks?q=mention"
+      }
+    },
+    {
+      "control": "backlinks.list-filter-reset",
+      "action": "click",
+      "expect": {
+        "request": "GET /backlinks?!q"
+      },
+      "before": [
+        {
+          "control": "backlinks.list-filter-q",
+          "action": "fill",
+          "input": "mention"
+        }
+      ],
+      "note": "Reset clears the filters and loads the list again: the reload no longer carries the filter the before step typed."
+    },
+    {
+      "control": "backlinks.list-sort-source-domain",
+      "action": "click",
+      "expect": {
+        "request": "GET /backlinks?orderby=source_domain"
+      }
+    },
+    {
+      "control": "backlinks.list-sort-status",
+      "action": "click",
+      "expect": {
+        "request": "GET /backlinks?orderby=status"
+      }
+    },
+    {
+      "control": "backlinks.list-sort-quality-score",
+      "action": "click",
+      "expect": {
+        "request": "GET /backlinks?orderby=quality_score"
+      }
+    },
+    {
+      "control": "backlinks.list-sort-first-seen",
+      "action": "click",
+      "expect": {
+        "request": "GET /backlinks?orderby=first_seen"
+      }
+    },
+    {
+      "control": "backlinks.list-sort-last-checked",
+      "action": "click",
+      "expect": {
+        "request": "GET /backlinks?orderby=last_checked"
+      }
+    },
+    {
+      "control": "backlinks.list-sort-next-check-at",
+      "action": "click",
+      "expect": {
+        "request": "GET /backlinks?orderby=next_check_at"
+      }
+    },
+    {
+      "control": "backlinks.list-pager-per-page",
+      "action": "select",
+      "input": "50",
+      "expect": {
+        "request": "GET /backlinks?per_page=50"
+      }
+    },
+    {
+      "control": "backlinks.list-pager-next",
+      "action": "click",
+      "expect": {
+        "request": "GET /backlinks?page=2"
+      }
+    },
+    {
+      "control": "backlinks.list-pager-prev",
+      "action": "click",
+      "expect": {
+        "request": "GET /backlinks?page=1"
+      },
+      "before": [
+        "backlinks.list-pager-next"
+      ]
+    },
+    {
+      "control": "backlinks.list-row",
+      "action": "click",
+      "expect": {
+        "request": "GET /backlinks/{id}",
+        "dom": ".lga-drawer"
+      }
+    },
+    {
+      "control": "backlinks.list-source-url",
+      "action": "click",
+      "expect": {
+        "popup": ".test/"
+      }
+    },
+    {
+      "control": "backlinks.import",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-modal"
+      }
+    },
+    {
+      "control": "backlinks.import-confirm-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "before": [
+        "backlinks.import"
+      ]
+    },
+    {
+      "control": "backlinks.import-confirm-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "before": [
+        "backlinks.import"
+      ]
+    },
+    {
+      "control": "backlinks.import-confirm-confirm",
+      "action": "click",
+      "expect": {
+        "request": "POST /backlinks/import"
+      },
+      "timeout": 60000,
+      "before": [
+        "backlinks.import"
+      ]
+    },
+    {
+      "control": "backlinks.add",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-modal"
+      }
+    },
+    {
+      "control": "backlinks.add-form-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "before": [
+        "backlinks.add"
+      ]
+    },
+    {
+      "control": "backlinks.add-form-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "before": [
+        "backlinks.add"
+      ]
+    },
+    {
+      "control": "backlinks.add-form-source-url",
+      "action": "fill",
+      "input": "https://e2e-added-1.test/links/",
+      "expect": {
+        "request": "POST /backlinks"
+      },
+      "before": [
+        "backlinks.add",
+        {
+          "control": "backlinks.add-form-target-url",
+          "action": "fill",
+          "input": "https://northwind.test/"
+        }
+      ],
+      "then": [
+        "backlinks.add-form-submit"
+      ]
+    },
+    {
+      "control": "backlinks.add-form-target-url",
+      "action": "fill",
+      "input": "https://northwind.test/catalog/",
+      "expect": {
+        "request": "POST /backlinks"
+      },
+      "before": [
+        "backlinks.add",
+        {
+          "control": "backlinks.add-form-source-url",
+          "action": "fill",
+          "input": "https://e2e-added-2.test/links/"
+        }
+      ],
+      "then": [
+        "backlinks.add-form-submit"
+      ]
+    },
+    {
+      "control": "backlinks.add-form-submit",
+      "action": "click",
+      "expect": {
+        "request": "POST /backlinks",
+        "body": "e2e-added-3.test"
+      },
+      "before": [
+        "backlinks.add",
+        {
+          "control": "backlinks.add-form-source-url",
+          "action": "fill",
+          "input": "https://e2e-added-3.test/links/"
+        },
+        {
+          "control": "backlinks.add-form-target-url",
+          "action": "fill",
+          "input": "https://northwind.test/"
+        }
+      ]
+    },
+    {
+      "control": "backlinks.add-form-target-url",
+      "action": "fill",
+      "input": "https://localhost:8793/",
+      "expect": {
+        "request": "POST /backlinks",
+        "status": "4xx"
+      },
+      "id": "refused",
+      "before": [
+        "backlinks.add",
+        {
+          "control": "backlinks.add-form-source-url",
+          "action": "fill",
+          "input": "https://e2e-added-4.test/links/"
+        }
+      ],
+      "then": [
+        "backlinks.add-form-submit"
+      ],
+      "note": "A target outside the business site is refused (422) and the dialog stays open."
+    },
+    {
+      "control": "backlinks.drawer-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-drawer"
+      },
+      "view": "#open={seed.backlinkMain}"
+    },
+    {
+      "control": "backlinks.drawer-copy-urls",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-toast"
+      },
+      "view": "#open={seed.backlinkMain}"
+    },
+    {
+      "control": "backlinks.drawer-source-url",
+      "action": "click",
+      "expect": {
+        "popup": "mention.test/blog/linked/"
+      },
+      "view": "#open={seed.backlinkMain}"
+    },
+    {
+      "control": "backlinks.drawer-target-url",
+      "action": "click",
+      "expect": {
+        "popup": "northwind.test"
+      },
+      "view": "#open={seed.backlinkMain}"
+    },
+    {
+      "control": "backlinks.drawer-check",
+      "action": "click",
+      "expect": {
+        "request": "POST /backlinks/{id}/check"
+      },
+      "view": "#open={seed.backlinkMain}"
+    },
+    {
+      "control": "backlinks.drawer-delete",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-modal"
+      },
+      "view": "#open={seed.backlinkMain}"
+    },
+    {
+      "control": "backlinks.drawer-delete-confirm-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#open={seed.backlinkMain}",
+      "before": [
+        "backlinks.drawer-delete"
+      ]
+    },
+    {
+      "control": "backlinks.drawer-delete-confirm-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "view": "#open={seed.backlinkMain}",
+      "before": [
+        "backlinks.drawer-delete"
+      ]
+    },
+    {
+      "control": "backlinks.drawer-delete-confirm-confirm",
+      "action": "click",
+      "expect": {
+        "request": "DELETE /backlinks/{id}"
+      },
+      "view": "#open={seed.backlinkDelete}",
+      "destructive": true,
+      "before": [
+        "backlinks.drawer-delete"
+      ]
+    },
+    {
+      "control": "backlinks.toast-dismiss",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-toast"
+      },
+      "view": "#open={seed.backlinkMain}",
+      "before": [
+        "backlinks.drawer-copy-urls"
+      ]
+    },
+    {
+      "control": "backlinks.drawer-retry",
+      "action": "click",
+      "expect": {
+        "request": "GET /backlinks/{id}"
+      },
+      "view": "#open={seed.backlinkMain}",
+      "mock": [
+        {
+          "request": "GET /backlinks/{seed.backlinkMain}",
+          "status": 500
+        }
+      ],
+      "note": "The drawer's error state and its retry."
+    },
+    {
+      "control": "shell.nav-backlinks",
+      "action": "click",
+      "expect": {
+        "navigate": "/page=lga-backlinks(&|#|$)/"
+      }
+    }
+  ]
+}

@@ -217,8 +217,8 @@ final class CoreModule extends AbstractModule {
 
     public function settingsTabs(): array {
         return [
-            'business' => [ 'label' => __( 'Business profile', 'linkgrowth-autopilot' ), 'module' => 'pages/settings.js', 'order' => 10 ],
-            'advanced' => [ 'label' => __( 'Advanced', 'linkgrowth-autopilot' ), 'module' => 'pages/settings.js', 'order' => 80 ],
+            'business' => [ 'label' => __( 'Business profile', 'linkgrowth-autopilot' ), 'module' => 'settings/business.js', 'order' => 10 ],
+            'advanced' => [ 'label' => __( 'Advanced', 'linkgrowth-autopilot' ), 'module' => 'settings/advanced.js', 'order' => 80 ],
         ];
     }
 

@@ -1,0 +1,527 @@
+{
+  "page": "settings",
+  "description": "Settings › discovery tab: every field (Save sends its value: the request and its body are checked, the answer is mocked) and the tab's own controls.",
+  "controls": [
+    {
+      "control": "settings.field-discovery-brand-terms",
+      "action": "fill",
+      "input": "Northwind Supply Co\nnorthwind.test\ne2e",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"discovery\":{\"brand_terms\":[\"Northwind Supply Co\",\"northwind.test\",\"e2e\"]",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=discovery",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-discovery-competitor-domains",
+      "action": "fill",
+      "input": "e2e",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"discovery\":{\"competitor_domains\":[\"e2e\"]",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=discovery",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-discovery-competitor-domains-auto",
+      "action": "fill",
+      "input": "e2e",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"discovery\":{\"competitor_domains_auto\":[\"e2e\"]",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=discovery",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-discovery-custom-queries",
+      "action": "fill",
+      "input": "e2e",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"discovery\":{\"custom_queries\":[\"e2e\"]",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=discovery",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-discovery-excluded-domains",
+      "action": "fill",
+      "input": "e2e",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"discovery\":{\"excluded_domains\":[\"e2e\"]",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=discovery",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-discovery-geo-modifiers",
+      "action": "fill",
+      "input": "Portland\nOregon\nPacific Northwest\ne2e",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"discovery\":{\"geo_modifiers\":[\"Portland\",\"Oregon\",\"Pacific Northwest\",\"e2e\"]",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=discovery",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-discovery-query-cooldown-days",
+      "action": "fill",
+      "input": "31",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"discovery\":{\"query_cooldown_days\":31",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=discovery",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-discovery-results-per-query",
+      "action": "fill",
+      "input": "11",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"discovery\":{\"results_per_query\":11",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=discovery",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-discovery-seed-catalog",
+      "action": "toggle",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"discovery\":{\"seed_catalog\":",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=discovery",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.seeds-add",
+      "action": "click",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"custom_seeds\":[",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=discovery",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.seeds-url",
+      "action": "fill",
+      "input": "https://e2e-seed.test/add/",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"https://e2e-seed.test/add/\""
+      },
+      "view": "#tab=discovery",
+      "before": [
+        "settings.seeds-add"
+      ],
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.seeds-name",
+      "action": "fill",
+      "input": "E2E seed",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"E2E seed\""
+      },
+      "view": "#tab=discovery",
+      "before": [
+        "settings.seeds-add",
+        {
+          "control": "settings.seeds-url",
+          "action": "fill",
+          "input": "https://e2e-seed.test/add/"
+        }
+      ],
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.seeds-type",
+      "action": "select",
+      "input": "association",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"association\""
+      },
+      "view": "#tab=discovery",
+      "before": [
+        "settings.seeds-add",
+        {
+          "control": "settings.seeds-url",
+          "action": "fill",
+          "input": "https://e2e-seed.test/add/"
+        }
+      ],
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.seeds-opportunity",
+      "action": "select",
+      "input": "resource_page",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"resource_page\""
+      },
+      "view": "#tab=discovery",
+      "before": [
+        "settings.seeds-add",
+        {
+          "control": "settings.seeds-url",
+          "action": "fill",
+          "input": "https://e2e-seed.test/add/"
+        }
+      ],
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.seeds-category",
+      "action": "fill",
+      "input": "Industrial",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"Industrial\""
+      },
+      "view": "#tab=discovery",
+      "before": [
+        "settings.seeds-add",
+        {
+          "control": "settings.seeds-url",
+          "action": "fill",
+          "input": "https://e2e-seed.test/add/"
+        }
+      ],
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.seeds-country",
+      "action": "fill",
+      "input": "US",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"US\""
+      },
+      "view": "#tab=discovery",
+      "before": [
+        "settings.seeds-add",
+        {
+          "control": "settings.seeds-url",
+          "action": "fill",
+          "input": "https://e2e-seed.test/add/"
+        }
+      ],
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.seeds-remove",
+      "action": "click",
+      "expect": {
+        "dom": "![data-lga-control=\"settings.seeds-url\"]"
+      },
+      "view": "#tab=discovery",
+      "before": [
+        "settings.seeds-add"
+      ]
+    },
+    {
+      "control": "settings.competitors-suggest",
+      "action": "click",
+      "expect": {
+        "request": "POST /settings/competitors/suggest",
+        "status": "4xx"
+      },
+      "view": "#tab=discovery",
+      "timeout": 60000,
+      "note": "SE Ranking is not configured on the test site: the request is refused (400) and the error is shown."
+    }
+  ]
+}

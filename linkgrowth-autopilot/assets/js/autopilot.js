@@ -6,7 +6,7 @@
  */
 
 import * as api from './api.js';
-import { el, card, switchRow, badge, callout, confirm, toast, isObject, fmtDate } from './ui.js';
+import { el, card, switchRow, badge, callout, confirm, toast, isObject, fmtDate, setControl } from './ui.js';
 
 const obj = ( v ) => ( isObject( v ) ? v : {} );
 const arr = ( v ) => ( Array.isArray( v ) ? v : [] );
@@ -84,6 +84,7 @@ export async function setAutopilot( next, status ) {
             title: 'Turn on Autopilot',
             confirmText: 'Turn on Autopilot',
             danger: true,
+            control: 'autopilot-on-confirm',
             details: el( 'div', { class: 'lga-autopilot-confirm' },
                 el( 'p', { class: 'lga-strong' }, 'What runs automatically:' ),
                 el( 'ul', { class: 'lga-list--bullets lga-autopilot-runs' }, runs.map( ( l ) => el( 'li', {}, l ) ) ),
@@ -104,7 +105,7 @@ export async function setAutopilot( next, status ) {
         toast( 'Autopilot is on. The engine now approves and sends without asking you first.', 'success' );
         return res;
     }
-    if ( ! ( await confirm( 'Turn off Autopilot? Automatic sending stops at once, and messages Autopilot approved but did not send yet go back to draft.', { title: 'Turn off Autopilot', confirmText: 'Turn off' } ) ) ) {
+    if ( ! ( await confirm( 'Turn off Autopilot? Automatic sending stops at once, and messages Autopilot approved but did not send yet go back to draft.', { title: 'Turn off Autopilot', confirmText: 'Turn off', control: 'autopilot-off-confirm' } ) ) ) {
         return null;
     }
     let res;
@@ -134,6 +135,7 @@ export function autopilotCard( status, onChange ) {
         actions: sum.on ? badge( 'On', 'success', { dot: true } ) : badge( 'Off', 'neutral', { dot: true } ),
         body: [
             switchRow( {
+                control: 'autopilot',
                 label: 'Let the engine approve and send without asking me',
                 description: sum.lines[ 0 ],
                 checked: sum.on,
@@ -150,7 +152,7 @@ export function autopilotCard( status, onChange ) {
                 },
             } ),
             sum.lines.length > 1 ? el( 'ul', { class: 'lga-list--bullets lga-small' }, sum.lines.slice( 1 ).map( ( l ) => el( 'li', {}, l ) ) ) : null,
-            limits.length ? el( 'details', { class: 'lga-details' }, el( 'summary', {}, 'Limits that always stay on' ), el( 'ul', { class: 'lga-list--bullets lga-small' }, limits.map( ( l ) => el( 'li', {}, String( l ) ) ) ) ) : null,
+            limits.length ? el( 'details', { class: 'lga-details' }, setControl( el( 'summary', {}, 'Limits that always stay on' ), 'autopilot-limits' ), el( 'ul', { class: 'lga-list--bullets lga-small' }, limits.map( ( l ) => el( 'li', {}, String( l ) ) ) ) ) : null,
             s.owner_tasks_note ? callout( 'info', null, String( s.owner_tasks_note ) ) : null,
         ],
     } );

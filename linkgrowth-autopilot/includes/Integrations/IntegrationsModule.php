@@ -137,7 +137,7 @@ final class IntegrationsModule extends AbstractModule {
 
     public function settingsTabs(): array {
         return [
-            'integrations' => [ 'label' => __( 'Integrations', 'linkgrowth-autopilot' ), 'module' => 'pages/settings.js', 'order' => 40 ],
+            'integrations' => [ 'label' => __( 'Integrations', 'linkgrowth-autopilot' ), 'module' => 'settings/integrations.js', 'order' => 40 ],
         ];
     }
 }

@@ -12,6 +12,8 @@ import path from 'node:path';
 
 const [ pluginDirArg, playwrightPath, chromePath ] = process.argv.slice( 2 );
 const pluginDir = path.resolve( pluginDirArg || '.' ) + path.sep;
+// lga-config's pages and Settings tabs as Admin\Menu prints them (WP3: the router and the Settings tabs are built from them).
+const SPA = JSON.parse( fs.readFileSync( path.join( pluginDir, 'tests/fixtures/spa-config.json' ), 'utf8' ) );
 const require = createRequire( import.meta.url );
 const print = ( value ) => process.stdout.write( JSON.stringify( value ) );
 
@@ -46,9 +48,11 @@ function importMap() {
             add( `assets/js/${ f }` );
         }
     }
-    for ( const f of fs.readdirSync( path.join( pluginDir, 'assets/js/pages' ) ) ) {
-        if ( f.endsWith( '.js' ) ) {
-            add( `assets/js/pages/${ f }` );
+    for ( const dir of [ 'pages', 'settings' ] ) {
+        for ( const f of fs.readdirSync( path.join( pluginDir, `assets/js/${ dir }` ) ) ) {
+            if ( f.endsWith( '.js' ) ) {
+                add( `assets/js/${ dir }/${ f }` );
+            }
         }
     }
     return { imports };
@@ -59,6 +63,8 @@ const WP_SHELL_END = '</div></div></div><div id="wpfooter"><p><a href="https://w
 
 function adminHtml( withImportMap ) {
     const config = {
+        pages: SPA.pages,
+        settingsTabs: SPA.settingsTabs,
         page: 'overview',
         pageUrls: { overview: `${ ORIGIN }/wp-admin/admin.php?page=lga`, logs: `${ ORIGIN }/wp-admin/admin.php?page=lga-logs` },
         restRoot: `${ ORIGIN }/wp-json/lga/v1/`,

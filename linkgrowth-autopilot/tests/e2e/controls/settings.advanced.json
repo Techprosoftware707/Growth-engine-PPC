@@ -1,0 +1,246 @@
+{
+  "page": "settings",
+  "description": "Settings › advanced tab: every field (Save sends its value: the request and its body are checked, the answer is mocked) and the tab's own controls.",
+  "controls": [
+    {
+      "control": "settings.field-advanced-audit-retention-days",
+      "action": "fill",
+      "input": "366",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"advanced\":{\"audit_retention_days\":366",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=advanced",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-advanced-crawl-delay-seconds",
+      "action": "fill",
+      "input": "1",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"advanced\":{\"crawl_delay_seconds\":1",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=advanced",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-advanced-delete-on-uninstall",
+      "action": "toggle",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"advanced\":{\"delete_on_uninstall\":",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=advanced",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-advanced-log-level",
+      "action": "select",
+      "input": "info",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"advanced\":{\"log_level\":\"info\"",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=advanced",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-advanced-log-retention-days",
+      "action": "fill",
+      "input": "31",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"advanced\":{\"log_retention_days\":31",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=advanced",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-advanced-max-response-kb",
+      "action": "fill",
+      "input": "1537",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"advanced\":{\"max_response_kb\":1537",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=advanced",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-advanced-request-timeout",
+      "action": "fill",
+      "input": "16",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"advanced\":{\"request_timeout\":16",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=advanced",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-advanced-user-agent",
+      "action": "fill",
+      "input": "LinkGrowthAutopilotBot/1.0 (+http://localhost:8793/; link research) e2e",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"advanced\":{\"user_agent\":\"LinkGrowthAutopilotBot/1.0 (+http://localhost:8793/; link research) e2e\"",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=advanced",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.backup-download",
+      "action": "click",
+      "expect": {
+        "download": "{seed.backupFile}"
+      },
+      "view": "#tab=advanced",
+      "note": "The table backup tests/e2e/setup.php makes (backups are otherwise made before migrations only)."
+    }
+  ]
+}

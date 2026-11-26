@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace LinkGrowth\Autopilot\Tests\Unit\Admin;
 
 use LinkGrowth\Autopilot\Admin\Assets;
+use LinkGrowth\Autopilot\Admin\Menu;
 use LinkGrowth\Autopilot\Admin\Rest\Controller;
 use LinkGrowth\Autopilot\Admin\Rest\ProspectsController;
 use LinkGrowth\Autopilot\Admin\Rest\PublicController;
@@ -261,7 +262,8 @@ final class AdminRest2FixesTest extends TestCase {
         $modules = $assets->moduleVersions( '9.9.9' );
         $this->assertArrayNotHasKey( LGA_URL . 'assets/js/app.js', $modules, 'the entry is enqueued itself, not mapped' );
 
-        $files = array_merge( glob( LGA_DIR . 'assets/js/*.js' ) ?: [], glob( LGA_DIR . 'assets/js/pages/*.js' ) ?: [] );
+        // WP3: the Settings tabs are modules of their own (assets/js/settings/), loaded like the pages.
+        $files = array_merge( glob( LGA_DIR . 'assets/js/*.js' ) ?: [], glob( LGA_DIR . 'assets/js/pages/*.js' ) ?: [], glob( LGA_DIR . 'assets/js/settings/*.js' ) ?: [] );
         $this->assertNotEmpty( $files );
         $checked = 0;
         foreach ( $files as $file ) {
@@ -278,6 +280,15 @@ final class AdminRest2FixesTest extends TestCase {
         $this->assertGreaterThan( 10, $checked );
         foreach ( array_keys( $modules ) as $url ) {
             $this->assertFileExists( LGA_DIR . substr( $url, strlen( LGA_URL ) ) );
+        }
+        // WP3: app.js loads the page and Settings tab modules lga-config names (paths relative to assets/js/), so each
+        // of those must be versioned through the import map as well.
+        $paths = array_merge( array_column( Menu::pageDefinitions(), 'module' ), array_column( Menu::settingsTabs(), 'module' ) );
+        $this->assertNotEmpty( $paths );
+        foreach ( $paths as $path ) {
+            $url = LGA_URL . 'assets/js/' . $path;
+            $this->assertArrayHasKey( $url, $modules, "the module $path of lga-config is not versioned by the import map" );
+            $this->assertStringStartsWith( '9.9.9', $modules[ $url ] );
         }
     }
 

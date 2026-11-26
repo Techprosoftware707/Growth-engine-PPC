@@ -223,7 +223,7 @@ final class OutreachModule extends AbstractModule {
 
     public function settingsTabs(): array {
         return [
-            'outreach' => [ 'label' => __( 'Outreach & compliance', 'linkgrowth-autopilot' ), 'module' => 'pages/settings.js', 'order' => 50 ],
+            'outreach' => [ 'label' => __( 'Outreach & compliance', 'linkgrowth-autopilot' ), 'module' => 'settings/outreach.js', 'order' => 50 ],
         ];
     }
 }

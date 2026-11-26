@@ -1291,8 +1291,10 @@
 
 .lga-filterbar-actions {
     display: flex;
+    flex-wrap: wrap;
     gap: 6px;
     margin-left: auto;
+    max-width: 100%;
 }
 
 .lga-search {

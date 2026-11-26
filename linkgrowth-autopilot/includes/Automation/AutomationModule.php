@@ -213,7 +213,7 @@ final class AutomationModule extends AbstractModule {
 
     public function settingsTabs(): array {
         return [
-            'automation' => [ 'label' => __( 'Automation & limits', 'linkgrowth-autopilot' ), 'module' => 'pages/settings.js', 'order' => 20 ],
+            'automation' => [ 'label' => __( 'Automation & limits', 'linkgrowth-autopilot' ), 'module' => 'settings/automation.js', 'order' => 20 ],
         ];
     }
 }

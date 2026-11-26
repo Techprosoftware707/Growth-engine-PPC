@@ -1,0 +1,1027 @@
+{
+  "page": "settings",
+  "description": "Settings › automation tab: every field (Save sends its value: the request and its body are checked, the answer is mocked) and the tab's own controls.",
+  "controls": [
+    {
+      "control": "settings.field-automation-auto-outreach-drafts",
+      "action": "toggle",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"automation\":{\"auto_outreach_drafts\":",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=automation",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-automation-daily-limits-backlink-checks",
+      "action": "fill",
+      "input": "151",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"automation\":{\"daily_limits\":{\"backlink_checks\":151",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=automation",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-automation-daily-limits-discovery-queries",
+      "action": "fill",
+      "input": "16",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"automation\":{\"daily_limits\":{\"discovery_queries\":16",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=automation",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-automation-daily-limits-evaluations",
+      "action": "fill",
+      "input": "41",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"automation\":{\"daily_limits\":{\"evaluations\":41",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=automation",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-automation-daily-limits-outreach-emails",
+      "action": "fill",
+      "input": "11",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"automation\":{\"daily_limits\":{\"outreach_emails\":11",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=automation",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-automation-daily-limits-provider-lookups",
+      "action": "fill",
+      "input": "61",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"automation\":{\"daily_limits\":{\"provider_lookups\":61",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=automation",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-automation-daily-limits-submissions",
+      "action": "fill",
+      "input": "6",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"automation\":{\"daily_limits\":{\"submissions\":6",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=automation",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-automation-discovery",
+      "action": "toggle",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"automation\":{\"discovery\":",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=automation",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-automation-enabled",
+      "action": "toggle",
+      "expect": {
+        "request": "POST /automation/toggle",
+        "status": "422",
+        "body": "\"key\":\"enabled\"",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=automation",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /automation/toggle",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-automation-evaluation",
+      "action": "toggle",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"automation\":{\"evaluation\":",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=automation",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-automation-imports",
+      "action": "toggle",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"automation\":{\"imports\":",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=automation",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-automation-international",
+      "action": "toggle",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"automation\":{\"international\":",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=automation",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-automation-max-execution-seconds",
+      "action": "fill",
+      "input": "21",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"automation\":{\"max_execution_seconds\":21",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=automation",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-automation-min-score-auto-queue",
+      "action": "fill",
+      "input": "71",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"automation\":{\"min_score_auto_queue\":71",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=automation",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-automation-min-score-keep",
+      "action": "fill",
+      "input": "51",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"automation\":{\"min_score_keep\":51",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=automation",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-automation-monitoring",
+      "action": "toggle",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"automation\":{\"monitoring\":",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=automation",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-automation-opportunities",
+      "action": "toggle",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"automation\":{\"opportunities\":",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=automation",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-automation-outreach-autosend",
+      "action": "toggle",
+      "expect": {
+        "request": "POST /automation/toggle",
+        "status": "422",
+        "body": "\"key\":\"outreach_autosend\"",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=automation",
+      "prepare": [
+        {
+          "rest": "POST /automation/toggle",
+          "body": {
+            "key": "outreach_autosend",
+            "value": false
+          }
+        }
+      ],
+      "then": [
+        "settings.save",
+        "settings.enable-outreach-autosend-confirm-confirm"
+      ],
+      "mock": [
+        {
+          "request": "POST /automation/toggle",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-automation-packaging",
+      "action": "toggle",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"automation\":{\"packaging\":",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=automation",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-automation-submission-mode",
+      "action": "select",
+      "input": "auto",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"automation\":{\"submission_mode\":\"auto\"",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=automation",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-automation-submissions",
+      "action": "toggle",
+      "expect": {
+        "request": "POST /automation/toggle",
+        "status": "422",
+        "body": "\"key\":\"submissions\"",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=automation",
+      "prepare": [
+        {
+          "rest": "POST /automation/toggle",
+          "body": {
+            "key": "submissions",
+            "value": false
+          }
+        }
+      ],
+      "then": [
+        "settings.save",
+        "settings.enable-submissions-confirm-confirm"
+      ],
+      "mock": [
+        {
+          "request": "POST /automation/toggle",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-automation-tick-interval",
+      "action": "fill",
+      "input": "301",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"automation\":{\"tick_interval\":301",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=automation",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-automation-weekly-limits-discovery-queries",
+      "action": "fill",
+      "input": "81",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"automation\":{\"weekly_limits\":{\"discovery_queries\":81",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=automation",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-automation-weekly-limits-outreach-emails",
+      "action": "fill",
+      "input": "41",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"automation\":{\"weekly_limits\":{\"outreach_emails\":41",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=automation",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-automation-weekly-limits-submissions",
+      "action": "fill",
+      "input": "21",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"automation\":{\"weekly_limits\":{\"submissions\":21",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=automation",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-growth-evaluate-rounds",
+      "action": "fill",
+      "input": "7",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"growth\":{\"evaluate_rounds\":7",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=automation",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-growth-step-seconds",
+      "action": "fill",
+      "input": "21",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"growth\":{\"step_seconds\":21",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=automation",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-seo-audit-http-sample",
+      "action": "toggle",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"seo\":{\"audit_http_sample\":",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=automation",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-seo-audit-max-pages",
+      "action": "fill",
+      "input": "401",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"seo\":{\"audit_max_pages\":401",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=automation",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-seo-auto-apply-links",
+      "action": "toggle",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"seo\":{\"auto_apply_links\":",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=automation",
+      "then": [
+        "settings.save",
+        "settings.auto-links-confirm-confirm"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-seo-auto-apply-per-day",
+      "action": "fill",
+      "input": "21",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"seo\":{\"auto_apply_per_day\":21",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=automation",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-seo-indexnow",
+      "action": "toggle",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"seo\":{\"indexnow\":",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=automation",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-seo-internal-links",
+      "action": "toggle",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"seo\":{\"internal_links\":",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=automation",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-seo-language-counterpart-meta-key",
+      "action": "fill",
+      "input": "e2e",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"seo\":{\"language_counterpart_meta_key\":\"e2e\"",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=automation",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    },
+    {
+      "control": "settings.field-seo-max-links-per-post",
+      "action": "fill",
+      "input": "4",
+      "expect": {
+        "request": "POST /settings",
+        "status": "422",
+        "body": "\"seo\":{\"max_links_per_post\":4",
+        "dom": ".lga-savebar--dirty"
+      },
+      "view": "#tab=automation",
+      "then": [
+        "settings.save"
+      ],
+      "mock": [
+        {
+          "request": "POST /settings",
+          "status": 422,
+          "body": {
+            "code": "lga_e2e_mock",
+            "message": "E2E: the save request was checked; this answer is mocked so the site keeps its seeded settings.",
+            "data": {
+              "status": 422
+            }
+          }
+        }
+      ],
+      "note": "Save sends the value; the answer is mocked (422) so the site keeps its seeded settings (the real save: settings.save)."
+    }
+  ]
+}

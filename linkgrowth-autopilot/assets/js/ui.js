@@ -163,6 +163,83 @@ export function fragment( ...children ) {
     return frag;
 }
 
+// ---------------------------------------------------------------------
+// Control ids (DESIGN.md §10.1, §12.5)
+// ---------------------------------------------------------------------
+//
+// Every interactive element the helpers below create carries data-lga-control="<page>.<control-id>": the page is
+// the scope app.js sets before it renders a page (setControlScope), the control id is kebab-case and names one
+// control of that page. A control repeated once per row of a list (the "Open" button of every row) keeps one id on
+// every row. An id that already holds a "." names its own scope ("shell.theme" for the header, which every page
+// shows). Helpers that build several controls (tabs, tables, filter bars, dialogs) take a `control` prefix and
+// derive the ids of their parts from it (`<prefix>-<part>`).
+
+let controlScope = '';
+
+/** Sets the page every control id is scoped to (app.js calls it with the page key before rendering the page). */
+export function setControlScope( scope ) {
+    controlScope = /^[a-z0-9_-]+$/.test( String( scope || '' ) ) ? String( scope ) : '';
+}
+
+/** The current control scope ('' before app.js set one). */
+export function getControlScope() {
+    return controlScope;
+}
+
+/** "Save changes" / "pending_review" / "Seo.Links" → "save-changes" / "pending-review" / "seo-links". */
+export function kebab( value ) {
+    return String( value === null || value === undefined ? '' : value )
+        .normalize( 'NFKD' )
+        .replace( /[̀-ͯ]/g, '' )
+        .toLowerCase()
+        .replace( /[^a-z0-9]+/g, '-' )
+        .replace( /^-+|-+$/g, '' );
+}
+
+/**
+ * Joins id parts with "-" (empty parts are skipped): controlId( 'drawer', 'tab', 'contacts' ) → "drawer-tab-contacts".
+ * A scope the first part names is kept: controlId( 'shell.notifications', 'close' ) → "shell.notifications-close".
+ */
+export function controlId( ...parts ) {
+    const list = parts.map( ( p ) => ( p === null || p === undefined ? '' : String( p ) ) );
+    let scope = '';
+    const dot = list.length ? list[ 0 ].indexOf( '.' ) : -1;
+    if ( dot > 0 ) {
+        scope = list[ 0 ].slice( 0, dot );
+        list[ 0 ] = list[ 0 ].slice( dot + 1 );
+    }
+    const id = list.map( ( p ) => kebab( p ) ).filter( ( p ) => p !== '' ).join( '-' );
+    return scope !== '' && id !== '' ? `${ scope }.${ id }` : id;
+}
+
+/**
+ * The data-lga-control value for a control id: "<scope>.<id>" ('' for no id). An id with a "." keeps the scope it
+ * names: "shell.theme" stays "shell.theme".
+ */
+export function controlName( id ) {
+    if ( id === null || id === undefined || id === false || id === '' ) {
+        return '';
+    }
+    const raw = String( id );
+    const dot = raw.indexOf( '.' );
+    if ( dot > 0 ) {
+        const scope = raw.slice( 0, dot );
+        const rest = kebab( raw.slice( dot + 1 ) );
+        return /^[a-z0-9_-]+$/.test( scope ) && rest !== '' ? `${ scope }.${ rest }` : '';
+    }
+    const name = kebab( raw );
+    return name === '' ? '' : `${ controlScope || 'app' }.${ name }`;
+}
+
+/** Sets data-lga-control on `node` (nothing for an empty id); returns the node. */
+export function setControl( node, id ) {
+    const name = controlName( id );
+    if ( node && name && typeof node.setAttribute === 'function' ) {
+        node.setAttribute( 'data-lga-control', name );
+    }
+    return node;
+}
+
 /** HTML-escapes a string (only needed when building attribute strings manually). */
 export function escapeHtml( value ) {
     return String( value === null || value === undefined ? '' : value )
@@ -540,7 +617,7 @@ export function statusBadge( status, { dot = true } = {} ) {
     return badge( labelize( s ), kindFor( s ), { dot } );
 }
 
-export function button( label, { kind = 'secondary', onClick, iconName, small = false, type = 'button', disabled = false, title, block = false, attrs = {} } = {} ) {
+export function button( label, { kind = 'secondary', onClick, iconName, small = false, type = 'button', disabled = false, title, block = false, attrs = {}, control = '' } = {} ) {
     const btn = el( 'button', {
         type,
         class: [ 'lga-btn', kind !== 'secondary' ? `lga-btn--${ kind }` : '', small ? 'lga-btn--small' : '', block ? 'lga-btn--block' : '' ],
@@ -548,6 +625,7 @@ export function button( label, { kind = 'secondary', onClick, iconName, small = 
         title: title || null,
         ...attrs,
     }, iconName ? icon( iconName, small ? 13 : 15 ) : null, label );
+    setControl( btn, control );
     if ( onClick ) {
         btn.addEventListener( 'click', async ( event ) => {
             if ( btn.disabled || isBusy( btn ) ) {
@@ -559,6 +637,12 @@ export function button( label, { kind = 'secondary', onClick, iconName, small = 
                 setBusy( btn, true );
                 try {
                     await result;
+                } catch ( e ) {
+                    // A refused request the handler did not catch was already shown to the user (api.js toast):
+                    // the click ends there instead of as an uncaught error. Anything else is a real error.
+                    if ( ! ( e && e.surfaced === true ) ) {
+                        throw e;
+                    }
                 } finally {
                     setBusy( btn, false );
                 }
@@ -568,8 +652,9 @@ export function button( label, { kind = 'secondary', onClick, iconName, small = 
     return btn;
 }
 
-export function iconButton( iconName, label, { onClick, small = false, attrs = {} } = {} ) {
+export function iconButton( iconName, label, { onClick, small = false, attrs = {}, control = '' } = {} ) {
     const btn = el( 'button', { type: 'button', class: [ 'lga-iconbtn', small ? 'lga-iconbtn--small' : '' ], 'aria-label': label, title: label, ...attrs }, icon( iconName, small ? 14 : 18 ) );
+    setControl( btn, control );
     if ( onClick ) {
         btn.addEventListener( 'click', onClick );
     }
@@ -619,27 +704,85 @@ function busyClickGuard( event ) {
     }
 }
 
-export function linkButton( label, href, { kind = 'secondary', iconName, small = false, external = false } = {} ) {
-    return el( 'a', {
+export function linkButton( label, href, { kind = 'secondary', iconName, small = false, external = false, control = '' } = {} ) {
+    return setControl( el( 'a', {
         href,
         class: [ 'lga-btn', kind !== 'secondary' ? `lga-btn--${ kind }` : '', small ? 'lga-btn--small' : '' ],
         target: external ? '_blank' : null,
         rel: external ? 'noopener noreferrer' : null,
-    }, iconName ? icon( iconName, 14 ) : null, label );
+    }, iconName ? icon( iconName, 14 ) : null, label ), control );
 }
 
-export function extLink( url, label, { className = '', maxLength = 0 } = {} ) {
+/**
+ * Plain link (an <a> styled as text, not as a button). `external` opens a new tab; `onClick` runs instead of the
+ * navigation when it calls event.preventDefault() itself.
+ */
+export function link( content, href, { control = '', className = '', title, external = false, onClick = null } = {} ) {
+    const node = el( 'a', {
+        href,
+        class: className || null,
+        title: title || null,
+        target: external ? '_blank' : null,
+        rel: external ? 'noopener noreferrer' : null,
+    }, content );
+    if ( onClick ) {
+        node.addEventListener( 'click', onClick );
+    }
+    return setControl( node, control );
+}
+
+export function extLink( url, label, { className = '', maxLength = 0, control = '' } = {} ) {
     const href = String( url || '' );
     if ( href === '' ) {
         return el( 'span', { class: 'lga-muted' }, label || '—' );
     }
-    const safeHref = /^https?:\/\//i.test( href ) ? href : '#';
     const display = label !== undefined && label !== null && label !== '' ? String( label ) : href.replace( /^https?:\/\//i, '' );
-    return el( 'a', { href: safeHref, target: '_blank', rel: 'noopener noreferrer', class: [ 'lga-link-ext', className ], title: href }, maxLength > 0 ? truncate( display, maxLength ) : display, icon( 'external', 12 ) );
+    if ( ! /^https?:\/\//i.test( href ) ) {
+        // Not a web address (e.g. a contact's source "manual"): plain text, not a link to "#" that only opens the
+        // dashboard again in a new tab.
+        return el( 'span', { class: [ 'lga-muted', className ], title: href }, maxLength > 0 ? truncate( display, maxLength ) : display );
+    }
+    return setControl( el( 'a', { href, target: '_blank', rel: 'noopener noreferrer', class: [ 'lga-link-ext', className ], title: href }, maxLength > 0 ? truncate( display, maxLength ) : display, icon( 'external', 12 ) ), control );
 }
 
-export function copyButton( value, label = 'Copy' ) {
-    return el( 'button', {
+/** <input> (any type but checkbox: see checkbox()). Attributes as for el(). */
+export function input( { control = '', ...attrs } = {} ) {
+    return setControl( el( 'input', attrs ), control );
+}
+
+/** <input type="checkbox">. */
+export function checkbox( { control = '', ...attrs } = {} ) {
+    return setControl( el( 'input', { type: 'checkbox', ...attrs } ), control );
+}
+
+/** <textarea>. */
+export function textarea( { control = '', ...attrs } = {} ) {
+    return setControl( el( 'textarea', attrs ), control );
+}
+
+/**
+ * <select> with its options: an array of values (labelled with labelize()), of {value, label} objects, or an object
+ * value => label; `value` selects one.
+ */
+export function select( { control = '', options = [], value, ...attrs } = {} ) {
+    const node = el( 'select', attrs );
+    const current = value === undefined || value === null ? null : String( value );
+    for ( const opt of normalizeOptions( options ) ) {
+        node.appendChild( el( 'option', { value: opt.value, selected: current !== null && opt.value === current }, opt.label ) );
+    }
+    return setControl( node, control );
+}
+
+/**
+ * The switch button (role="switch", aria-checked) of formField( { type: 'toggle' } ) and switchRow(). Clicking it
+ * changes nothing by itself: the caller decides (formField flips it at once, switchRow after its onChange).
+ */
+export function toggleSwitch( { control = '', id, checked = false, label = '', disabled = false, describedBy = null } = {} ) {
+    return setControl( el( 'button', { id: id || null, type: 'button', class: 'lga-toggle', role: 'switch', 'aria-checked': checked ? 'true' : 'false', 'aria-describedby': describedBy, disabled, 'aria-label': label || 'Toggle' } ), control );
+}
+
+export function copyButton( value, label = 'Copy', { control = '' } = {} ) {
+    return setControl( el( 'button', {
         type: 'button',
         class: 'lga-copybtn',
         onClick: async () => {
@@ -651,7 +794,7 @@ export function copyButton( value, label = 'Copy' ) {
                 toast( 'Could not copy automatically; select the text and copy it manually.', 'warning' );
             }
         },
-    }, icon( 'copy', 12 ), label );
+    }, icon( 'copy', 12 ), label ), control );
 }
 
 export function spinner( small = false ) {
@@ -670,6 +813,7 @@ export function skeletonRows( count = 5, widths = [ '60%', '40%', '80%', '30%' ]
     return el( 'div', { 'aria-hidden': 'true' }, rows );
 }
 
+/** `action` is a control the caller built (a button or link with its own control id). */
 export function emptyState( { title = 'Nothing here yet', message = '', action = null, iconName = 'inbox', compact = false } = {} ) {
     return el( 'div', { class: [ 'lga-empty', compact ? 'lga-empty--compact' : '' ] },
         icon( iconName, 36 ),
@@ -679,12 +823,13 @@ export function emptyState( { title = 'Nothing here yet', message = '', action =
     );
 }
 
-export function errorState( { title = 'Something went wrong', message = '', retry = null } = {} ) {
+/** `control` names the "Try again" button (default "retry"). */
+export function errorState( { title = 'Something went wrong', message = '', retry = null, control = 'retry' } = {} ) {
     return el( 'div', { class: 'lga-error', role: 'alert' },
         icon( 'alert', 36 ),
         el( 'div', { class: 'lga-error-title' }, title ),
         message ? el( 'div', {}, message ) : null,
-        retry ? el( 'div', { style: { marginTop: '8px' } }, button( 'Try again', { onClick: retry, iconName: 'refresh' } ) ) : null,
+        retry ? el( 'div', { style: { marginTop: '8px' } }, button( 'Try again', { onClick: retry, iconName: 'refresh', control } ) ) : null,
     );
 }
 
@@ -758,8 +903,9 @@ export function pre( value, { plain = false, maxLength = 20000 } = {} ) {
     return el( 'pre', { class: [ 'lga-pre', plain ? 'lga-pre--plain' : '' ] }, truncate( str, maxLength ) );
 }
 
-export function details( summary, content, { open = false } = {} ) {
-    return el( 'details', { class: 'lga-details', open }, el( 'summary', {}, summary ), el( 'div', {}, content ) );
+/** Disclosure; `control` names its <summary> (the part that is clicked). */
+export function details( summary, content, { open = false, control = '' } = {} ) {
+    return el( 'details', { class: 'lga-details', open }, setControl( el( 'summary', {}, summary ), control ), el( 'div', {}, content ) );
 }
 
 export function progressBar( value, max, { tone = '' } = {} ) {
@@ -820,7 +966,8 @@ export function scoreRing( score, { size = 40, stroke = 4, showValue = true, lab
     return node;
 }
 
-export function statTile( { label, value, delta, hint, iconName, tone, href, onClick, spark } = {} ) {
+/** Stat tile; a tile with `href` (a link) or `onClick` (a button) is a control named by `control`. */
+export function statTile( { label, value, delta, hint, iconName, tone, href, onClick, spark, control = '' } = {} ) {
     const tag = href ? 'a' : 'div';
     const node = el( tag, { class: [ 'lga-tile', href || onClick ? 'lga-tile--link' : '' ], href: href || null, role: onClick ? 'button' : null, tabindex: onClick ? 0 : null },
         el( 'div', { class: 'lga-tile-label' }, iconName ? icon( iconName, 14 ) : null, label ),
@@ -831,6 +978,9 @@ export function statTile( { label, value, delta, hint, iconName, tone, href, onC
         hint ? el( 'div', { class: 'lga-tile-hint' }, hint ) : null,
         spark ? el( 'div', { class: 'lga-tile-spark' }, spark ) : null,
     );
+    if ( href || onClick ) {
+        setControl( node, control );
+    }
     if ( onClick ) {
         node.addEventListener( 'click', onClick );
         node.addEventListener( 'keydown', ( e ) => {
@@ -857,20 +1007,22 @@ function deltaEl( delta ) {
     return el( 'span', { class: [ 'lga-tile-delta', cls ], title: delta.title || null }, arrow ? el( 'span', { 'aria-hidden': 'true' }, arrow ) : null, delta.label || String( delta.value ) );
 }
 
-export function chipList( items, { onRemove, kind } = {} ) {
+/** Chips; with onRemove each chip has a remove button named `<control>-remove` (one id for every chip). */
+export function chipList( items, { onRemove, kind, control = 'chips' } = {} ) {
     const list = el( 'div', { class: 'lga-chip-list' } );
     ( items || [] ).forEach( ( item, index ) => {
         const label = typeof item === 'object' && item !== null ? ( item.label ?? item.value ?? '' ) : item;
         list.appendChild( el( 'span', { class: 'lga-chip' },
             kind ? badge( '', kind, { dot: true } ) : null,
             String( label ),
-            onRemove ? el( 'button', { type: 'button', 'aria-label': `Remove ${ label }`, onClick: () => onRemove( item, index ) }, icon( 'x', 12 ) ) : null,
+            onRemove ? setControl( el( 'button', { type: 'button', 'aria-label': `Remove ${ label }`, onClick: () => onRemove( item, index ) }, icon( 'x', 12 ) ), controlId( control, 'remove' ) ) : null,
         ) );
     } );
     return list;
 }
 
-export function checklist( items, { storageKey = '' } = {} ) {
+/** Checklist; the checkbox of step n (from 1) is named `<control>-step-<n>`. */
+export function checklist( items, { storageKey = '', control = 'checklist' } = {} ) {
     const ul = el( 'ul', { class: 'lga-checklist' } );
     let done = {};
     if ( storageKey ) {
@@ -883,7 +1035,7 @@ export function checklist( items, { storageKey = '' } = {} ) {
     ( items || [] ).forEach( ( step, index ) => {
         const id = nextId( 'chk' );
         const li = el( 'li', { class: done[ index ] ? 'lga-done' : '' } );
-        const input = el( 'input', { type: 'checkbox', id, checked: Boolean( done[ index ] ) } );
+        const input = checkbox( { id, checked: Boolean( done[ index ] ), control: controlId( control, 'step', index + 1 ) } );
         input.addEventListener( 'change', () => {
             li.classList.toggle( 'lga-done', input.checked );
             done[ index ] = input.checked;
@@ -911,6 +1063,7 @@ export function overlayHost() {
 
 let toastHost = null;
 
+/** Toast; its close button is "toast-dismiss", an action button `toast-<action.control or its label>`. */
 export function toast( message, kind = 'info', { timeout = 4500, action = null } = {} ) {
     if ( ! toastHost || ! toastHost.isConnected ) {
         toastHost = el( 'div', { class: 'lga-toasts', 'aria-live': 'polite', 'aria-relevant': 'additions' } );
@@ -919,8 +1072,8 @@ export function toast( message, kind = 'info', { timeout = 4500, action = null }
     const icons = { info: 'info', success: 'check', warning: 'alert', error: 'alert' };
     const node = el( 'div', { class: [ 'lga-toast', `lga-toast--${ kind }` ], role: kind === 'error' ? 'alert' : 'status' },
         icon( icons[ kind ] || 'info', 16 ),
-        el( 'div', { class: 'lga-grow' }, String( message ), action ? el( 'div', { style: { marginTop: '6px' } }, button( action.label, { small: true, kind: 'ghost', onClick: () => { action.onClick(); remove(); } } ) ) : null ),
-        el( 'button', { type: 'button', class: 'lga-toast-close', 'aria-label': 'Dismiss', onClick: () => remove() }, icon( 'x', 14 ) ),
+        el( 'div', { class: 'lga-grow' }, String( message ), action ? el( 'div', { style: { marginTop: '6px' } }, button( action.label, { small: true, kind: 'ghost', control: controlId( 'toast', action.control || action.label ), onClick: () => { action.onClick(); remove(); } } ) ) : null ),
+        setControl( el( 'button', { type: 'button', class: 'lga-toast-close', 'aria-label': 'Dismiss', onClick: () => remove() }, icon( 'x', 14 ) ), 'toast-dismiss' ),
     );
     let timer = null;
     const remove = () => {
@@ -1047,7 +1200,7 @@ function overlayKeydown( event ) {
  *
  * @returns {{el: HTMLElement, body: HTMLElement, close: Function, setTitle: Function, setSubtitle: Function, setContent: Function, setActions: Function, isOpen: Function}}
  */
-export function drawer( title, content, { subtitle = null, width = '', onClose = null, actions = null, dismissible = true } = {} ) {
+export function drawer( title, content, { subtitle = null, width = '', onClose = null, actions = null, dismissible = true, control = 'drawer' } = {} ) {
     const titleId = nextId( 'drawer-title' );
     const previouslyFocused = document.activeElement;
     const titleEl = el( 'h2', { class: 'lga-drawer-title', id: titleId }, title );
@@ -1058,7 +1211,7 @@ export function drawer( title, content, { subtitle = null, width = '', onClose =
     const panel = el( 'div', { class: [ 'lga-drawer', width ? `lga-drawer--${ width }` : '' ], role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': titleId, tabindex: '-1' },
         el( 'div', { class: 'lga-drawer-head' },
             el( 'div', { class: 'lga-grow' }, titleEl, subEl ),
-            iconButton( 'x', 'Close', { onClick: () => close() } ),
+            iconButton( 'x', 'Close', { onClick: () => close(), control: controlId( control, 'close' ) } ),
         ),
         body,
         foot,
@@ -1113,9 +1266,11 @@ export function drawer( title, content, { subtitle = null, width = '', onClose =
 }
 
 /**
- * Centered modal dialog. `actions` entries: { label, kind, onClick(close) } — async handlers show a busy state.
+ * Centered modal dialog. `actions` entries: { label, kind, onClick(close), control? } — async handlers show a busy
+ * state. `control` names the dialog: its close button is `<control>-close`, an action `<control>-<action.control or
+ * its label>`.
  */
-export function modal( { title, content, actions = [], width = '', onClose = null, dismissible = true } = {} ) {
+export function modal( { title, content, actions = [], width = '', onClose = null, dismissible = true, control = 'modal' } = {} ) {
     const titleId = nextId( 'modal-title' );
     const previouslyFocused = document.activeElement;
     const body = el( 'div', { class: 'lga-modal-body' }, content );
@@ -1123,7 +1278,7 @@ export function modal( { title, content, actions = [], width = '', onClose = nul
     const panel = el( 'div', { class: [ 'lga-modal', width ? `lga-modal--${ width }` : '' ], role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': titleId, tabindex: '-1' },
         el( 'div', { class: 'lga-modal-head' },
             el( 'h2', { class: 'lga-modal-title', id: titleId }, title ),
-            dismissible ? iconButton( 'x', 'Close', { small: true, onClick: () => close() } ) : null,
+            dismissible ? iconButton( 'x', 'Close', { small: true, onClick: () => close(), control: controlId( control, 'close' ) } ) : null,
         ),
         body,
         foot,
@@ -1157,6 +1312,7 @@ export function modal( { title, content, actions = [], width = '', onClose = nul
             kind: a.kind || 'secondary',
             iconName: a.iconName,
             attrs: a.autofocus ? { 'data-autofocus': '1' } : {},
+            control: controlId( control, a.control || a.label ),
             onClick: () => a.onClick ? a.onClick( close, panel ) : close(),
         } ) ) );
         setHidden( foot, ! list || list.length === 0 );
@@ -1173,7 +1329,8 @@ export function modal( { title, content, actions = [], width = '', onClose = nul
     return { el: root, body, panel, close, setActions, isOpen: () => open };
 }
 
-export function confirm( message, { title = 'Please confirm', confirmText = 'Confirm', cancelText = 'Cancel', danger = false, details = null } = {} ) {
+/** Yes/no dialog named `control`: buttons `<control>-cancel` and `<control>-confirm`. */
+export function confirm( message, { title = 'Please confirm', confirmText = 'Confirm', cancelText = 'Cancel', danger = false, details = null, control = 'confirm' } = {} ) {
     return new Promise( ( resolve ) => {
         let settled = false;
         const done = ( value ) => {
@@ -1184,17 +1341,19 @@ export function confirm( message, { title = 'Please confirm', confirmText = 'Con
         };
         modal( {
             title,
+            control,
             content: [ el( 'p', {}, message ), details ],
             onClose: () => done( false ),
             actions: [
-                { label: cancelText, onClick: ( close ) => { done( false ); close(); } },
-                { label: confirmText, kind: danger ? 'danger' : 'primary', autofocus: ! danger, onClick: ( close ) => { done( true ); close(); } },
+                { label: cancelText, control: 'cancel', onClick: ( close ) => { done( false ); close(); } },
+                { label: confirmText, control: 'confirm', kind: danger ? 'danger' : 'primary', autofocus: ! danger, onClick: ( close ) => { done( true ); close(); } },
             ],
         } );
     } );
 }
 
-export function prompt( message, { title = 'Input required', label = '', placeholder = '', multiline = false, required = true, defaultValue = '', confirmText = 'Continue', cancelText = 'Cancel', danger = false } = {} ) {
+/** Text dialog named `control`: field `<control>-input`, buttons `<control>-cancel` and `<control>-confirm`. */
+export function prompt( message, { title = 'Input required', label = '', placeholder = '', multiline = false, required = true, defaultValue = '', confirmText = 'Continue', cancelText = 'Cancel', danger = false, control = 'prompt' } = {} ) {
     return new Promise( ( resolve ) => {
         let settled = false;
         const done = ( value ) => {
@@ -1203,14 +1362,15 @@ export function prompt( message, { title = 'Input required', label = '', placeho
                 resolve( value );
             }
         };
-        const field = formField( { type: multiline ? 'textarea' : 'text', label, placeholder, value: defaultValue, rows: 4, required } );
+        const field = formField( { type: multiline ? 'textarea' : 'text', label, placeholder, value: defaultValue, rows: 4, required, control: controlId( control, 'input' ) } );
         const dialog = modal( {
             title,
+            control,
             content: [ message ? el( 'p', {}, message ) : null, field.el ],
             onClose: () => done( null ),
             actions: [
-                { label: cancelText, onClick: ( close ) => { done( null ); close(); } },
-                { label: confirmText, kind: danger ? 'danger' : 'primary', onClick: ( close ) => {
+                { label: cancelText, control: 'cancel', onClick: ( close ) => { done( null ); close(); } },
+                { label: confirmText, control: 'confirm', kind: danger ? 'danger' : 'primary', onClick: ( close ) => {
                     const value = String( field.get() || '' ).trim();
                     if ( required && value === '' ) {
                         field.setError( 'This field is required.' );
@@ -1240,8 +1400,10 @@ export function prompt( message, { title = 'Input required', label = '', placeho
 /**
  * Modal built from formField specs. Resolves with onSubmit's return value, or null when cancelled.
  * onSubmit(values, helpers{ setError(message), close }) may throw to keep the dialog open with the error shown.
+ * `control` names the form: each field is `<control>-<field name>` (unless its spec names a control), the buttons
+ * `<control>-cancel` and `<control>-submit`.
  */
-export function formModal( { title, description = null, fields = [], submitText = 'Save', cancelText = 'Cancel', danger = false, width = '', onSubmit } ) {
+export function formModal( { title, description = null, fields = [], submitText = 'Save', cancelText = 'Cancel', danger = false, width = '', onSubmit, control = 'form' } ) {
     return new Promise( ( resolve ) => {
         let settled = false;
         const done = ( value ) => {
@@ -1250,17 +1412,18 @@ export function formModal( { title, description = null, fields = [], submitText 
                 resolve( value );
             }
         };
-        const built = fields.map( ( spec ) => formField( spec ) );
+        const built = fields.map( ( spec ) => formField( { ...spec, control: spec.control || controlId( control, spec.name ) } ) );
         const errorBox = el( 'div', { hidden: true } );
         const grid = el( 'div', { class: 'lga-stack' }, built.map( ( f ) => f.el ) );
         const dialog = modal( {
             title,
             width,
+            control,
             content: [ description ? ( description instanceof Node ? description : el( 'p', {}, description ) ) : null, errorBox, grid ],
             onClose: () => done( null ),
             actions: [
-                { label: cancelText, onClick: ( close ) => { done( null ); close(); } },
-                { label: submitText, kind: danger ? 'danger' : 'primary', onClick: async ( close ) => {
+                { label: cancelText, control: 'cancel', onClick: ( close ) => { done( null ); close(); } },
+                { label: submitText, control: 'submit', kind: danger ? 'danger' : 'primary', onClick: async ( close ) => {
                     errorBox.hidden = true;
                     let valid = true;
                     const values = {};
@@ -1323,6 +1486,7 @@ function normalizeOptions( options ) {
 /**
  * Form field factory.
  * Types: text, email, url, password, number, textarea, select, checkbox, toggle, list (one item per line), json, hidden.
+ * The input is named by `spec.control`, else `field-<name>` (a field with neither has no control id).
  *
  * @returns {{el: HTMLElement, input: HTMLElement, get: Function, set: Function, setError: Function, valid: Function, spec: object, name: string}}
  */
@@ -1403,7 +1567,7 @@ export function formField( spec = {} ) {
             break;
         }
         case 'toggle': {
-            input = el( 'button', { id, type: 'button', class: 'lga-toggle', role: 'switch', 'aria-checked': 'false', 'aria-describedby': hintId, disabled, 'aria-label': label || name || 'Toggle' } );
+            input = toggleSwitch( { id, checked: false, describedBy: hintId, disabled, label: label || name || 'Toggle' } );
             set = ( v ) => { input.setAttribute( 'aria-checked', v ? 'true' : 'false' ); };
             get = () => input.getAttribute( 'aria-checked' ) === 'true';
             input.addEventListener( 'click', () => {
@@ -1441,6 +1605,9 @@ export function formField( spec = {} ) {
         }
     }
 
+    if ( type !== 'hidden' ) {
+        setControl( input, spec.control || ( name ? controlId( 'field', name ) : '' ) );
+    }
     set( value );
 
     if ( type === 'checkbox' ) {
@@ -1513,10 +1680,10 @@ export function collect( fields ) {
     return out;
 }
 
-/** Row with label/description on the left and a toggle on the right (bound to a getter/setter). */
-export function switchRow( { label, description, checked = false, onChange, disabled = false, badgeNode = null } ) {
+/** Row with label/description on the left and a toggle (named `control`) on the right (bound to a getter/setter). */
+export function switchRow( { label, description, checked = false, onChange, disabled = false, badgeNode = null, control = '' } ) {
     const id = nextId( 'switch' );
-    const toggle = el( 'button', { id, type: 'button', class: 'lga-toggle', role: 'switch', 'aria-checked': checked ? 'true' : 'false', disabled, 'aria-label': label } );
+    const toggle = toggleSwitch( { id, checked, disabled, label, control } );
     toggle.addEventListener( 'click', async () => {
         if ( toggle.disabled ) {
             return;
@@ -1552,10 +1719,11 @@ export function switchRow( { label, description, checked = false, onChange, disa
 // ---------------------------------------------------------------------
 
 /**
- * @param {{fields: Array, values?: object, onChange: Function, onReset?: Function, actions?: Array, debounceMs?: number}} spec
+ * @param {{fields: Array, values?: object, onChange: Function, onReset?: Function, actions?: Array, debounceMs?: number, control?: string}} spec
  * fields: { name, label, type: 'select'|'search'|'text'|'number', options, placeholder, width, min, max }
+ * Controls: each field `<control>-<name>`, the reset button `<control>-reset` (control defaults to "filter").
  */
-export function filterBar( { fields = [], values = {}, onChange, onReset = null, actions = null, debounceMs = 350 } ) {
+export function filterBar( { fields = [], values = {}, onChange, onReset = null, actions = null, debounceMs = 350, control = 'filter' } ) {
     const state = { ...values };
     const inputs = {};
     const emit = ( name ) => onChange && onChange( { ...state }, name );
@@ -1567,7 +1735,7 @@ export function filterBar( { fields = [], values = {}, onChange, onReset = null,
         let input;
         const current = state[ f.name ] ?? '';
         if ( f.type === 'select' ) {
-            input = el( 'select', { id, class: 'lga-select', 'aria-label': f.label } );
+            input = setControl( el( 'select', { id, class: 'lga-select', 'aria-label': f.label } ), controlId( control, f.name ) );
             const opts = normalizeOptions( f.options );
             if ( ! opts.some( ( o ) => o.value === '' ) ) {
                 input.appendChild( el( 'option', { value: '' }, f.allLabel || `All ${ String( f.label || '' ).toLowerCase() }` ) );
@@ -1584,7 +1752,7 @@ export function filterBar( { fields = [], values = {}, onChange, onReset = null,
                 emit( f.name );
             } );
         } else {
-            input = el( 'input', { id, type: f.type === 'number' ? 'number' : 'search', class: 'lga-input', placeholder: f.placeholder || '', value: current, min: f.min ?? null, max: f.max ?? null, 'aria-label': f.label } );
+            input = setControl( el( 'input', { id, type: f.type === 'number' ? 'number' : 'search', class: 'lga-input', placeholder: f.placeholder || '', value: current, min: f.min ?? null, max: f.max ?? null, 'aria-label': f.label } ), controlId( control, f.name ) );
             input.addEventListener( 'input', () => {
                 state[ f.name ] = input.value;
                 emitDebounced( f.name );
@@ -1598,14 +1766,14 @@ export function filterBar( { fields = [], values = {}, onChange, onReset = null,
             } );
         }
         inputs[ f.name ] = input;
-        const control = f.type === 'search' ? el( 'div', { class: 'lga-search' }, icon( 'search', 14 ), input ) : input;
+        const field = f.type === 'search' ? el( 'div', { class: 'lga-search' }, icon( 'search', 14 ), input ) : input;
         bar.appendChild( el( 'div', { class: [ 'lga-field', f.type === 'search' ? 'lga-field--search' : '' ], style: f.width ? { minWidth: f.width, flexBasis: f.width } : null },
             el( 'label', { class: 'lga-field-label', for: id }, f.label ),
-            control,
+            field,
         ) );
     }
 
-    const resetBtn = button( 'Reset', { kind: 'ghost', small: true, iconName: 'x', onClick: () => {
+    const resetBtn = button( 'Reset', { kind: 'ghost', small: true, iconName: 'x', control: controlId( control, 'reset' ), onClick: () => {
         for ( const f of fields ) {
             state[ f.name ] = '';
             inputs[ f.name ].value = '';
@@ -1639,10 +1807,12 @@ export function filterBar( { fields = [], values = {}, onChange, onReset = null,
 
 /**
  * @param {{columns: Array, rows: Array, onRowClick?: Function, sortable?: boolean, sort?: {key: string, dir: string}, onSort?: Function,
- *          empty?: any, loading?: boolean, rowKey?: Function, rowAttrs?: Function, dense?: boolean, plain?: boolean, expandable?: Function, caption?: string}} spec
+ *          empty?: any, loading?: boolean, rowKey?: Function, rowAttrs?: Function, dense?: boolean, plain?: boolean, expandable?: Function, caption?: string, control?: string}} spec
  * Column: { key, label, render(row, index), sortable, align: 'right'|'center', width, class, hideLabel }
+ * Controls: a sort button `<control>-sort-<column key>`, a clickable row `<control>-row` (opens), an expandable row
+ * `<control>-row-expand` (control defaults to "table"). Controls inside cells are named by the cell renderers.
  */
-export function dataTable( { columns = [], rows = [], onRowClick = null, sortable = false, sort = null, onSort = null, empty = null, loading = false, rowKey = null, rowAttrs = null, dense = false, plain = false, expandable = null, caption = '' } ) {
+export function dataTable( { columns = [], rows = [], onRowClick = null, sortable = false, sort = null, onSort = null, empty = null, loading = false, rowKey = null, rowAttrs = null, dense = false, plain = false, expandable = null, caption = '', control = 'table' } ) {
     const wrap = el( 'div', { class: [ 'lga-table-wrap', plain ? 'lga-table-wrap--plain' : '' ] } );
     const table = el( 'table', { class: [ 'lga-table', dense ? 'lga-table--dense' : '' ] } );
     if ( caption ) {
@@ -1657,10 +1827,10 @@ export function dataTable( { columns = [], rows = [], onRowClick = null, sortabl
             const active = sort && sort.key === col.key;
             const dir = active ? ( String( sort.dir ).toLowerCase() === 'asc' ? 'ascending' : 'descending' ) : 'none';
             th.setAttribute( 'aria-sort', dir );
-            th.appendChild( el( 'button', { type: 'button', class: 'lga-th-sort', 'aria-sort': dir, onClick: () => {
+            th.appendChild( setControl( el( 'button', { type: 'button', class: 'lga-th-sort', 'aria-sort': dir, onClick: () => {
                 const nextDir = active && String( sort.dir ).toLowerCase() === 'desc' ? 'asc' : 'desc';
                 onSort( col.key, nextDir );
-            } }, col.hideLabel ? el( 'span', { class: 'lga-sr-only' }, col.label ) : col.label, icon( 'arrowDown', 12 ) ) );
+            } }, col.hideLabel ? el( 'span', { class: 'lga-sr-only' }, col.label ) : col.label, icon( 'arrowDown', 12 ) ), controlId( control, 'sort', col.key ) ) );
         } else {
             th.appendChild( col.hideLabel ? el( 'span', { class: 'lga-sr-only' }, col.label ) : text( col.label ) );
         }
@@ -1708,6 +1878,7 @@ export function dataTable( { columns = [], rows = [], onRowClick = null, sortabl
             tr.classList.add( 'lga-row--clickable' );
             tr.setAttribute( 'tabindex', '0' );
             tr.setAttribute( 'role', 'button' );
+            setControl( tr, onRowClick ? controlId( control, 'row' ) : controlId( control, 'row', 'expand' ) );
             const activate = ( event ) => {
                 if ( event.target.closest( 'a, button, input, select, textarea, label, summary, .lga-copybtn' ) ) {
                     return;
@@ -1759,19 +1930,20 @@ function toggleExpand( tr, row, colspan, render ) {
     tr.insertAdjacentElement( 'afterend', el( 'tr', { class: 'lga-expand-row' }, el( 'td', { colspan }, content ) ) );
 }
 
-export function pagination( { page = 1, pages = 1, total = 0, perPage = 25, onChange, onPerPage = null, perPageOptions = [ 25, 50, 100 ] } ) {
+/** Pager; controls `<control>-per-page`, `<control>-prev` and `<control>-next` (control defaults to "pager"). */
+export function pagination( { page = 1, pages = 1, total = 0, perPage = 25, onChange, onPerPage = null, perPageOptions = [ 25, 50, 100 ], control = 'pager' } ) {
     const from = total === 0 ? 0 : ( page - 1 ) * perPage + 1;
     const to = Math.min( total, page * perPage );
     const info = el( 'div', {}, total === 0 ? 'No results' : `Showing ${ fmtNumber( from ) }–${ fmtNumber( to ) } of ${ fmtNumber( total ) }` );
     const controls = el( 'div', { class: 'lga-pagination-controls' } );
     if ( onPerPage ) {
-        const select = el( 'select', { class: 'lga-select', 'aria-label': 'Rows per page' }, perPageOptions.map( ( n ) => el( 'option', { value: n, selected: n === perPage }, `${ n } / page` ) ) );
+        const select = setControl( el( 'select', { class: 'lga-select', 'aria-label': 'Rows per page' }, perPageOptions.map( ( n ) => el( 'option', { value: n, selected: n === perPage }, `${ n } / page` ) ) ), controlId( control, 'per-page' ) );
         select.addEventListener( 'change', () => onPerPage( Number( select.value ) ) );
         controls.appendChild( select );
     }
-    controls.appendChild( iconButton( 'chevronLeft', 'Previous page', { small: true, onClick: () => page > 1 && onChange( page - 1 ), attrs: { disabled: page <= 1 } } ) );
+    controls.appendChild( iconButton( 'chevronLeft', 'Previous page', { small: true, onClick: () => page > 1 && onChange( page - 1 ), attrs: { disabled: page <= 1 }, control: controlId( control, 'prev' ) } ) );
     controls.appendChild( el( 'span', { 'aria-live': 'polite' }, `Page ${ fmtNumber( page ) } of ${ fmtNumber( Math.max( 1, pages ) ) }` ) );
-    controls.appendChild( iconButton( 'chevronRight', 'Next page', { small: true, onClick: () => page < pages && onChange( page + 1 ), attrs: { disabled: page >= pages } } ) );
+    controls.appendChild( iconButton( 'chevronRight', 'Next page', { small: true, onClick: () => page < pages && onChange( page + 1 ), attrs: { disabled: page >= pages }, control: controlId( control, 'next' ) } ) );
     return el( 'div', { class: 'lga-pagination' }, info, controls );
 }
 
@@ -1780,10 +1952,11 @@ export function pagination( { page = 1, pages = 1, total = 0, perPage = 25, onCh
 // ---------------------------------------------------------------------
 
 /**
- * @param {{items: Array<{id: string, label: string, count?: number, render?: Function, iconName?: string}>, active?: string, onChange?: Function, pills?: boolean, lazy?: boolean}} spec
+ * @param {{items: Array<{id: string, label: string, count?: number, render?: Function, iconName?: string}>, active?: string, onChange?: Function, pills?: boolean, lazy?: boolean, control?: string}} spec
  * When items have render(panel, api) the component owns the panels (rendered once, unless api.refresh(id) is called).
+ * Each tab is the control `<control>-<item id>` (control defaults to "tab").
  */
-export function tabs( { items = [], active = null, onChange = null, pills = false, rerender = false } ) {
+export function tabs( { items = [], active = null, onChange = null, pills = false, rerender = false, control = 'tab' } ) {
     const listId = nextId( 'tabs' );
     const list = el( 'div', { class: [ 'lga-tabs', pills ? 'lga-tabs--pills' : '' ], role: 'tablist' } );
     const panels = el( 'div', { class: 'lga-tabpanels' } );
@@ -1833,11 +2006,11 @@ export function tabs( { items = [], active = null, onChange = null, pills = fals
             const result = item.render( panel, api );
             if ( result && typeof result.then === 'function' ) {
                 result.catch( ( e ) => {
-                    replace( panel, errorState( { message: e && e.message ? e.message : '', retry: () => api.refresh( id ) } ) );
+                    replace( panel, errorState( { message: e && e.message ? e.message : '', retry: () => api.refresh( id ), control: controlId( control, id, 'retry' ) } ) );
                 } );
             }
         } catch ( e ) {
-            replace( panel, errorState( { message: e && e.message ? e.message : '', retry: () => api.refresh( id ) } ) );
+            replace( panel, errorState( { message: e && e.message ? e.message : '', retry: () => api.refresh( id ), control: controlId( control, id, 'retry' ) } ) );
         }
     }
 
@@ -1866,7 +2039,7 @@ export function tabs( { items = [], active = null, onChange = null, pills = fals
         const count = el( 'span', { class: 'lga-count' }, item.count === undefined || item.count === null ? '' : fmtNumber( item.count ) );
         setHidden( count, item.count === undefined || item.count === null );
         counts[ item.id ] = count;
-        const btn = el( 'button', { type: 'button', class: 'lga-tab', role: 'tab', id: tabId, 'aria-selected': 'false', 'aria-controls': panelId, tabindex: '-1' }, item.iconName ? icon( item.iconName, 14 ) : null, item.label, count );
+        const btn = setControl( el( 'button', { type: 'button', class: 'lga-tab', role: 'tab', id: tabId, 'aria-selected': 'false', 'aria-controls': panelId, tabindex: '-1' }, item.iconName ? icon( item.iconName, 14 ) : null, item.label, count ), controlId( control, item.id ) );
         btn.addEventListener( 'click', () => select( item.id, false ) );
         btn.addEventListener( 'keydown', ( e ) => {
             const idx = items.findIndex( ( i ) => i.id === item.id );
@@ -1927,13 +2100,15 @@ export function normalizeList( data ) {
 
 /**
  * @param {{fetch: Function, columns: Array, filters?: Array|null, initial?: object, onRowClick?: Function, sortable?: boolean, defaultSort?: {key: string, dir: string},
- *          perPage?: number, rowKey?: Function, rowAttrs?: Function, empty?: any, toolbar?: any, expandable?: Function, onLoaded?: Function, dense?: boolean}} spec
+ *          perPage?: number, rowKey?: Function, rowAttrs?: Function, empty?: any, toolbar?: any, expandable?: Function, onLoaded?: Function, dense?: boolean, control?: string}} spec
  * fetch(params, state) must resolve with a list payload. Returns { el, reload, state, items, total, setFilters, filterBar }.
+ * Controls (control defaults to "list"): the filter bar `<control>-filter-…`, the table `<control>-…` (sort buttons,
+ * rows), the pager `<control>-pager-…` and the retry button `<control>-retry`.
  * Only columns marked `sortable: true` get a sort button (unless `sortable: true` is passed for the whole
  * table): the REST endpoints sort by a per-table whitelist and silently fall back to id for anything else.
  * When the payload echoes the effective `orderby`/`order`, the header shows that instead of the request.
  */
-export function listView( { fetch, columns, filters = null, initial = {}, onRowClick = null, sortable = false, defaultSort = { key: 'id', dir: 'desc' }, perPage = 25, rowKey = null, rowAttrs = null, empty = null, toolbar = null, expandable = null, onLoaded = null, dense = false } ) {
+export function listView( { fetch, columns, filters = null, initial = {}, onRowClick = null, sortable = false, defaultSort = { key: 'id', dir: 'desc' }, perPage = 25, rowKey = null, rowAttrs = null, empty = null, toolbar = null, expandable = null, onLoaded = null, dense = false, control = 'list' } ) {
     const state = {
         filters: { ...( initial.filters || {} ) },
         page: Number( initial.page ) || 1,
@@ -1950,6 +2125,7 @@ export function listView( { fetch, columns, filters = null, initial = {}, onRowC
             fields: filters,
             values: state.filters,
             actions: toolbar,
+            control: controlId( control, 'filter' ),
             onChange: ( values ) => {
                 state.filters = values;
                 state.page = 1;
@@ -1987,6 +2163,7 @@ export function listView( { fetch, columns, filters = null, initial = {}, onRowC
             rowAttrs,
             expandable,
             dense,
+            control,
         } ) );
     }
 
@@ -2005,6 +2182,7 @@ export function listView( { fetch, columns, filters = null, initial = {}, onRowC
                 state.page = 1;
                 reload();
             },
+            control: controlId( control, 'pager' ),
         } ) : null );
     }
 
@@ -2050,7 +2228,7 @@ export function listView( { fetch, columns, filters = null, initial = {}, onRowC
             if ( id !== requestId ) {
                 return;
             }
-            replace( tableHost, errorState( { title: 'Could not load data', message: e && e.message ? e.message : '', retry: () => reload() } ) );
+            replace( tableHost, errorState( { title: 'Could not load data', message: e && e.message ? e.message : '', retry: () => reload(), control: controlId( control, 'retry' ) } ) );
             replace( pagerHost );
         }
     }
@@ -2079,9 +2257,13 @@ export function listView( { fetch, columns, filters = null, initial = {}, onRowC
 
 export default {
     el, svg, append, replace, clear, text, fragment, escapeHtml, icon, nextId, setLocale, normalizeList, listView,
+    setControlScope, getControlScope, kebab, controlId, controlName, setControl, link, input, checkbox, textarea, select, toggleSwitch,
     fmtNumber, fmtCompact, fmtPercent, fmtBytes, fmtDate, fmtDuration, parseDate, timeAgo, timeEl, labelize, truncate, debounce, sleep,
     isObject, deepClone, deepEqual, getPath, setPath, STATUS_KIND, kindFor, scoreClass,
     badge, statusBadge, button, iconButton, setBusy, isBusy, linkButton, extLink, copyButton, spinner, loading, skeletonRows, emptyState, errorState, callout,
     card, cardBody, pageHeader, kv, pre, details, progressBar, meter, scoreRing, statTile, chipList, checklist,
     toast, overlayHost, closeOverlays, drawer, modal, confirm, prompt, formModal, formField, collect, switchRow, filterBar, dataTable, pagination, tabs,
 };
+
+/** The switch helper under its short name (switchRow() keeps a local `toggle`, so the declaration is toggleSwitch). */
+export { toggleSwitch as toggle };

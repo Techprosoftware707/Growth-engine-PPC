@@ -1,0 +1,675 @@
+{
+  "page": "overview",
+  "description": "Overview: Grow panel and Autopilot switch, tiles, charts, integration health, automation and notifications.",
+  "controls": [
+    {
+      "control": "overview.refresh",
+      "action": "click",
+      "expect": {
+        "request": "GET /overview"
+      }
+    },
+    {
+      "control": "overview.tile-prospects",
+      "action": "click",
+      "expect": {
+        "navigate": "/page=lga-prospects(&|#|$)/"
+      }
+    },
+    {
+      "control": "overview.tile-active-backlinks",
+      "action": "click",
+      "expect": {
+        "navigate": "page=lga-backlinks#status=active"
+      }
+    },
+    {
+      "control": "overview.tile-referring-domains",
+      "action": "click",
+      "expect": {
+        "navigate": "/page=lga-backlinks(&|#|$)/"
+      }
+    },
+    {
+      "control": "overview.tile-submissions",
+      "action": "click",
+      "expect": {
+        "navigate": "/page=lga-submissions(&|#|$)/"
+      }
+    },
+    {
+      "control": "overview.tile-outreach-sent",
+      "action": "click",
+      "expect": {
+        "navigate": "page=lga-outreach#tab=messages"
+      }
+    },
+    {
+      "control": "overview.tile-unread-alerts",
+      "action": "click",
+      "expect": {
+        "request": "GET /notifications",
+        "dom": ".lga-drawer"
+      }
+    },
+    {
+      "control": "overview.notifications-open-all",
+      "action": "click",
+      "expect": {
+        "request": "GET /notifications",
+        "dom": ".lga-drawer"
+      }
+    },
+    {
+      "control": "overview.integration-configure",
+      "action": "click",
+      "expect": {
+        "navigate": "page=lga-settings#tab=integrations"
+      },
+      "note": "One \"Configure\" link per integration row; the first is followed."
+    },
+    {
+      "control": "overview.integrations-settings",
+      "action": "click",
+      "expect": {
+        "navigate": "page=lga-settings#tab=integrations"
+      }
+    },
+    {
+      "control": "overview.integrations-configure",
+      "action": "click",
+      "expect": {
+        "navigate": "page=lga-settings#tab=integrations"
+      }
+    },
+    {
+      "control": "overview.automation-manage",
+      "action": "click",
+      "expect": {
+        "navigate": "/page=lga-automation(&|#|$)/"
+      }
+    },
+    {
+      "control": "overview.automation-open",
+      "action": "click",
+      "expect": {
+        "navigate": "/page=lga-automation(&|#|$)/"
+      },
+      "prepare": [
+        {
+          "rest": "POST /automation/toggle",
+          "body": {
+            "key": "enabled",
+            "value": false
+          }
+        }
+      ],
+      "after": [
+        {
+          "rest": "POST /automation/toggle",
+          "body": {
+            "key": "enabled",
+            "value": true
+          }
+        }
+      ],
+      "note": "Shown only while the master switch is off: switched off through REST first and back on afterwards."
+    },
+    {
+      "control": "overview.chart-backlinks-view-table",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"overview.chart-backlinks-view-table\"][aria-pressed=\"true\"]"
+      }
+    },
+    {
+      "control": "overview.chart-backlinks-view-chart",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"overview.chart-backlinks-view-chart\"][aria-pressed=\"true\"]"
+      },
+      "before": [
+        "overview.chart-backlinks-view-table"
+      ]
+    },
+    {
+      "control": "overview.chart-scores-view-table",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"overview.chart-scores-view-table\"][aria-pressed=\"true\"]"
+      }
+    },
+    {
+      "control": "overview.chart-scores-view-chart",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"overview.chart-scores-view-chart\"][aria-pressed=\"true\"]"
+      },
+      "before": [
+        "overview.chart-scores-view-table"
+      ]
+    },
+    {
+      "control": "overview.chart-opportunity-types-view-table",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"overview.chart-opportunity-types-view-table\"][aria-pressed=\"true\"]"
+      }
+    },
+    {
+      "control": "overview.chart-opportunity-types-view-chart",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"overview.chart-opportunity-types-view-chart\"][aria-pressed=\"true\"]"
+      },
+      "before": [
+        "overview.chart-opportunity-types-view-table"
+      ]
+    },
+    {
+      "control": "overview.chart-prospect-status-view-table",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"overview.chart-prospect-status-view-table\"][aria-pressed=\"true\"]"
+      }
+    },
+    {
+      "control": "overview.chart-prospect-status-view-chart",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"overview.chart-prospect-status-view-chart\"][aria-pressed=\"true\"]"
+      },
+      "before": [
+        "overview.chart-prospect-status-view-table"
+      ]
+    },
+    {
+      "control": "overview.chart-anchors-view-table",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"overview.chart-anchors-view-table\"][aria-pressed=\"true\"]"
+      }
+    },
+    {
+      "control": "overview.chart-anchors-view-chart",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"overview.chart-anchors-view-chart\"][aria-pressed=\"true\"]"
+      },
+      "before": [
+        "overview.chart-anchors-view-table"
+      ]
+    },
+    {
+      "control": "overview.chart-link-attributes-view-table",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"overview.chart-link-attributes-view-table\"][aria-pressed=\"true\"]"
+      }
+    },
+    {
+      "control": "overview.chart-link-attributes-view-chart",
+      "action": "click",
+      "expect": {
+        "dom": "[data-lga-control=\"overview.chart-link-attributes-view-chart\"][aria-pressed=\"true\"]"
+      },
+      "before": [
+        "overview.chart-link-attributes-view-table"
+      ]
+    },
+    {
+      "control": "overview.toast-dismiss",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-toast"
+      },
+      "before": [
+        "overview.notifications-open-all",
+        "shell.notifications-mark-all-read"
+      ],
+      "note": "The \"marked as read\" toast."
+    },
+    {
+      "control": "overview.autopilot",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-modal"
+      },
+      "note": "Turning Autopilot on asks first."
+    },
+    {
+      "control": "overview.autopilot-on-confirm-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "before": [
+        "overview.autopilot"
+      ]
+    },
+    {
+      "control": "overview.autopilot-on-confirm-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "before": [
+        "overview.autopilot"
+      ]
+    },
+    {
+      "control": "overview.autopilot-on-confirm-confirm",
+      "action": "click",
+      "expect": {
+        "request": "POST /automation/autopilot",
+        "body": "\"enabled\":true"
+      },
+      "after": [
+        {
+          "rest": "POST /automation/autopilot",
+          "body": {
+            "enabled": false
+          }
+        }
+      ],
+      "before": [
+        "overview.autopilot"
+      ]
+    },
+    {
+      "control": "overview.autopilot-off-confirm-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "prepare": [
+        {
+          "rest": "POST /automation/autopilot",
+          "body": {
+            "enabled": true,
+            "confirm": true
+          }
+        }
+      ],
+      "after": [
+        {
+          "rest": "POST /automation/autopilot",
+          "body": {
+            "enabled": false
+          }
+        }
+      ],
+      "before": [
+        "overview.autopilot"
+      ]
+    },
+    {
+      "control": "overview.autopilot-off-confirm-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "prepare": [
+        {
+          "rest": "POST /automation/autopilot",
+          "body": {
+            "enabled": true,
+            "confirm": true
+          }
+        }
+      ],
+      "after": [
+        {
+          "rest": "POST /automation/autopilot",
+          "body": {
+            "enabled": false
+          }
+        }
+      ],
+      "before": [
+        "overview.autopilot"
+      ]
+    },
+    {
+      "control": "overview.autopilot-off-confirm-confirm",
+      "action": "click",
+      "expect": {
+        "request": "POST /automation/autopilot",
+        "body": "\"enabled\":false"
+      },
+      "prepare": [
+        {
+          "rest": "POST /automation/autopilot",
+          "body": {
+            "enabled": true,
+            "confirm": true
+          }
+        }
+      ],
+      "before": [
+        "overview.autopilot"
+      ]
+    },
+    {
+      "control": "overview.grow-tile-owner-tasks",
+      "action": "click",
+      "expect": {
+        "navigate": "page=lga-submissions#tab=needs_manual"
+      }
+    },
+    {
+      "control": "overview.grow-tile-outreach-drafts",
+      "action": "click",
+      "expect": {
+        "navigate": "page=lga-outreach#tab=messages&status=draft"
+      }
+    },
+    {
+      "control": "overview.grow-tile-qualified-prospects",
+      "action": "click",
+      "expect": {
+        "navigate": "page=lga-prospects#status=qualified"
+      }
+    },
+    {
+      "control": "overview.grow-tile-seo-issues",
+      "action": "click",
+      "expect": {
+        "navigate": "page=lga-seo#severity=high"
+      }
+    },
+    {
+      "control": "overview.grow-tile-internal-links",
+      "action": "click",
+      "expect": {
+        "navigate": "page=lga-seo#links=pending"
+      }
+    },
+    {
+      "control": "overview.grow-needs-owner-tasks",
+      "action": "click",
+      "expect": {
+        "navigate": "page=lga-submissions#tab=needs_manual"
+      }
+    },
+    {
+      "control": "overview.grow-needs-pending-review",
+      "action": "click",
+      "expect": {
+        "navigate": "page=lga-submissions#tab=pending_review"
+      }
+    },
+    {
+      "control": "overview.grow-needs-outreach-drafts",
+      "action": "click",
+      "expect": {
+        "navigate": "page=lga-outreach#tab=messages&status=draft"
+      }
+    },
+    {
+      "control": "overview.grow-needs-discovery-source",
+      "action": "click",
+      "expect": {
+        "navigate": "/page=lga-settings/"
+      }
+    },
+    {
+      "control": "overview.grow-needs-google",
+      "action": "click",
+      "expect": {
+        "navigate": "/page=lga-settings/"
+      }
+    },
+    {
+      "control": "overview.grow-needs-metrics-provider",
+      "action": "click",
+      "expect": {
+        "navigate": "/page=lga-settings/"
+      }
+    },
+    {
+      "control": "overview.grow-steps-toggle",
+      "action": "click",
+      "expect": {
+        "dom": "details:not([open]) > [data-lga-control=\"overview.grow-steps-toggle\"]"
+      },
+      "note": "Open after a recent run: a click closes it."
+    },
+    {
+      "control": "overview.grow-start",
+      "action": "click",
+      "expect": {
+        "request": "POST /growth/start"
+      },
+      "after": [
+        {
+          "rest": "POST /growth/cancel"
+        }
+      ]
+    },
+    {
+      "control": "overview.grow-stop",
+      "action": "click",
+      "expect": {
+        "dom": ".lga-modal"
+      },
+      "mock": [
+        {
+          "request": "POST /growth/step",
+          "status": 200,
+          "times": 40,
+          "body": {
+            "id": "e2e-held",
+            "status": "running",
+            "started_at": "2026-01-01T00:00:00+00:00",
+            "elapsed_seconds": 1,
+            "cursor": 0,
+            "waiting": true,
+            "note": "E2E: the browser is held in the running state.",
+            "steps": [
+              {
+                "key": "preflight",
+                "label": "Check the storefront and setup",
+                "status": "running"
+              },
+              {
+                "key": "summary",
+                "label": "Summarise",
+                "status": "pending"
+              }
+            ]
+          }
+        }
+      ],
+      "before": [
+        {
+          "control": "overview.grow-start",
+          "action": "click",
+          "wait": "[data-lga-control=\"overview.grow-stop\"]"
+        }
+      ],
+      "after": [
+        {
+          "rest": "POST /growth/cancel"
+        }
+      ]
+    },
+    {
+      "control": "overview.grow-stop-confirm-close",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "mock": [
+        {
+          "request": "POST /growth/step",
+          "status": 200,
+          "times": 40,
+          "body": {
+            "id": "e2e-held",
+            "status": "running",
+            "started_at": "2026-01-01T00:00:00+00:00",
+            "elapsed_seconds": 1,
+            "cursor": 0,
+            "waiting": true,
+            "note": "E2E: the browser is held in the running state.",
+            "steps": [
+              {
+                "key": "preflight",
+                "label": "Check the storefront and setup",
+                "status": "running"
+              },
+              {
+                "key": "summary",
+                "label": "Summarise",
+                "status": "pending"
+              }
+            ]
+          }
+        }
+      ],
+      "after": [
+        {
+          "rest": "POST /growth/cancel"
+        }
+      ],
+      "before": [
+        {
+          "control": "overview.grow-start",
+          "action": "click",
+          "wait": "[data-lga-control=\"overview.grow-stop\"]"
+        },
+        "overview.grow-stop"
+      ]
+    },
+    {
+      "control": "overview.grow-stop-confirm-cancel",
+      "action": "click",
+      "expect": {
+        "dom": "!.lga-modal"
+      },
+      "mock": [
+        {
+          "request": "POST /growth/step",
+          "status": 200,
+          "times": 40,
+          "body": {
+            "id": "e2e-held",
+            "status": "running",
+            "started_at": "2026-01-01T00:00:00+00:00",
+            "elapsed_seconds": 1,
+            "cursor": 0,
+            "waiting": true,
+            "note": "E2E: the browser is held in the running state.",
+            "steps": [
+              {
+                "key": "preflight",
+                "label": "Check the storefront and setup",
+                "status": "running"
+              },
+              {
+                "key": "summary",
+                "label": "Summarise",
+                "status": "pending"
+              }
+            ]
+          }
+        }
+      ],
+      "after": [
+        {
+          "rest": "POST /growth/cancel"
+        }
+      ],
+      "before": [
+        {
+          "control": "overview.grow-start",
+          "action": "click",
+          "wait": "[data-lga-control=\"overview.grow-stop\"]"
+        },
+        "overview.grow-stop"
+      ]
+    },
+    {
+      "control": "overview.grow-stop-confirm-confirm",
+      "action": "click",
+      "expect": {
+        "request": "POST /growth/cancel"
+      },
+      "mock": [
+        {
+          "request": "POST /growth/step",
+          "status": 200,
+          "times": 40,
+          "body": {
+            "id": "e2e-held",
+            "status": "running",
+            "started_at": "2026-01-01T00:00:00+00:00",
+            "elapsed_seconds": 1,
+            "cursor": 0,
+            "waiting": true,
+            "note": "E2E: the browser is held in the running state.",
+            "steps": [
+              {
+                "key": "preflight",
+                "label": "Check the storefront and setup",
+                "status": "running"
+              },
+              {
+                "key": "summary",
+                "label": "Summarise",
+                "status": "pending"
+              }
+            ]
+          }
+        }
+      ],
+      "before": [
+        {
+          "control": "overview.grow-start",
+          "action": "click",
+          "wait": "[data-lga-control=\"overview.grow-stop\"]"
+        },
+        "overview.grow-stop"
+      ]
+    },
+    {
+      "control": "overview.load-retry",
+      "action": "click",
+      "expect": {
+        "request": "GET /overview"
+      },
+      "mock": [
+        {
+          "request": "GET /overview",
+          "status": 500
+        }
+      ],
+      "note": "The error state of a failed load and its retry."
+    },
+    {
+      "control": "overview.grow-needs-link-suggestions",
+      "action": "click",
+      "expect": {
+        "navigate": "page=lga-seo#links=pending"
+      },
+      "note": "Listed by a growth run that finds internal-link suggestions waiting. The seeded run ran before the seed prepared its three suggestions, so a run is made first (as the seed makes its own: start, one step).",
+      "prepare": [
+        {
+          "rest": "POST /growth/start"
+        },
+        {
+          "rest": "POST /growth/step"
+        }
+      ]
+    },
+    {
+      "control": "shell.nav-overview",
+      "action": "click",
+      "expect": {
+        "navigate": "/page=lga(&|#|$)/"
+      },
+      "page": "logs"
+    }
+  ]
+}

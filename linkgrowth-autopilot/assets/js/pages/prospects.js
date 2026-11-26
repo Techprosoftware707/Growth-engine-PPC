@@ -7,7 +7,7 @@ import * as api from '../api.js';
 import {
     el, replace, badge, statusBadge, button, callout, kv, pre, loading, errorState, emptyState, timeEl, fmtNumber, fmtCompact, fmtPercent, fmtDate,
     labelize, truncate, pageHeader, scoreRing, scoreClass, kindFor, drawer, tabs, dataTable, formField, formModal, confirm, prompt, toast, extLink,
-    listView, progressBar, details, card, linkButton, copyButton, isObject,
+    listView, progressBar, details, card, linkButton, copyButton, isObject, select,
 } from '../ui.js';
 import { reportRun } from './outcome.js';
 
@@ -145,9 +145,10 @@ export default async function render( root, ctx ) {
         q: params.q || '',
     };
 
-    const addBtn = button( 'Add prospect', { kind: 'primary', iconName: 'plus', onClick: () => addProspect() } );
+    const addBtn = button( 'Add prospect', { kind: 'primary', iconName: 'plus', onClick: () => addProspect(), control: 'add' } );
 
     const list = listView( {
+        control: 'list',
         fetch: ( p ) => api.get( '/prospects', p ),
         defaultSort: { key: 'score', dir: 'desc' },
         initial: { filters: initialFilters },
@@ -197,6 +198,7 @@ export default async function render( root, ctx ) {
     async function addProspect() {
         await formModal( {
             title: 'Add a prospect',
+            control: 'add-form',
             description: 'Paste any page or domain. It is fetched, profiled and scored like a discovered prospect; nothing is submitted automatically.',
             submitText: 'Add prospect',
             fields: [
@@ -227,7 +229,7 @@ export default async function render( root, ctx ) {
             return;
         }
         const body = el( 'div', {}, loading( 'Loading prospect…', true ) );
-        const dr = drawer( `Prospect #${ id }`, body, { width: 'wide', onClose: () => ctx.setHash( { ...list.state.filters, open: '' } ) } );
+        const dr = drawer( `Prospect #${ id }`, body, { width: 'wide', control: 'drawer', onClose: () => ctx.setHash( { ...list.state.filters, open: '' } ) } );
         ctx.setHash( { ...list.state.filters, open: id } );
         let activeTab = 'summary';
 
@@ -236,7 +238,7 @@ export default async function render( root, ctx ) {
             try {
                 data = await api.get( `/prospects/${ id }` );
             } catch ( e ) {
-                dr.setContent( errorState( { title: 'Could not load this prospect', message: e && e.message ? e.message : '', retry: load } ) );
+                dr.setContent( errorState( { title: 'Could not load this prospect', message: e && e.message ? e.message : '', retry: load, control: 'drawer-retry' } ) );
                 return;
             }
             const prospect = obj( data.prospect ).id ? obj( data.prospect ) : obj( data );
@@ -246,7 +248,7 @@ export default async function render( root, ctx ) {
             }
             dr.setTitle( prospect.name || prospect.domain );
             dr.setSubtitle( [
-                extLink( prospect.homepage_url || `https://${ prospect.domain }/`, prospect.domain ),
+                extLink( prospect.homepage_url || `https://${ prospect.domain }/`, prospect.domain, { control: 'drawer-site' } ),
                 statusBadge( prospect.status ),
                 prospect.score_class ? badge( labelize( prospect.score_class ), kindFor( prospect.score_class ) ) : null,
                 prospect.site_type ? badge( labelize( prospect.site_type ), 'neutral' ) : null,
@@ -257,6 +259,7 @@ export default async function render( root, ctx ) {
             };
             const view = tabs( {
                 active: activeTab,
+                control: 'drawer-tab',
                 onChange: ( id2 ) => {
                     activeTab = id2;
                 },
@@ -308,9 +311,9 @@ export default async function render( root, ctx ) {
         ) );
 
         stack.appendChild( card( { title: 'Profile', body: kv( [
-            [ 'Homepage', extLink( p.homepage_url || `https://${ p.domain }/` ) ],
-            [ 'Submission page', p.submission_url ? extLink( p.submission_url, truncate( p.submission_url, 60 ) ) : null ],
-            [ 'Contact page', p.contact_url ? extLink( p.contact_url, truncate( p.contact_url, 60 ) ) : null ],
+            [ 'Homepage', extLink( p.homepage_url || `https://${ p.domain }/`, undefined, { control: 'summary-homepage' } ) ],
+            [ 'Submission page', p.submission_url ? extLink( p.submission_url, truncate( p.submission_url, 60 ), { control: 'summary-submission-page' } ) : null ],
+            [ 'Contact page', p.contact_url ? extLink( p.contact_url, truncate( p.contact_url, 60 ), { control: 'summary-contact-page' } ) : null ],
             [ 'Site type', p.site_type ? labelize( p.site_type ) : null ],
             [ 'Found via', [ VIA[ p.discovered_via ] || labelize( p.discovered_via || '' ), p.discovery_query ? `“${ truncate( p.discovery_query, 80 ) }”` : '' ].filter( Boolean ).join( ' · ' ) ],
             [ 'Language / country', [ p.language ? String( p.language ).toUpperCase() : '', p.country ? `${ String( p.country ).toUpperCase() }${ profile.country_confidence ? ` (${ fmtNumber( profile.country_confidence ) }% confidence)` : '' }` : '' ].filter( Boolean ).join( ' · ' ) ],
@@ -374,13 +377,13 @@ export default async function render( root, ctx ) {
             stack.appendChild( callout( 'warning', 'Rejection reason', String( p.rejection_reason ) ) );
         }
         if ( home.h1 && arr( home.h1 ).length ) {
-            stack.appendChild( details( 'Headings seen on the homepage', el( 'ul', { class: 'lga-list--bullets' }, arr( home.h1 ).concat( arr( home.h2 ) ).slice( 0, 12 ).map( ( h ) => el( 'li', {}, String( h ) ) ) ) ) );
+            stack.appendChild( details( 'Headings seen on the homepage', el( 'ul', { class: 'lga-list--bullets' }, arr( home.h1 ).concat( arr( home.h2 ) ).slice( 0, 12 ).map( ( h ) => el( 'li', {}, String( h ) ) ) ), { control: 'summary-headings' } ) );
         }
         return stack;
     }
 
     function opportunitiesTab( p, opportunities, refresh ) {
-        const scanBtn = button( 'Scan page for broken links', { iconName: 'search', small: true, onClick: async () => {
+        const scanBtn = button( 'Scan page for broken links', { iconName: 'search', small: true, control: 'opportunities-scan', onClick: async () => {
             const res = await api.post( `/prospects/${ p.id }/find-opportunities`, {} );
             const r = obj( res && res.result ? res.result : res );
             toast( r.opportunities !== undefined ? `Scan finished: ${ fmtNumber( r.checked ) } links checked, ${ fmtNumber( r.broken ) } broken, ${ fmtNumber( r.opportunities ) } opportunities.` : ( res && res.job_id ? `Queued as job #${ res.job_id } (runner busy).` : 'Scan finished.' ), 'success' );
@@ -390,11 +393,12 @@ export default async function render( root, ctx ) {
             el( 'div', { class: 'lga-row lga-row--between' }, el( 'p', { style: { margin: 0 } }, 'Concrete placements worth pursuing on this site. Packages and outreach drafts are built from these.' ), scanBtn ),
             dataTable( {
                 dense: true,
+                control: 'opportunities',
                 rows: opportunities,
                 empty: { title: 'No opportunities yet', message: 'They are created by evaluation and the broken-link scan.', compact: true },
                 columns: [
                     { key: 'type', label: 'Type', render: ( o ) => badge( oppLabel( o.type ), 'brand' ) },
-                    { key: 'title', label: 'Placement', render: ( o ) => el( 'span', {}, el( 'span', { class: 'lga-cell-title' }, o.title || o.url ), o.url ? extLink( o.url, truncate( o.url, 60 ), { className: 'lga-cell-sub' } ) : null ) },
+                    { key: 'title', label: 'Placement', render: ( o ) => el( 'span', {}, el( 'span', { class: 'lga-cell-title' }, o.title || o.url ), o.url ? extLink( o.url, truncate( o.url, 60 ), { className: 'lga-cell-sub', control: 'opportunities-url' } ) : null ) },
                     { key: 'status', label: 'Status', render: ( o ) => statusBadge( o.status ) },
                     { key: 'score', label: 'Score', align: 'right', render: ( o ) => ( o.score === null || o.score === undefined ? null : fmtNumber( o.score ) ) },
                     { key: 'details', label: 'Details', render: ( o ) => {
@@ -421,8 +425,9 @@ export default async function render( root, ctx ) {
     }
 
     function contactsTab( p, contacts, refresh ) {
-        const addBtnEl = button( 'Add contact', { iconName: 'plus', small: true, onClick: () => formModal( {
+        const addBtnEl = button( 'Add contact', { iconName: 'plus', small: true, control: 'contacts-add', onClick: () => formModal( {
             title: 'Add a contact',
+            control: 'contacts-add-form',
             description: 'Only add addresses published for business enquiries on their site (CASL “conspicuous publication”). Personal addresses scraped elsewhere are not permitted.',
             submitText: 'Add contact',
             fields: [
@@ -441,6 +446,7 @@ export default async function render( root, ctx ) {
             el( 'div', { class: 'lga-row lga-row--between' }, el( 'p', { style: { margin: 0 } }, 'Addresses found on the site with their consent basis. Opted-out or bounced contacts are never emailed.' ), addBtnEl ),
             dataTable( {
                 dense: true,
+                control: 'contacts',
                 rows: contacts,
                 empty: { title: 'No contacts found', message: 'Add one from their contact page if you have a legitimate business address.', compact: true },
                 columns: [
@@ -449,13 +455,13 @@ export default async function render( root, ctx ) {
                     { key: 'role', label: 'Role', render: ( c ) => ( c.role ? labelize( c.role ) : null ) },
                     { key: 'confidence', label: 'Confidence', align: 'right', render: ( c ) => ( c.confidence === null || c.confidence === undefined ? null : fmtNumber( c.confidence ) ) },
                     { key: 'consent_basis', label: 'Consent basis', render: ( c ) => ( c.consent_basis ? labelize( c.consent_basis ) : null ) },
-                    { key: 'source_url', label: 'Source', render: ( c ) => ( c.source_url ? extLink( c.source_url, 'page' ) : null ) },
+                    { key: 'source_url', label: 'Source', render: ( c ) => ( c.source_url ? extLink( c.source_url, /^https?:\/\//i.test( String( c.source_url ) ) ? 'page' : labelize( c.source_url ), { control: 'contacts-source' } ) : null ) },
                     { key: 'status', label: 'Status', render: ( c ) => {
-                        const select = el( 'select', { class: 'lga-select lga-input--small', 'aria-label': `Status for ${ c.email }`, style: { width: 'auto', minWidth: '120px' } }, [ 'active', 'opted_out', 'bounced', 'suppressed', 'invalid' ].map( ( s ) => el( 'option', { value: s, selected: s === c.status }, labelize( s ) ) ) );
-                        select.addEventListener( 'change', async () => {
-                            const next = select.value;
-                            if ( next !== 'active' && ! ( await confirm( `Mark ${ c.email } as ${ labelize( next ).toLowerCase() }? They will no longer receive outreach.`, { confirmText: 'Update status' } ) ) ) {
-                                select.value = c.status;
+                        const statusSelect = select( { class: 'lga-select lga-input--small', 'aria-label': `Status for ${ c.email }`, style: { width: 'auto', minWidth: '120px' }, options: [ 'active', 'opted_out', 'bounced', 'suppressed', 'invalid' ], value: c.status, control: 'contacts-status' } );
+                        statusSelect.addEventListener( 'change', async () => {
+                            const next = statusSelect.value;
+                            if ( next !== 'active' && ! ( await confirm( `Mark ${ c.email } as ${ labelize( next ).toLowerCase() }? They will no longer receive outreach.`, { confirmText: 'Update status', control: 'contacts-status-confirm' } ) ) ) {
+                                statusSelect.value = c.status;
                                 return;
                             }
                             try {
@@ -463,10 +469,10 @@ export default async function render( root, ctx ) {
                                 toast( 'Contact status updated.', 'success' );
                                 refresh();
                             } catch ( e ) {
-                                select.value = c.status;
+                                statusSelect.value = c.status;
                             }
                         } );
-                        return select;
+                        return statusSelect;
                     } },
                 ],
             } ),
@@ -474,27 +480,28 @@ export default async function render( root, ctx ) {
     }
 
     function submissionsTab( p, submissions, refresh ) {
-        const packageBtn = button( 'Create submission package', { iconName: 'package', small: true, kind: 'primary', onClick: async () => {
+        const packageBtn = button( 'Create submission package', { iconName: 'package', small: true, kind: 'primary', control: 'submissions-package', onClick: async () => {
             const res = await api.post( `/prospects/${ p.id }/package`, {} );
             const sid = res && ( res.submission_id || res.id || ( isObject( res.submission ) ? res.submission.id : null ) );
-            toast( sid ? `Package #${ sid } prepared. Review it under Submissions.` : 'Package request processed.', 'success', { action: sid ? { label: 'Open', onClick: () => ctx.navigate( 'submissions', { open: sid } ) } : null } );
+            toast( sid ? `Package #${ sid } prepared. Review it under Submissions.` : 'Package request processed.', 'success', { action: sid ? { label: 'Open', control: 'open-package', onClick: () => ctx.navigate( 'submissions', { open: sid } ) } : null } );
             refresh();
         } } );
         return el( 'div', { class: 'lga-stack' },
             el( 'div', { class: 'lga-row lga-row--between' }, el( 'p', { style: { margin: 0 } }, 'Listing packages built for this site. A package is submitted without your review only while “Automated submissions” is on and the site qualifies under the submission mode (see the Actions tab); in “auto” mode a site whose per-site automation is “Inherit” qualifies by itself once it scores at or above the auto-queue threshold, and “Never automate” keeps a site manual in every mode. Everything else waits for your approval.' ), packageBtn ),
             dataTable( {
                 dense: true,
+                control: 'submissions',
                 rows: submissions,
                 onRowClick: ( s ) => ctx.navigate( 'submissions', { open: s.id } ),
                 empty: { title: 'No submissions yet', compact: true },
                 columns: [
                     { key: 'id', label: '#', render: ( s ) => `#${ s.id }` },
-                    { key: 'target_url', label: 'Target', render: ( s ) => extLink( s.target_url, truncate( s.target_url, 50 ) ) },
+                    { key: 'target_url', label: 'Target', render: ( s ) => extLink( s.target_url, truncate( s.target_url, 50 ), { control: 'submissions-target' } ) },
                     { key: 'method', label: 'Method', render: ( s ) => statusBadge( s.method, { dot: false } ) },
                     { key: 'status', label: 'Status', render: ( s ) => statusBadge( s.status ) },
                     { key: 'attempts', label: 'Attempts', align: 'right', render: ( s ) => fmtNumber( s.attempts ) },
                     { key: 'submitted_at', label: 'Submitted', render: ( s ) => ( s.submitted_at ? timeEl( s.submitted_at ) : null ) },
-                    { key: 'listing_url', label: 'Listing', render: ( s ) => ( s.listing_url ? extLink( s.listing_url, 'view' ) : null ) },
+                    { key: 'listing_url', label: 'Listing', render: ( s ) => ( s.listing_url ? extLink( s.listing_url, 'view', { control: 'submissions-listing' } ) : null ) },
                 ],
             } ),
         );
@@ -502,9 +509,10 @@ export default async function render( root, ctx ) {
 
     function outreachTab( p, messages ) {
         return el( 'div', { class: 'lga-stack' },
-            el( 'div', { class: 'lga-row lga-row--between' }, el( 'p', { style: { margin: 0 } }, 'Outreach messages drafted for this site. Create drafts from a campaign on the Outreach page.' ), linkButton( 'Open outreach', ctx.pageUrl( 'outreach', { tab: 'messages', prospect_id: p.id } ), { small: true, iconName: 'mail' } ) ),
+            el( 'div', { class: 'lga-row lga-row--between' }, el( 'p', { style: { margin: 0 } }, 'Outreach messages drafted for this site. Create drafts from a campaign on the Outreach page.' ), linkButton( 'Open outreach', ctx.pageUrl( 'outreach', { tab: 'messages', prospect_id: p.id } ), { small: true, iconName: 'mail', control: 'outreach-open' } ) ),
             dataTable( {
                 dense: true,
+                control: 'outreach',
                 rows: messages,
                 onRowClick: ( m ) => ctx.navigate( 'outreach', { tab: 'messages', open: m.id } ),
                 empty: { title: 'No outreach yet', compact: true },
@@ -523,11 +531,12 @@ export default async function render( root, ctx ) {
     function backlinksTab( backlinks ) {
         return dataTable( {
             dense: true,
+            control: 'backlinks',
             rows: backlinks,
             onRowClick: ( b ) => ctx.navigate( 'backlinks', { open: b.id } ),
             empty: { title: 'No backlinks from this site yet', compact: true },
             columns: [
-                { key: 'source_url', label: 'Source page', render: ( b ) => extLink( b.source_url, truncate( b.source_url, 60 ) ) },
+                { key: 'source_url', label: 'Source page', render: ( b ) => extLink( b.source_url, truncate( b.source_url, 60 ), { control: 'backlinks-source' } ) },
                 { key: 'anchor_text', label: 'Anchor', render: ( b ) => ( b.anchor_text ? truncate( b.anchor_text, 40 ) : el( 'span', { class: 'lga-muted' }, '(empty)' ) ) },
                 { key: 'rel', label: 'Rel', render: ( b ) => el( 'span', { class: 'lga-row' }, String( b.rel || 'dofollow' ).split( ',' ).map( ( r ) => statusBadge( r.trim(), { dot: false } ) ) ) },
                 { key: 'status', label: 'Status', render: ( b ) => statusBadge( b.status ) },
@@ -544,7 +553,7 @@ export default async function render( root, ctx ) {
             title: 'Evaluate',
             body: [
                 el( 'p', {}, 'Fetches the site again, re-profiles it, refreshes provider metrics (within daily limits) and recomputes the score. Takes up to 25 seconds.' ),
-                button( 'Evaluate now', { kind: 'primary', iconName: 'refresh', onClick: async () => {
+                button( 'Evaluate now', { kind: 'primary', iconName: 'refresh', control: 'actions-evaluate', onClick: async () => {
                     const res = await api.post( `/prospects/${ p.id }/evaluate`, {} );
                     // Skipped (daily limit, suppressed), failed and already-queued runs are reported as such, not as "finished".
                     reportRun( res, 'Evaluation' );
@@ -554,8 +563,8 @@ export default async function render( root, ctx ) {
         } ) );
 
         // Status
-        const statusField = formField( { type: 'select', label: 'New status', options: [ 'approved', 'qualified', 'on_hold', 'in_progress', 'acquired', 'rejected' ].map( ( s ) => ( { value: s, label: labelize( s ) } ) ), value: p.status === 'approved' ? 'on_hold' : 'approved' } );
-        const reasonField = formField( { type: 'text', label: 'Reason (recorded in the audit log)', placeholder: 'Optional for approvals; required for rejections' } );
+        const statusField = formField( { type: 'select', label: 'New status', options: [ 'approved', 'qualified', 'on_hold', 'in_progress', 'acquired', 'rejected' ].map( ( s ) => ( { value: s, label: labelize( s ) } ) ), value: p.status === 'approved' ? 'on_hold' : 'approved', control: 'actions-status' } );
+        const reasonField = formField( { type: 'text', label: 'Reason (recorded in the audit log)', placeholder: 'Optional for approvals; required for rejections', control: 'actions-status-reason' } );
         stack.appendChild( card( {
             title: 'Status',
             subtitle: `Currently ${ labelize( p.status ) }`,
@@ -563,14 +572,14 @@ export default async function render( root, ctx ) {
                 el( 'div', { class: 'lga-form-grid' }, statusField.el, reasonField.el ),
                 el( 'p', { class: 'lga-small', style: { marginTop: '8px' } }, 'Approved prospects can be packaged and queued; on-hold and rejected prospects are skipped by every automated stage.' ),
             ],
-            footer: button( 'Update status', { kind: 'primary', onClick: async () => {
+            footer: button( 'Update status', { kind: 'primary', control: 'actions-status-update', onClick: async () => {
                 const status = statusField.get();
                 const reason = String( reasonField.get() || '' ).trim();
                 if ( status === 'rejected' && reason === '' ) {
                     reasonField.setError( 'Give a reason for rejecting.' );
                     return;
                 }
-                if ( status === 'rejected' && ! ( await confirm( `Reject ${ p.domain }? It will be excluded from packaging and outreach.`, { danger: true, confirmText: 'Reject' } ) ) ) {
+                if ( status === 'rejected' && ! ( await confirm( `Reject ${ p.domain }? It will be excluded from packaging and outreach.`, { danger: true, confirmText: 'Reject', control: 'actions-status-reject-confirm' } ) ) ) {
                     return;
                 }
                 await api.post( `/prospects/${ p.id }/status`, { status, reason } );
@@ -591,6 +600,7 @@ export default async function render( root, ctx ) {
         };
         const settingField = formField( {
             type: 'select',
+            control: 'actions-automation',
             label: 'Per-site automation',
             options: AUTOMATION_SETTINGS,
             value: String( currentSetting ),
@@ -602,11 +612,11 @@ export default async function render( root, ctx ) {
                     return;
                 }
                 const reset = () => settingField.set( String( currentSetting ) );
-                if ( next === 1 && ! ( await confirm( `Always allow automated submissions to ${ p.domain }? Confirm that their terms of service permit automated listing submissions.`, { title: 'Always allow automation', confirmText: 'Yes, allow', danger: true } ) ) ) {
+                if ( next === 1 && ! ( await confirm( `Always allow automated submissions to ${ p.domain }? Confirm that their terms of service permit automated listing submissions.`, { title: 'Always allow automation', confirmText: 'Yes, allow', danger: true, control: 'actions-automation-allow-confirm' } ) ) ) {
                     reset();
                     return;
                 }
-                if ( next === 0 && currentSetting === -1 && ! ( await confirm( `Let ${ p.domain } follow the submission mode? In “Auto” mode a site scoring at or above the auto-queue threshold is submitted automatically.`, { title: 'Follow the submission mode', confirmText: 'Follow the mode' } ) ) ) {
+                if ( next === 0 && currentSetting === -1 && ! ( await confirm( `Let ${ p.domain } follow the submission mode? In “Auto” mode a site scoring at or above the auto-queue threshold is submitted automatically.`, { title: 'Follow the submission mode', confirmText: 'Follow the mode', control: 'actions-automation-inherit-confirm' } ) ) ) {
                     reset();
                     return;
                 }
@@ -641,13 +651,13 @@ export default async function render( root, ctx ) {
             } )
             .catch( () => replace( modeHost ) );
         const apiFields = [
-            formField( { type: 'url', name: 'endpoint', label: 'API endpoint', value: cfg.endpoint || '', placeholder: 'https://partner.example/api/listings', full: true } ),
-            formField( { type: 'select', name: 'method', label: 'Method', options: [ 'POST', 'PUT', 'PATCH' ], value: ( cfg.method || 'POST' ).toUpperCase() } ),
-            formField( { type: 'text', name: 'success_path', label: 'Success path (dot path in JSON response)', value: cfg.success_path || '', placeholder: 'data.id' } ),
-            formField( { type: 'text', name: 'listing_url_path', label: 'Listing URL path', value: cfg.listing_url_path || '', placeholder: 'data.url' } ),
-            formField( { type: 'password', name: 'partner_api_key', label: 'Partner API key', placeholder: 'Leave blank to keep the stored key', autocomplete: 'new-password' } ),
-            formField( { type: 'json', name: 'headers', label: 'Headers (JSON object)', value: isObject( cfg.headers ) ? cfg.headers : {}, rows: 3, full: true, hint: 'Use {{api_key}} inside values to insert the stored key.' } ),
-            formField( { type: 'textarea', name: 'body_template', label: 'Body template (JSON with {{placeholders}})', value: cfg.body_template || '', rows: 6, mono: true, full: true, hint: 'Placeholders: {{business.name}}, {{business.website}}, {{business.email}}, {{content.description}}, {{content.short_description}}, {{api_key}} …' } ),
+            formField( { type: 'url', name: 'endpoint', control: 'api-endpoint', label: 'API endpoint', value: cfg.endpoint || '', placeholder: 'https://partner.example/api/listings', full: true } ),
+            formField( { type: 'select', name: 'method', control: 'api-method', label: 'Method', options: [ 'POST', 'PUT', 'PATCH' ], value: ( cfg.method || 'POST' ).toUpperCase() } ),
+            formField( { type: 'text', name: 'success_path', control: 'api-success-path', label: 'Success path (dot path in JSON response)', value: cfg.success_path || '', placeholder: 'data.id' } ),
+            formField( { type: 'text', name: 'listing_url_path', control: 'api-listing-url-path', label: 'Listing URL path', value: cfg.listing_url_path || '', placeholder: 'data.url' } ),
+            formField( { type: 'password', name: 'partner_api_key', control: 'api-partner-api-key', label: 'Partner API key', placeholder: 'Leave blank to keep the stored key', autocomplete: 'new-password' } ),
+            formField( { type: 'json', name: 'headers', control: 'api-headers', label: 'Headers (JSON object)', value: isObject( cfg.headers ) ? cfg.headers : {}, rows: 3, full: true, hint: 'Use {{api_key}} inside values to insert the stored key.' } ),
+            formField( { type: 'textarea', name: 'body_template', control: 'api-body-template', label: 'Body template (JSON with {{placeholders}})', value: cfg.body_template || '', rows: 6, mono: true, full: true, hint: 'Placeholders: {{business.name}}, {{business.website}}, {{business.email}}, {{content.description}}, {{content.short_description}}, {{api_key}} …' } ),
         ];
         const byName = Object.fromEntries( apiFields.map( ( f ) => [ f.name, f ] ) );
         stack.appendChild( card( {
@@ -659,8 +669,8 @@ export default async function render( root, ctx ) {
                 details( 'Configured API (optional, for partners that offer a listing API)', el( 'div', { class: 'lga-stack' },
                     el( 'div', { class: 'lga-form-grid' }, apiFields.map( ( f ) => f.el ) ),
                     el( 'div', { class: 'lga-row lga-row--end' },
-                        button( 'Clear API config', { kind: 'ghost', small: true, onClick: async () => {
-                            if ( ! ( await confirm( 'Remove the configured API for this prospect?', { danger: true, confirmText: 'Remove' } ) ) ) {
+                        button( 'Clear API config', { kind: 'ghost', small: true, control: 'api-clear', onClick: async () => {
+                            if ( ! ( await confirm( 'Remove the configured API for this prospect?', { danger: true, confirmText: 'Remove', control: 'api-clear-confirm' } ) ) ) {
                                 return;
                             }
                             // automation_allowed is left out so the per-site setting is kept as it is.
@@ -668,7 +678,7 @@ export default async function render( root, ctx ) {
                             toast( 'API configuration removed.', 'success' );
                             await refresh();
                         } } ),
-                        button( 'Save API config', { kind: 'primary', small: true, onClick: async () => {
+                        button( 'Save API config', { kind: 'primary', small: true, control: 'api-save', onClick: async () => {
                             if ( ! byName.headers.valid() ) {
                                 return;
                             }
@@ -698,16 +708,16 @@ export default async function render( root, ctx ) {
                             await refresh();
                         } } ),
                     ),
-                ), { open: Boolean( cfg.endpoint ) } ),
+                ), { open: Boolean( cfg.endpoint ), control: 'api-toggle' } ),
             ],
         } ) );
 
         // Notes
-        const notesField = formField( { type: 'textarea', label: 'Internal notes', value: p.notes || '', rows: 4, placeholder: 'Context for reviewers…' } );
+        const notesField = formField( { type: 'textarea', label: 'Internal notes', value: p.notes || '', rows: 4, placeholder: 'Context for reviewers…', control: 'actions-notes' } );
         stack.appendChild( card( {
             title: 'Notes',
             body: notesField.el,
-            footer: button( 'Save notes', { onClick: async () => {
+            footer: button( 'Save notes', { control: 'actions-notes-save', onClick: async () => {
                 await api.post( `/prospects/${ p.id }/notes`, { notes: notesField.get() } );
                 toast( 'Notes saved.', 'success' );
             } } ),
@@ -717,8 +727,8 @@ export default async function render( root, ctx ) {
         stack.appendChild( card( {
             title: 'Danger zone',
             body: el( 'div', { class: 'lga-row' },
-                button( 'Suppress domain', { kind: 'danger', iconName: 'shield', onClick: async () => {
-                    const reason = await prompt( `Suppressing ${ p.domain } blocks it from discovery, packaging and outreach permanently (until removed from the suppression list).`, { title: 'Suppress domain', label: 'Reason', confirmText: 'Suppress', danger: true } );
+                button( 'Suppress domain', { kind: 'danger', iconName: 'shield', control: 'actions-suppress', onClick: async () => {
+                    const reason = await prompt( `Suppressing ${ p.domain } blocks it from discovery, packaging and outreach permanently (until removed from the suppression list).`, { title: 'Suppress domain', label: 'Reason', confirmText: 'Suppress', danger: true, control: 'actions-suppress-dialog' } );
                     if ( reason === null ) {
                         return;
                     }
@@ -726,8 +736,8 @@ export default async function render( root, ctx ) {
                     toast( 'Domain suppressed.', 'success' );
                     await refresh();
                 } } ),
-                button( 'Delete prospect', { kind: 'danger', iconName: 'trash', onClick: async () => {
-                    if ( ! ( await confirm( `Delete ${ p.domain } with its opportunities, submissions, contacts and outreach messages? Backlinks and audit history are kept. This cannot be undone. A prospect that was already sent a submission or an email cannot be deleted (those records prevent a duplicate submission or a repeat contact); use “Suppress domain” instead.`, { danger: true, confirmText: 'Delete' } ) ) ) {
+                button( 'Delete prospect', { kind: 'danger', iconName: 'trash', control: 'actions-delete', onClick: async () => {
+                    if ( ! ( await confirm( `Delete ${ p.domain } with its opportunities, submissions, contacts and outreach messages? Backlinks and audit history are kept. This cannot be undone. A prospect that was already sent a submission or an email cannot be deleted (those records prevent a duplicate submission or a repeat contact); use “Suppress domain” instead.`, { danger: true, confirmText: 'Delete', control: 'actions-delete-confirm' } ) ) ) {
                         return;
                     }
                     try {
@@ -739,7 +749,7 @@ export default async function render( root, ctx ) {
                     dr.close();
                     list.reload();
                 } } ),
-                copyButton( () => JSON.stringify( { domain: p.domain, score: p.score, status: p.status, recommended_action: p.recommended_action }, null, 2 ), 'Copy summary' ),
+                copyButton( () => JSON.stringify( { domain: p.domain, score: p.score, status: p.status, recommended_action: p.recommended_action }, null, 2 ), 'Copy summary', { control: 'actions-copy-summary' } ),
             ),
         } ) );
 
